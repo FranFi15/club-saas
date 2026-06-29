@@ -1,0 +1,68 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Deploy: New > Blueprint > connect this repo > set secret env vars in dashboard.
+services:
+  - type: web
+    name: club-super
+    runtime: node
+    plan: free
+    rootDir: super
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: MONGO_DB_HOST
+        sync: false
+      - key: INTERNAL_ADMIN_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+
+  - type: web
+    name: club-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPER_ADMIN_URL
+        sync: false
+      - key: INTERNAL_ADMIN_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: MERCADOPAGO_CLIENT_ID
+        sync: false
+      - key: MERCADOPAGO_CLIENT_SECRET
+        sync: false
+      - key: MERCADOPAGO_OAUTH_REDIRECT_URI
+        sync: false
+      - key: MP_OAUTH_STATE_SECRET
+        sync: false
+      - key: MERCADOPAGO_OAUTH_USE_PKCE
+        value: "true"
+      - key: PUBLIC_API_URL
+        sync: false
+      - key: BACKEND_URL
+        sync: false
+      - key: MERCADOPAGO_ACCESS_TOKEN
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: APP_DEEP_LINK_SCHEME
+        value: clubapp

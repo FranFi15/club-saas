@@ -1,0 +1,29 @@
+{
+  "name": "club-saas-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend",
+    "super",
+    "superfront"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:super": "npm run dev --workspace=super",
+    "dev:superfront": "npm run dev --workspace=superfront",
+    "dev:frontend": "npm run start --workspace=frontend",
+    "start:all": "npx concurrently \"npm run dev:super\" \"npm run dev:backend\" \"npm run dev:superfront\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "overrides": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "dependencies": {
+    "object-assign": "^4.1.1",
+    "tinyglobby": "^0.2.16"
+  }
+}

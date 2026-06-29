@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Expo / React Native
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Build / native
+/ios
+/android
+.kotlin/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# OS / IDE
+.DS_Store
+*.pem
+.idea/
+.vscode/
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Vite
+superfront/dist/

@@ -1,0 +1,181 @@
+import React, { useContext, useCallback, useState, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { Platform } from 'react-native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { ClubContext } from '../context/ClubContext';
+import { ThemeContext } from '../context/ThemeContext';
+
+import EstructuraHubScreen from '../screens/admin/EstructuraHubScreen';
+import EstructuraScreen from '../screens/admin/EstructuraScreen';
+import CategoriasScreen from '../screens/admin/CategoriasScreen';
+import DetalleCategoriaScreen from '../screens/admin/DetalleCategoriaScreen';
+import UsuariosScreen from '../screens/admin/UsuariosScreen';
+import EspaciosFisicosScreen from '../screens/admin/EspaciosFisicosScreen';
+import GrillaEntrenamientosScreen from '../screens/admin/GrillaEntrenamientosScreen';
+import AdminEnrollmentRequestsScreen from '../screens/admin/AdminEnrollmentRequestsScreen';
+import AdminGestionHubScreen from '../screens/admin/AdminGestionHubScreen';
+import AlquileresScreen from '../screens/admin/AlquileresScreen';
+import NoticiasScreen from '../screens/admin/NoticiasScreen';
+import AdminRequestDocScreen from '../screens/admin/AdminRequestDocScreen';
+import AdminClubEntryScanScreen from '../screens/admin/AdminClubEntryScanScreen';
+import CoachTeamDocumentsScreen from '../screens/coach/CoachTeamDocumentsScreen';
+import MemberMediaViewerScreen from '../screens/member/MemberMediaViewerScreen';
+import FinanzasScreen from '../screens/admin/FinanzasScreen';
+import AdminProfileScreen from '../screens/admin/AdminProfileScreen';
+import EditProfileScreen from '../screens/profile/EditProfileScreen';
+import { tabPressResetToRoot } from './tabPressResetToRoot';
+import { useBadges } from '../context/BadgeContext';
+import { tabBadgeLabel } from '../utils/tabBadgeLabel';
+import { getToken } from '../utils/storage';
+import { isClubOwnerRole } from '../constants/appRoles';
+import TabBarClubLogo from '../components/TabBarClubLogo';
+
+const Tab = createBottomTabNavigator();
+const EstructuraStack = createNativeStackNavigator();
+const GestionStack = createNativeStackNavigator();
+const FinanzasStack = createNativeStackNavigator();
+const PerfilStack = createNativeStackNavigator();
+
+function EstructuraStackNavigator() {
+  return (
+    <EstructuraStack.Navigator screenOptions={{ headerShown: false }}>
+      <EstructuraStack.Screen name="EstructuraHome" component={EstructuraHubScreen} />
+      <EstructuraStack.Screen name="SolicitudesInscripcion" component={AdminEnrollmentRequestsScreen} />
+      <EstructuraStack.Screen name="Usuarios" component={UsuariosScreen} />
+      <EstructuraStack.Screen name="Estructura" component={EstructuraScreen} />
+      <EstructuraStack.Screen name="Categorias" component={CategoriasScreen} />
+      <EstructuraStack.Screen name="DetalleCategoria" component={DetalleCategoriaScreen} />
+      <EstructuraStack.Screen name="Espacios" component={EspaciosFisicosScreen} />
+      <EstructuraStack.Screen name="Grilla" component={GrillaEntrenamientosScreen} />
+      <EstructuraStack.Screen name="EscanearIngreso" component={AdminClubEntryScanScreen} />
+      <EstructuraStack.Screen name="Alquileres" component={AlquileresScreen} />
+    </EstructuraStack.Navigator>
+  );
+}
+
+function GestionStackNavigator() {
+  return (
+    <GestionStack.Navigator screenOptions={{ headerShown: false }}>
+      <GestionStack.Screen name="GestionMenu" component={AdminGestionHubScreen} />
+      <GestionStack.Screen name="Alquileres" component={AlquileresScreen} />
+      <GestionStack.Screen name="Noticias" component={NoticiasScreen} />
+      <GestionStack.Screen name="PedirDocumentacion" component={AdminRequestDocScreen} />
+      <GestionStack.Screen name="EscanearIngreso" component={AdminClubEntryScanScreen} />
+      <GestionStack.Screen
+        name="RevisarDocumentacion"
+        component={CoachTeamDocumentsScreen}
+        initialParams={{ variant: 'admin' }}
+      />
+      <GestionStack.Screen name="CoachMediaViewer" component={MemberMediaViewerScreen} />
+    </GestionStack.Navigator>
+  );
+}
+
+function FinanzasStackNavigator() {
+  return (
+    <FinanzasStack.Navigator screenOptions={{ headerShown: false }}>
+      <FinanzasStack.Screen name="Finanzas" component={FinanzasScreen} />
+    </FinanzasStack.Navigator>
+  );
+}
+
+function PerfilStackNavigator() {
+  return (
+    <PerfilStack.Navigator screenOptions={{ headerShown: false }}>
+      <PerfilStack.Screen name="Perfil" component={AdminProfileScreen} />
+      <PerfilStack.Screen name="EditProfile" component={EditProfileScreen} />
+    </PerfilStack.Navigator>
+  );
+}
+
+export default function AdminTabNavigator() {
+  const { clubData } = useContext(ClubContext);
+  const { theme, isDarkMode } = useContext(ThemeContext);
+  const { tab, refresh } = useBadges();
+  const colorMarca = clubData?.primaryColor || '#3b82f6';
+  const [viewerRol, setViewerRol] = useState('');
+
+  useEffect(() => {
+    getToken('userRol').then((r) => setViewerRol(r || ''));
+  }, []);
+
+  const estructuraTabLabel = isClubOwnerRole(viewerRol) ? 'Estructura' : 'Operaciones';
+
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
+  const insets = useSafeAreaInsets();
+  const tabBottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 10);
+  const tabBarHeight = 64 + tabBottomPad;
+
+  return (
+    <Tab.Navigator
+      key={isDarkMode ? 'dark' : 'light'}
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarActiveTintColor: colorMarca,
+        tabBarInactiveTintColor: theme.icon,
+        tabBarStyle: {
+          backgroundColor: theme.surface,
+          borderTopColor: theme.border,
+          borderTopWidth: 1,
+          elevation: 12,
+          height: tabBarHeight,
+          paddingHorizontal: 4,
+          paddingTop: 10,
+          paddingBottom: tabBottomPad,
+          minHeight: tabBarHeight,
+        },
+        tabBarItemStyle: { paddingVertical: 4 },
+        tabBarLabelStyle: { fontSize: 10, marginBottom: 2 },
+        tabBarIcon: ({ focused, color }) => {
+          const iconSize = 22;
+          if (route.name === 'Estructura') {
+            return (
+              <TabBarClubLogo
+                focused={focused}
+                color={color}
+                fallbackIcon="business-outline"
+                fallbackIconFocused="business"
+              />
+            );
+          }
+          let iconName = 'ellipse-outline';
+          if (route.name === 'Gestión') iconName = focused ? 'briefcase' : 'briefcase-outline';
+          if (route.name === 'Finanzas') iconName = focused ? 'cash' : 'cash-outline';
+          if (route.name === 'Perfil') iconName = focused ? 'person' : 'person-outline';
+          return <Ionicons name={iconName} size={iconSize} color={color} />;
+        },
+      })}
+    >
+      <Tab.Screen
+        name="Estructura"
+        component={EstructuraStackNavigator}
+        options={{ tabBarLabel: estructuraTabLabel, tabBarBadge: tabBadgeLabel(tab('estructura')) }}
+        listeners={tabPressResetToRoot('Estructura', 'EstructuraHome')}
+      />
+      <Tab.Screen
+        name="Gestión"
+        component={GestionStackNavigator}
+        options={{ tabBarBadge: tabBadgeLabel(tab('gestion')) }}
+        listeners={tabPressResetToRoot('Gestión', 'GestionMenu')}
+      />
+      <Tab.Screen
+        name="Finanzas"
+        component={FinanzasStackNavigator}
+        options={{ tabBarBadge: tabBadgeLabel(tab('finanzas')) }}
+        listeners={tabPressResetToRoot('Finanzas', 'Finanzas')}
+      />
+      <Tab.Screen
+        name="Perfil"
+        component={PerfilStackNavigator}
+        listeners={tabPressResetToRoot('Perfil', 'Perfil')}
+      />
+    </Tab.Navigator>
+  );
+}
