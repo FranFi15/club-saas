@@ -23,12 +23,16 @@ import ProfileClubEntryButton from '../../components/ProfileClubEntryButton';
 import ProfileLogoutButton from '../../components/ProfileLogoutButton';
 import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
 import ProfileInfoRow, { profileCardStyles } from '../../components/ProfileInfoRow';
+import ProfileLinkRow from '../../components/ProfileLinkRow';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { useBadges } from '../../context/BadgeContext';
+import { tabBadgeLabel } from '../../utils/tabBadgeLabel';
 
 export default function AthleteProfileScreen({ navigation }) {
   const { clubData, setClubData, clearSession } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const { profile, puedePagar, cuotasEnApp, refresh } = useMember();
+  const { tab } = useBadges();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const profileCacheKey = clubData?.urlIdentifier ? `athlete-profile-view:${clubData.urlIdentifier}` : '';
 
@@ -92,6 +96,7 @@ export default function AthleteProfileScreen({ navigation }) {
         title={fullName}
         subtitle={clubData?.nombre || 'Tu club'}
         heroRight={<ProfileHeaderAvatar user={avatarUser} />}
+        showNotifications={false}
         footer={
           <CoachHeaderBadge>
             <Ionicons name="barbell-outline" size={16} color="#fff" />
@@ -115,11 +120,22 @@ export default function AthleteProfileScreen({ navigation }) {
           />
           <ProfileInfoRow icon="call-outline" label="Teléfono" value={profile?.telefono} theme={theme} />
           <ProfileInfoRow icon="location-outline" label="Dirección" value={profile?.direccion} theme={theme} />
-          <ProfileInfoRow icon="mail-outline" label="Email" value={emailHint || profile?.email} theme={theme} isLast={!cuotasEnApp} />
-          {cuotasEnApp ? (
-            <ProfileInfoRow icon="wallet-outline" label="Pagos" value={pagosHint} theme={theme} isLast />
-          ) : null}
+          <ProfileInfoRow icon="mail-outline" label="Email" value={emailHint || profile?.email} theme={theme} isLast />
         </View>
+
+        {cuotasEnApp ? (
+          <View style={[profileCardStyles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <ProfileLinkRow
+              icon="wallet-outline"
+              title="Cuotas"
+              subtitle={pagosHint || 'Ver y pagar tus cuotas'}
+              onPress={() => navigation.navigate('AthletePayments')}
+              theme={theme}
+              badge={tabBadgeLabel(tab('cuotas'))}
+              isLast
+            />
+          </View>
+        ) : null}
 
         <ProfileClubEntryButton
           theme={theme}

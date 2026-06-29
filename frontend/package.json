@@ -6,7 +6,8 @@
     "start": "expo start --lan",
     "android": "expo start --lan --android",
     "ios": "expo start --lan --ios",
-    "web": "expo start --lan --web"
+    "web": "expo start --lan --web",
+    "build:web": "expo export --platform web"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

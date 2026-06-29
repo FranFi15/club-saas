@@ -16,7 +16,7 @@ import { ThemeContext } from '../context/ThemeContext';
 
 import AthleteAgendaStack from './AthleteAgendaStack';
 
-import AthleteCuotasStack from './AthleteCuotasStack';
+import AthleteWellnessStack from './AthleteWellnessStack';
 
 import AthleteProfileStackNav from './AthleteProfileStack';
 
@@ -111,7 +111,7 @@ function AthleteTabs() {
           const map = {
             AthleteMetrics: focused ? 'analytics' : 'analytics-outline',
 
-            AthleteCuotas: focused ? 'wallet' : 'wallet-outline',
+            AthleteWellness: focused ? 'fitness' : 'fitness-outline',
 
             AthleteComunicar: focused ? 'chatbubbles' : 'chatbubbles-outline',
 
@@ -138,18 +138,17 @@ function AthleteTabs() {
         listeners={tabPressResetToRoot('AthleteAgenda', 'AthleteAgendaMain')}
 
       />
+    <Tab.Screen
 
-      <Tab.Screen
+name="AthleteWellness"
 
-        name="AthleteMetrics"
+component={AthleteWellnessStack}
 
-        component={AthleteMetricsStack}
+options={{ tabBarLabel: 'Wellness' }}
 
-        options={{ tabBarLabel: 'Mis métricas' }}
+listeners={tabPressResetToRoot('AthleteWellness', 'AthleteWellnessMain')}
 
-        listeners={tabPressResetToRoot('AthleteMetrics', 'AthleteMetricsMain')}
-
-      />
+/>
 
 <Tab.Screen
 
@@ -162,19 +161,17 @@ options={{ tabBarLabel: 'Comunicación', tabBarBadge: tabBadgeLabel(tab('comunic
 listeners={tabPressResetToRoot('AthleteComunicar', 'MemberCommsHub')}
 
 />
-
 <Tab.Screen
 
-name="AthleteCuotas"
+        name="AthleteMetrics"
 
-component={AthleteCuotasStack}
+        component={AthleteMetricsStack}
 
-options={{ tabBarLabel: 'Cuotas', tabBarBadge: tabBadgeLabel(tab('cuotas')) }}
+        options={{ tabBarLabel: 'Mis métricas' }}
 
-listeners={tabPressResetToRoot('AthleteCuotas', 'AthleteCuotasMain')}
+        listeners={tabPressResetToRoot('AthleteMetrics', 'AthleteMetricsMain')}
 
-/>
-
+      />
 
       <Tab.Screen
 
@@ -182,7 +179,10 @@ listeners={tabPressResetToRoot('AthleteCuotas', 'AthleteCuotasMain')}
 
         component={AthleteProfileStackNav}
 
-        options={{ tabBarLabel: 'Perfil', tabBarBadge: tabBadgeLabel(tab('perfil')) }}
+        options={{
+          tabBarLabel: 'Perfil',
+          tabBarBadge: tabBadgeLabel(tab('cuotas')),
+        }}
 
       />
 

@@ -24,7 +24,7 @@ import { platformCardShadow } from '../../utils/platformShadow';
 
 const SHORTCUTS = [
   { tab: 'TutorAgenda', icon: 'calendar-outline', label: 'Agenda' },
-  { tab: 'TutorPayments', icon: 'wallet-outline', label: 'Cuotas' },
+  { tab: 'TutorProfile', screen: 'TutorPayments', icon: 'wallet-outline', label: 'Cuotas' },
   {
     tab: 'TutorComunicar',
     screen: 'MemberCommsHub',
@@ -139,7 +139,7 @@ export default function TutorHomeScreen({ navigation }) {
                   </Text>
                   <Text style={[styles.summarySub, { color: theme.textMuted }]}>
                     {activeHijo.edad != null ? `${activeHijo.edad} años` : 'Edad no registrada'} · Podés pagar cuotas
-                    desde la pestaña Cuotas
+                    desde tu perfil
                   </Text>
                   <View style={styles.statsRow}>
                     <View style={[styles.statBox, { backgroundColor: theme.background }]}>
@@ -177,7 +177,7 @@ export default function TutorHomeScreen({ navigation }) {
                       {activeSummary.cuotasPendientes > 0 ? (
                         <TouchableOpacity
                           style={[styles.alertRow, { borderColor: '#ef444444' }]}
-                          onPress={() => navigation.navigate('TutorPayments')}
+                          onPress={() => navigation.navigate('TutorProfile', { screen: 'TutorPayments' })}
                         >
                           <Ionicons name="wallet-outline" size={20} color="#ef4444" />
                           <Text style={[styles.alertTxt, { color: theme.text }]}>

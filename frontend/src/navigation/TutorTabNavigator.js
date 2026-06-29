@@ -8,7 +8,6 @@ import { ClubContext } from '../context/ClubContext';
 import { ThemeContext } from '../context/ThemeContext';
 import TutorHomeScreen from '../screens/tutor/TutorHomeScreen';
 import AthleteAgendaStack from './AthleteAgendaStack';
-import MemberPaymentsScreen from '../screens/member/MemberPaymentsScreen';
 import TutorProfileStackNav from './TutorProfileStack';
 import MemberCommsStack from './MemberCommsStack';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
@@ -64,7 +63,6 @@ function TutorTabs() {
           }
           const map = {
             TutorAgenda: focused ? 'calendar' : 'calendar-outline',
-            TutorPayments: focused ? 'wallet' : 'wallet-outline',
             TutorComunicar: focused ? 'chatbubbles' : 'chatbubbles-outline',
             TutorProfile: focused ? 'person' : 'person-outline',
           };
@@ -85,11 +83,6 @@ function TutorTabs() {
         listeners={tabPressResetToRoot('TutorAgenda', 'AthleteAgendaMain')}
       />
       <Tab.Screen
-        name="TutorPayments"
-        component={MemberPaymentsScreen}
-        options={{ tabBarLabel: 'Cuotas', tabBarBadge: tabBadgeLabel(tab('cuotas')) }}
-      />
-      <Tab.Screen
         name="TutorComunicar"
         component={MemberCommsStack}
         options={{ tabBarLabel: 'Comunicación', tabBarBadge: tabBadgeLabel(tab('comunicar')) }}
@@ -98,7 +91,7 @@ function TutorTabs() {
       <Tab.Screen
         name="TutorProfile"
         component={TutorProfileStackNav}
-        options={{ tabBarLabel: 'Perfil', tabBarBadge: tabBadgeLabel(tab('perfil')) }}
+        options={{ tabBarLabel: 'Perfil', tabBarBadge: tabBadgeLabel(tab('cuotas')) }}
       />
     </Tab.Navigator>
   );

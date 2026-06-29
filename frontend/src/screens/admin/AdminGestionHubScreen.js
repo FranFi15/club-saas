@@ -97,11 +97,12 @@ export default function AdminGestionHubScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  headerWrap: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
+  headerWrap: { width: '100%', paddingTop: 8, paddingBottom: 4 },
   header: {
-    borderRadius: 12,
-    paddingLeft: 52,
-    paddingRight: 20,
+    borderRadius: 0,
+    width: '100%',
+    paddingHorizontal: 16,
+    paddingRight: 52,
     paddingTop: 18,
     paddingBottom: 22,
     position: 'relative',
@@ -121,7 +122,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { color: '#fff', fontSize: 22, fontWeight: 'bold' },
   headerSub: { color: '#e5e7eb', fontSize: 14, marginTop: 8, lineHeight: 20 },
-  headerBell: { position: 'absolute', top: 10, left: 12, zIndex: 2 },
+  headerBell: { position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center', zIndex: 2 },
   body: { flex: 1 },
   scrollContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32 },
 });

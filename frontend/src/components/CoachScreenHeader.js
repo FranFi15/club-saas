@@ -29,15 +29,23 @@ export default function CoachScreenHeader({
   reserveOverlaySpace = false,
   showNotifications = true,
 }) {
-  const toolbarLeft = showNotifications ? (
+  const toolbarLeft = onBack ? (
     <CoachHeaderActions>
-      <NotificationBell />
+      <TouchableOpacity
+        onPress={onBack}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        style={styles.toolbarBtn}
+        accessibilityRole="button"
+        accessibilityLabel="Volver"
+      >
+        <Ionicons name="arrow-back" size={20} color="#fff" />
+      </TouchableOpacity>
     </CoachHeaderActions>
   ) : null;
   const toolbarRight = rightAccessory ? (
     <CoachHeaderActions>{rightAccessory}</CoachHeaderActions>
   ) : null;
-  const showTopToolbar = showNotifications || !!rightAccessory;
+  const showTopToolbar = onBack || !!rightAccessory;
   const heroRightInset = heroRight ? COACH_HEADER_HERO_RIGHT_SIZE + 12 : 0;
 
   return (
@@ -62,10 +70,15 @@ export default function CoachScreenHeader({
           style={[
             styles.heroBody,
             styles.heroBodyCentered,
-            onBack && styles.heroBodyWithBack,
-            heroRightInset > 0 && { paddingRight: Math.max(heroRightInset, onBack ? BACK_BTN_SIZE + 10 : 0) },
+            showNotifications && styles.heroBodyWithBack,
+            heroRightInset > 0 && {
+              paddingRight: Math.max(
+                heroRightInset,
+                showNotifications ? BACK_BTN_SIZE + 10 : 0,
+              ),
+            },
             reserveOverlaySpace && styles.heroBodyFabInset,
-            onBack && reserveOverlaySpace && styles.heroBodyWithBackAndFabs,
+            showNotifications && reserveOverlaySpace && styles.heroBodyWithBackAndFabs,
           ]}
         >
           {kicker ? (
@@ -92,17 +105,14 @@ export default function CoachScreenHeader({
           </View>
         ) : null}
 
-        {onBack ? (
-          <View style={[styles.backMidRight, heroRightInset > 0 && { right: heroRightInset + 8 }]} pointerEvents="box-none">
-            <TouchableOpacity
-              onPress={onBack}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={styles.toolbarBtn}
-              accessibilityRole="button"
-              accessibilityLabel="Volver"
-            >
-              <Ionicons name="arrow-back" size={20} color="#fff" />
-            </TouchableOpacity>
+        {showNotifications ? (
+          <View
+            style={[styles.actionMidRight, heroRightInset > 0 && { right: heroRightInset + 8 }]}
+            pointerEvents="box-none"
+          >
+            <CoachHeaderActions>
+              <NotificationBell />
+            </CoachHeaderActions>
           </View>
         ) : null}
       </View>
@@ -160,7 +170,7 @@ export function CoachHeaderBadge({ children }) {
 }
 
 const styles = StyleSheet.create({
-  heroWrap: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
+  heroWrap: { width: '100%', paddingTop: 8, paddingBottom: 4 },
   headerFabHost: {
     position: 'relative',
     zIndex: 2,
@@ -168,7 +178,7 @@ const styles = StyleSheet.create({
   },
   headerFabOverlay: {
     position: 'absolute',
-    right: 28,
+    right: 12,
     bottom: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -176,7 +186,8 @@ const styles = StyleSheet.create({
     zIndex: 3,
   },
   hero: {
-    borderRadius: 12,
+    borderRadius: 0,
+    width: '100%',
     paddingHorizontal: 16,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -214,7 +225,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 2,
   },
-  backMidRight: {
+  actionMidRight: {
     position: 'absolute',
     right: 12,
     top: 0,

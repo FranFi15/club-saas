@@ -351,7 +351,7 @@ export default function UserFormModal({ visible, onClose, onSave, initialData, i
                   <View style={{ flex: 1, paddingRight: 12 }}>
                     <Text style={[styles.switchTitle, { color: theme.text }]}>Cuotas en la app</Text>
                     <Text style={[styles.switchHint, { color: theme.textMuted }]}>
-                      Si está activo, el atleta ve la pestaña Cuotas y puede abonar (según su edad). Si no, solo un tutor puede pagar por él.
+                      Si está activo, el atleta ve Cuotas en su perfil y puede abonar (según su edad). Si no, solo un tutor puede pagar por él.
                     </Text>
                   </View>
                   <Switch

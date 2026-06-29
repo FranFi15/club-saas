@@ -36,11 +36,12 @@ import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusL
 import { isClubOwnerRole } from '../../constants/appRoles';
 
 const financeHeader = StyleSheet.create({
-  headerWrap: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
+  headerWrap: { width: '100%', paddingTop: 8, paddingBottom: 4 },
   headerCard: {
-    borderRadius: 5,
-    paddingLeft: 52,
-    paddingRight: 20,
+    borderRadius: 0,
+    width: '100%',
+    paddingHorizontal: 16,
+    paddingRight: 52,
     paddingTop: 18,
     paddingBottom: 22,
     position: 'relative',
@@ -60,7 +61,7 @@ const financeHeader = StyleSheet.create({
   },
   headerTitle: { color: '#fff', fontSize: 22, fontWeight: 'bold' },
   headerSub: { color: '#e5e7eb', fontSize: 14, marginTop: 8, lineHeight: 20 },
-  headerBell: { position: 'absolute', top: 10, left: 12, zIndex: 2 },
+  headerBell: { position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center', zIndex: 2 },
   monthNav: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -20,7 +20,7 @@ export const useClubs = () => {
 
     const fetchClubs = async () => {
         try {
-            const { data } = await api.get('http://localhost:4000/api/clubs');
+            const { data } = await api.get('/clubs');
             setClubs(data);
         } catch (error) {
             toast.error('Error al cargar la lista de clubes');
@@ -35,10 +35,10 @@ export const useClubs = () => {
         e.preventDefault();
         try {
             if (editingId) {
-                await api.put(`http://localhost:4000/api/clubs/${editingId}`, formData);
+                await api.put(`/clubs/${editingId}`, formData);
                 toast.success('Club actualizado exitosamente');
             } else {
-                const { data } = await api.post('http://localhost:4000/api/clubs', formData);
+                const { data } = await api.post('/clubs', formData);
                 const adminEmail = data?.admin?.email;
                 toast.success(
                     adminEmail
@@ -80,7 +80,7 @@ export const useClubs = () => {
     const handleDelete = async (id) => {
         if (window.confirm('¿Seguro que querés eliminar este club? Se perderá toda su base de datos.')) {
             try {
-                await api.delete(`http://localhost:4000/api/clubs/${id}`);
+                await api.delete(`/clubs/${id}`);
                 toast.success('Club eliminado correctamente');
                 fetchClubs();
             } catch (error) {
@@ -91,7 +91,7 @@ export const useClubs = () => {
 
     const handleStatusChange = async (id, newStatus) => {
         try {
-            await api.patch(`http://localhost:4000/api/clubs/${id}`, { estadoSuscripcion: newStatus });
+            await api.patch(`/clubs/${id}`, { estadoSuscripcion: newStatus });
             toast.success('Estado actualizado correctamente');
             fetchClubs(); 
         } catch (error) {

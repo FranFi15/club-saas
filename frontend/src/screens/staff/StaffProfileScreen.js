@@ -95,6 +95,7 @@ export default function StaffProfileScreen({ navigation }) {
         title={fullName}
         subtitle={clubData?.nombre || 'Tu club'}
         heroRight={profile ? <ProfileHeaderAvatar user={profile} /> : null}
+        showNotifications={false}
         footer={
           <CoachHeaderBadge>
             <Ionicons name="person-outline" size={16} color="#fff" />

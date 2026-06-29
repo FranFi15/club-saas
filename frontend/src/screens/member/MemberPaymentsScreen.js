@@ -11,7 +11,6 @@ import {
   Linking,
   SectionList,
   Modal,
-  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,7 +27,6 @@ import { MIN_AGE_SELF_PAY } from '../../utils/ageHelper';
 import { useBadgesOptional } from '../../context/BadgeContext';
 import SelectPaymentsModal from '../../components/SelectPaymentsModal';
 import PaymentPaySummary from '../../components/PaymentPaySummary';
-import MemberWellnessSection from '../../components/MemberWellnessSection';
 import MemberPayFlowModal from '../../components/MemberPayFlowModal';
 
 const MESES = [
@@ -88,7 +86,6 @@ export default function MemberPaymentsScreen({ navigation }) {
   };
 
   const showCuotas = isTutor || cuotasEnApp;
-  const showWellness = !isTutor;
 
   const applyPayments = useCallback((data) => {
     setList(data.list);
@@ -322,27 +319,15 @@ export default function MemberPaymentsScreen({ navigation }) {
     ? mercadoPagoReady
       ? 'Cuotas de tus hijos · Mercado Pago o transferencia'
       : 'Cuotas de tus hijos · transferencia con comprobante'
-    : showCuotas
-      ? mercadoPagoReady
-        ? puedePagar
-          ? 'Wellness y cuotas · Mercado Pago o transferencia'
-          : `Wellness y cuotas · menores de ${MIN_AGE_SELF_PAY} años pagan por tutor`
-        : puedePagar
-          ? 'Wellness y cuotas · transferencia con comprobante'
-          : `Wellness y cuotas · menores de ${MIN_AGE_SELF_PAY} años pagan por tutor`
-      : 'Contanos cómo te sentís y cómo fue el entreno';
+    : mercadoPagoReady
+      ? puedePagar
+        ? 'Mercado Pago o transferencia'
+        : `Menores de ${MIN_AGE_SELF_PAY} años pagan por tutor`
+      : puedePagar
+        ? 'Transferencia con comprobante'
+        : `Menores de ${MIN_AGE_SELF_PAY} años pagan por tutor`;
 
-  const wellnessHeader = showWellness ? (
-    <MemberWellnessSection
-      clubData={clubData}
-      theme={theme}
-      colorMarca={colorMarca}
-      navigation={navigation}
-      onError={showAlert}
-    />
-  ) : null;
-
-  const cuotasHeader = showCuotas ? (
+  const listHeader = showCuotas ? (
     <>
       {!isTutor ? (
         <Text style={[styles.sectionHdr, styles.cuotasSectionHdr, { color: theme.text }]}>Cuotas</Text>
@@ -374,14 +359,7 @@ export default function MemberPaymentsScreen({ navigation }) {
     </>
   ) : null;
 
-  const listHeader = (
-    <>
-      {wellnessHeader}
-      {cuotasHeader}
-    </>
-  );
-
-  if (!isTutor && !showCuotas && !showWellness) {
+  if (!showCuotas) {
     return null;
   }
 
@@ -424,13 +402,6 @@ export default function MemberPaymentsScreen({ navigation }) {
         <Text style={[styles.empty, { color: theme.textMuted }]}>No hay atletas vinculados a tu cuenta.</Text>
       ) : !isTutor && !memberId ? (
         <Text style={[styles.empty, { color: theme.textMuted }]}>No se pudo cargar tu perfil.</Text>
-      ) : !showCuotas && showWellness ? (
-        <ScrollView
-          contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
-        >
-          {listHeader}
-        </ScrollView>
       ) : (
         <>
           {isTutor ? (

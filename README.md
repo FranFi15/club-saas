@@ -11,7 +11,13 @@ Monorepo for multi-tenant sports club management.
 
 ## Deploy
 
-See [DEPLOY.md](./DEPLOY.md) for GitHub + Render setup and Mercado Pago OAuth URLs.
+| Package | Host |
+|---------|------|
+| `super`, `backend` | [Render](https://render.com) (`render.yaml`) |
+| `frontend` | [Vercel](https://vercel.com) (`frontend/vercel.json`) |
+| `superfront` | Local (`npm run dev` in `superfront/`) |
+
+See [DEPLOY.md](./DEPLOY.md) for env vars and Mercado Pago OAuth setup.
 
 ## Local dev
 

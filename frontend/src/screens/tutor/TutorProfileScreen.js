@@ -24,12 +24,16 @@ import ProfileEditDataButton from '../../components/ProfileEditDataButton';
 import ProfileClubEntryButton from '../../components/ProfileClubEntryButton';
 import ProfileLogoutButton from '../../components/ProfileLogoutButton';
 import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
+import ProfileLinkRow from '../../components/ProfileLinkRow';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { useBadges } from '../../context/BadgeContext';
+import { tabBadgeLabel } from '../../utils/tabBadgeLabel';
 
 export default function TutorProfileScreen({ navigation }) {
   const { clubData, setClubData, clearSession } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const { profile, hijos, refresh } = useMember();
+  const { tab } = useBadges();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const profileCacheKey = clubData?.urlIdentifier ? `tutor-profile-view:${clubData.urlIdentifier}` : '';
 
@@ -114,6 +118,7 @@ export default function TutorProfileScreen({ navigation }) {
         title={fullName}
         subtitle={clubData?.nombre || 'Tu club'}
         heroRight={profile ? <ProfileHeaderAvatar user={profile} /> : null}
+        showNotifications={false}
         footer={
           <CoachHeaderBadge>
             <Ionicons name="people-outline" size={16} color="#fff" />
@@ -158,6 +163,18 @@ export default function TutorProfileScreen({ navigation }) {
         </View>
 
         <View style={styles.actions}>
+          <View style={[styles.linkCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <ProfileLinkRow
+              icon="wallet-outline"
+              title="Cuotas"
+              subtitle="Pagá las cuotas de tus atletas"
+              onPress={() => navigation.navigate('TutorPayments')}
+              theme={theme}
+              badge={tabBadgeLabel(tab('cuotas'))}
+              isLast
+            />
+          </View>
+
           {hijos.length > 0 ? (
             <View
               style={[
@@ -174,7 +191,7 @@ export default function TutorProfileScreen({ navigation }) {
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.paymentsToggleTitle, { color: theme.text }]}>Pagos en la app</Text>
                   <Text style={[styles.paymentsToggleSub, { color: theme.textMuted }]}>
-                    {cuotasEnabledCount} de {hijos.length} con pestaña Cuotas activa
+                    {cuotasEnabledCount} de {hijos.length} con acceso a Cuotas en su perfil
                   </Text>
                 </View>
                 <Ionicons
@@ -187,7 +204,7 @@ export default function TutorProfileScreen({ navigation }) {
               {paymentsOpen ? (
                 <View style={[styles.paymentsBody, { borderTopColor: theme.border }]}>
                   <Text style={[styles.sectionHint, { color: theme.textMuted }]}>
-                    Activá la pestaña Cuotas para cada atleta. Vos siempre podés pagar por ellos desde Cuotas.
+                    Activá Cuotas en el perfil de cada atleta. Vos siempre podés pagar por ellos desde el botón Cuotas.
                   </Text>
                   {cuotasError ? (
                     <Text style={[styles.errorTxt, { color: '#ef4444' }]}>{cuotasError}</Text>
@@ -211,9 +228,9 @@ export default function TutorProfileScreen({ navigation }) {
                           <Text style={[styles.switchHint, { color: theme.textMuted }]}>
                             {enabled
                               ? hijo.puedePagarEnApp
-                                ? 'Ve Cuotas y puede pagar en la app'
-                                : `Ve Cuotas; menores de ${MIN_AGE_SELF_PAY} años pagan solo por tutor`
-                              : 'No ve la pestaña Cuotas; solo vos podés pagar'}
+                                ? 'Ve Cuotas en su perfil y puede pagar en la app'
+                                : `Ve Cuotas en su perfil; menores de ${MIN_AGE_SELF_PAY} años pagan solo por tutor`
+                              : 'No ve Cuotas en su perfil; solo vos podés pagar'}
                           </Text>
                         </View>
                         {busy ? (
@@ -319,6 +336,13 @@ const styles = StyleSheet.create({
   rowLabel: { width: 72, fontSize: 13 },
   rowValue: { flex: 1, fontSize: 14, fontWeight: '600' },
   actions: { marginTop: 40 },
+  linkCard: {
+    borderRadius: 12,
+    borderWidth: 1.5,
+    marginBottom: 12,
+    overflow: 'hidden',
+    paddingHorizontal: 14,
+  },
   metricsBtn: {
     flexDirection: 'row',
     alignItems: 'center',

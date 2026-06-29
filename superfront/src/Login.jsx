@@ -8,7 +8,7 @@ export default function Login({ setToken }) {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const { data } = await api.post('http://localhost:4000/api/admin/login', { email, password });
+      const { data } = await api.post('/admin/login', { email, password });
       localStorage.setItem('adminToken', data.token);
       setToken(data.token);
     } catch (error) {

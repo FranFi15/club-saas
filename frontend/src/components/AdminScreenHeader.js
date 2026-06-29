@@ -19,15 +19,22 @@ export default function AdminScreenHeader({
   bottomRightAccessory,
   showNotifications = true,
 }) {
-  const toolbarLeft = showNotifications ? (
+  const toolbarLeft = onBack ? (
     <CoachHeaderActions>
-      <NotificationBell />
+      <TouchableOpacity
+        onPress={onBack}
+        style={styles.toolbarBtn}
+        accessibilityRole="button"
+        accessibilityLabel={backAccessibilityLabel}
+      >
+        <Ionicons name="arrow-back" size={20} color="#ffffff" />
+      </TouchableOpacity>
     </CoachHeaderActions>
   ) : null;
   const toolbarRight = rightAccessory ? (
     <CoachHeaderActions>{rightAccessory}</CoachHeaderActions>
   ) : null;
-  const showTopToolbar = showNotifications || !!rightAccessory;
+  const showTopToolbar = onBack || !!rightAccessory;
 
   return (
     <View style={[styles.headerWrap, { backgroundColor: theme.background }]}>
@@ -51,7 +58,7 @@ export default function AdminScreenHeader({
           style={[
             styles.headerBody,
             styles.headerBodyCentered,
-            onBack && styles.headerBodyWithBack,
+            showNotifications && styles.headerBodyWithBack,
             bottomRightAccessory && styles.headerBodyWithBottomRight,
           ]}
         >
@@ -74,19 +81,14 @@ export default function AdminScreenHeader({
           </View>
         ) : null}
 
-        {onBack ? (
+        {showNotifications ? (
           <View
-            style={[styles.backMidRight, bottomRightAccessory && styles.backTopRight]}
+            style={[styles.actionMidRight, bottomRightAccessory && styles.actionTopRight]}
             pointerEvents="box-none"
           >
-            <TouchableOpacity
-              onPress={onBack}
-              style={styles.toolbarBtn}
-              accessibilityRole="button"
-              accessibilityLabel={backAccessibilityLabel}
-            >
-              <Ionicons name="arrow-back" size={20} color="#ffffff" />
-            </TouchableOpacity>
+            <CoachHeaderActions>
+              <NotificationBell />
+            </CoachHeaderActions>
           </View>
         ) : null}
       </View>
@@ -95,9 +97,10 @@ export default function AdminScreenHeader({
 }
 
 const styles = StyleSheet.create({
-  headerWrap: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
+  headerWrap: { width: '100%', paddingTop: 8, paddingBottom: 4 },
   headerCard: {
-    borderRadius: 5,
+    borderRadius: 0,
+    width: '100%',
     paddingHorizontal: 16,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -133,7 +136,7 @@ const styles = StyleSheet.create({
     zIndex: 3,
     maxWidth: '58%',
   },
-  backMidRight: {
+  actionMidRight: {
     position: 'absolute',
     right: 12,
     top: 0,
@@ -141,7 +144,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 2,
   },
-  backTopRight: {
+  actionTopRight: {
     top: 10,
     bottom: undefined,
     justifyContent: 'flex-start',
