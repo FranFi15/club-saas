@@ -5,6 +5,8 @@ import { getCachedTenant, setCachedTenant } from '../utils/cache.js';
 import { parseMpOAuthState, isMercadoPagoOAuthCallback } from '../utils/mpOAuthState.js';
 
 export const resolveTenant = async (req, res, next) => {
+    if (req.method === 'OPTIONS') return next();
+
     let clubIdentifier =
         req.headers['x-club-identifier'] || (req.query?.club ? String(req.query.club) : undefined);
 

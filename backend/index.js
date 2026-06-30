@@ -59,20 +59,16 @@ if (isProd) {
     console.warn('[Club-Backend] Faltan JWT_SECRET o JWT_REFRESH_SECRET en .env');
 }
 
-// 1. MIDDLEWARES GLOBALES Y SEGURIDAD
-// Helmet: Oculta cabeceras de Express y previene ataques XSS y Clickjacking
-app.use(helmet());
-
-// CORS: en producción solo FRONTEND_URL (coma-separado si hay varios); dev = cualquier origen
 function parseFrontendOrigins() {
     return String(process.env.FRONTEND_URL || '')
         .split(',')
-        .map((s) => s.trim().replace(/\/$/, ''))
+        .map((s) => s.trim().replace(/^["']|["']$/g, '').replace(/\/$/, ''))
         .filter(Boolean);
 }
 
 const allowedOrigins = isProd ? parseFrontendOrigins() : null;
 
+// CORS before Helmet so preflight always gets Access-Control-* headers
 app.use(cors({
     origin: isProd
         ? (origin, callback) => {
@@ -82,13 +78,21 @@ app.use(cors({
         }
         : true,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-club-identifier'],
+}));
+
+// Helmet: Oculta cabeceras de Express y previene ataques XSS y Clickjacking
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
 // Rate Limiting: Previene ataques de Fuerza Bruta y denegación de servicio (DDoS)
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos
     max: 200, // Limita cada IP a 200 peticiones por ventana de 15 minutos
-    message: { error: 'Demasiadas peticiones desde esta IP. Por favor intente de nuevo más tarde.' }
+    message: { error: 'Demasiadas peticiones desde esta IP. Por favor intente de nuevo más tarde.' },
+    skip: (req) => req.method === 'OPTIONS',
 });
 app.use('/api', limiter); // Se aplica a todas las rutas que empiecen con /api
 
@@ -144,6 +148,9 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
     console.log(`[Club-Backend] Servidor corriendo en puerto ${PORT}`);
+    if (isProd) {
+        console.log(`[Club-Backend] CORS origins: ${allowedOrigins.join(', ') || '(ninguno)'}`);
+    }
     console.log('🛡️  Capas de seguridad activas (Helmet, RateLimit, Sanitize)');
     startSessionGenerationCron();
     startPaymentGenerationCron();
