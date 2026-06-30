@@ -4,10 +4,11 @@
 |---------|------|--------|
 | `super` | **Render** | Tenant registry API |
 | `backend` | **Render** | Club API + Mercado Pago OAuth |
-| `frontend` | **Vercel** | Expo web build |
+| `frontend` | **Vercel** @ `app.hermesclubapp.com` | Expo web + universal links |
+| `frontend` (native) | **EAS Build** | iOS + Android — see [MOBILE.md](./MOBILE.md) |
 | `superfront` | **Local** | Super-admin UI (`npm run dev`) |
 
-Native mobile (Expo Go / APK) uses the same `EXPO_PUBLIC_*` URLs as the Vercel web app.
+Native mobile uses the same `EXPO_PUBLIC_*` URLs as the web app at **https://app.hermesclubapp.com**.
 
 ---
 
@@ -50,7 +51,7 @@ Public URL: `https://club-super-xxxx.onrender.com`
 | `JWT_SECRET` / `JWT_REFRESH_SECRET` | strong secrets |
 | `PUBLIC_API_URL` | `https://club-backend-xxxx.onrender.com` |
 | `BACKEND_URL` | same as `PUBLIC_API_URL` |
-| `FRONTEND_URL` | Exact Vercel URL, e.g. `https://club-saas-backend.vercel.app` (no trailing slash). Comma-separated for preview URLs. |
+| `FRONTEND_URL` | `https://app.hermesclubapp.com` (no trailing slash). Comma-separated for extra origins. |
 | `MERCADOPAGO_OAUTH_REDIRECT_URI` | `https://club-backend-xxxx.onrender.com/api/mercadopago/oauth/callback` |
 | `MERCADOPAGO_CLIENT_ID` / `MERCADOPAGO_CLIENT_SECRET` | MP developers panel |
 | `MP_OAUTH_STATE_SECRET` | `npm run mp:oauth-secret --workspace=backend` |
@@ -62,27 +63,34 @@ Register the OAuth redirect URI in [Mercado Pago Developers](https://www.mercado
 
 ---
 
-## 3. Vercel — `frontend` (Expo web)
+## 3. Vercel — `frontend` (web @ app.hermesclubapp.com)
 
 1. [Vercel Dashboard](https://vercel.com/new) → Import GitHub repo
 2. **Root Directory:** `frontend`
-3. Framework is auto-detected from `frontend/vercel.json`
-4. **Environment variables** (Production):
+3. **Custom domain:** `app.hermesclubapp.com`
+4. Framework is auto-detected from `frontend/vercel.json`
+5. **Environment variables** (Production):
 
 ```env
+EXPO_PUBLIC_APP_URL=https://app.hermesclubapp.com
 EXPO_PUBLIC_CLUB_API_URL=https://club-backend-xxxx.onrender.com/api
 EXPO_PUBLIC_SUPER_API_URL=https://club-super-xxxx.onrender.com/api
 ```
 
-5. Deploy
+6. Deploy
 
-After deploy, set `FRONTEND_URL` on **club-backend** (Render) to your Vercel URL for CORS and Mercado Pago post-OAuth redirects.
+Set `FRONTEND_URL` on **club-backend** (Render) to `https://app.hermesclubapp.com` for CORS and Mercado Pago redirects.
+
+### iOS & Android (EAS)
+
+See **[MOBILE.md](./MOBILE.md)** for `eas build`, TestFlight/APK preview, universal links, and store submission.
 
 ### Local Expo (native / dev)
 
 Create `frontend/.env` (not committed):
 
 ```env
+EXPO_PUBLIC_APP_URL=https://app.hermesclubapp.com
 EXPO_PUBLIC_CLUB_API_URL=https://club-backend-xxxx.onrender.com/api
 EXPO_PUBLIC_SUPER_API_URL=https://club-super-xxxx.onrender.com/api
 ```
@@ -135,7 +143,7 @@ Open `http://localhost:5173`.
 | `MERCADOPAGO_OAUTH_REDIRECT_URI` | `https://TU-BACKEND.onrender.com/api/mercadopago/oauth/callback` |
 | `MP_OAUTH_STATE_SECRET` | Generar: `npm run mp:oauth-secret --workspace=backend` (mín. 16 chars) |
 | `MERCADOPAGO_OAUTH_USE_PKCE` | `true` |
-| `FRONTEND_URL` | `https://club-saas-backend.vercel.app` |
+| `FRONTEND_URL` | `https://app.hermesclubapp.com` |
 | `PUBLIC_API_URL` / `BACKEND_URL` | `https://TU-BACKEND.onrender.com` |
 
 Opcional: `MERCADOPAGO_ACCESS_TOKEN` solo como fallback global; con OAuth por club no hace falta.
@@ -144,7 +152,7 @@ Guardá → Render redeploy.
 
 ### C. Probar en la app
 
-1. Entrá como **admin del club** en [club-saas-backend.vercel.app](https://club-saas-backend.vercel.app/).
+1. Entrá como **admin del club** en [app.hermesclubapp.com](https://app.hermesclubapp.com/).
 2. **Perfil** → **Conectar a Mercado Pago**.
 3. Iniciás sesión en Mercado Pago y autorizás.
 4. MP redirige al callback en Render → la app vuelve a Vercel (`/mp-oauth/success`).
@@ -160,7 +168,7 @@ Si el botón dice *"OAuth no configurado"*, revisá logs de Render: faltan `CLIE
 |-----|----------|
 | `https://club-super-xxxx.onrender.com/` | Super-Admin OK message |
 | `https://club-backend-xxxx.onrender.com/` | Club backend OK message |
-| `https://your-app.vercel.app` | Login / workspace search |
+| `https://app.hermesclubapp.com` | Login / workspace search |
 | Admin → Mercado Pago connect | OAuth → Render callback → redirect to Vercel |
 
 Free Render services sleep after inactivity (~30s cold start).

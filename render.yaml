@@ -64,7 +64,7 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
-        # Vercel URL, e.g. https://club-app.vercel.app
+        # https://app.hermesclubapp.com
       - key: ENABLE_OVERDUE_CRON
         value: "true"
       - key: APP_DEEP_LINK_SCHEME

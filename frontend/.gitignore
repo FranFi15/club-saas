@@ -30,7 +30,10 @@ yarn-error.*
 .DS_Store
 *.pem
 
+google-play-service-account.json
+
 # local env files
+.env
 .env*.local
 
 # typescript
