@@ -33,6 +33,7 @@ import { platformCardShadow } from '../../utils/platformShadow';
 import { sortEnrollmentsByAtleta, sortUsersByName } from '../../utils/listSort';
 import CategoryRosterModal from '../../components/CategoryRosterModal';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { pickPaginatedRows } from '../../utils/paginatedApi';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const CHART_WIDTH = Math.min(SCREEN_W - 64, 360);
@@ -96,6 +97,10 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
   const [wellnessHistorial, setWellnessHistorial] = useState(
     () => readScreenCache(rosterCacheKey)?.wellnessHistorial ?? {},
   );
+  const [attendanceStats, setAttendanceStats] = useState(
+    () => readScreenCache(rosterCacheKey)?.attendanceStats ?? {},
+  );
+  const [activePanel, setActivePanel] = useState({});
   const [wellnessOpen, setWellnessOpen] = useState(false);
   const [wellnessList, setWellnessList] = useState([]);
   const [wellnessLoading, setWellnessLoading] = useState(false);
@@ -163,14 +168,15 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
   const fetchRoster = useCallback(async () => {
     if (!categoriaId) return {};
     const h = await headers();
-    const [enrRes, histRes, docPendingRes, plantelRes, rol, id] = await Promise.all([
+    const [enrRes, histRes, attRes, docPendingRes, plantelRes, rol, id] = await Promise.all([
       clubApi.get(`/enrollments/categoria/${categoriaId}`, { headers: h }),
       clubApi.get(`/wellness/categoria/${categoriaId}/historial?dias=30`, { headers: h }),
+      clubApi.get(`/sessions/categoria/${categoriaId}/asistencia-resumen?dias=90`, { headers: h }).catch(() => ({ data: { porAtleta: {} } })),
       clubApi.get('/requirements/submissions', {
         headers: h,
-        params: { categoriaId, estado: 'revision' },
-      }).catch(() => ({ data: [] })),
-      clubApi.get(`/categories/${categoriaId}/plantel`, { headers: h }).catch(() => ({ data: {} })),
+        params: { categoriaId, estado: 'revision', page: 1, limit: 1 },
+      }).catch(() => ({ data: { submissions: [], total: 0 } })),
+      clubApi.get(`/categories/${categoriaId}/plantel?metaOnly=true`, { headers: h }).catch(() => ({ data: {} })),
       getToken('userRol'),
       getToken('userId'),
     ]);
@@ -178,7 +184,8 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
       enrollments: sortEnrollmentsByAtleta(enrRes.data || []),
       plantelEdicionEstado: plantelRes.data?.plantelEdicion?.estado || null,
       wellnessHistorial: histRes.data?.porAtleta || {},
-      docPendingCount: (docPendingRes.data || []).length,
+      attendanceStats: attRes.data?.porAtleta || {},
+      docPendingCount: docPendingRes.data?.total ?? pickPaginatedRows(docPendingRes.data, 'submissions').length,
       userRol: rol || '',
       userId: id || '',
     };
@@ -188,6 +195,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
     setEnrollments(data.enrollments);
     setPlantelEdicionEstado(data.plantelEdicionEstado);
     setWellnessHistorial(data.wellnessHistorial);
+    setAttendanceStats(data.attendanceStats);
     setDocPendingCount(data.docPendingCount);
     setUserRol(data.userRol);
     setUserId(data.userId);
@@ -304,12 +312,12 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
       setDocLoading(true);
       try {
         const h = await headers();
-        const params = { categoriaId };
+        const params = { categoriaId, page: 1, limit: 30 };
         if (estado) params.estado = estado;
         const res = await clubApi.get('/requirements/submissions', { headers: h, params });
-        setDocList(res.data || []);
+        setDocList(pickPaginatedRows(res.data, 'submissions'));
         if (estado === 'revision') {
-          setDocPendingCount((res.data || []).length);
+          setDocPendingCount(res.data?.total ?? pickPaginatedRows(res.data, 'submissions').length);
         }
       } catch (e) {
         showAlert('Error', e.response?.data?.message || 'No se pudieron cargar las entregas.');
@@ -509,93 +517,181 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
     [enrollments, rosterSearch],
   );
 
+  const renderAttendanceSummary = (atletaId) => {
+    const st = attendanceStats[String(atletaId)] || { presente: 0, tarde: 0, ausente: 0, total: 0, asistenciaPct: null };
+    return (
+      <View style={styles.attendanceRow}>
+        <View style={styles.attendanceChip}>
+          <Text style={[styles.attendanceLbl, { color: theme.textMuted }]}>Presente</Text>
+          <Text style={[styles.attendanceVal, { color: '#22c55e' }]}>{st.presente}</Text>
+        </View>
+        <View style={styles.attendanceChip}>
+          <Text style={[styles.attendanceLbl, { color: theme.textMuted }]}>Tarde</Text>
+          <Text style={[styles.attendanceVal, { color: '#f59e0b' }]}>{st.tarde}</Text>
+        </View>
+        <View style={styles.attendanceChip}>
+          <Text style={[styles.attendanceLbl, { color: theme.textMuted }]}>Ausente</Text>
+          <Text style={[styles.attendanceVal, { color: '#ef4444' }]}>{st.ausente}</Text>
+        </View>
+        {st.total > 0 ? (
+          <View style={styles.attendanceChip}>
+            <Text style={[styles.attendanceLbl, { color: theme.textMuted }]}>% asist.</Text>
+            <Text style={[styles.attendanceVal, { color: theme.text }]}>{st.asistenciaPct}%</Text>
+          </View>
+        ) : null}
+      </View>
+    );
+  };
+
+  const athletePanels = useMemo(() => {
+    const panels = [
+      { key: 'wellness', label: 'Wellness', shortLabel: 'Well.', icon: 'pulse-outline' },
+      { key: 'asistencias', label: 'Asistencias', shortLabel: 'Asist.', icon: 'checkbox-outline' },
+    ];
+    if (userRol !== 'psicologo') {
+      panels.splice(1, 0, {
+        key: 'mediciones',
+        label: userRol === 'nutricionista' ? 'Mediciones' : 'Medición',
+        shortLabel: 'Med.',
+        icon: 'analytics-outline',
+      });
+    }
+    return panels;
+  }, [userRol]);
+
+  const openAthleteMeasurement = useCallback(
+    (atleta) => {
+      navigation.navigate('CoachMeasurement', {
+        atletaId: atleta._id,
+        atletaNombre: `${atleta.nombre} ${atleta.apellido}`,
+        initialTab: 'historial',
+      });
+    },
+    [navigation],
+  );
+
   const renderAthlete = ({ item }) => {
     const a = item.atleta;
     if (!a) return null;
+    const aid = String(a._id);
     const series = seriesFor(a._id);
     const wellnessAvgs = wellnessMetricAverages(series);
     const avgByKey = Object.fromEntries(wellnessAvgs.map((m) => [m.key, m]));
+    const panel = activePanel[aid];
 
     return (
       <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Text style={[styles.athName, { color: theme.text }]}>
-          {a.nombre} {a.apellido}
-        </Text>
-        <TouchableOpacity
-          style={styles.sparkWrap}
-          onPress={() =>
-            setHistoryModal({
-              atletaId: a._id,
-              nombre: `${a.nombre} ${a.apellido}`,
-              series,
-            })
-          }
-        >
-          <Text style={[styles.sparkLabel, { color: theme.textMuted }]}>
-            Promedios wellness (30 días) · tocar para ver gráfico
+        <View style={styles.cardHeader}>
+          <Text style={[styles.athName, { color: theme.text }]} numberOfLines={1}>
+            {a.nombre} {a.apellido}
           </Text>
-          <View style={styles.wellnessAvgRow}>
-            {WELLNESS_METRICS.map((def) => {
-              const m = avgByKey[def.key];
-              const hasData = !!m;
+          <View style={styles.tabRow}>
+            {athletePanels.map((tab) => {
+              const selected = panel === tab.key;
               return (
-                <View
-                  key={def.key}
+                <TouchableOpacity
+                  key={tab.key}
                   style={[
-                    styles.wellnessAvgChip,
+                    styles.tabBtn,
                     {
-                      backgroundColor: theme.background,
-                      borderColor: theme.border,
-                      borderTopColor: def.color,
-                      borderTopWidth: 2,
+                      borderColor: selected ? colorMarca : theme.border,
+                      backgroundColor: selected ? `${colorMarca}18` : theme.background,
                     },
                   ]}
+                  onPress={() => {
+                    if (tab.key === 'mediciones') {
+                      openAthleteMeasurement(a);
+                      return;
+                    }
+                    setActivePanel((p) => ({ ...p, [aid]: tab.key }));
+                  }}
+                  accessibilityLabel={tab.label}
                 >
-                  <Text style={[styles.wellnessAvgLbl, { color: theme.textMuted }]} numberOfLines={1}>
-                    {WELLNESS_CARD_LABELS[def.key] || def.label}
-                  </Text>
+                  <Ionicons name={tab.icon} size={14} color={selected ? colorMarca : theme.textMuted} />
                   <Text
-                    style={[
-                      styles.wellnessAvgVal,
-                      { color: hasData ? theme.text : theme.textMuted },
-                    ]}
+                    style={[styles.tabBtnTxt, { color: selected ? colorMarca : theme.textMuted }]}
+                    numberOfLines={1}
                   >
-                    {hasData ? m.display : '—'}
+                    {tab.shortLabel}
                   </Text>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>
-        </TouchableOpacity>
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.miniBtn, { borderColor: colorMarca }]}
-            onPress={() =>
-              navigation.navigate('CoachWellness', {
-                atletaId: a._id,
-                atletaNombre: `${a.nombre} ${a.apellido}`,
-                categoriaId,
-              })
-            }
-          >
-            <Text style={{ color: colorMarca, fontWeight: '700', fontSize: 13 }}>Wellness</Text>
-          </TouchableOpacity>
-          {userRol !== 'psicologo' ? (
+        </View>
+
+        {!panel ? (
+          <Text style={[styles.panelHint, { color: theme.textMuted, marginBottom: 0 }]}>
+            Elegí Wellness, Medición o Asistencias para ver el detalle.
+          </Text>
+        ) : null}
+
+        {panel === 'wellness' ? (
+          <View style={styles.panelBlock}>
             <TouchableOpacity
-              style={[styles.miniBtn, { borderColor: theme.border }]}
+              style={styles.sparkWrap}
               onPress={() =>
-                navigation.navigate('CoachMeasurement', {
+                setHistoryModal({
                   atletaId: a._id,
-                  atletaNombre: `${a.nombre} ${a.apellido}`,
+                  nombre: `${a.nombre} ${a.apellido}`,
+                  series,
                 })
               }
             >
-              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>
-                {userRol === 'nutricionista' ? 'Mediciones' : 'Medición'}
+              <Text style={[styles.sparkLabel, { color: theme.textMuted }]}>
+                Promedios wellness (30 días) · tocar para gráfico
               </Text>
+              <View style={styles.wellnessAvgRow}>
+                {WELLNESS_METRICS.map((def) => {
+                  const m = avgByKey[def.key];
+                  const hasData = !!m;
+                  return (
+                    <View
+                      key={def.key}
+                      style={[
+                        styles.wellnessAvgChip,
+                        {
+                          backgroundColor: theme.background,
+                          borderColor: theme.border,
+                          borderTopColor: def.color,
+                          borderTopWidth: 2,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.wellnessAvgLbl, { color: theme.textMuted }]} numberOfLines={1}>
+                        {WELLNESS_CARD_LABELS[def.key] || def.label}
+                      </Text>
+                      <Text style={[styles.wellnessAvgVal, { color: hasData ? theme.text : theme.textMuted }]}>
+                        {hasData ? m.display : '—'}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
             </TouchableOpacity>
-          ) : null}
-        </View>
+            <TouchableOpacity
+              style={[styles.panelActionBtn, { borderColor: colorMarca }]}
+              onPress={() =>
+                navigation.navigate('CoachWellness', {
+                  atletaId: a._id,
+                  atletaNombre: `${a.nombre} ${a.apellido}`,
+                  categoriaId,
+                })
+              }
+            >
+              <Text style={{ color: colorMarca, fontWeight: '700' }}>Abrir wellness</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {panel === 'asistencias' ? (
+          <View style={styles.panelBlock}>
+            {renderAttendanceSummary(a._id)}
+            <Text style={[styles.panelHint, { color: theme.textMuted }]}>
+              Resumen de los últimos 90 días. Se actualiza al guardar asistencia en cada sesión.
+            </Text>
+          </View>
+        ) : null}
       </View>
     );
   };
@@ -1379,9 +1475,47 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   listPad: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
-  card: { borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 10 },
-  athName: { fontSize: 16, fontWeight: '700' },
-  sparkWrap: { marginTop: 10 },
+  card: { borderWidth: 1, borderRadius: 6, padding: 12, marginBottom: 10 },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  athName: { fontSize: 15, fontWeight: '700', flex: 1, minWidth: 0 },
+  tabRow: { flexDirection: 'row', flexWrap: 'nowrap', gap: 4, flexShrink: 0 },
+  tabBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 5,
+    justifyContent: 'center',
+  },
+  tabBtnTxt: { fontSize: 10, fontWeight: '700' },
+  panelBlock: { paddingTop: 0 },
+  panelHint: { fontSize: 12, lineHeight: 17, marginBottom: 8 },
+  panelActionBtn: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  attendanceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  attendanceChip: {
+    minWidth: 68,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(128,128,128,0.08)',
+    alignItems: 'center',
+  },
+  attendanceLbl: { fontSize: 10, fontWeight: '600' },
+  attendanceVal: { fontSize: 15, fontWeight: '800', marginTop: 2 },
+  sparkWrap: { marginTop: 4 },
   sparkLabel: { fontSize: 11, fontWeight: '600', marginBottom: 4 },
   wellnessAvgRow: {
     flexDirection: 'row',

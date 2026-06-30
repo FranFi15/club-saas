@@ -37,3 +37,29 @@ export function matchesCategoryAgeLimits(category, fechaNacimiento) {
     if (edadMaxima != null && edad > edadMaxima) return false;
     return true;
 }
+
+/**
+ * Rango de fechaNacimiento en Mongo para filtrar atletas elegibles por edad.
+ * Alineado con calcEdad / matchesCategoryAgeLimits.
+ */
+export function birthDateRangeForCategory(category, refDate = new Date()) {
+    const minAge = category?.edadMinima;
+    const maxAge = category?.edadMaxima;
+    if (minAge == null && maxAge == null) return null;
+
+    const ref = new Date(refDate);
+    const range = {};
+
+    if (maxAge != null) {
+        const latestBirth = new Date(ref);
+        latestBirth.setFullYear(latestBirth.getFullYear() - maxAge - 1);
+        latestBirth.setDate(latestBirth.getDate() + 1);
+        range.$gte = latestBirth;
+    }
+    if (minAge != null) {
+        const earliestBirth = new Date(ref);
+        earliestBirth.setFullYear(earliestBirth.getFullYear() - minAge);
+        range.$lte = earliestBirth;
+    }
+    return range;
+}

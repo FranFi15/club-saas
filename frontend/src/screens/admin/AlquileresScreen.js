@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, RefreshControl, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../utils/api';
@@ -15,15 +15,28 @@ import {
   todayYmd,
   calendarPartsToYmd,
 } from '../../utils/timeSlots';
-import { formatJsDateToDisplay, isoCalendarWeekday } from '../../utils/dateDisplay';
+import { formatJsDateToDisplay, isoCalendarWeekday, isoCalendarDateToDisplay } from '../../utils/dateDisplay';
 import { maskTimeHHMM, isValidTimeHHMM } from '../../utils/timeDisplay';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import {
+  rentalSaldoPendiente,
+  rentalNeedsFullPayment,
+  fmtRentalMoney,
+  PAGO_CONCEPTO_LABEL,
+} from './alquileres/rentalPaymentUtils';
+import { pickPaginatedRows } from '../../utils/paginatedApi';
 
 const MN = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DN = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 const SLOTS = generateTimeSlots(6, 23);
 const PAGO_COLOR = { pendiente: '#ef4444', señado: '#f59e0b', pagado: '#10b981' };
 const PAGO_LABEL = { pendiente: 'Pendiente', señado: 'Señado', pagado: 'Pagado' };
+
+const TABS = [
+  { key: 'calendario', label: 'Calendario', icon: 'calendar-outline' },
+  { key: 'reservas', label: 'Reservas', icon: 'list-outline' },
+  { key: 'balance', label: 'Balance', icon: 'cash-outline' },
+];
 
 export default function AlquileresScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
@@ -39,6 +52,19 @@ export default function AlquileresScreen({ navigation }) {
   const [cancelledSessions, setCancelledSessions] = useState([]);
   const [rentals, setRentals] = useState([]);
   const [schedules, setSchedules] = useState([]);
+  const [activeTab, setActiveTab] = useState('calendario');
+  const [allRentals, setAllRentals] = useState([]);
+  const [isLoadingRentals, setIsLoadingRentals] = useState(false);
+  const [rentalsPage, setRentalsPage] = useState(1);
+  const [rentalsHasMore, setRentalsHasMore] = useState(false);
+  const [loadingMoreRentals, setLoadingMoreRentals] = useState(false);
+  const [reservasSpaceFilter, setReservasSpaceFilter] = useState('');
+  const [balanceData, setBalanceData] = useState(null);
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+  const [balanceHistorialHasMore, setBalanceHistorialHasMore] = useState(false);
+  const [balanceHistorialPage, setBalanceHistorialPage] = useState(1);
+  const [loadingMoreHistorial, setLoadingMoreHistorial] = useState(false);
+  const [payingRentalId, setPayingRentalId] = useState(null);
 
   const [isLoadingGrid, setIsLoadingGrid] = useState(false);
 
@@ -50,7 +76,18 @@ export default function AlquileresScreen({ navigation }) {
   const [detailRental, setDetailRental] = useState(null);
 
   const [alertConfig, setAlertConfig] = useState({ visible:false, title:'', message:'', showCancel:false, isDanger:false, onConfirm:()=>{}, onCancel:()=>{} });
+  const [detailAlertConfig, setDetailAlertConfig] = useState({ visible:false, title:'', message:'', showCancel:false, isDanger:false, onConfirm:()=>{}, onCancel:()=>{} });
   const showAlert = (t,m) => setAlertConfig({ visible:true, title:t, message:m, onConfirm:()=>setAlertConfig(p=>({...p,visible:false})), onCancel:()=>setAlertConfig(p=>({...p,visible:false})) });
+
+  const closeDetailRental = () => {
+    setDetailRental(null);
+    setDetailAlertConfig((p) => ({ ...p, visible: false }));
+  };
+
+  const setRentalAlert = (config, embedded = false) => {
+    const setter = embedded ? setDetailAlertConfig : setAlertConfig;
+    setter((p) => ({ ...p, ...config }));
+  };
 
   const getHeaders = async () => {
     const token = await getToken('userToken');
@@ -90,9 +127,114 @@ export default function AlquileresScreen({ navigation }) {
   useEffect(() => { if (selectedSpace) fetchSchedules(); }, [selectedSpace]);
   useEffect(() => { if (selectedSpace && selectedDate) fetchDayData(); }, [selectedSpace, selectedDate]);
 
+  const syncRentalInLists = useCallback((updated) => {
+    if (!updated?._id) return;
+    setAllRentals((prev) => prev.map((r) => (String(r._id) === String(updated._id) ? updated : r)));
+    setRentals((prev) => prev.map((r) => (String(r._id) === String(updated._id) ? updated : r)));
+    setDetailRental((prev) => (prev && String(prev._id) === String(updated._id) ? updated : prev));
+  }, []);
+
   const handleRefresh = () => {
     onRefresh();
     if (selectedSpace && selectedDate) fetchDayData();
+    if (activeTab === 'reservas') fetchAllRentals({ page: 1, append: false });
+    if (activeTab === 'balance') fetchBalance({ page: 1, append: false });
+  };
+
+  const fetchBalance = async ({ page = 1, append = false } = {}) => {
+    if (append) setLoadingMoreHistorial(true);
+    else setIsLoadingBalance(true);
+    try {
+      const h = await getHeaders();
+      const r = await clubApi.get('/rentals/balance', { headers: h, params: { page, limit: 30 } });
+      const payload = r.data || {};
+      setBalanceData((prev) => ({
+        totalFacturado: payload.totalFacturado,
+        totalCobrado: payload.totalCobrado,
+        totalPendiente: payload.totalPendiente,
+        reservasActivas: payload.reservasActivas,
+        reservasPagadas: payload.reservasPagadas,
+        reservasConSaldo: payload.reservasConSaldo,
+        historial: append
+          ? [...(prev?.historial || []), ...(payload.historial || [])]
+          : payload.historial || [],
+      }));
+      setBalanceHistorialHasMore(payload.hasMore ?? false);
+      setBalanceHistorialPage(payload.page || page);
+    } catch (e) {
+      console.log('Error balance', e);
+      showAlert('Error', 'No se pudo cargar el balance.');
+    } finally {
+      if (append) setLoadingMoreHistorial(false);
+      else setIsLoadingBalance(false);
+    }
+  };
+
+  const fetchAllRentals = async ({ page = 1, append = false } = {}) => {
+    if (append) setLoadingMoreRentals(true);
+    else setIsLoadingRentals(true);
+    try {
+      const h = await getHeaders();
+      const params = { page, limit: 30 };
+      if (reservasSpaceFilter) params.espacio = reservasSpaceFilter;
+      const r = await clubApi.get('/rentals', { headers: h, params });
+      const list = r.data.rentals || [];
+      setAllRentals((prev) => (append ? [...prev, ...list] : list));
+      setRentalsPage(r.data.page || page);
+      setRentalsHasMore(r.data.hasMore ?? false);
+    } catch (e) {
+      console.log('Error rentals list', e);
+      showAlert('Error', 'No se pudieron cargar las reservas.');
+    } finally {
+      if (append) setLoadingMoreRentals(false);
+      else setIsLoadingRentals(false);
+    }
+  };
+
+  const loadMoreRentals = () => {
+    if (!rentalsHasMore || loadingMoreRentals || isLoadingRentals) return;
+    fetchAllRentals({ page: rentalsPage + 1, append: true });
+  };
+
+  const loadMoreBalanceHistorial = () => {
+    if (!balanceHistorialHasMore || loadingMoreHistorial || isLoadingBalance) return;
+    fetchBalance({ page: balanceHistorialPage + 1, append: true });
+  };
+
+  useEffect(() => {
+    if (activeTab === 'reservas') fetchAllRentals({ page: 1, append: false });
+    if (activeTab === 'balance') fetchBalance({ page: 1, append: false });
+  }, [activeTab, reservasSpaceFilter]);
+
+  const handlePayTotal = (rental, embedded = false) => {
+    const saldo = rentalSaldoPendiente(rental);
+    if (saldo <= 0) return;
+    setRentalAlert({
+      visible: true,
+      title: 'Registrar pago total',
+      message: `¿Marcar como pagado el saldo de ${fmtRentalMoney(saldo)} de ${rental.nombreCliente}?`,
+      showCancel: true,
+      confirmText: 'Pagar total',
+      cancelText: 'Volver',
+      onConfirm: async () => {
+        setRentalAlert({ visible: false }, embedded);
+        setPayingRentalId(rental._id);
+        try {
+          const h = await getHeaders();
+          const { data } = await clubApi.post(`/rentals/${rental._id}/pagar-total`, {}, { headers: h });
+          syncRentalInLists(data);
+          fetchDayData();
+          fetchAllRentals({ page: 1, append: false });
+          fetchBalance({ page: 1, append: false });
+          showAlert('Listo', 'Pago registrado correctamente.');
+        } catch (e) {
+          showAlert('Error', e.response?.data?.message || 'No se pudo registrar el pago.');
+        } finally {
+          setPayingRentalId(null);
+        }
+      },
+      onCancel: () => setRentalAlert({ visible: false }, embedded),
+    }, embedded);
   };
 
   const fetchSchedules = async () => {
@@ -114,7 +256,7 @@ export default function AlquileresScreen({ navigation }) {
         ),
         clubApi.get(`/rentals/espacio/${selectedSpace}?fecha=${selectedDate}`, { headers: h }),
       ]);
-      const allSessions = sesRes.data || [];
+      const allSessions = pickPaginatedRows(sesRes.data, 'sessions');
       setSessions(allSessions.filter((s) => s.estado !== 'cancelada'));
       setCancelledSessions(allSessions.filter((s) => s.estado === 'cancelada'));
       setRentals(renRes.data);
@@ -132,6 +274,8 @@ export default function AlquileresScreen({ navigation }) {
       const h = await getHeaders();
       await clubApi.post('/rentals', { ...formData, espacio: selectedSpace, fecha: selectedDate, montoTotal: Number(formData.montoTotal), señaPagada: Number(formData.señaPagada) }, { headers: h });
       fetchDayData();
+      fetchAllRentals({ page: 1, append: false });
+      fetchBalance({ page: 1, append: false });
       setIsModalVisible(false);
       setFormData({ nombreCliente:'', telefonoCliente:'', horaInicio:'18:00', horaFin:'19:00', montoTotal:'', señaPagada:'0' });
       showAlert('Éxito','Reserva creada correctamente.');
@@ -139,22 +283,30 @@ export default function AlquileresScreen({ navigation }) {
     finally { setIsSaving(false); }
   };
 
-  const handleDeleteRental = (rental) => {
-    setAlertConfig({
-      visible:true, title:'Cancelar Alquiler', message:`¿Cancelar la reserva de ${rental.nombreCliente}?\nSe liberará el horario.`,
-      showCancel:true, isDanger:true, confirmText:'Cancelar Reserva', cancelText:'Volver',
+  const handleDeleteRental = (rental, embedded = false) => {
+    setRentalAlert({
+      visible: true,
+      title: 'Cancelar Alquiler',
+      message: `¿Cancelar la reserva de ${rental.nombreCliente}?\nSe liberará el horario.`,
+      showCancel: true,
+      isDanger: true,
+      confirmText: 'Cancelar Reserva',
+      cancelText: 'Volver',
       onConfirm: async () => {
-        setAlertConfig(p=>({...p,visible:false}));
+        setRentalAlert({ visible: false }, embedded);
         try {
           const h = await getHeaders();
           await clubApi.delete(`/rentals/${rental._id}`, { headers: h });
-          setDetailRental(null);
+          closeDetailRental();
           fetchDayData();
-          showAlert('Listo','Alquiler cancelado y horario liberado.');
-        } catch(e) { showAlert('Error','No se pudo cancelar.'); }
+          fetchAllRentals({ page: 1, append: false });
+          showAlert('Listo', 'Alquiler cancelado y horario liberado.');
+        } catch (e) {
+          showAlert('Error', 'No se pudo cancelar.');
+        }
       },
-      onCancel:()=>setAlertConfig(p=>({...p,visible:false}))
-    });
+      onCancel: () => setRentalAlert({ visible: false }, embedded),
+    }, embedded);
   };
 
   const openNewRental = (hora) => {
@@ -185,6 +337,78 @@ export default function AlquileresScreen({ navigation }) {
     setCurrentMonth(n);
   };
   const todayStr = todayYmd();
+
+  const filteredReservas = allRentals;
+
+  const renderReservaCard = (r) => {
+    const pc = PAGO_COLOR[r.estadoPago] || '#999';
+    const fechaTxt = isoCalendarDateToDisplay(r.fecha) || formatJsDateToDisplay(r.fecha) || '—';
+    const saldo = rentalSaldoPendiente(r);
+    const cobrado = Number(r.señaPagada) || 0;
+    const busy = String(payingRentalId) === String(r._id);
+    return (
+      <View style={[styles.reservaCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <TouchableOpacity onPress={() => setDetailRental(r)} activeOpacity={0.75}>
+          <View style={styles.reservaTop}>
+            <Text style={[styles.reservaName, { color: theme.text }]} numberOfLines={1}>
+              {r.nombreCliente}
+            </Text>
+            <View style={{ backgroundColor: pc, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
+              <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{PAGO_LABEL[r.estadoPago]}</Text>
+            </View>
+          </View>
+          <Text style={[styles.reservaMeta, { color: theme.textMuted }]}>
+            {r.espacio?.nombre || 'Espacio'} · {fechaTxt} · {r.horaInicio}–{r.horaFin}
+          </Text>
+          <View style={styles.reservaMoneyRow}>
+            <Text style={[styles.reservaAmount, { color: theme.text }]}>Total {fmtRentalMoney(r.montoTotal)}</Text>
+            <Text style={[styles.reservaPaid, { color: '#10b981' }]}>Cobrado {fmtRentalMoney(cobrado)}</Text>
+            {saldo > 0 ? (
+              <Text style={[styles.reservaDue, { color: '#ef4444' }]}>Debe {fmtRentalMoney(saldo)}</Text>
+            ) : null}
+          </View>
+        </TouchableOpacity>
+        {rentalNeedsFullPayment(r) ? (
+          <TouchableOpacity
+            style={[styles.payTotalBtn, { backgroundColor: cc, opacity: busy ? 0.7 : 1 }]}
+            onPress={() => handlePayTotal(r)}
+            disabled={busy}
+            activeOpacity={0.75}
+          >
+            {busy ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Ionicons name="card-outline" size={16} color="#fff" />
+                <Text style={styles.payTotalBtnTxt}>Pagar total ({fmtRentalMoney(saldo)})</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    );
+  };
+
+  const renderHistorialRow = (h) => {
+    const fechaPago = isoCalendarDateToDisplay(h.fecha) || formatJsDateToDisplay(h.fecha) || '—';
+    const fechaReserva = isoCalendarDateToDisplay(h.fechaReserva) || formatJsDateToDisplay(h.fechaReserva) || '—';
+    return (
+      <View style={[styles.historialRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.historialTitle, { color: theme.text }]} numberOfLines={1}>
+            {h.nombreCliente}
+          </Text>
+          <Text style={[styles.historialMeta, { color: theme.textMuted }]}>
+            {PAGO_CONCEPTO_LABEL[h.concepto] || h.concepto} · {fechaPago}
+          </Text>
+          <Text style={[styles.historialSub, { color: theme.textMuted }]} numberOfLines={1}>
+            {h.espacio} · reserva {fechaReserva} {h.horaInicio}–{h.horaFin}
+          </Text>
+        </View>
+        <Text style={[styles.historialAmount, { color: '#10b981' }]}>{fmtRentalMoney(h.monto)}</Text>
+      </View>
+    );
+  };
 
   // Check if date has scheduled trainings for the selected space
   const dayName = selectedDate ? getDayName(selectedDate) : '';
@@ -256,12 +480,119 @@ export default function AlquileresScreen({ navigation }) {
         onBack={() => navigation.goBack()}
       />
 
+      <View style={[styles.tabs, { borderBottomColor: theme.border }]}>
+        {TABS.map((t) => {
+          const active = activeTab === t.key;
+          return (
+            <TouchableOpacity
+              key={t.key}
+              style={[styles.tab, active && { borderBottomColor: cc, borderBottomWidth: 2 }]}
+              onPress={() => setActiveTab(t.key)}
+            >
+              <Ionicons name={t.icon} size={18} color={active ? cc : theme.textMuted} />
+              <Text style={[styles.tabLabel, { color: active ? cc : theme.textMuted, fontWeight: active ? 'bold' : 'normal' }]}>
+                {t.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
       <ScrollView
         style={styles.body}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={cc} />}
+        scrollEventThrottle={200}
+        onScroll={({ nativeEvent }) => {
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          const nearBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 100;
+          if (!nearBottom) return;
+          if (activeTab === 'reservas') loadMoreRentals();
+          if (activeTab === 'balance') loadMoreBalanceHistorial();
+        }}
+        refreshControl={<RefreshControl refreshing={refreshing || isLoadingRentals || isLoadingBalance} onRefresh={handleRefresh} tintColor={cc} />}
       >
-        {showInitialSpacesLoader ? <ActivityIndicator color={cc} style={{marginTop:20}} /> : (
+        {activeTab === 'balance' ? (
+          isLoadingBalance && !balanceData ? (
+            <ActivityIndicator color={cc} style={{ marginTop: 30 }} />
+          ) : (
+            <>
+              <View style={styles.balanceStats}>
+                <View style={[styles.balanceStat, { backgroundColor: theme.surface }]}>
+                  <Text style={[styles.balanceStatVal, { color: theme.text }]}>
+                    {fmtRentalMoney(balanceData?.totalFacturado)}
+                  </Text>
+                  <Text style={[styles.balanceStatLbl, { color: theme.textMuted }]}>Facturado</Text>
+                </View>
+                <View style={[styles.balanceStat, { backgroundColor: theme.surface }]}>
+                  <Text style={[styles.balanceStatVal, { color: '#10b981' }]}>
+                    {fmtRentalMoney(balanceData?.totalCobrado)}
+                  </Text>
+                  <Text style={[styles.balanceStatLbl, { color: theme.textMuted }]}>Cobrado</Text>
+                </View>
+                <View style={[styles.balanceStat, { backgroundColor: theme.surface }]}>
+                  <Text style={[styles.balanceStatVal, { color: '#ef4444' }]}>
+                    {fmtRentalMoney(balanceData?.totalPendiente)}
+                  </Text>
+                  <Text style={[styles.balanceStatLbl, { color: theme.textMuted }]}>Por cobrar</Text>
+                </View>
+              </View>
+              <Text style={[styles.balanceHint, { color: theme.textMuted }]}>
+                {balanceData?.reservasActivas || 0} reservas activas · {balanceData?.reservasPagadas || 0} pagadas ·{' '}
+                {balanceData?.reservasConSaldo || 0} con saldo
+              </Text>
+              <Text style={[styles.label, { color: theme.textMuted, marginTop: 16, marginBottom: 10 }]}>
+                Historial de cobros
+              </Text>
+              {(balanceData?.historial || []).length === 0 ? (
+                <Text style={[styles.emptyReservas, { color: theme.textMuted }]}>Todavía no hay cobros registrados.</Text>
+              ) : (
+                (balanceData?.historial || []).map((h, i) => (
+                  <View key={`${h.rentalId}-${h.fecha}-${i}`}>{renderHistorialRow(h)}</View>
+                ))
+              )}
+              {loadingMoreHistorial ? <ActivityIndicator color={cc} style={{ marginVertical: 12 }} /> : null}
+            </>
+          )
+        ) : activeTab === 'reservas' ? (
+          <>
+            <Text style={[styles.label, { color: theme.textMuted, marginBottom: 10 }]}>Filtrar por espacio</Text>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={[{ _id: '', nombre: 'Todos' }, ...spaces]}
+              keyExtractor={(s) => String(s._id || 'all')}
+              style={{ maxHeight: 50, flexGrow: 0, marginBottom: 15 }}
+              renderItem={({ item }) => {
+                const on = String(reservasSpaceFilter) === String(item._id || '');
+                return (
+                  <TouchableOpacity
+                    style={[
+                      styles.spaceChip,
+                      on ? { backgroundColor: cc, borderColor: cc } : { backgroundColor: theme.background, borderColor: theme.border },
+                    ]}
+                    onPress={() => setReservasSpaceFilter(item._id || '')}
+                  >
+                    <Text style={{ color: on ? '#fff' : theme.text }}>{item.nombre}</Text>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+            {isLoadingRentals && filteredReservas.length === 0 ? (
+              <ActivityIndicator color={cc} style={{ marginTop: 30 }} />
+            ) : filteredReservas.length === 0 ? (
+              <Text style={[styles.emptyReservas, { color: theme.textMuted }]}>
+                No hay reservas{reservasSpaceFilter ? ' para este espacio' : ''}.
+              </Text>
+            ) : (
+              <View style={{ paddingBottom: 24 }}>
+                {filteredReservas.map((r) => (
+                  <View key={String(r._id)}>{renderReservaCard(r)}</View>
+                ))}
+                {loadingMoreRentals ? <ActivityIndicator color={cc} style={{ marginVertical: 12 }} /> : null}
+              </View>
+            )}
+          </>
+        ) : showInitialSpacesLoader ? <ActivityIndicator color={cc} style={{marginTop:20}} /> : (
           <>
             <Text style={[styles.label, { color: theme.textMuted, marginBottom: 10 }]}>Seleccionar Espacio</Text>
             <FlatList horizontal showsHorizontalScrollIndicator={false} data={spaces} keyExtractor={s=>s._id}
@@ -334,9 +665,11 @@ export default function AlquileresScreen({ navigation }) {
         )}
       </ScrollView>
 
+      {activeTab === 'calendario' ? (
       <TouchableOpacity style={[styles.fab, { backgroundColor: '#10b981' }]} onPress={()=>openNewRental(null)}>
         <Ionicons name="calendar-outline" size={24} color="#fff" />
       </TouchableOpacity>
+      ) : null}
 
       {/* New Rental Modal */}
       <Modal visible={isModalVisible} animationType="slide" transparent>
@@ -397,13 +730,19 @@ export default function AlquileresScreen({ navigation }) {
       </Modal>
 
       {/* Rental Detail Bottom Sheet */}
-      <Modal visible={!!detailRental} animationType="slide" transparent>
+      <Modal
+        visible={!!detailRental}
+        animationType="slide"
+        transparent
+        presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+        onRequestClose={closeDetailRental}
+      >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
             {detailRental && (<>
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle,{color:theme.text}]}>Detalle Alquiler</Text>
-                <TouchableOpacity onPress={()=>setDetailRental(null)}><Ionicons name="close" size={28} color={theme.icon}/></TouchableOpacity>
+                <TouchableOpacity onPress={closeDetailRental}><Ionicons name="close" size={28} color={theme.icon}/></TouchableOpacity>
               </View>
               <View style={{alignItems:'center',marginBottom:20}}>
                 <View style={{backgroundColor:PAGO_COLOR[detailRental.estadoPago]+'20',width:70,height:70,borderRadius:35,justifyContent:'center',alignItems:'center',marginBottom:10}}>
@@ -419,23 +758,74 @@ export default function AlquileresScreen({ navigation }) {
                 <Text style={{color:theme.text,marginLeft:10,flex:1}}>{detailRental.telefonoCliente}</Text>
               </View>
               <View style={[styles.detailRow,{backgroundColor:theme.background}]}>
+                <Ionicons name="calendar-outline" size={18} color={cc}/>
+                <Text style={{color:theme.text,marginLeft:10,flex:1}}>
+                  {isoCalendarDateToDisplay(detailRental.fecha) || formatJsDateToDisplay(detailRental.fecha)}
+                </Text>
+              </View>
+              <View style={[styles.detailRow,{backgroundColor:theme.background}]}>
+                <Ionicons name="location-outline" size={18} color={cc}/>
+                <Text style={{color:theme.text,marginLeft:10,flex:1}}>{detailRental.espacio?.nombre || '—'}</Text>
+              </View>
+              <View style={[styles.detailRow,{backgroundColor:theme.background}]}>
                 <Ionicons name="time-outline" size={18} color={cc}/>
                 <Text style={{color:theme.text,marginLeft:10,flex:1}}>{detailRental.horaInicio} a {detailRental.horaFin}</Text>
               </View>
               <View style={{flexDirection:'row',gap:10,marginBottom:15}}>
                 <View style={[styles.detailRow,{backgroundColor:theme.background,flex:1}]}>
                   <Text style={{color:theme.textMuted,fontSize:12}}>Total</Text>
-                  <Text style={{color:theme.text,fontWeight:'bold',fontSize:18}}>${detailRental.montoTotal}</Text>
+                  <Text style={{color:theme.text,fontWeight:'bold',fontSize:18}}>{fmtRentalMoney(detailRental.montoTotal)}</Text>
                 </View>
                 <View style={[styles.detailRow,{backgroundColor:theme.background,flex:1}]}>
-                  <Text style={{color:theme.textMuted,fontSize:12}}>Seña</Text>
-                  <Text style={{color:'#10b981',fontWeight:'bold',fontSize:18}}>${detailRental.señaPagada}</Text>
+                  <Text style={{color:theme.textMuted,fontSize:12}}>Cobrado</Text>
+                  <Text style={{color:'#10b981',fontWeight:'bold',fontSize:18}}>{fmtRentalMoney(detailRental.señaPagada)}</Text>
                 </View>
               </View>
-              <TouchableOpacity style={[styles.saveBtn,{backgroundColor:'#ef4444'}]} onPress={()=>handleDeleteRental(detailRental)}>
+              {rentalSaldoPendiente(detailRental) > 0 ? (
+                <View style={[styles.detailRow,{backgroundColor:theme.background,marginBottom:12}]}>
+                  <Ionicons name="alert-circle-outline" size={18} color="#ef4444"/>
+                  <Text style={{color:theme.text,marginLeft:10,flex:1,fontWeight:'600'}}>
+                    Saldo pendiente: {fmtRentalMoney(rentalSaldoPendiente(detailRental))}
+                  </Text>
+                </View>
+              ) : null}
+              {rentalNeedsFullPayment(detailRental) ? (
+                <TouchableOpacity
+                  style={[styles.saveBtn,{backgroundColor:cc,marginBottom:12,opacity:String(payingRentalId)===String(detailRental._id)?0.7:1}]}
+                  onPress={() => handlePayTotal(detailRental, true)}
+                  disabled={String(payingRentalId) === String(detailRental._id)}
+                  activeOpacity={0.75}
+                >
+                  {String(payingRentalId) === String(detailRental._id) ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="card-outline" size={18} color="#fff" style={{marginRight:8}}/>
+                      <Text style={styles.saveBtnText}>Pagar total</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                style={[styles.saveBtn,{backgroundColor:'#ef4444'}]}
+                onPress={() => handleDeleteRental(detailRental, true)}
+                activeOpacity={0.75}
+              >
                 <Ionicons name="trash-outline" size={18} color="#fff" style={{marginRight:8}}/>
                 <Text style={styles.saveBtnText}>Cancelar Reserva</Text>
               </TouchableOpacity>
+              <CustomAlert
+                embedded
+                visible={detailAlertConfig.visible}
+                title={detailAlertConfig.title}
+                message={detailAlertConfig.message}
+                showCancel={detailAlertConfig.showCancel}
+                isDanger={detailAlertConfig.isDanger}
+                confirmText={detailAlertConfig.confirmText}
+                onConfirm={detailAlertConfig.onConfirm}
+                cancelText={detailAlertConfig.cancelText}
+                onCancel={detailAlertConfig.onCancel}
+              />
             </>)}
           </View>
         </View>
@@ -452,6 +842,30 @@ export default function AlquileresScreen({ navigation }) {
 const styles = StyleSheet.create({
   container:{flex:1},
   body:{flex:1,padding:20},
+  tabs:{flexDirection:'row',paddingHorizontal:16},
+  tab:{flex:1,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,paddingVertical:12},
+  tabLabel:{fontSize:13},
+  balanceStats:{flexDirection:'row',gap:10,marginBottom:8},
+  balanceStat:{flex:1,borderRadius:12,padding:12,alignItems:'center'},
+  balanceStatVal:{fontSize:14,fontWeight:'800'},
+  balanceStatLbl:{fontSize:10,marginTop:4,textAlign:'center'},
+  balanceHint:{fontSize:13,lineHeight:18,marginTop:4},
+  historialRow:{flexDirection:'row',alignItems:'center',gap:12,borderWidth:1,borderRadius:12,padding:14,marginBottom:8},
+  historialTitle:{fontSize:15,fontWeight:'700'},
+  historialMeta:{fontSize:12,marginTop:2},
+  historialSub:{fontSize:11,marginTop:4},
+  historialAmount:{fontSize:15,fontWeight:'800'},
+  reservaCard:{borderWidth:1,borderRadius:12,padding:14,marginBottom:10},
+  reservaTop:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10,marginBottom:6},
+  reservaName:{fontSize:16,fontWeight:'700',flex:1},
+  reservaMeta:{fontSize:13,lineHeight:18},
+  reservaMoneyRow:{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:8},
+  reservaAmount:{fontSize:13,fontWeight:'700'},
+  reservaPaid:{fontSize:13,fontWeight:'600'},
+  reservaDue:{fontSize:13,fontWeight:'700'},
+  payTotalBtn:{marginTop:12,height:42,borderRadius:10,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},
+  payTotalBtnTxt:{color:'#fff',fontWeight:'800',fontSize:13},
+  emptyReservas:{textAlign:'center',marginTop:40,fontSize:15,paddingHorizontal:24},
   spaceChip:{paddingHorizontal:15,paddingVertical:10,borderRadius:20,borderWidth:1,marginRight:8,height:40,justifyContent:'center'},
   calBox:{borderRadius:12,padding:15,marginBottom:20,elevation:2},
   calHead:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:15},

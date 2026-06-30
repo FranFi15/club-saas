@@ -80,7 +80,7 @@ function parseValor(raw) {
 }
 
 export default function CoachMeasurementScreen({ navigation, route }) {
-  const { atletaId, atletaNombre } = route.params || {};
+  const { atletaId, atletaNombre, initialTab } = route.params || {};
   const { clubData } = useContext(ClubContext);
   const { metodoGrasaCorporal } = useContext(NutritionSettingsContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
@@ -90,7 +90,9 @@ export default function CoachMeasurementScreen({ navigation, route }) {
       ? `coach-measurement:${clubData.urlIdentifier}:${atletaId}`
       : '';
 
-  const [activeTab, setActiveTab] = useState('registrar');
+  const [activeTab, setActiveTab] = useState(
+    () => (TABS.some((t) => t.key === initialTab) ? initialTab : 'registrar'),
+  );
   const [searchHistorial, setSearchHistorial] = useState('');
   const [chartMetricId, setChartMetricId] = useState('');
 

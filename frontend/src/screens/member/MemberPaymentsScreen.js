@@ -11,7 +11,9 @@ import {
   Linking,
   SectionList,
   Modal,
+  Platform,
 } from 'react-native';
+import { runAfterIosModalDismiss } from '../../utils/iosModalChain';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -114,7 +116,10 @@ export default function MemberPaymentsScreen({ navigation }) {
       };
     }
     if (memberId) {
-      const res = await clubApi.get(`/financial/payments/atleta/${memberId}`, { headers: h });
+      const res = await clubApi.get(`/financial/payments/atleta/${memberId}`, {
+        headers: h,
+        params: { page: 1, limit: 100 },
+      });
       return {
         list: res.data.payments || [],
         familyData: null,
@@ -202,18 +207,21 @@ export default function MemberPaymentsScreen({ navigation }) {
 
   const confirmMpPayments = (selected) => {
     setSelectModalOpen(false);
-    openPayFlow(selected);
+    runAfterIosModalDismiss(() => openPayFlow(selected));
   };
 
   const startMercadoPagoFromPending = () => {
+    const pending = pendingPayPayments;
     setPayFlowOpen(false);
-    if (pendingPayPayments.length === 1) {
-      payWithMp(pendingPayPayments[0], { asTutor: isTutor });
-      setPendingPayPayments([]);
-      return;
-    }
-    setSelectedForMp(pendingPayPayments);
-    setMpConfirmOpen(true);
+    setPendingPayPayments([]);
+    runAfterIosModalDismiss(() => {
+      if (pending.length === 1) {
+        payWithMp(pending[0], { asTutor: isTutor });
+        return;
+      }
+      setSelectedForMp(pending);
+      setMpConfirmOpen(true);
+    });
   };
 
   const paySelectedWithMp = async () => {
@@ -480,7 +488,12 @@ export default function MemberPaymentsScreen({ navigation }) {
         onError={showAlert}
       />
 
-      <Modal visible={mpConfirmOpen} animationType="slide" transparent>
+      <Modal
+        visible={mpConfirmOpen}
+        animationType="slide"
+        transparent
+        presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+      >
         <View style={styles.mpOverlay}>
           <View style={[styles.mpSheet, { backgroundColor: theme.surface }]}>
             <View style={styles.mpHeader}>

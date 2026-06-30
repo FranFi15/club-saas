@@ -34,3 +34,17 @@ export function sortEnrollmentsByAtleta(list) {
 export function sortPaymentsByAtleta(list) {
     return [...(list || [])].sort((a, b) => compareUserByName(a?.atleta, b?.atleta));
 }
+
+const PAYMENT_ESTADO_ORDER = { vencido: 0, pendiente: 1, en_revision: 2, pagado: 3 };
+
+/** Ordena cuotas de un atleta: peor estado primero; vencidos por período más reciente. */
+export function sortPaymentsByPriority(list) {
+    return [...(list || [])].sort((a, b) => {
+        const oa = PAYMENT_ESTADO_ORDER[a?.estado] ?? 9;
+        const ob = PAYMENT_ESTADO_ORDER[b?.estado] ?? 9;
+        if (oa !== ob) return oa - ob;
+        const ya = Number(b?.anio) - Number(a?.anio);
+        if (ya !== 0) return ya;
+        return Number(b?.mes) - Number(a?.mes);
+    });
+}

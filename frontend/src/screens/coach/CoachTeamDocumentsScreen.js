@@ -26,6 +26,7 @@ import { sortByNombre } from '../../utils/listSort';
 import { detectMediaKind, mediaKindIcon, downloadMediaFile, openMediaViewer } from '../../utils/mediaUtils';
 import { platformCardShadow } from '../../utils/platformShadow';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { pickPaginatedRows } from '../../utils/paginatedApi';
 
 const ESTADO_FILTERS = [
   { value: '', label: 'Todos los estados' },
@@ -138,6 +139,9 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
 
   const cachedFilterMeta = readScreenCache(filterMetaCacheKey);
   const [list, setList] = useState(() => readScreenCache(docsCacheKey) ?? []);
+  const [submissionsPage, setSubmissionsPage] = useState(1);
+  const [submissionsHasMore, setSubmissionsHasMore] = useState(false);
+  const [loadingMoreSubmissions, setLoadingMoreSubmissions] = useState(false);
   const [categories, setCategories] = useState(() => cachedFilterMeta?.categories ?? []);
   const [disciplines, setDisciplines] = useState(() => cachedFilterMeta?.disciplines ?? []);
   const [userId, setUserId] = useState('');
@@ -196,13 +200,45 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
 
   const fetchSubmissions = useCallback(async () => {
     const h = await headers();
-    const params = {};
+    const params = { page: 1, limit: 30 };
     if (estadoFilter) params.estado = estadoFilter;
     if (disciplinaFilter) params.disciplinaId = disciplinaFilter;
     if (categoriaFilter) params.categoriaId = categoriaFilter;
     const res = await clubApi.get('/requirements/submissions', { headers: h, params });
-    return res.data || [];
+    const rows = pickPaginatedRows(res.data, 'submissions');
+    setSubmissionsPage(res.data?.page ?? 1);
+    setSubmissionsHasMore(Boolean(res.data?.hasMore));
+    return rows;
   }, [headers, estadoFilter, disciplinaFilter, categoriaFilter]);
+
+  const loadMoreSubmissions = useCallback(async () => {
+    if (loadingMoreSubmissions || !submissionsHasMore) return;
+    setLoadingMoreSubmissions(true);
+    try {
+      const h = await headers();
+      const params = { page: submissionsPage + 1, limit: 30 };
+      if (estadoFilter) params.estado = estadoFilter;
+      if (disciplinaFilter) params.disciplinaId = disciplinaFilter;
+      if (categoriaFilter) params.categoriaId = categoriaFilter;
+      const res = await clubApi.get('/requirements/submissions', { headers: h, params });
+      const rows = pickPaginatedRows(res.data, 'submissions');
+      setList((prev) => [...prev, ...rows]);
+      setSubmissionsPage(res.data?.page ?? submissionsPage + 1);
+      setSubmissionsHasMore(Boolean(res.data?.hasMore));
+    } catch (e) {
+      showAlert('Error', e.response?.data?.message || 'No se pudieron cargar más entregas.');
+    } finally {
+      setLoadingMoreSubmissions(false);
+    }
+  }, [
+    loadingMoreSubmissions,
+    submissionsHasMore,
+    submissionsPage,
+    headers,
+    estadoFilter,
+    disciplinaFilter,
+    categoriaFilter,
+  ]);
 
   useCachedFocusLoad({
     cacheKey: filterMetaCacheKey,
@@ -533,6 +569,11 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
         renderItem={renderItem}
         ListHeaderComponent={listHeader}
         contentContainerStyle={[styles.listPad, list.length === 0 && styles.listPadEmpty]}
+        onEndReached={loadMoreSubmissions}
+        onEndReachedThreshold={0.35}
+        ListFooterComponent={
+          loadingMoreSubmissions ? <ActivityIndicator color={colorMarca} style={{ marginVertical: 16 }} /> : null
+        }
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
         ListEmptyComponent={
           showInitialLoader ? (

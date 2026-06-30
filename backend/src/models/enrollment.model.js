@@ -37,6 +37,8 @@ const enrollmentSchema = new mongoose.Schema({
 
 // Índice para evitar que anoten al mismo pibe dos veces en la misma categoría
 enrollmentSchema.index({ atleta: 1, categoria: 1 }, { unique: true });
+enrollmentSchema.index({ categoria: 1, estado: 1 });
+enrollmentSchema.index({ atleta: 1, estado: 1 });
 
 export const getEnrollmentModel = (tenantDB) => {
     return tenantDB.models.Enrollment || tenantDB.model('Enrollment', enrollmentSchema);

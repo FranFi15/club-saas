@@ -21,7 +21,9 @@ const sessionSchema = new mongoose.Schema({
     categoria: { 
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'Category',
-        required: true 
+        required: function requiredCategoria() {
+            return this.tipo !== 'alquiler';
+        },
     },
     fecha: { type: Date, required: true }, // Ej: 2024-04-14
     horaInicio: { type: String, required: true },
@@ -132,6 +134,10 @@ const sessionSchema = new mongoose.Schema({
     cargaTotalSesion: { type: Number } 
 
 }, { timestamps: true });
+
+sessionSchema.index({ categoria: 1, fecha: 1 });
+sessionSchema.index({ espacio: 1, fecha: 1 });
+sessionSchema.index({ atletaIndividual: 1, fecha: 1 });
 
 export const getSessionModel = (tenantDB) => {
     return tenantDB.models.Session || tenantDB.model('Session', sessionSchema);

@@ -317,7 +317,6 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
         colorMarca={colorMarca}
         kicker="Planificación"
         title="Grilla de entrenamientos"
-        subtitle="Cada horario define hasta cuándo el cron crea sesiones"
         onBack={embeddedStaff ? undefined : () => navigation.goBack()}
       />
 

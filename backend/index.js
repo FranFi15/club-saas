@@ -41,17 +41,32 @@ import clubEntryRoutes from './src/routes/clubEntry.routes.js';
 
 import { startSessionGenerationCron } from './src/cron/sessionGeneration.cron.js';
 import { startPaymentGenerationCron } from './src/cron/paymentGeneration.cron.js';
+import { startOverduePaymentsCron } from './src/cron/overduePayments.cron.js';
 
 const app = express();
+const isProd = process.env.NODE_ENV === 'production';
+
+if (isProd) {
+    const missing = [];
+    if (!process.env.JWT_SECRET) missing.push('JWT_SECRET');
+    if (!process.env.JWT_REFRESH_SECRET) missing.push('JWT_REFRESH_SECRET');
+    if (!process.env.FRONTEND_URL) missing.push('FRONTEND_URL');
+    if (missing.length) {
+        console.error(`[Club-Backend] Variables requeridas en producción: ${missing.join(', ')}`);
+        process.exit(1);
+    }
+} else if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET) {
+    console.warn('[Club-Backend] Faltan JWT_SECRET o JWT_REFRESH_SECRET en .env');
+}
 
 // 1. MIDDLEWARES GLOBALES Y SEGURIDAD
 // Helmet: Oculta cabeceras de Express y previene ataques XSS y Clickjacking
 app.use(helmet());
 
-// CORS: Permite que tu frontend de React se comunique con esta API
+// CORS: en producción solo el dominio del frontend; en desarrollo permite cualquier origen
 app.use(cors({
-    origin: process.env.FRONTEND_URL || '*', // Cambiar '*' por tu dominio en producción
-    credentials: true // Necesario si usás cookies (como el cookieParser)
+    origin: isProd ? process.env.FRONTEND_URL : true,
+    credentials: true,
 }));
 
 // Rate Limiting: Previene ataques de Fuerza Bruta y denegación de servicio (DDoS)
@@ -112,13 +127,10 @@ app.use(errorHandler);
 // 4. INICIALIZACIÓN DEL SERVIDOR
 const PORT = process.env.PORT || 5000;
 
-if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET) {
-    console.error('[Club-Backend] Faltan JWT_SECRET o JWT_REFRESH_SECRET en .env');
-}
-
 app.listen(PORT, () => {
     console.log(`[Club-Backend] Servidor corriendo en puerto ${PORT}`);
     console.log('🛡️  Capas de seguridad activas (Helmet, RateLimit, Sanitize)');
     startSessionGenerationCron();
     startPaymentGenerationCron();
+    startOverduePaymentsCron();
 });

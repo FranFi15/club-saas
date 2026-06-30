@@ -6,13 +6,16 @@
     "backend",
     "frontend",
     "super",
-    "superfront"
+    "superfront",
+    "website"
   ],
   "scripts": {
     "dev:backend": "npm run dev --workspace=backend",
     "dev:super": "npm run dev --workspace=super",
     "dev:superfront": "npm run dev --workspace=superfront",
     "dev:frontend": "npm run start --workspace=frontend",
+    "dev:website": "npm run dev --workspace=website",
+    "build:website": "npm run build --workspace=website",
     "start:all": "npx concurrently \"npm run dev:super\" \"npm run dev:backend\" \"npm run dev:superfront\""
   },
   "devDependencies": {

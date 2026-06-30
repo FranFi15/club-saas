@@ -20,6 +20,7 @@ import { clubApi } from '../../utils/api';
 import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import { clubHeaders, memberScopeParams } from './athleteApi';
+import { pickPaginatedRows } from '../../utils/paginatedApi';
 import { detectMediaKind, openMediaViewer, downloadMediaFile } from '../../utils/mediaUtils';
 import { uploadFileToClub, pickWebFile } from '../../utils/uploadMedia';
 import MemberChildPicker from '../../components/MemberChildPicker';
@@ -44,6 +45,9 @@ export default function AthleteDocumentsScreen({ navigation }) {
       : '';
 
   const [list, setList] = useState(() => readScreenCache(documentsCacheKey) ?? []);
+  const [docsPage, setDocsPage] = useState(1);
+  const [docsHasMore, setDocsHasMore] = useState(false);
+  const [loadingMoreDocs, setLoadingMoreDocs] = useState(false);
   const [uploadingId, setUploadingId] = useState(null);
   const [downloadingViewId, setDownloadingViewId] = useState(null);
   const [alertConfig, setAlertConfig] = useState({
@@ -67,10 +71,34 @@ export default function AthleteDocumentsScreen({ navigation }) {
     const h = await clubHeaders(clubData);
     const res = await clubApi.get('/requirements/me', {
       headers: h,
-      params: memberScopeParams(isTutor, memberId),
+      params: { ...memberScopeParams(isTutor, memberId), page: 1, limit: 30 },
     });
-    return res.data || [];
+    const rows = pickPaginatedRows(res.data, 'requirements');
+    setDocsPage(res.data?.page ?? 1);
+    setDocsHasMore(Boolean(res.data?.hasMore));
+    return rows;
   }, [clubData?.urlIdentifier, memberId, isTutor]);
+
+  const loadMoreDocuments = useCallback(async () => {
+    if (loadingMoreDocs || !docsHasMore) return;
+    setLoadingMoreDocs(true);
+    try {
+      const h = await clubHeaders(clubData);
+      const nextPage = docsPage + 1;
+      const res = await clubApi.get('/requirements/me', {
+        headers: h,
+        params: { ...memberScopeParams(isTutor, memberId), page: nextPage, limit: 30 },
+      });
+      const rows = pickPaginatedRows(res.data, 'requirements');
+      setList((prev) => [...prev, ...rows]);
+      setDocsPage(res.data?.page ?? nextPage);
+      setDocsHasMore(Boolean(res.data?.hasMore));
+    } catch (e) {
+      showAlert('Error', e.response?.data?.message || 'No se pudieron cargar más requerimientos.');
+    } finally {
+      setLoadingMoreDocs(false);
+    }
+  }, [loadingMoreDocs, docsHasMore, docsPage, clubData, memberId, isTutor]);
 
   const { loading, refreshing, onRefresh, reload } = useCachedFocusLoad({
     cacheKey: documentsCacheKey,
@@ -279,6 +307,11 @@ export default function AthleteDocumentsScreen({ navigation }) {
           keyExtractor={(item) => String(item._id)}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
+          onEndReached={loadMoreDocuments}
+          onEndReachedThreshold={0.35}
+          ListFooterComponent={
+            loadingMoreDocs ? <ActivityIndicator color={colorMarca} style={{ marginVertical: 16 }} /> : null
+          }
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
           ListEmptyComponent={
             <Text style={[styles.empty, { color: theme.textMuted }]}>No tenés documentos pendientes.</Text>

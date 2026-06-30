@@ -1,6 +1,6 @@
 // src/components/CustomAlert.js
 import React, { useContext } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Platform } from 'react-native';
 import { ThemeContext } from '../context/ThemeContext';
 import { ClubContext } from '../context/ClubContext';
 
@@ -25,24 +25,32 @@ export default function CustomAlert({
   if (!visible) return null;
 
   const content = (
-    <View style={[styles.overlay, embedded && styles.overlayEmbedded]}>
+    <View style={[styles.overlay, embedded && styles.overlayEmbedded]} pointerEvents="box-none">
       <View style={[styles.alertBox, { backgroundColor: theme.surface }]}>
-        
         <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
         <Text style={[styles.message, { color: theme.textMuted }]}>{message}</Text>
-        
+
         <View style={styles.buttonContainer}>
           {showCancel && (
-            <TouchableOpacity style={[styles.button, styles.cancelButton, { borderColor: theme.border }]} onPress={onCancel}>
+            <TouchableOpacity
+              style={[styles.button, styles.cancelButton, { borderColor: theme.border }]}
+              onPress={onCancel}
+              activeOpacity={0.75}
+              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+            >
               <Text style={[styles.buttonText, { color: theme.text }]}>{cancelText}</Text>
             </TouchableOpacity>
           )}
-          
-          <TouchableOpacity style={[styles.button, { backgroundColor: confirmColor }]} onPress={onConfirm}>
+
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: confirmColor }]}
+            onPress={onConfirm}
+            activeOpacity={0.75}
+            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+          >
             <Text style={[styles.buttonText, { color: '#ffffff' }]}>{confirmText}</Text>
           </TouchableOpacity>
         </View>
-
       </View>
     </View>
   );
@@ -50,7 +58,13 @@ export default function CustomAlert({
   if (embedded) return content;
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+      onRequestClose={showCancel ? onCancel : onConfirm}
+    >
       {content}
     </Modal>
   );

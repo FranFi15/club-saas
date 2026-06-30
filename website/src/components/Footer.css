@@ -1,0 +1,39 @@
+.footer {
+  padding: 2rem 0;
+  background: var(--brand-navy);
+}
+
+.footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+}
+
+.footer__brand {
+  display: flex;
+  align-items: center;
+}
+
+.footer__brand:hover {
+  opacity: 0.92;
+}
+
+.footer__logo .brand-logo__img {
+  width: 5.5rem;
+  height: auto;
+  max-height: none;
+}
+
+.footer__copy {
+  margin: 0;
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+@media (min-width: 768px) {
+  .footer__logo .brand-logo__img {
+    width: 6.5rem;
+  }
+}

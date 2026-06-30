@@ -1,6 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import { createAppNotification } from '../services/appNotification.service.js';
 import { sortPaymentsByAtleta, sortUsersByName } from '../utils/listSort.js';
+import { parsePageLimit, paginationMeta } from '../utils/pagination.js';
 
 async function assertProfeCategoria(userId, categoriaId, Category) {
     const c = await Category.findById(categoriaId).select('profesores');
@@ -381,6 +382,7 @@ async function resolveRequirementRecipient(req, res, atletaIdOverride) {
 
 const getMyRequirements = asyncHandler(async (req, res) => {
     const { Requirement, Submission } = req.models;
+    const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 30, maxLimit: 100 });
     const { recipientId, catIds, includeGlobal } = await resolveRequirementRecipient(req, res);
 
     const orConditions = [{ alcance: 'usuario', targetUsuario: recipientId }];
@@ -391,11 +393,16 @@ const getMyRequirements = asyncHandler(async (req, res) => {
         orConditions.push({ alcance: 'categoria', targetCategoria: { $in: catIds } });
     }
 
-    const reqs = await Requirement.find({
+    const filter = {
         activo: true,
         $or: orConditions,
-    })
+    };
+
+    const total = await Requirement.countDocuments(filter);
+    const reqs = await Requirement.find(filter)
         .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
         .lean();
 
     const reqIds = reqs.map((r) => r._id);
@@ -405,12 +412,15 @@ const getMyRequirements = asyncHandler(async (req, res) => {
     }).lean();
     const subByReq = new Map(subs.map((s) => [String(s.requerimiento), s]));
 
-    const out = reqs.map((r) => ({
+    const requirements = reqs.map((r) => ({
         ...r,
         miEntrega: subByReq.get(String(r._id)) || null,
     }));
 
-    res.json(out);
+    res.json({
+        requirements,
+        ...paginationMeta(page, limit, total),
+    });
 });
 
 async function getStaffCategoryIds(userId, rol, Category) {
@@ -461,9 +471,26 @@ async function atletaIdsForCategoryScope(models, { categoriaId, disciplinaId }) 
 const getStaffSubmissions = asyncHandler(async (req, res) => {
     const { Requirement, Enrollment, Submission, Category } = req.models;
     const { categoriaId, estado, disciplinaId } = req.query;
+    const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 30, maxLimit: 100 });
 
     const staffRoles = ['profe', 'preparador_fisico', 'nutricionista', 'psicologo'];
     const isAdmin = ['admin_club', 'administrativo'].includes(req.user.rol);
+
+    const respondSubmissions = async (subFilter) => {
+        const total = await Submission.countDocuments(subFilter);
+        const submissions = await Submission.find(subFilter)
+            .populate('atleta', 'nombre apellido')
+            .populate('requerimiento', 'titulo descripcion alcance targetCategoria fechaVencimiento obligatorio creadoPor')
+            .sort({ updatedAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean();
+
+        return res.json({
+            submissions: sortPaymentsByAtleta(submissions),
+            ...paginationMeta(page, limit, total),
+        });
+    };
 
     let catIds = [];
     let atletaIds = [];
@@ -471,7 +498,7 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
     if (isAdmin) {
         const reqIds = (await Requirement.find({ activo: true }).select('_id').lean()).map((r) => r._id);
         if (!reqIds.length) {
-            return res.json([]);
+            return res.json({ submissions: [], ...paginationMeta(page, limit, 0) });
         }
 
         const subFilter = { requerimiento: { $in: reqIds } };
@@ -479,7 +506,7 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
         if (categoriaId || disciplinaId) {
             const catAtletaIds = await atletaIdsForCategoryScope(req.models, { categoriaId, disciplinaId });
             if (!catAtletaIds.length) {
-                return res.json([]);
+                return res.json({ submissions: [], ...paginationMeta(page, limit, 0) });
             }
             subFilter.atleta = { $in: catAtletaIds };
         }
@@ -488,17 +515,13 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
             subFilter.estado = estado;
         }
 
-        const submissions = await Submission.find(subFilter)
-            .populate('atleta', 'nombre apellido')
-            .populate('requerimiento', 'titulo descripcion alcance targetCategoria fechaVencimiento obligatorio creadoPor')
-            .sort({ updatedAt: -1 })
-            .lean();
+        return respondSubmissions(subFilter);
+    }
 
-        return res.json(sortPaymentsByAtleta(submissions));
-    } else if (staffRoles.includes(req.user.rol)) {
+    if (staffRoles.includes(req.user.rol)) {
         catIds = await getStaffCategoryIds(req.user._id, req.user.rol, Category);
         if (!catIds.length) {
-            return res.json([]);
+            return res.json({ submissions: [], ...paginationMeta(page, limit, 0) });
         }
 
         if (disciplinaId) {
@@ -507,7 +530,7 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
                 .lean();
             catIds = discCats.map((c) => c._id);
             if (!catIds.length) {
-                return res.json([]);
+                return res.json({ submissions: [], ...paginationMeta(page, limit, 0) });
             }
         }
 
@@ -535,7 +558,7 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
     }
 
     if (!atletaIds.length) {
-        return res.json([]);
+        return res.json({ submissions: [], ...paginationMeta(page, limit, 0) });
     }
 
     const reqFilter = {
@@ -554,7 +577,7 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
     const reqs = await Requirement.find(reqFilter).select('_id').lean();
     const reqIds = reqs.map((r) => r._id);
     if (!reqIds.length) {
-        return res.json([]);
+        return res.json({ submissions: [], ...paginationMeta(page, limit, 0) });
     }
 
     const subFilter = {
@@ -565,13 +588,7 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
         subFilter.estado = estado;
     }
 
-    const submissions = await Submission.find(subFilter)
-        .populate('atleta', 'nombre apellido')
-        .populate('requerimiento', 'titulo descripcion alcance targetCategoria fechaVencimiento obligatorio creadoPor')
-        .sort({ updatedAt: -1 })
-        .lean();
-
-    res.json(sortPaymentsByAtleta(submissions));
+    return respondSubmissions(subFilter);
 });
 
 export { createRequirement, submitDocument, reviewSubmission, getMyRequirements, getStaffSubmissions };

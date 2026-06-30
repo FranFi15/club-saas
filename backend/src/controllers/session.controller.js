@@ -5,6 +5,8 @@ import {
     notifyConsultSessionCreated,
     notifyConsultSessionResponded,
 } from '../services/consultSessionNotification.service.js';
+import { notifyAttendanceSaved } from '../services/attendanceNotification.service.js';
+import { aggregateAttendanceFromSessions } from '../services/attendanceStats.service.js';
 import {
     clearSessionRelocation,
     isSpaceUnavailableForSessionDate,
@@ -12,6 +14,7 @@ import {
     restoreSessionToHomeSpace,
     attachFreeSpacesToSessions,
 } from '../services/spaceSessionRelocation.service.js';
+import { parsePageLimit, paginationMeta } from '../utils/pagination.js';
 
 const CONSULT_SESSION_TYPES = ['consulta_nutricion', 'consulta_psicologia'];
 
@@ -277,6 +280,16 @@ const takeAttendance = asyncHandler(async (req, res) => {
     if (estado) session.estado = estado; 
 
     const updatedSession = await session.save();
+
+    try {
+        await notifyAttendanceSaved(req.models, {
+            session: session.toObject(),
+            asistencia,
+            autorId: req.user._id,
+        });
+    } catch (notifyErr) {
+        console.warn('[attendance] notify tutors:', notifyErr.message);
+    }
     
     // Poblamos el espacio y la lista de atletas para que el front tenga la info actualizada
     await updatedSession.populate('espacio', 'nombre estado');
@@ -432,6 +445,114 @@ const getCoachAgenda = asyncHandler(async (req, res) => {
         .sort({ fecha: 1, horaInicio: 1 });
 
     res.json({ categorias: misCats, sesiones, categoriaSeleccionada });
+});
+
+function parseAttendanceDays(queryDias) {
+    return Math.min(365, Math.max(7, parseInt(queryDias, 10) || 90));
+}
+
+async function assertCategoryStaffAccess(req, res, categoriaId) {
+    const { Category } = req.models;
+    const rol = req.user.rol;
+    if (rol === 'admin_club' || rol === 'administrativo') return;
+
+    if (rol === 'profe') {
+        const ok = await Category.findOne({ _id: categoriaId, profesores: req.user._id });
+        if (!ok) {
+            res.status(403);
+            throw new Error('No tenés acceso a esta categoría.');
+        }
+        return;
+    }
+    if (rol === 'preparador_fisico') {
+        const ok = await Category.findOne({ _id: categoriaId, preparadoresFisicos: req.user._id });
+        if (!ok) {
+            res.status(403);
+            throw new Error('No tenés acceso a esta categoría.');
+        }
+        return;
+    }
+    if (rol === 'nutricionista') {
+        const ok = await Category.findOne({ _id: categoriaId, nutricionistas: req.user._id });
+        if (!ok) {
+            res.status(403);
+            throw new Error('No tenés acceso a esta categoría.');
+        }
+        return;
+    }
+    if (rol === 'psicologo') {
+        const ok = await Category.findOne({ _id: categoriaId, psicologos: req.user._id });
+        if (!ok) {
+            res.status(403);
+            throw new Error('No tenés acceso a esta categoría.');
+        }
+        return;
+    }
+    res.status(403);
+    throw new Error('No tenés permiso.');
+}
+
+async function loadTrainingAttendanceSessions(models, { categoriaId, atletaId, dias }) {
+    const { Session } = models;
+    const days = parseAttendanceDays(dias);
+    const fecha = { $lte: utcEndOfToday(), $gte: utcStartDaysAgo(days - 1) };
+    const query = {
+        estado: { $ne: 'cancelada' },
+        tipo: { $nin: ['alquiler', ...CONSULT_SESSION_TYPES] },
+        fecha,
+    };
+    if (categoriaId) query.categoria = categoriaId;
+    if (atletaId) query['asistencia.atleta'] = atletaId;
+
+    return Session.find(query).select('asistencia estado fecha').lean();
+}
+
+// @desc    Resumen de asistencia por atleta de una categoría
+// @route   GET /api/sessions/categoria/:categoryId/asistencia-resumen
+const getCategoryAttendanceResumen = asyncHandler(async (req, res) => {
+    const { Enrollment } = req.models;
+    const { categoryId } = req.params;
+    const dias = parseAttendanceDays(req.query.dias);
+
+    await assertCategoryStaffAccess(req, res, categoryId);
+
+    const inscritos = await Enrollment.find({ categoria: categoryId, estado: 'activo' }).select('atleta').lean();
+    const atletasIds = inscritos.map((i) => String(i.atleta));
+
+    const sessions = await loadTrainingAttendanceSessions(req.models, { categoriaId: categoryId, dias });
+    const porAtleta = aggregateAttendanceFromSessions(sessions);
+
+    atletasIds.forEach((id) => {
+        if (!porAtleta[id]) {
+            porAtleta[id] = { presente: 0, tarde: 0, ausente: 0, total: 0, asistenciaPct: null };
+        }
+    });
+
+    res.json({ dias, porAtleta });
+});
+
+// @desc    Resumen de asistencia del atleta logueado (últimos N días)
+// @route   GET /api/sessions/asistencia/mi-resumen
+const getMyAttendanceResumen = asyncHandler(async (req, res) => {
+    const dias = parseAttendanceDays(req.query.dias);
+    const atletaId = req.user._id;
+
+    if (req.user.rol !== 'atleta') {
+        res.status(403);
+        throw new Error('Solo los atletas pueden consultar este resumen.');
+    }
+
+    const sessions = await loadTrainingAttendanceSessions(req.models, { atletaId, dias });
+    const porAtleta = aggregateAttendanceFromSessions(sessions, [atletaId]);
+    const stats = porAtleta[String(atletaId)] || {
+        presente: 0,
+        tarde: 0,
+        ausente: 0,
+        total: 0,
+        asistenciaPct: null,
+    };
+
+    res.json({ dias, ...stats });
 });
 
 function utcEndOfToday() {
@@ -895,38 +1016,61 @@ const getSessionById = asyncHandler(async (req, res) => {
 
 const getSessionsByCategory = asyncHandler(async (req, res) => {
     const { Session, User } = req.models;
+    const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 50, maxLimit: 100 });
+    const { desde, hasta } = req.query;
 
-    let sessions = await Session.find({ categoria: req.params.categoryId })
-        .sort({ fecha: -1 })
+    const filter = { categoria: req.params.categoryId };
+    const rol = req.user.rol;
+    const uid = req.user._id;
+
+    if (rol === 'profe' || rol === 'preparador_fisico') {
+        filter.tipo = { $nin: CONSULT_SESSION_TYPES };
+    } else if (rol === 'nutricionista') {
+        filter.tipo = 'consulta_nutricion';
+    } else if (rol === 'psicologo') {
+        filter.tipo = 'consulta_psicologia';
+    } else if (rol === 'atleta') {
+        filter.$or = [
+            { atletaIndividual: { $exists: false } },
+            { atletaIndividual: null },
+            { atletaIndividual: uid },
+        ];
+    } else if (rol === 'tutor') {
+        const hijos = await User.find({ tutorPrincipal: req.user._id, rol: 'atleta' }).select('_id').lean();
+        const hijosIds = hijos.map((h) => h._id);
+        filter.$or = [
+            { atletaIndividual: { $exists: false } },
+            { atletaIndividual: null },
+            { atletaIndividual: { $in: hijosIds } },
+        ];
+    }
+
+    if (desde || hasta) {
+        filter.fecha = {};
+        const ymdStart = desde || hasta;
+        const ymdEnd = hasta || desde;
+        if (ymdStart) {
+            const inicioDia = new Date(ymdStart);
+            inicioDia.setUTCHours(0, 0, 0, 0);
+            filter.fecha.$gte = inicioDia;
+        }
+        if (ymdEnd) {
+            const finDia = new Date(ymdEnd);
+            finDia.setUTCHours(23, 59, 59, 999);
+            filter.fecha.$lte = finDia;
+        }
+    }
+
+    const total = await Session.countDocuments(filter);
+
+    let sessions = await Session.find(filter)
+        .sort({ fecha: -1, horaInicio: -1 })
+        .skip(skip)
+        .limit(limit)
         .populate('asistencia.atleta', 'nombre apellido')
         .populate('categoria', 'nombre')
         .populate('atletaIndividual', 'nombre apellido')
         .populate('espacio', 'nombre tipo estado notasMantenimiento');
-
-    const rol = req.user.rol;
-    const uid = req.user._id.toString();
-
-    if (rol === 'atleta') {
-        sessions = sessions.filter((s) => {
-            const ind = sessionAtletaIndividualId(s);
-            if (!ind) return true;
-            return ind === uid;
-        });
-    } else if (rol === 'tutor') {
-        const hijos = await User.find({ tutorPrincipal: req.user._id, rol: 'atleta' }).select('_id').lean();
-        const hijosSet = new Set(hijos.map((h) => String(h._id)));
-        sessions = sessions.filter((s) => {
-            const ind = sessionAtletaIndividualId(s);
-            if (!ind) return true;
-            return hijosSet.has(ind);
-        });
-    } else if (rol === 'profe' || rol === 'preparador_fisico') {
-        sessions = sessions.filter((s) => !CONSULT_SESSION_TYPES.includes(s.tipo));
-    } else if (rol === 'nutricionista') {
-        sessions = sessions.filter((s) => s.tipo === 'consulta_nutricion');
-    } else if (rol === 'psicologo') {
-        sessions = sessions.filter((s) => s.tipo === 'consulta_psicologia');
-    }
 
     if (rol === 'atleta' || rol === 'tutor') {
         await Promise.all(
@@ -934,16 +1078,20 @@ const getSessionsByCategory = asyncHandler(async (req, res) => {
         );
     }
 
-    res.json(sessions);
+    res.json({
+        sessions,
+        ...paginationMeta(page, limit, total),
+    });
 });
 
 // @desc    Obtener sesiones de un espacio (Para ver ocupación de cancha)
 // @route   GET /api/sessions/espacio/:spaceId
 const getSessionsBySpace = asyncHandler(async (req, res) => {
     const { Session } = req.models;
+    const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 100, maxLimit: 200 });
     const { fechaInicio, fechaFin } = req.query;
 
-    let query = {
+    const query = {
         espacio: req.params.spaceId,
     };
 
@@ -967,11 +1115,17 @@ const getSessionsBySpace = asyncHandler(async (req, res) => {
         }
     }
 
+    const total = await Session.countDocuments(query);
     const sessions = await Session.find(query)
         .sort({ fecha: 1, horaInicio: 1 })
+        .skip(skip)
+        .limit(limit)
         .populate('categoria', 'nombre');
-        
-    res.json(sessions);
+
+    res.json({
+        sessions,
+        ...paginationMeta(page, limit, total),
+    });
 });
 
 // @desc    Generar sesiones automáticamente basadas en la Grilla Fija (Schedule)
@@ -1914,6 +2068,8 @@ export {
     finishSession,
     getCoachAgenda,
     getCoachSessionStats,
+    getCategoryAttendanceResumen,
+    getMyAttendanceResumen,
     getPendingRelocations,
     bulkRelocateSessions,
     getRestorableSessions,

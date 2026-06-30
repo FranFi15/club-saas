@@ -416,7 +416,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
       }));
       await clubApi.put(`/sessions/${sessionId}/asistencia`, { asistencia, estado: session?.estado || 'programada' }, { headers: h });
       await reload({ background: true });
-      showAlert('Listo', 'Asistencia guardada.');
+      showAlert('Listo', 'Asistencia guardada. Se envió un aviso a los tutores por novedades.');
     } catch (e) {
       showAlert('Error', e.response?.data?.message || 'No se pudo guardar.');
     } finally {

@@ -7,6 +7,7 @@ import { isAssignableUserRole, canAssignUserRole } from '../constants/userRoles.
 import { syncAthleteCountToSuper } from '../services/athleteQuota.service.js';
 import { registerUserPushToken, unregisterUserPushToken } from '../services/pushNotification.service.js';
 import { userNameCollation, userNameMongoSort } from '../utils/listSort.js';
+import { parsePageLimit } from '../utils/pagination.js';
 
 const registerUser = asyncHandler(async (req, res) => {
     const { nombre, apellido, dni, email, password, rol, fotoPerfil, tutorPrincipal, fechaNacimiento, cuotasEnApp, sexo } = req.body;
@@ -319,9 +320,7 @@ const getUsers = asyncHandler(async (req, res) => {
     const { User } = req.models;
     
     // Paginación
-    const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 50;
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 50, maxLimit: 100 });
 
     // Filtros
     let filter = {};
@@ -360,20 +359,32 @@ const getUsers = asyncHandler(async (req, res) => {
     const totalUsers = await User.countDocuments(filter);
     const totalPages = Math.ceil(totalUsers / limit);
 
-    // Además, para poder "buscar por familia", podemos adjuntar al vuelo la info
-    // temporal de quiénes son los familiares a cargo si este usuario resulta ser el tutor de alguien.
-    // Esto es un poco costoso, pero como limitamos a 50 usuarios máximo, se puede hacer en un map:
-    const usersWithFamily = await Promise.all(users.map(async (u) => {
-        let esTutorDe = [];
-        if (u.rol === 'tutor' || u.rol === 'admin_club') {
-            const hujos = await User.find({ tutorPrincipal: u._id }).select('nombre apellido rol fotoPerfil');
-            esTutorDe = hujos;
+    const tutorIds = users
+        .filter((u) => u.rol === 'tutor' || u.rol === 'admin_club')
+        .map((u) => u._id);
+
+    const familiaresByTutor = {};
+    if (tutorIds.length) {
+        const hijos = await User.find({ tutorPrincipal: { $in: tutorIds } })
+            .select('nombre apellido rol fotoPerfil tutorPrincipal')
+            .lean();
+        for (const h of hijos) {
+            const tid = String(h.tutorPrincipal);
+            if (!familiaresByTutor[tid]) familiaresByTutor[tid] = [];
+            familiaresByTutor[tid].push(h);
         }
+    }
+
+    const usersWithFamily = users.map((u) => {
+        const esTutorDe =
+            u.rol === 'tutor' || u.rol === 'admin_club'
+                ? familiaresByTutor[String(u._id)] || []
+                : [];
         return {
             ...u.toObject(),
-            familiaresACargo: esTutorDe
+            familiaresACargo: esTutorDe,
         };
-    }));
+    });
 
     res.json({
         users: usersWithFamily,

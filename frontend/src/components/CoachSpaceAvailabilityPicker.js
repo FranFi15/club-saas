@@ -12,6 +12,7 @@ import CoachSessionCalendar from './CoachSessionCalendar';
 import { generateTimeSlots, getSlotStatus, getDayName, todayYmd } from '../utils/timeSlots';
 import { isoCalendarDateToDisplay } from '../utils/dateDisplay';
 import { clubApi } from '../utils/api';
+import { pickPaginatedRows } from '../utils/paginatedApi';
 import { getToken } from '../utils/storage';
 
 const SLOTS = generateTimeSlots(6, 23);
@@ -65,7 +66,7 @@ export default function CoachSpaceAvailabilityPicker({
         `/sessions/espacio/${selectedSpaceId}?fechaInicio=${selectedYmd}&fechaFin=${selectedYmd}&incluirCanceladas=true`,
         { headers: h },
       );
-      const all = res.data || [];
+      const all = pickPaginatedRows(res.data, 'sessions');
       setSessions(all.filter((s) => s.estado !== 'cancelada'));
       setCancelledSessions(all.filter((s) => s.estado === 'cancelada'));
     } catch {

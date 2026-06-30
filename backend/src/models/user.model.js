@@ -84,6 +84,8 @@ const userSchema = new mongoose.Schema({
 
 // Índice de unicidad manual para email dentro de la misma base de datos del club
 userSchema.index({ email: 1 }, { unique: true });
+userSchema.index({ tutorPrincipal: 1, rol: 1 });
+userSchema.index({ rol: 1, estado: 1 });
 
 // Encriptamos la contraseña antes de guardar
 userSchema.pre('save', async function() {

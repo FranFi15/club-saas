@@ -28,6 +28,7 @@ import {
   isoCalendarYmd,
 } from '../../utils/dateDisplay';
 import { clubHeaders } from './athleteApi';
+import { pickPaginatedRows } from '../../utils/paginatedApi';
 import { sessionDisplayName, sessionEsOpcional, isConsultaIndividual, consultaConfirmacionEstado, consultaConfirmacionLabel, consultaNeedsConfirmacion } from '../../utils/sessionDisplay';
 import { readScreenCache, useCachedFocusLoad, clearScreenCache } from '../../hooks/useCachedFocusLoad';
 import { useBadgesOptional } from '../../context/BadgeContext';
@@ -49,17 +50,24 @@ export default function AthleteAgendaScreen({ navigation }) {
   const { isTutor, memberId, loading: memberLoading, refresh: refreshMember } = useMember();
   const badges = useBadgesOptional();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
-  const agendaCacheKey =
-    clubData?.urlIdentifier && memberId
-      ? `member-agenda:${clubData.urlIdentifier}:${memberId}`
-      : '';
-
-  const [sessions, setSessions] = useState(() => readScreenCache(agendaCacheKey)?.sessions ?? []);
   const [currentMonth, setCurrentMonth] = useState(() => {
     const n = new Date();
     return new Date(n.getFullYear(), n.getMonth(), 1);
   });
+  const agendaCacheKey =
+    clubData?.urlIdentifier && memberId
+      ? `member-agenda:${clubData.urlIdentifier}:${memberId}:${currentMonth.getFullYear()}-${currentMonth.getMonth()}`
+      : '';
+
+  const [sessions, setSessions] = useState(() => readScreenCache(agendaCacheKey)?.sessions ?? []);
   const [selectedYmd, setSelectedYmd] = useState(todayYmd);
+
+  useEffect(() => {
+    if (!agendaCacheKey) return;
+    const cached = readScreenCache(agendaCacheKey);
+    setSessions(cached?.sessions ?? []);
+  }, [agendaCacheKey]);
+
   const [respondingId, setRespondingId] = useState(null);
   const [rejectingId, setRejectingId] = useState(null);
   const [rejectMotivo, setRejectMotivo] = useState('');
@@ -110,11 +118,30 @@ export default function AthleteAgendaScreen({ navigation }) {
           .filter(Boolean),
       ),
     ];
-    const sessionLists = await Promise.all(
-      catIds.map((cid) =>
-        clubApi.get(`/sessions/categoria/${cid}`, { headers: h }).then((r) => r.data || []),
-      ),
-    );
+
+    const y = currentMonth.getFullYear();
+    const m = currentMonth.getMonth();
+    const desde = calendarPartsToYmd(y, m, 1);
+    const hasta = calendarPartsToYmd(y, m, new Date(y, m + 1, 0).getDate());
+
+    const fetchCategorySessions = async (cid) => {
+      const rows = [];
+      let page = 1;
+      let hasMore = true;
+      while (hasMore) {
+        const r = await clubApi.get(`/sessions/categoria/${cid}`, {
+          headers: h,
+          params: { desde, hasta, page, limit: 100 },
+        });
+        rows.push(...pickPaginatedRows(r.data, 'sessions'));
+        hasMore = Boolean(r.data?.hasMore);
+        page += 1;
+        if (page > 20) break;
+      }
+      return rows;
+    };
+
+    const sessionLists = await Promise.all(catIds.map(fetchCategorySessions));
     const merged = [];
     const seen = new Set();
     for (const list of sessionLists) {
@@ -131,7 +158,7 @@ export default function AthleteAgendaScreen({ navigation }) {
         String(a.horaInicio).localeCompare(String(b.horaInicio)),
     );
     return { sessions: merged.filter((s) => s.estado !== 'cancelada') };
-  }, [clubData?.urlIdentifier, memberId]);
+  }, [clubData?.urlIdentifier, memberId, currentMonth]);
 
   const { loading, refreshing, onRefresh } = useCachedFocusLoad({
     cacheKey: agendaCacheKey,

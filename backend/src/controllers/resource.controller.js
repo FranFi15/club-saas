@@ -1,4 +1,5 @@
 import asyncHandler from 'express-async-handler';
+import { parsePageLimit, paginationMeta } from '../utils/pagination.js';
 
 function parseYouTubeVideoId(url) {
     if (!url || typeof url !== 'string') return null;
@@ -114,22 +115,30 @@ async function resolveAtletaIdForMember(req, res) {
 
 const getMyResources = asyncHandler(async (req, res) => {
     const { Resource, Enrollment } = req.models;
+    const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 30, maxLimit: 100 });
     const userId = await resolveAtletaIdForMember(req, res);
 
-    // Buscamos categorías del atleta
     const inscripciones = await Enrollment.find({ atleta: userId, estado: 'activo' });
-    const categoriasIds = inscripciones.map(i => i.categoria);
+    const categoriasIds = inscripciones.map((i) => i.categoria);
 
-    const recursos = await Resource.find({
+    const filter = {
         $or: [
             { alcance: 'usuario', targetUsuario: userId },
             { alcance: 'categoria', targetCategoria: { $in: categoriasIds } },
         ],
-    })
-        .populate('autor', 'nombre apellido rol')
-        .sort({ createdAt: -1 });
+    };
 
-    res.json(recursos);
+    const total = await Resource.countDocuments(filter);
+    const recursos = await Resource.find(filter)
+        .populate('autor', 'nombre apellido rol')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+    res.json({
+        resources: recursos,
+        ...paginationMeta(page, limit, total),
+    });
 });
 
 // @desc    Editar un recurso (Ej: corregir el título o actualizar el PDF)

@@ -15,6 +15,7 @@ import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import { useMember } from '../../context/MemberContext';
 import { getToken } from '../../utils/storage';
+import { clubApi } from '../../utils/api';
 import { MIN_AGE_SELF_PAY } from '../../utils/ageHelper';
 import { isoCalendarDateToDisplay } from '../../utils/dateDisplay';
 import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScreenHeader';
@@ -39,21 +40,39 @@ export default function AthleteProfileScreen({ navigation }) {
   const [nombre, setNombre] = useState(() => readScreenCache(profileCacheKey)?.nombre ?? '');
   const [apellido, setApellido] = useState(() => readScreenCache(profileCacheKey)?.apellido ?? '');
   const [emailHint, setEmailHint] = useState(() => readScreenCache(profileCacheKey)?.emailHint ?? '');
+  const [attendanceStats, setAttendanceStats] = useState(
+    () => readScreenCache(profileCacheKey)?.attendanceStats ?? null,
+  );
 
   const applyProfileView = useCallback((data) => {
     setNombre(data.nombre);
     setApellido(data.apellido);
     setEmailHint(data.emailHint);
+    setAttendanceStats(data.attendanceStats ?? null);
   }, []);
 
   const fetchProfileView = useCallback(async () => {
     await refresh({ background: true });
+    const token = await getToken('userToken');
+    const headers = clubData?.urlIdentifier
+      ? { 'x-club-identifier': clubData.urlIdentifier, Authorization: `Bearer ${token}` }
+      : null;
+    let att = null;
+    if (headers) {
+      try {
+        const attRes = await clubApi.get('/sessions/asistencia/mi-resumen?dias=90', { headers });
+        att = attRes.data || null;
+      } catch {
+        att = null;
+      }
+    }
     return {
       nombre: (await getToken('userNombre')) || '',
       apellido: (await getToken('userApellido')) || '',
       emailHint: (await getToken('userEmail')) || '',
+      attendanceStats: att,
     };
-  }, [refresh]);
+  }, [refresh, clubData?.urlIdentifier]);
 
   const { refreshing, onRefresh } = useCachedFocusLoad({
     cacheKey: profileCacheKey,
@@ -123,6 +142,42 @@ export default function AthleteProfileScreen({ navigation }) {
           <ProfileInfoRow icon="mail-outline" label="Email" value={emailHint || profile?.email} theme={theme} isLast />
         </View>
 
+        <View
+          style={[
+            profileCardStyles.card,
+            styles.attendanceCard,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Asistencia</Text>
+          {attendanceStats?.total > 0 ? (
+            <View style={styles.attendanceGrid}>
+              <View style={styles.attendanceStat}>
+                <Text style={[styles.attendanceStatLbl, { color: theme.textMuted }]}>Presente</Text>
+                <Text style={[styles.attendanceStatVal, { color: '#22c55e' }]}>{attendanceStats.presente}</Text>
+              </View>
+              <View style={styles.attendanceStat}>
+                <Text style={[styles.attendanceStatLbl, { color: theme.textMuted }]}>Tarde</Text>
+                <Text style={[styles.attendanceStatVal, { color: '#f59e0b' }]}>{attendanceStats.tarde}</Text>
+              </View>
+              <View style={styles.attendanceStat}>
+                <Text style={[styles.attendanceStatLbl, { color: theme.textMuted }]}>Ausente</Text>
+                <Text style={[styles.attendanceStatVal, { color: '#ef4444' }]}>{attendanceStats.ausente}</Text>
+              </View>
+              <View style={styles.attendanceStat}>
+                <Text style={[styles.attendanceStatLbl, { color: theme.textMuted }]}>% asist.</Text>
+                <Text style={[styles.attendanceStatVal, { color: theme.text }]}>
+                  {attendanceStats.asistenciaPct ?? 0}%
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <Text style={[styles.attendanceEmpty, { color: theme.textMuted }]}>
+              Todavía no hay sesiones con asistencia registrada.
+            </Text>
+          )}
+        </View>
+
         {cuotasEnApp ? (
           <View style={[profileCardStyles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <ProfileLinkRow
@@ -154,4 +209,18 @@ export default function AthleteProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   heroBadgeTxt: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  attendanceCard: { marginTop: 8, paddingTop: 14, paddingBottom: 14 },
+  sectionTitle: { fontSize: 16, fontWeight: '800', marginBottom: 12 },
+  attendanceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  attendanceStat: {
+    flexGrow: 1,
+    minWidth: '42%',
+    padding: 12,
+    borderRadius: 4,
+    backgroundColor: 'rgba(128,128,128,0.08)',
+    alignItems: 'center',
+  },
+  attendanceStatLbl: { fontSize: 11, fontWeight: '600' },
+  attendanceStatVal: { fontSize: 20, fontWeight: '800', marginTop: 4 },
+  attendanceEmpty: { fontSize: 14, lineHeight: 20 },
 });

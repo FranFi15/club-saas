@@ -1,9 +1,16 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { finanzasStyles as s } from './finanzasStyles';
 import { MN, EST_COLOR, fmtMoney } from './finanzasConstants';
-import { compareUserByName, sortUsersByName } from '../../../utils/listSort';
 
 export default function FamiliasTab({
   theme,
@@ -12,6 +19,15 @@ export default function FamiliasTab({
   anio,
   siblings,
   isLoading,
+  isRefreshing = false,
+  filtroBusqueda,
+  setFiltroBusqueda,
+  isSearchPending = false,
+  refreshing,
+  onRefresh,
+  hasMoreFamilias = false,
+  loadingMoreFamilias = false,
+  onLoadMoreFamilias,
   globalDiscount,
   globalDiscountInput,
   onGlobalDiscountChange,
@@ -26,7 +42,6 @@ export default function FamiliasTab({
   canManageDiscounts = true,
 }) {
   const cc = primaryColor;
-  const [filtroBusqueda, setFiltroBusqueda] = useState('');
   const [expandedGlobalDiscount, setExpandedGlobalDiscount] = useState(false);
   const [expandedAthletes, setExpandedAthletes] = useState({});
   const [expandedDiscount, setExpandedDiscount] = useState({});
@@ -46,312 +61,335 @@ export default function FamiliasTab({
     return { label: cuota.estado, color: ec };
   };
 
-  const filteredSiblings = useMemo(() => {
-    const q = filtroBusqueda.trim().toLowerCase();
-    let list = siblings;
-    if (q) {
-      list = siblings.filter((g) => {
-        const tutor = `${g.tutor?.nombre || ''} ${g.tutor?.apellido || ''}`.toLowerCase();
-        if (tutor.includes(q)) return true;
-        return (g.hijos || []).some((h) => {
-          const hijo = `${h.nombre || ''} ${h.apellido || ''}`.toLowerCase();
-          return hijo.includes(q);
-        });
-      });
-    }
-    return [...list]
-      .sort((a, b) => compareUserByName(a.tutor, b.tutor))
-      .map((g) => ({ ...g, hijos: sortUsersByName(g.hijos || []) }));
-  }, [siblings, filtroBusqueda]);
+  const renderFamilyCard = useCallback(
+    ({ item: g }) => {
+      const tutorId = g.tutor._id;
+      const pctActual = familyDiscountDisplay(g);
+      const inputVal = discountInput[tutorId] ?? (pctActual ? String(pctActual) : '');
+      const impagas = g.cuotasImpagas || [];
+      const canPayAll = impagas.length > 0;
 
-  const searchBar = (
-    <View style={[styles.searchRow, { backgroundColor: theme.background, borderColor: theme.border }]}>
-      <Ionicons name="search" size={18} color={theme.icon} style={{ marginRight: 8 }} />
-      <TextInput
-        style={[styles.searchInput, { color: theme.text }]}
-        placeholder="Buscar tutor o atleta"
-        placeholderTextColor={theme.textMuted}
-        value={filtroBusqueda}
-        onChangeText={setFiltroBusqueda}
-        autoCorrect={false}
-      />
-      {filtroBusqueda ? (
-        <TouchableOpacity onPress={() => setFiltroBusqueda('')} hitSlop={8}>
-          <Ionicons name="close-circle" size={20} color={theme.icon} />
-        </TouchableOpacity>
-      ) : null}
-    </View>
-  );
-
-  const globalDiscountToggle = (
-    <TouchableOpacity
-      style={[styles.globalToggleBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
-      onPress={() => setExpandedGlobalDiscount((v) => !v)}
-    >
-      <Ionicons
-        name={expandedGlobalDiscount ? 'chevron-up' : 'chevron-down'}
-        size={18}
-        color={cc}
-      />
-      <Text style={[styles.toggleBtnTxt, { color: theme.text, flex: 1 }]}>
-        Descuento global{globalDiscount > 0 ? ` (${globalDiscount}%)` : ''}
-      </Text>
-    </TouchableOpacity>
-  );
-
-  const globalDiscountPanel = expandedGlobalDiscount ? (
-    <View style={[styles.globalBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-      <Text style={[styles.discountLabel, { color: theme.text }]}>Descuento por defecto (%)</Text>
-      <Text style={[styles.discountHint, { color: theme.textMuted }]}>
-        Se aplica a familias nuevas sin descuento personalizado.
-      </Text>
-      <View style={styles.discountRow}>
-        <TextInput
-          style={[
-            s.input,
-            styles.discountInput,
-            { backgroundColor: theme.background, borderColor: theme.border, color: theme.text },
-          ]}
-          placeholder="Ej: 10"
-          placeholderTextColor={theme.textMuted}
-          keyboardType="numeric"
-          value={globalDiscountInput}
-          onChangeText={onGlobalDiscountChange}
-        />
-        <Text style={{ color: theme.textMuted, fontWeight: '700', fontSize: 16 }}>%</Text>
-        <TouchableOpacity
-          style={[styles.applyBtn, { backgroundColor: cc, opacity: isSavingGlobalDiscount ? 0.6 : 1 }]}
-          onPress={onSaveGlobalDiscount}
-          disabled={isSavingGlobalDiscount}
+      return (
+        <View
+          style={[styles.familyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
         >
-          <Text style={styles.applyBtnTxt}>{isSavingGlobalDiscount ? '...' : 'Guardar'}</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  ) : null;
-
-  const familiasHeader = (
-    <Text style={[s.sectionTitle, { color: theme.text, marginTop: 12, marginBottom: 8 }]}>Familias</Text>
-  );
-
-  if (isLoading && !siblings.length) {
-    return (
-      <View style={s.tabPanel}>
-        <ScrollView contentContainerStyle={{ paddingTop: 8, paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
-          {canManageDiscounts ? globalDiscountToggle : null}
-          {canManageDiscounts ? globalDiscountPanel : null}
-          {familiasHeader}
-          {searchBar}
-          <ActivityIndicator color={cc} style={{ marginTop: 40 }} />
-        </ScrollView>
-      </View>
-    );
-  }
-
-  return (
-    <View style={s.tabPanel}>
-      <ScrollView style={s.tabScroll} contentContainerStyle={{ paddingBottom: 30, paddingTop: 8 }} keyboardShouldPersistTaps="handled">
-        {canManageDiscounts ? globalDiscountToggle : null}
-        {canManageDiscounts ? globalDiscountPanel : null}
-        {familiasHeader}
-        {searchBar}
-
-        {siblings.length === 0 ? (
-          <View style={s.empty}>
-            <Ionicons name="people-outline" size={50} color={theme.icon} />
-            <Text style={[s.emptyTxt, { color: theme.text }]}>Sin familias con tutor</Text>
+          <View style={styles.familyHeader}>
+            <View style={[s.planIcon, { backgroundColor: '#8b5cf620' }]}>
+              <Ionicons name="people" size={20} color="#8b5cf6" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: theme.textMuted, fontSize: 11 }}>Tutor</Text>
+              <Text style={[s.planName, { color: theme.text }]}>
+                {g.tutor.nombre} {g.tutor.apellido}
+              </Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={{ color: theme.textMuted, fontSize: 11 }}>Impago total</Text>
+              <Text style={{ color: '#ef4444', fontWeight: '800', fontSize: 16 }}>
+                {fmtMoney(g.totalImpago)}
+              </Text>
+            </View>
           </View>
-        ) : filteredSiblings.length === 0 ? (
-          <View style={s.empty}>
-            <Ionicons name="search-outline" size={50} color={theme.icon} />
-            <Text style={[s.emptyTxt, { color: theme.text }]}>Sin resultados</Text>
-            <Text style={[s.emptySub, { color: theme.textMuted }]}>Probá otro nombre de tutor o atleta.</Text>
-          </View>
-        ) : (
-          filteredSiblings.map((g) => {
-            const tutorId = g.tutor._id;
-            const pctActual = familyDiscountDisplay(g);
-            const inputVal = discountInput[tutorId] ?? (pctActual ? String(pctActual) : '');
-            const impagas = g.cuotasImpagas || [];
-            const canPayAll = impagas.length > 0;
 
-            return (
-              <View
-                key={tutorId}
-                style={[styles.familyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+          {canPayAll ? (
+            <TouchableOpacity
+              style={[styles.payBtnFamilia, { backgroundColor: '#10b981' }]}
+              onPress={() =>
+                onSelectPayments(impagas, `${g.tutor.nombre} ${g.tutor.apellido}`, g.hijos)
+              }
+            >
+              <Ionicons name="cash-outline" size={18} color="#fff" />
+              <Text style={styles.payBtnFamiliaTxt}>Pagar</Text>
+            </TouchableOpacity>
+          ) : null}
+
+          <View style={styles.toggleRow}>
+            <TouchableOpacity
+              style={[styles.toggleBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+              onPress={() => toggleSection(setExpandedAthletes, tutorId)}
+            >
+              <Ionicons
+                name={expandedAthletes[tutorId] ? 'chevron-up' : 'chevron-down'}
+                size={16}
+                color={cc}
+              />
+              <Text style={[styles.toggleBtnTxt, { color: theme.text }]}>
+                Atletas ({g.hijos.length})
+              </Text>
+            </TouchableOpacity>
+            {canManageDiscounts ? (
+              <TouchableOpacity
+                style={[styles.toggleBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+                onPress={() => toggleSection(setExpandedDiscount, tutorId)}
               >
-                <View style={styles.familyHeader}>
-                  <View style={[s.planIcon, { backgroundColor: '#8b5cf620' }]}>
-                    <Ionicons name="people" size={20} color="#8b5cf6" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: theme.textMuted, fontSize: 11 }}>Tutor</Text>
-                    <Text style={[s.planName, { color: theme.text }]}>
-                      {g.tutor.nombre} {g.tutor.apellido}
-                    </Text>
-                  </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={{ color: theme.textMuted, fontSize: 11 }}>Impago total</Text>
-                    <Text style={{ color: '#ef4444', fontWeight: '800', fontSize: 16 }}>{fmtMoney(g.totalImpago)}</Text>
-                  </View>
-                </View>
+                <Ionicons
+                  name={expandedDiscount[tutorId] ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color="#8b5cf6"
+                />
+                <Text style={[styles.toggleBtnTxt, { color: theme.text }]}>
+                  Descuento{pctActual > 0 ? ` (${pctActual}%)` : ''}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
 
-                {canPayAll ? (
-                  <TouchableOpacity
-                    style={[styles.payBtnFamilia, { backgroundColor: '#10b981' }]}
-                    onPress={() =>
-                      onSelectPayments(
-                        impagas,
-                        `${g.tutor.nombre} ${g.tutor.apellido}`,
-                        g.hijos,
-                      )
-                    }
-                  >
-                    <Ionicons name="cash-outline" size={18} color="#fff" />
-                    <Text style={styles.payBtnFamiliaTxt}>Pagar</Text>
-                  </TouchableOpacity>
-                ) : null}
+          {expandedAthletes[tutorId]
+            ? g.hijos.map((h) => {
+                const cuota = h.cuotaMes;
+                const st = estadoCuota(cuota);
+                const hijoImpagas = h.cuotasImpagas || [];
+                const payables = hijoImpagas.length
+                  ? hijoImpagas
+                  : cuota && ['pendiente', 'vencido'].includes(cuota.estado)
+                    ? [cuota]
+                    : [];
 
-                <View style={styles.toggleRow}>
-                  <TouchableOpacity
-                    style={[styles.toggleBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
-                    onPress={() => toggleSection(setExpandedAthletes, tutorId)}
-                  >
-                    <Ionicons
-                      name={expandedAthletes[tutorId] ? 'chevron-up' : 'chevron-down'}
-                      size={16}
-                      color={cc}
-                    />
-                    <Text style={[styles.toggleBtnTxt, { color: theme.text }]}>
-                      Atletas ({g.hijos.length})
-                    </Text>
-                  </TouchableOpacity>
-                  {canManageDiscounts ? (
-                    <TouchableOpacity
-                      style={[styles.toggleBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
-                      onPress={() => toggleSection(setExpandedDiscount, tutorId)}
-                    >
-                      <Ionicons
-                        name={expandedDiscount[tutorId] ? 'chevron-up' : 'chevron-down'}
-                        size={16}
-                        color="#8b5cf6"
-                      />
-                      <Text style={[styles.toggleBtnTxt, { color: theme.text }]}>
-                        Descuento{pctActual > 0 ? ` (${pctActual}%)` : ''}
+                return (
+                  <View key={h._id} style={[styles.childBlock, { borderColor: theme.border }]}>
+                    <View style={styles.childRow}>
+                      <Text style={{ color: theme.text, flex: 1, fontSize: 14, fontWeight: '600' }}>
+                        {h.nombre} {h.apellido}
                       </Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-
-                {expandedAthletes[tutorId]
-                  ? g.hijos.map((h) => {
-                  const cuota = h.cuotaMes;
-                  const st = estadoCuota(cuota);
-                  const hijoImpagas = h.cuotasImpagas || [];
-                  const payables = hijoImpagas.length
-                    ? hijoImpagas
-                    : cuota && ['pendiente', 'vencido'].includes(cuota.estado)
-                      ? [cuota]
-                      : [];
-
-                  return (
-                    <View key={h._id} style={[styles.childBlock, { borderColor: theme.border }]}>
-                      <View style={styles.childRow}>
-                        <Text style={{ color: theme.text, flex: 1, fontSize: 14, fontWeight: '600' }}>
-                          {h.nombre} {h.apellido}
+                      {cuota ? (
+                        <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>
+                          {fmtMoney(cuota.montoFinal)}
                         </Text>
-                        {cuota ? (
-                          <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>
-                            {fmtMoney(cuota.montoFinal)}
-                          </Text>
-                        ) : null}
-                      </View>
-                      <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8 }}>
-                        {cuota
-                          ? `${MN[mes - 1]} ${anio} · ${cuota.plan?.nombre || 'Cuota'}`
-                          : `Sin cuota en ${MN[mes - 1]} ${anio}`}
-                        {hijoImpagas.length > 1 ? ` · ${hijoImpagas.length} impagas` : ''}
-                      </Text>
-                      <View style={[styles.badge, { backgroundColor: st.color + '22', alignSelf: 'flex-start', marginBottom: 8 }]}>
-                        <Text style={{ color: st.color, fontSize: 10, fontWeight: '700', textTransform: 'capitalize' }}>
-                          {st.label}
-                        </Text>
-                      </View>
-                      <View style={styles.childActions}>
-                        <TouchableOpacity
-                          style={[
-                            styles.childBtn,
-                            {
-                              backgroundColor: payables.length ? '#10b981' : theme.background,
-                              borderColor: theme.border,
-                            },
-                          ]}
-                          onPress={() => {
-                            if (!payables.length) return;
-                            if (payables.length === 1) onPayCuota(payables[0], h);
-                            else onSelectPayments(payables, `${h.nombre} ${h.apellido}`, [h]);
-                          }}
-                          disabled={!payables.length}
-                        >
-                          <Text
-                            style={{
-                              color: payables.length ? '#fff' : theme.textMuted,
-                              fontWeight: '700',
-                              fontSize: 12,
-                            }}
-                          >
-                            Pagar
-                          </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.childBtn, styles.childBtnOutline, { borderColor: cc }]}
-                          onPress={() => onHistoryAtleta(h)}
-                        >
-                          <Text style={{ color: cc, fontWeight: '700', fontSize: 12 }}>Historial</Text>
-                        </TouchableOpacity>
-                      </View>
+                      ) : null}
                     </View>
-                  );
-                })
-                  : null}
-
-                {canManageDiscounts && expandedDiscount[tutorId] ? (
-                  <View style={[styles.discountBox, { backgroundColor: theme.background, borderColor: theme.border }]}>
-                    <Text style={[styles.discountLabel, { color: theme.text }]}>Descuento familiar (%)</Text>
-                    <Text style={[styles.discountHint, { color: theme.textMuted }]}>
-                      {g.descuentoEsPersonalizado
-                        ? 'Descuento personalizado para esta familia.'
-                        : globalDiscount > 0
-                          ? `Si no cambiás el valor, se usa el global (${globalDiscount}%).`
-                          : 'Porcentaje aplicado a las inscripciones activas.'}
+                    <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8 }}>
+                      {cuota
+                        ? `${MN[mes - 1]} ${anio} · ${cuota.plan?.nombre || 'Cuota'}`
+                        : `Sin cuota en ${MN[mes - 1]} ${anio}`}
+                      {hijoImpagas.length > 1 ? ` · ${hijoImpagas.length} impagas` : ''}
                     </Text>
-                    <View style={styles.discountRow}>
-                      <TextInput
-                        style={[
-                          s.input,
-                          styles.discountInput,
-                          { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
-                        ]}
-                        placeholder="0–100"
-                        placeholderTextColor={theme.textMuted}
-                        keyboardType="numeric"
-                        value={inputVal}
-                        onChangeText={(v) => onDiscountChange(tutorId, v)}
-                      />
-                      <TouchableOpacity
-                        style={[styles.applyBtn, { backgroundColor: '#8b5cf6' }]}
-                        onPress={() => onApplyDiscount(tutorId)}
+                    <View
+                      style={[
+                        styles.badge,
+                        { backgroundColor: st.color + '22', alignSelf: 'flex-start', marginBottom: 8 },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          color: st.color,
+                          fontSize: 10,
+                          fontWeight: '700',
+                          textTransform: 'capitalize',
+                        }}
                       >
-                        <Text style={styles.applyBtnTxt}>Guardar</Text>
+                        {st.label}
+                      </Text>
+                    </View>
+                    <View style={styles.childActions}>
+                      <TouchableOpacity
+                        style={[
+                          styles.childBtn,
+                          {
+                            backgroundColor: payables.length ? '#10b981' : theme.background,
+                            borderColor: theme.border,
+                          },
+                        ]}
+                        onPress={() => {
+                          if (!payables.length) return;
+                          if (payables.length === 1) onPayCuota(payables[0], h);
+                          else onSelectPayments(payables, `${h.nombre} ${h.apellido}`, [h]);
+                        }}
+                        disabled={!payables.length}
+                      >
+                        <Text
+                          style={{
+                            color: payables.length ? '#fff' : theme.textMuted,
+                            fontWeight: '700',
+                            fontSize: 12,
+                          }}
+                        >
+                          Pagar
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.childBtn, styles.childBtnOutline, { borderColor: cc }]}
+                        onPress={() => onHistoryAtleta(h)}
+                      >
+                        <Text style={{ color: cc, fontWeight: '700', fontSize: 12 }}>Historial</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
-                ) : null}
+                );
+              })
+            : null}
+
+          {canManageDiscounts && expandedDiscount[tutorId] ? (
+            <View style={[styles.discountBox, { backgroundColor: theme.background, borderColor: theme.border }]}>
+              <Text style={[styles.discountLabel, { color: theme.text }]}>Descuento familiar (%)</Text>
+              <Text style={[styles.discountHint, { color: theme.textMuted }]}>
+                {g.descuentoEsPersonalizado
+                  ? 'Descuento personalizado para esta familia.'
+                  : globalDiscount > 0
+                    ? `Si no cambiás el valor, se usa el global (${globalDiscount}%).`
+                    : 'Porcentaje aplicado a las inscripciones activas.'}
+              </Text>
+              <View style={styles.discountRow}>
+                <TextInput
+                  style={[
+                    s.input,
+                    styles.discountInput,
+                    { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
+                  ]}
+                  placeholder="0–100"
+                  placeholderTextColor={theme.textMuted}
+                  keyboardType="numeric"
+                  value={inputVal}
+                  onChangeText={(v) => onDiscountChange(tutorId, v)}
+                />
+                <TouchableOpacity
+                  style={[styles.applyBtn, { backgroundColor: '#8b5cf6' }]}
+                  onPress={() => onApplyDiscount(tutorId)}
+                >
+                  <Text style={styles.applyBtnTxt}>Guardar</Text>
+                </TouchableOpacity>
               </View>
-            );
-          })
-        )}
-      </ScrollView>
+            </View>
+          ) : null}
+        </View>
+      );
+    },
+    [
+      theme,
+      cc,
+      mes,
+      anio,
+      expandedAthletes,
+      expandedDiscount,
+      discountInput,
+      globalDiscount,
+      canManageDiscounts,
+      onSelectPayments,
+      onPayCuota,
+      onHistoryAtleta,
+      onDiscountChange,
+      onApplyDiscount,
+    ],
+  );
+
+  const listHeader = (
+    <>
+      {canManageDiscounts ? (
+        <TouchableOpacity
+          style={[styles.globalToggleBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
+          onPress={() => setExpandedGlobalDiscount((v) => !v)}
+        >
+          <Ionicons
+            name={expandedGlobalDiscount ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={cc}
+          />
+          <Text style={[styles.toggleBtnTxt, { color: theme.text, flex: 1 }]}>
+            Descuento global{globalDiscount > 0 ? ` (${globalDiscount}%)` : ''}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {canManageDiscounts && expandedGlobalDiscount ? (
+        <View style={[styles.globalBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[styles.discountLabel, { color: theme.text }]}>Descuento por defecto (%)</Text>
+          <Text style={[styles.discountHint, { color: theme.textMuted }]}>
+            Se aplica a familias nuevas sin descuento personalizado.
+          </Text>
+          <View style={styles.discountRow}>
+            <TextInput
+              style={[
+                s.input,
+                styles.discountInput,
+                { backgroundColor: theme.background, borderColor: theme.border, color: theme.text },
+              ]}
+              placeholder="Ej: 10"
+              placeholderTextColor={theme.textMuted}
+              keyboardType="numeric"
+              value={globalDiscountInput}
+              onChangeText={onGlobalDiscountChange}
+            />
+            <Text style={{ color: theme.textMuted, fontWeight: '700', fontSize: 16 }}>%</Text>
+            <TouchableOpacity
+              style={[styles.applyBtn, { backgroundColor: cc, opacity: isSavingGlobalDiscount ? 0.6 : 1 }]}
+              onPress={onSaveGlobalDiscount}
+              disabled={isSavingGlobalDiscount}
+            >
+              <Text style={styles.applyBtnTxt}>{isSavingGlobalDiscount ? '...' : 'Guardar'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
+
+      <Text style={[s.sectionTitle, { color: theme.text, marginTop: 12, marginBottom: 8 }]}>Familias</Text>
+
+      <View style={[styles.searchRow, { backgroundColor: theme.background, borderColor: theme.border }]}>
+        <Ionicons name="search" size={18} color={theme.icon} style={{ marginRight: 8 }} />
+        <TextInput
+          style={[styles.searchInput, { color: theme.text }]}
+          placeholder="Buscar tutor o atleta"
+          placeholderTextColor={theme.textMuted}
+          value={filtroBusqueda}
+          onChangeText={setFiltroBusqueda}
+          autoCorrect={false}
+          returnKeyType="search"
+        />
+        {filtroBusqueda ? (
+          <TouchableOpacity onPress={() => setFiltroBusqueda('')} hitSlop={8}>
+            <Ionicons name="close-circle" size={20} color={theme.icon} />
+          </TouchableOpacity>
+        ) : isSearchPending || isRefreshing ? (
+          <ActivityIndicator size="small" color={cc} />
+        ) : null}
+      </View>
+    </>
+  );
+
+  const renderListEmpty = useCallback(() => {
+    if (isLoading) {
+      return <ActivityIndicator color={cc} style={{ marginTop: 40 }} size="large" />;
+    }
+    if (filtroBusqueda.trim()) {
+      return (
+        <View style={s.empty}>
+          <Ionicons name="search-outline" size={50} color={theme.icon} />
+          <Text style={[s.emptyTxt, { color: theme.text }]}>Sin resultados</Text>
+          <Text style={[s.emptySub, { color: theme.textMuted }]}>Probá otro nombre de tutor o atleta.</Text>
+        </View>
+      );
+    }
+    return (
+      <View style={s.empty}>
+        <Ionicons name="people-outline" size={50} color={theme.icon} />
+        <Text style={[s.emptyTxt, { color: theme.text }]}>Sin familias con tutor</Text>
+      </View>
+    );
+  }, [isLoading, cc, theme, filtroBusqueda]);
+
+  return (
+    <View style={s.tabPanel}>
+      <FlatList
+        style={s.tabScroll}
+        data={siblings}
+        keyExtractor={(item) => String(item.tutor._id)}
+        renderItem={renderFamilyCard}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={renderListEmpty}
+        contentContainerStyle={
+          siblings.length === 0 ? { flexGrow: 1, paddingBottom: 30, paddingTop: 8 } : { paddingBottom: 30, paddingTop: 8 }
+        }
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        onEndReached={() => {
+          if (hasMoreFamilias && !loadingMoreFamilias) onLoadMoreFamilias?.();
+        }}
+        onEndReachedThreshold={0.35}
+        ListFooterComponent={
+          loadingMoreFamilias ? <ActivityIndicator color={cc} style={{ marginVertical: 16 }} /> : null
+        }
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cc} colors={[cc]} />
+        }
+      />
     </View>
   );
 }

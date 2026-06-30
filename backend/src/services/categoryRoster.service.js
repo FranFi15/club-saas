@@ -1,46 +1,32 @@
-import { calcEdad, matchesCategoryAgeLimits } from '../utils/ageHelper.js';
+import { calcEdad, birthDateRangeForCategory, matchesCategoryAgeLimits } from '../utils/ageHelper.js';
 import { applyFamilyDiscountToEnrollment } from './familyDiscount.service.js';
 import { categorySexoError, applyCategorySexoToAthlete } from '../utils/atletaSexo.js';
 import { sortUsersByName, userNameCollation, userNameMongoSort } from '../utils/listSort.js';
+import { buildAthletePlantelSearchFilter } from '../utils/pagination.js';
 
-export async function getCategoryRosterContext(models, categoryId) {
-    const { Category, User, Enrollment } = models;
+function mapAtletaElegible(u, activeIds, otrasByAtleta) {
+    return {
+        _id: u._id,
+        nombre: u.nombre,
+        apellido: u.apellido,
+        dni: u.dni,
+        email: u.email,
+        fotoPerfil: u.fotoPerfil,
+        edad: calcEdad(u.fechaNacimiento),
+        inscriptoEnEsta: activeIds.has(String(u._id)),
+        otrasCategorias: otrasByAtleta[String(u._id)] || [],
+    };
+}
 
-    const category = await Category.findById(categoryId)
-        .populate('profesores', 'nombre apellido email fotoPerfil')
+async function loadOtrasCategoriasMap(Enrollment, categoryId, atletaIds) {
+    if (!atletaIds.length) return {};
+    const otrasEnrollments = await Enrollment.find({
+        atleta: { $in: atletaIds },
+        estado: 'activo',
+        categoria: { $ne: categoryId },
+    })
+        .populate('categoria', 'nombre')
         .lean();
-    if (!category) return null;
-
-    const activos = await Enrollment.find({ categoria: categoryId, estado: 'activo' })
-        .populate('atleta', 'nombre apellido dni fotoPerfil email fechaNacimiento')
-        .lean();
-    const activeIds = new Set(activos.map((e) => String(e.atleta?._id || e.atleta)));
-
-    const userFilter = { rol: 'atleta', estado: 'activo' };
-    const hasAgeLimits = category.edadMinima != null || category.edadMaxima != null;
-    if (hasAgeLimits) {
-        userFilter.fechaNacimiento = { $exists: true, $ne: null };
-    }
-
-    const users = await User.find(userFilter)
-        .select('nombre apellido dni fotoPerfil email fechaNacimiento')
-        .collation(userNameCollation)
-        .sort(userNameMongoSort)
-        .lean();
-
-    const elegibles = users.filter((u) => matchesCategoryAgeLimits(category, u.fechaNacimiento));
-
-    const elegibleIds = elegibles.map((u) => u._id);
-    const otrasEnrollments =
-        elegibleIds.length > 0
-            ? await Enrollment.find({
-                  atleta: { $in: elegibleIds },
-                  estado: 'activo',
-                  categoria: { $ne: categoryId },
-              })
-                  .populate('categoria', 'nombre')
-                  .lean()
-            : [];
 
     const otrasByAtleta = {};
     for (const e of otrasEnrollments) {
@@ -50,22 +36,53 @@ export async function getCategoryRosterContext(models, categoryId) {
             otrasByAtleta[aid].push({ _id: e.categoria._id, nombre: e.categoria.nombre });
         }
     }
+    return otrasByAtleta;
+}
 
-    const atletasElegibles = sortUsersByName(
-        elegibles.map((u) => ({
-            _id: u._id,
-            nombre: u.nombre,
-            apellido: u.apellido,
-            dni: u.dni,
-            email: u.email,
-            fotoPerfil: u.fotoPerfil,
-            edad: calcEdad(u.fechaNacimiento),
-            inscriptoEnEsta: activeIds.has(String(u._id)),
-            otrasCategorias: otrasByAtleta[String(u._id)] || [],
-        })),
-    );
+function buildEligibleUserFilter(category, search) {
+    const userFilter = { rol: 'atleta', estado: 'activo' };
+    const birthRange = birthDateRangeForCategory(category);
+    const hasAgeLimits = category.edadMinima != null || category.edadMaxima != null;
 
-    return {
+    if (birthRange) {
+        userFilter.fechaNacimiento = { ...birthRange, $exists: true, $ne: null };
+    } else if (hasAgeLimits) {
+        userFilter.fechaNacimiento = { $exists: true, $ne: null };
+    }
+
+    const searchFilter = buildAthletePlantelSearchFilter(search);
+    if (searchFilter) {
+        if (userFilter.$and) {
+            userFilter.$and.push(...searchFilter.$and);
+        } else {
+            Object.assign(userFilter, searchFilter);
+        }
+    }
+
+    return userFilter;
+}
+
+/**
+ * @param {object} models
+ * @param {string} categoryId
+ * @param {{ metaOnly?: boolean, page?: number, limit?: number, skip?: number, search?: string }} [options]
+ */
+export async function getCategoryRosterContext(models, categoryId, options = {}) {
+    const { Category, User, Enrollment } = models;
+    const { metaOnly = false, page = 1, limit = 40, skip = 0, search = '' } = options;
+
+    const category = await Category.findById(categoryId)
+        .populate('profesores', 'nombre apellido email fotoPerfil')
+        .lean();
+    if (!category) return null;
+
+    const activos = await Enrollment.find({ categoria: categoryId, estado: 'activo' })
+        .select('atleta')
+        .lean();
+    const activeIds = new Set(activos.map((e) => String(e.atleta)));
+    const inscriptoIds = activos.map((e) => e.atleta);
+
+    const basePayload = {
         categoria: {
             _id: category._id,
             nombre: category.nombre,
@@ -74,8 +91,40 @@ export async function getCategoryRosterContext(models, categoryId) {
             profesores: category.profesores || [],
         },
         plantelEdicion: category.plantelEdicion || { estado: null },
-        atletasElegibles,
         totalInscriptos: activos.length,
+        inscriptoIds,
+    };
+
+    if (metaOnly) {
+        return basePayload;
+    }
+
+    const userFilter = buildEligibleUserFilter(category, search);
+    const totalElegibles = await User.countDocuments(userFilter);
+
+    let users = await User.find(userFilter)
+        .select('nombre apellido dni fotoPerfil email fechaNacimiento')
+        .collation(userNameCollation)
+        .sort(userNameMongoSort)
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+    users = users.filter((u) => matchesCategoryAgeLimits(category, u.fechaNacimiento));
+
+    const elegibleIds = users.map((u) => u._id);
+    const otrasByAtleta = await loadOtrasCategoriasMap(Enrollment, categoryId, elegibleIds);
+
+    const atletasElegibles = sortUsersByName(
+        users.map((u) => mapAtletaElegible(u, activeIds, otrasByAtleta)),
+    );
+
+    return {
+        ...basePayload,
+        atletasElegibles,
+        totalElegibles,
+        page,
+        limit,
     };
 }
 
@@ -187,7 +236,7 @@ export async function delegateCategoryRosterToCoach(models, categoryId, userId) 
         solicitadoEn: new Date(),
     };
     await category.save();
-    return getCategoryRosterContext(models, categoryId);
+    return getCategoryRosterContext(models, categoryId, { metaOnly: true });
 }
 
 export async function listRosterPendingForCoach(models, userId, rol) {

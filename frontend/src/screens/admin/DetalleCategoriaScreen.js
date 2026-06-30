@@ -100,7 +100,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
     const h = await getHeaders();
     const [enrRes, plantelRes] = await Promise.all([
       clubApi.get(`/enrollments/categoria/${categoria._id}`, { headers: h }),
-      clubApi.get(`/categories/${categoria._id}/plantel`, { headers: h }).catch(() => ({ data: {} })),
+      clubApi.get(`/categories/${categoria._id}/plantel?metaOnly=true`, { headers: h }).catch(() => ({ data: {} })),
     ]);
     return {
       enrollments: sortEnrollmentsByAtleta(enrRes.data),
@@ -126,7 +126,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
 
   const fetchPlantelMeta = async () => {
     try {
-      const { data } = await clubApi.get(`/categories/${categoria._id}/plantel`, {
+      const { data } = await clubApi.get(`/categories/${categoria._id}/plantel?metaOnly=true`, {
         headers: await getHeaders(),
       });
       setPlantelEdicionEstado(data.plantelEdicion?.estado || null);

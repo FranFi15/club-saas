@@ -7,6 +7,7 @@ import {
     reactivatePlan,
     generarCuotasMes,
     getAllPayments,
+    getPaymentStats,
     registerManualPayment,
     registerBulkManualPayment,
     getTutorFamilyPayments,
@@ -42,6 +43,7 @@ router.patch('/plans/:id/reactivate', protect, authorize('admin_club'), reactiva
 
 // Movimientos de dinero
 router.get('/payments', protect, authorize('admin_club', 'administrativo'), getAllPayments);
+router.get('/payments/stats', protect, authorize('admin_club', 'administrativo'), getPaymentStats);
 router.post('/payments/generate', protect, authorize('admin_club', 'administrativo'), generarCuotasMes);
 router.post('/payments/check-overdue', protect, authorize('admin_club', 'administrativo'), checkOverdue);
 router.get('/payments/pending-review', protect, authorize('admin_club', 'administrativo'), getPendingTransferReviews);

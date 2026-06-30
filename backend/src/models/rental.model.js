@@ -24,6 +24,18 @@ const rentalSchema = new mongoose.Schema({
         default: 'pendiente' 
     },
 
+    historialPagos: [{
+        monto: { type: Number, required: true },
+        concepto: {
+            type: String,
+            enum: ['seña_inicial', 'pago_saldo', 'pago_total', 'ajuste'],
+            required: true,
+        },
+        fecha: { type: Date, default: Date.now },
+        registradoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        nota: { type: String, trim: true, default: '' },
+    }],
+
     estadoReserva: { 
         type: String, 
         enum: ['confirmada', 'cancelada', 'completada'], 

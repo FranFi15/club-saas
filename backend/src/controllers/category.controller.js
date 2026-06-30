@@ -1,5 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import { sortByField, compareUserByName } from '../utils/listSort.js';
+import { parsePageLimit, paginationMeta } from '../utils/pagination.js';
 import {
     getCategoryRosterContext,
     syncCategoryAthletes,
@@ -228,11 +229,21 @@ async function assertCoachOfCategory(Category, categoryId, userId, rol) {
     }
 }
 
-// @desc    Atletas elegibles por edad + estado del plantel de la categoría
-// @route   GET /api/categories/:id/plantel
+// @desc    Atletas elegibles por edad + estado del plantel (paginado)
+// @route   GET /api/categories/:id/plantel?metaOnly=true&page=1&limit=40&search=
 const getCategoryPlantel = asyncHandler(async (req, res) => {
     const { Category } = req.models;
-    const payload = await getCategoryRosterContext(req.models, req.params.id);
+    const metaOnly = req.query.metaOnly === 'true' || req.query.metaOnly === '1';
+    const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 40, maxLimit: 100 });
+    const search = String(req.query.search || '').trim();
+
+    const payload = await getCategoryRosterContext(req.models, req.params.id, {
+        metaOnly,
+        page,
+        limit,
+        skip,
+        search,
+    });
     if (!payload) {
         res.status(404);
         throw new Error('Categoría no encontrada');
@@ -241,7 +252,15 @@ const getCategoryPlantel = asyncHandler(async (req, res) => {
     if (rol === 'profe' || rol === 'preparador_fisico') {
         await assertCoachOfCategory(Category, req.params.id, req.user._id, rol);
     }
-    res.json(payload);
+
+    if (metaOnly) {
+        return res.json(payload);
+    }
+
+    res.json({
+        ...payload,
+        ...paginationMeta(page, limit, payload.totalElegibles ?? 0),
+    });
 });
 
 // @desc    Actualizar inscripciones activas de la categoría (plantel)
@@ -270,7 +289,7 @@ const putCategoryPlantel = asyncHandler(async (req, res) => {
     }
 
     const stats = await syncCategoryAthletes(req.models, req.params.id, atletaIds);
-    const payload = await getCategoryRosterContext(req.models, req.params.id);
+    const payload = await getCategoryRosterContext(req.models, req.params.id, { metaOnly: true });
     res.json({
         message: `Plantel actualizado: ${stats.total} atleta(s) (${stats.altas} alta(s), ${stats.bajas} baja(s)).`,
         stats,

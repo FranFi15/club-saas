@@ -19,6 +19,7 @@ import { clubApi } from '../../utils/api';
 import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import { clubHeaders, memberScopeParams } from './athleteApi';
+import { pickPaginatedRows } from '../../utils/paginatedApi';
 import { detectMediaKind, openMediaViewer, downloadMediaFile, mediaKindIcon } from '../../utils/mediaUtils';
 import MemberChildPicker from '../../components/MemberChildPicker';
 import { formatRolStaff, STAFF_ROL_FILTER_ORDER } from '../staff/staffUtils';
@@ -55,6 +56,9 @@ export default function AthleteResourcesScreen({ navigation }) {
       : '';
 
   const [list, setList] = useState(() => readScreenCache(resourcesCacheKey) ?? []);
+  const [resourcesPage, setResourcesPage] = useState(1);
+  const [resourcesHasMore, setResourcesHasMore] = useState(false);
+  const [loadingMoreResources, setLoadingMoreResources] = useState(false);
   const [selectedStaffRol, setSelectedStaffRol] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
   const [alertConfig, setAlertConfig] = useState({
@@ -78,10 +82,34 @@ export default function AthleteResourcesScreen({ navigation }) {
     const h = await clubHeaders(clubData);
     const res = await clubApi.get('/resources/me', {
       headers: h,
-      params: memberScopeParams(isTutor, memberId),
+      params: { ...memberScopeParams(isTutor, memberId), page: 1, limit: 30 },
     });
-    return res.data || [];
+    const rows = pickPaginatedRows(res.data, 'resources');
+    setResourcesPage(res.data?.page ?? 1);
+    setResourcesHasMore(Boolean(res.data?.hasMore));
+    return rows;
   }, [clubData?.urlIdentifier, memberId, isTutor]);
+
+  const loadMoreResources = useCallback(async () => {
+    if (loadingMoreResources || !resourcesHasMore) return;
+    setLoadingMoreResources(true);
+    try {
+      const h = await clubHeaders(clubData);
+      const nextPage = resourcesPage + 1;
+      const res = await clubApi.get('/resources/me', {
+        headers: h,
+        params: { ...memberScopeParams(isTutor, memberId), page: nextPage, limit: 30 },
+      });
+      const rows = pickPaginatedRows(res.data, 'resources');
+      setList((prev) => [...prev, ...rows]);
+      setResourcesPage(res.data?.page ?? nextPage);
+      setResourcesHasMore(Boolean(res.data?.hasMore));
+    } catch (e) {
+      showAlert('Error', e.response?.data?.message || 'No se pudieron cargar más recursos.');
+    } finally {
+      setLoadingMoreResources(false);
+    }
+  }, [loadingMoreResources, resourcesHasMore, resourcesPage, clubData, memberId, isTutor]);
 
   const onResourcesFocus = useCallback(() => {
     (async () => {
@@ -285,6 +313,13 @@ export default function AthleteResourcesScreen({ navigation }) {
           renderItem={renderItem}
           ListHeaderComponent={listHeader}
           contentContainerStyle={styles.list}
+          onEndReached={() => {
+            if (!selectedStaffRol) loadMoreResources();
+          }}
+          onEndReachedThreshold={0.35}
+          ListFooterComponent={
+            loadingMoreResources ? <ActivityIndicator color={colorMarca} style={{ marginVertical: 16 }} /> : null
+          }
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />
           }

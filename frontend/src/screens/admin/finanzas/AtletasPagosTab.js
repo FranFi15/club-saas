@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState } from 'react';
+import React, { useCallback, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,42 +10,13 @@ import {
   StyleSheet,
   Modal,
   Pressable,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { finanzasStyles as s } from './finanzasStyles';
 import { MN, ESTADO_FILTROS, EST_COLOR, fmtMoney } from './finanzasConstants';
 import UserAvatar from '../../../components/UserAvatar';
 import SearchableDropdown from '../../../components/SearchableDropdown';
-import { compareUserByName } from '../../../utils/listSort';
-
-const PAYMENT_STATUS_ORDER = { vencido: 0, pendiente: 1, en_revision: 2, pagado: 3 };
-
-function groupPaymentsByAthlete(payments) {
-  const map = new Map();
-  for (const p of payments) {
-    const aid = p.atleta?._id || p.atleta;
-    if (!aid) continue;
-    const key = String(aid);
-    if (!map.has(key)) {
-      map.set(key, { atleta: p.atleta, payments: [] });
-    }
-    map.get(key).payments.push(p);
-  }
-  return Array.from(map.values()).map((row) => {
-    const sorted = [...row.payments].sort((a, b) => {
-      return (PAYMENT_STATUS_ORDER[a.estado] ?? 9) - (PAYMENT_STATUS_ORDER[b.estado] ?? 9);
-    });
-    const primary = sorted[0];
-    const unpaid = sorted.find((x) => x.estado === 'pendiente' || x.estado === 'vencido');
-    return {
-      atleta: row.atleta,
-      primary,
-      payTarget: unpaid || primary,
-      payments: sorted,
-      totalMonto: sorted.reduce((sum, x) => sum + (x.montoFinal || 0), 0),
-    };
-  });
-}
 
 function AthleteActionsMenu({
   visible,
@@ -53,33 +24,69 @@ function AthleteActionsMenu({
   theme,
   colorMarca,
   onClose,
+  onDismissed,
   onPay,
   onSelectPayments,
   onHistory,
 }) {
-  if (!item) return null;
+  const pendingActionRef = useRef(null);
 
-  const { atleta, payments: cuotas } = item;
+  const flushPendingAction = useCallback(() => {
+    if (!pendingActionRef.current) return;
+    const fn = pendingActionRef.current;
+    pendingActionRef.current = null;
+    fn();
+  }, []);
+
+  const runAfterClose = useCallback((action) => {
+    if (Platform.OS === 'ios') {
+      pendingActionRef.current = action;
+      onClose();
+      setTimeout(() => {
+        if (pendingActionRef.current) flushPendingAction();
+      }, 450);
+    } else {
+      onClose();
+      action();
+    }
+  }, [onClose, flushPendingAction]);
+
+  const handleMenuDismissed = useCallback(() => {
+    flushPendingAction();
+    onDismissed?.();
+  }, [flushPendingAction, onDismissed]);
+
+  if (!visible && !item) return null;
+
+  const { atleta, payments: cuotas } = item || { atleta: null, payments: [] };
   const payables = cuotas.filter((p) => ['pendiente', 'vencido'].includes(p.estado));
   const canPay = payables.length > 0;
   const nombre = `${atleta?.nombre || ''} ${atleta?.apellido || ''}`.trim();
 
   const handlePay = () => {
-    onClose();
     if (!canPay) return;
-    if (payables.length === 1) onPay(payables[0], atleta);
-    else onSelectPayments(payables, nombre, [atleta]);
+    runAfterClose(() => {
+      if (payables.length === 1) onPay(payables[0], atleta);
+      else onSelectPayments(payables, nombre, [atleta]);
+    });
   };
 
   const handleHistory = () => {
-    onClose();
-    onHistory(atleta);
+    runAfterClose(() => onHistory(atleta));
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.menuOverlay} onPress={onClose}>
-        <Pressable style={[styles.menuSheet, { backgroundColor: theme.surface }]} onPress={(e) => e.stopPropagation()}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+      onRequestClose={onClose}
+      onDismiss={handleMenuDismissed}
+    >
+      <View style={styles.menuOverlay}>
+        <Pressable style={styles.menuBackdrop} onPress={onClose} accessibilityRole="button" />
+        <View style={[styles.menuSheet, { backgroundColor: theme.surface }]}>
           <Text style={[styles.menuTitle, { color: theme.text }]} numberOfLines={1}>
             {nombre}
           </Text>
@@ -87,21 +94,22 @@ function AthleteActionsMenu({
             style={[styles.menuItem, !canPay && styles.menuItemDisabled]}
             onPress={handlePay}
             disabled={!canPay}
+            activeOpacity={0.75}
           >
             <Ionicons name="cash-outline" size={20} color={canPay ? '#10b981' : theme.textMuted} />
             <Text style={[styles.menuItemText, { color: canPay ? theme.text : theme.textMuted }]}>
               {payables.length > 1 ? `Pagar (${payables.length})` : 'Pagar'}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={handleHistory}>
+          <TouchableOpacity style={styles.menuItem} onPress={handleHistory} activeOpacity={0.75}>
             <Ionicons name="time-outline" size={20} color={colorMarca} />
             <Text style={[styles.menuItemText, { color: theme.text }]}>Historial</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.menuCancel, { borderTopColor: theme.border }]} onPress={onClose}>
+          <TouchableOpacity style={[styles.menuCancel, { borderTopColor: theme.border }]} onPress={onClose} activeOpacity={0.75}>
             <Text style={{ color: theme.textMuted, fontWeight: '600' }}>Cancelar</Text>
           </TouchableOpacity>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -111,7 +119,7 @@ export default function AtletasPagosTab({
   primaryColor,
   mes,
   anio,
-  payments,
+  athletes,
   isLoadingPay,
   isRefreshingPayments = false,
   filtroBusqueda,
@@ -124,19 +132,26 @@ export default function AtletasPagosTab({
   onPay,
   onSelectPayments,
   onHistory,
+  hasMorePayments = false,
+  loadingMorePayments = false,
+  onLoadMorePayments,
+  paymentStats,
+  isLoadingStats = false,
 }) {
   const cc = primaryColor;
   const isVencidosView = filtroEstado === 'vencido';
   const isTodosView = filtroEstado === 'todos';
   const [menuItem, setMenuItem] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showResumen, setShowResumen] = useState(false);
+  const stats = paymentStats || {};
 
-  const athletes = useMemo(() => {
-    const grouped = groupPaymentsByAthlete(payments);
-    return grouped.sort((a, b) => compareUserByName(a.atleta, b.atleta));
-  }, [payments]);
-
-  const openMenu = useCallback((item) => setMenuItem(item), []);
-  const closeMenu = useCallback(() => setMenuItem(null), []);
+  const openMenu = useCallback((item) => {
+    setMenuItem(item);
+    setMenuOpen(true);
+  }, []);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const clearMenuItem = useCallback(() => setMenuItem(null), []);
 
   const renderCard = ({ item }) => {
     const { atleta, primary, payments: cuotas } = item;
@@ -209,6 +224,69 @@ export default function AtletasPagosTab({
   return (
     <View style={s.tabPanel}>
       <View style={styles.headerBlock}>
+        <View style={styles.resumenToggleRow}>
+          <Text style={[s.sectionTitle, { color: theme.text, marginBottom: 0 }]}>Resumen</Text>
+          <TouchableOpacity
+            style={[styles.resumenToggleBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
+            onPress={() => setShowResumen((v) => !v)}
+          >
+            <Ionicons name={showResumen ? 'eye-off-outline' : 'eye-outline'} size={16} color={cc} />
+            <Text style={{ color: theme.text, fontSize: 12, fontWeight: '600', marginLeft: 6 }}>
+              {showResumen ? 'Ocultar' : 'Mostrar'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {showResumen ? (
+          isLoadingStats ? (
+            <ActivityIndicator color={cc} style={{ marginBottom: 12 }} />
+          ) : (
+            <>
+              <View style={s.statsRow}>
+                <View style={[s.statBox, { backgroundColor: theme.surface }]}>
+                  <Text style={{ color: cc, fontSize: 18, fontWeight: 'bold' }}>{fmtMoney(stats.totalFacturado)}</Text>
+                  <Text style={{ color: theme.textMuted, fontSize: 11 }}>
+                    {isVencidosView ? 'Total vencido' : 'Facturado'}
+                  </Text>
+                </View>
+                <View style={[s.statBox, { backgroundColor: theme.surface }]}>
+                  <Text style={{ color: '#10b981', fontSize: 18, fontWeight: 'bold' }}>
+                    {fmtMoney(stats.totalCobrado)}
+                  </Text>
+                  <Text style={{ color: theme.textMuted, fontSize: 11 }}>Cobrado</Text>
+                </View>
+              </View>
+              {!isVencidosView ? (
+                <View style={s.statsRow}>
+                  <View style={[s.statMini, { backgroundColor: theme.surface }]}>
+                    <Text style={{ color: '#10b981', fontWeight: 'bold' }}>{stats.pagados || 0}</Text>
+                    <Text style={{ color: theme.textMuted, fontSize: 10 }}>Pagados</Text>
+                  </View>
+                  <View style={[s.statMini, { backgroundColor: theme.surface }]}>
+                    <Text style={{ color: '#f59e0b', fontWeight: 'bold' }}>{stats.pendientes || 0}</Text>
+                    <Text style={{ color: theme.textMuted, fontSize: 10 }}>Pendientes</Text>
+                  </View>
+                  <View style={[s.statMini, { backgroundColor: theme.surface }]}>
+                    <Text style={{ color: '#ef4444', fontWeight: 'bold' }}>{stats.vencidos || 0}</Text>
+                    <Text style={{ color: theme.textMuted, fontSize: 10 }}>Vencidos</Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={[s.statMini, { backgroundColor: theme.surface, marginBottom: 10, paddingVertical: 12 }]}>
+                  <Text style={{ color: '#ef4444', fontWeight: 'bold', fontSize: 16 }}>{stats.vencidos || 0}</Text>
+                  <Text style={{ color: theme.textMuted, fontSize: 11 }}>Cuotas vencidas (todas)</Text>
+                </View>
+              )}
+              {!isVencidosView && stats.porcentajeCobranza != null ? (
+                <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 10 }}>
+                  Cobranza {stats.porcentajeCobranza}%
+                  {stats.porcentajePrev != null ? ` · mes anterior ${stats.porcentajePrev}%` : ''}
+                </Text>
+              ) : null}
+            </>
+          )
+        ) : null}
+
         <View style={[styles.searchRow, { backgroundColor: theme.background, borderColor: theme.border }]}>
           <Ionicons name="search" size={18} color={theme.icon} style={{ marginRight: 8 }} />
           <TextInput
@@ -258,17 +336,27 @@ export default function AtletasPagosTab({
         contentContainerStyle={athletes.length === 0 ? styles.listEmptyGrow : { paddingBottom: 24 }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        onEndReached={() => {
+          if (hasMorePayments && !loadingMorePayments) onLoadMorePayments?.();
+        }}
+        onEndReachedThreshold={0.35}
+        ListFooterComponent={
+          loadingMorePayments ? (
+            <ActivityIndicator color={cc} style={{ marginVertical: 16 }} />
+          ) : null
+        }
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cc} colors={[cc]} />
         }
       />
 
       <AthleteActionsMenu
-        visible={!!menuItem}
+        visible={menuOpen}
         item={menuItem}
         theme={theme}
         colorMarca={cc}
         onClose={closeMenu}
+        onDismissed={clearMenuItem}
         onPay={onPay}
         onSelectPayments={onSelectPayments}
         onHistory={onHistory}
@@ -278,7 +366,7 @@ export default function AtletasPagosTab({
 }
 
 const styles = StyleSheet.create({
-  headerBlock: { marginBottom: 8 },
+  headerBlock: { marginTop: 12, marginBottom: 8 },
   list: { flex: 1 },
   listEmptyGrow: { flexGrow: 1, paddingBottom: 24 },
   searchRow: {
@@ -293,6 +381,20 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 15 },
   filterDropdown: { marginBottom: 12, position: 'relative' },
   filterRefreshing: { position: 'absolute', right: 44, top: 14 },
+  resumenToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  resumenToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
   card: {
     borderRadius: 5,
     borderWidth: 1,
@@ -318,12 +420,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'flex-end',
   },
+  menuBackdrop: {
+    flex: 1,
+  },
   menuSheet: {
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
     paddingTop: 16,
     paddingBottom: 8,
     paddingHorizontal: 16,
+    zIndex: 2,
   },
   menuTitle: {
     fontSize: 16,

@@ -1,17 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
   Modal,
   TouchableOpacity,
-  ScrollView,
+  FlatList,
   ActivityIndicator,
   StyleSheet,
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
-import { MN, EST_COLOR, fmtMoney } from './finanzasConstants';
+import { MN, EST_COLOR, fmtMoney, metodoPagoLabel, metodoPagoIcon } from './finanzasConstants';
+
+const HISTORY_PAGE_SIZE = 30;
 
 function canPayPayment(p) {
   return p?.estado === 'pendiente' || p?.estado === 'vencido';
@@ -29,36 +31,116 @@ export default function PaymentHistoryModal({
   onDismiss,
 }) {
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [payments, setPayments] = useState([]);
   const [stats, setStats] = useState({});
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
 
-  useEffect(() => {
-    if (!visible || !atleta?._id) return;
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
+  const fetchPage = useCallback(
+    async (pageNum, { append = false } = {}) => {
+      if (!atleta?._id) return;
+      if (append) setLoadingMore(true);
+      else setLoading(true);
       try {
         const h = await getHeaders();
-        const r = await clubApi.get(`/financial/payments/atleta/${atleta._id}`, { headers: h });
-        if (!cancelled) {
-          setPayments(r.data.payments || []);
-          setStats(r.data.stats || {});
-        }
+        const r = await clubApi.get(`/financial/payments/atleta/${atleta._id}`, {
+          headers: h,
+          params: { page: pageNum, limit: HISTORY_PAGE_SIZE },
+        });
+        const rows = r.data.payments || [];
+        setPayments((prev) => (append ? [...prev, ...rows] : rows));
+        if (!append) setStats(r.data.stats || {});
+        setPage(r.data.page || pageNum);
+        setHasMore(r.data.hasMore ?? false);
       } catch {
-        if (!cancelled) {
+        if (!append) {
           setPayments([]);
           setStats({});
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (append) setLoadingMore(false);
+        else setLoading(false);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [visible, atleta?._id, refreshKey]);
+    },
+    [atleta?._id, getHeaders],
+  );
+
+  useEffect(() => {
+    if (!visible || !atleta?._id) return;
+    fetchPage(1, { append: false });
+  }, [visible, atleta?._id, refreshKey, fetchPage]);
+
+  const loadMore = () => {
+    if (loading || loadingMore || !hasMore) return;
+    fetchPage(page + 1, { append: true });
+  };
 
   const nombre = atleta ? `${atleta.nombre || ''} ${atleta.apellido || ''}`.trim() : '';
+
+  const renderPayment = ({ item: p }) => {
+    const ec = EST_COLOR[p.estado] || '#999';
+    const showPay = canPayPayment(p) && onPay;
+    const metodoLabel = metodoPagoLabel(p.metodoPago);
+    const showMetodo = metodoLabel && (p.estado === 'pagado' || p.estado === 'en_revision');
+
+    return (
+      <View style={[styles.row, { backgroundColor: theme.background, borderColor: theme.border }]}>
+        <View style={styles.rowMain}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: theme.text, fontWeight: '700' }}>
+              {MN[(p.mes || 1) - 1]} {p.anio}
+            </Text>
+            <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
+              {p.plan?.nombre || 'Sin plan'}
+              {p.categoria?.nombre ? ` · ${p.categoria.nombre}` : ''}
+            </Text>
+            {p.fechaPago ? (
+              <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 4 }}>
+                Pagado: {new Date(p.fechaPago).toLocaleDateString('es-AR')}
+              </Text>
+            ) : null}
+            {showMetodo ? (
+              <View style={styles.metodoRow}>
+                <Ionicons name={metodoPagoIcon(p.metodoPago)} size={12} color={theme.textMuted} />
+                <Text style={{ color: theme.textMuted, fontSize: 11 }}>
+                  {p.estado === 'en_revision' ? `${metodoLabel} · en revisión` : metodoLabel}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={{ color: theme.text, fontWeight: '700' }}>{fmtMoney(p.montoFinal)}</Text>
+            <View style={[styles.badge, { backgroundColor: ec + '22' }]}>
+              <Text style={{ color: ec, fontSize: 10, fontWeight: '700', textTransform: 'capitalize' }}>
+                {p.estado}
+              </Text>
+            </View>
+          </View>
+        </View>
+        {showPay ? (
+          <TouchableOpacity
+            style={styles.payBtn}
+            onPress={() => {
+              if (Platform.OS === 'ios') {
+                onClose();
+                setTimeout(() => onPay(p), 380);
+              } else {
+                onPay(p);
+              }
+            }}
+            activeOpacity={0.75}
+            hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+            accessibilityRole="button"
+            accessibilityLabel="Pagar cuota"
+          >
+            <Ionicons name="cash-outline" size={16} color="#fff" />
+            <Text style={styles.payBtnTxt}>Pagar</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    );
+  };
 
   return (
     <Modal
@@ -77,11 +159,9 @@ export default function PaymentHistoryModal({
               <Ionicons name="close" size={28} color={theme.icon} />
             </TouchableOpacity>
           </View>
-          {nombre ? (
-            <Text style={[styles.sub, { color: theme.textMuted }]}>{nombre}</Text>
-          ) : null}
+          {nombre ? <Text style={[styles.sub, { color: theme.textMuted }]}>{nombre}</Text> : null}
 
-          {loading ? (
+          {loading && payments.length === 0 ? (
             <ActivityIndicator color={primaryColor} style={{ marginVertical: 24 }} />
           ) : (
             <>
@@ -96,58 +176,20 @@ export default function PaymentHistoryModal({
                 </View>
               </View>
 
-              <ScrollView style={styles.list} nestedScrollEnabled>
-                {payments.length === 0 ? (
+              <FlatList
+                style={styles.list}
+                data={payments}
+                keyExtractor={(p) => String(p._id)}
+                renderItem={renderPayment}
+                onEndReached={loadMore}
+                onEndReachedThreshold={0.35}
+                ListEmptyComponent={
                   <Text style={[styles.empty, { color: theme.textMuted }]}>Sin movimientos registrados.</Text>
-                ) : (
-                  payments.map((p) => {
-                    const ec = EST_COLOR[p.estado] || '#999';
-                    const showPay = canPayPayment(p) && onPay;
-                    return (
-                      <View
-                        key={p._id}
-                        style={[styles.row, { backgroundColor: theme.background, borderColor: theme.border }]}
-                      >
-                        <View style={styles.rowMain}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={{ color: theme.text, fontWeight: '700' }}>
-                              {MN[(p.mes || 1) - 1]} {p.anio}
-                            </Text>
-                            <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
-                              {p.plan?.nombre || 'Sin plan'}
-                              {p.categoria?.nombre ? ` · ${p.categoria.nombre}` : ''}
-                            </Text>
-                            {p.fechaPago ? (
-                              <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 4 }}>
-                                Pagado: {new Date(p.fechaPago).toLocaleDateString('es-AR')}
-                              </Text>
-                            ) : null}
-                          </View>
-                          <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={{ color: theme.text, fontWeight: '700' }}>{fmtMoney(p.montoFinal)}</Text>
-                            <View style={[styles.badge, { backgroundColor: ec + '22' }]}>
-                              <Text style={{ color: ec, fontSize: 10, fontWeight: '700', textTransform: 'capitalize' }}>
-                                {p.estado}
-                              </Text>
-                            </View>
-                          </View>
-                        </View>
-                        {showPay ? (
-                          <TouchableOpacity
-                            style={styles.payBtn}
-                            onPress={() => onPay(p)}
-                            accessibilityRole="button"
-                            accessibilityLabel="Pagar cuota"
-                          >
-                            <Ionicons name="cash-outline" size={16} color="#fff" />
-                            <Text style={styles.payBtnTxt}>Pagar</Text>
-                          </TouchableOpacity>
-                        ) : null}
-                      </View>
-                    );
-                  })
-                )}
-              </ScrollView>
+                }
+                ListFooterComponent={
+                  loadingMore ? <ActivityIndicator color={primaryColor} style={{ marginVertical: 16 }} /> : null
+                }
+              />
             </>
           )}
         </View>
@@ -178,6 +220,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   rowMain: { flexDirection: 'row', alignItems: 'center' },
+  metodoRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5, marginTop: 4 },
   payBtn: {
     flexDirection: 'row',

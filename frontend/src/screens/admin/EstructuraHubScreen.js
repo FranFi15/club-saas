@@ -138,7 +138,7 @@ export default function EstructuraHubScreen({ navigation }) {
               icon="trophy"
               theme={theme}
               colorMarca={colorMarca}
-              onPress={() => navigation.navigate('Estructura')}
+              onPress={() => navigation.navigate('EstructuraDeportiva')}
             />
             <HubMenuCard
               title="Espacios físicos"

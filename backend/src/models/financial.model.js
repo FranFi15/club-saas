@@ -48,6 +48,9 @@ const paymentSchema = new mongoose.Schema({
 // Índice para optimizar consultas de vencimiento
 paymentSchema.index({ estado: 1, fechaVencimiento: 1 });
 paymentSchema.index({ estado: 1, transferGrupoId: 1 });
+paymentSchema.index({ mes: 1, anio: 1, estado: 1 });
+paymentSchema.index({ atleta: 1, mes: 1, anio: 1 });
+paymentSchema.index({ atleta: 1, estado: 1 });
 
 // 3. AL FINAL DE TODO EXPORTAMOS AMBOS
 export const getPlanModel = (tenantDB) => tenantDB.models.Plan || tenantDB.model('Plan', planSchema);

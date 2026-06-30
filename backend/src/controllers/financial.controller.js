@@ -7,10 +7,11 @@ import {
     getGlobalFamilyDiscountPct,
     setGlobalFamilyDiscountPct,
 } from '../services/familyDiscount.service.js';
-import { compareUserByName, sortPaymentsByAtleta, sortUsersByName, userNameCollation, userNameMongoSort } from '../utils/listSort.js';
+import { compareUserByName, sortPaymentsByPriority, sortUsersByName, userNameCollation, userNameMongoSort } from '../utils/listSort.js';
 import { createAppNotification } from '../services/appNotification.service.js';
 import { isClubMercadoPagoLinked } from '../services/mercadoPagoClub.service.js';
 import { getTransferBankData, setTransferBankData } from '../services/transferBank.service.js';
+import { parsePageLimit, paginationMeta, buildAthleteSearchFilter, buildUserSearchFilter } from '../utils/pagination.js';
 
 // @desc    Crear un nuevo Plan/Cuota
 // @route   POST /api/financial/plans
@@ -47,20 +48,19 @@ const generarCuotasMes = asyncHandler(async (req, res) => {
     });
 });
 
-// @desc    Obtener todos los pagos del mes con estadísticas
-// @route   GET /api/financial/payments?mes=5&anio=2026&estado=pendiente&categoria=xxx&disciplina=xxx
+// @desc    Obtener pagos agrupados por atleta (paginado por atleta)
+// @route   GET /api/financial/payments?mes=5&anio=2026&estado=pendiente&page=1&limit=50
 const getAllPayments = asyncHandler(async (req, res) => {
-    const { Payment, Category } = req.models;
+    const { Payment, Category, User } = req.models;
     const { mes, anio, estado, categoria, disciplina, search } = req.query;
-
-    await markOverduePayments(req.models);
+    const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 50, maxLimit: 100 });
 
     const isAllVencidos = estado === 'vencido';
 
     const filter = {};
     if (!isAllVencidos) {
-        if (mes) filter.mes = parseInt(mes);
-        if (anio) filter.anio = parseInt(anio);
+        if (mes) filter.mes = parseInt(mes, 10);
+        if (anio) filter.anio = parseInt(anio, 10);
     }
     if (estado && estado !== 'todos') filter.estado = estado;
 
@@ -73,100 +73,185 @@ const getAllPayments = asyncHandler(async (req, res) => {
     }
     Object.assign(filter, categoryFilter);
 
-    let paymentsQuery = Payment.find(filter)
-        .sort(isAllVencidos ? { anio: -1, mes: -1, createdAt: -1 } : { estado: 1, createdAt: -1 })
-        .populate('atleta', 'nombre apellido email tutorPrincipal')
-        .populate('plan', 'nombre monto diaVencimiento porcentajeRecargo')
-        .populate({ path: 'categoria', select: 'nombre disciplina', populate: { path: 'disciplina', select: 'nombre' } });
-
-    if (isAllVencidos) {
-        paymentsQuery = paymentsQuery.lean();
+    if (search && String(search).trim()) {
+        const athleteFilter = buildAthleteSearchFilter(search);
+        const matchingUsers = await User.find(athleteFilter).select('_id').lean();
+        const ids = matchingUsers.map((u) => u._id);
+        filter.atleta = { $in: ids.length ? ids : [null] };
     }
 
-    let payments = await paymentsQuery;
+    const athletePagePipeline = [
+        { $match: filter },
+        {
+            $lookup: {
+                from: 'users',
+                localField: 'atleta',
+                foreignField: '_id',
+                as: 'atletaUser',
+            },
+        },
+        { $unwind: '$atletaUser' },
+        {
+            $group: {
+                _id: '$atleta',
+                nombre: { $first: '$atletaUser.nombre' },
+                apellido: { $first: '$atletaUser.apellido' },
+            },
+        },
+        { $sort: { nombre: 1, apellido: 1, _id: 1 } },
+    ];
 
-    // Filtro por búsqueda de nombre
-    if (search && search.trim() !== '') {
-        const s = search.trim().toLowerCase();
-        payments = payments.filter((p) => {
-            const nombre = `${p.atleta?.nombre || ''} ${p.atleta?.apellido || ''}`.toLowerCase();
-            return nombre.includes(s);
+    const collation = { locale: 'es', strength: 1 };
+    const [countAgg, pageAgg] = await Promise.all([
+        Payment.aggregate([...athletePagePipeline, { $count: 'total' }]).collation(collation),
+        Payment.aggregate([...athletePagePipeline, { $skip: skip }, { $limit: limit }]).collation(collation),
+    ]);
+
+    const totalAthletes = countAgg[0]?.total ?? 0;
+
+    if (!pageAgg.length) {
+        return res.json({
+            athletes: [],
+            ...paginationMeta(page, limit, totalAthletes),
         });
     }
 
-    let stats;
-    if (isAllVencidos) {
-        const vencidosFilter = { estado: 'vencido', ...categoryFilter };
-        const vencidosRows = await Payment.find(vencidosFilter).select('montoFinal').lean();
-        const totalVencido = vencidosRows.reduce((sum, p) => sum + (p.montoFinal || 0), 0);
-        stats = {
+    const athleteIds = pageAgg.map((row) => row._id);
+
+    const payments = await Payment.find({ ...filter, atleta: { $in: athleteIds } })
+        .sort(isAllVencidos ? { anio: -1, mes: -1, createdAt: -1 } : { estado: 1, createdAt: -1 })
+        .populate('atleta', 'nombre apellido email tutorPrincipal')
+        .populate('plan', 'nombre monto diaVencimiento porcentajeRecargo')
+        .populate({ path: 'categoria', select: 'nombre disciplina', populate: { path: 'disciplina', select: 'nombre' } })
+        .lean();
+
+    const byAtleta = new Map();
+    for (const p of payments) {
+        const key = String(p.atleta?._id || p.atleta);
+        if (!byAtleta.has(key)) byAtleta.set(key, []);
+        byAtleta.get(key).push(p);
+    }
+
+    const athletes = athleteIds.map((aid) => {
+        const sorted = sortPaymentsByPriority(byAtleta.get(String(aid)) || []);
+        const primary = sorted[0] || null;
+        const payTarget =
+            sorted.find((x) => x.estado === 'pendiente' || x.estado === 'vencido') || primary;
+        return {
+            atleta: primary?.atleta || null,
+            payments: sorted,
+            primary,
+            payTarget,
+        };
+    });
+
+    res.json({
+        athletes,
+        ...paginationMeta(page, limit, totalAthletes),
+    });
+});
+
+// @desc    Estadísticas de cobranza del mes (agregación MongoDB)
+// @route   GET /api/financial/payments/stats?mes=5&anio=2026
+// @route   GET /api/financial/payments/stats?scope=vencidos
+const getPaymentStats = asyncHandler(async (req, res) => {
+    const { Payment, Category } = req.models;
+    const { mes, anio, categoria, disciplina, scope } = req.query;
+
+    let categoryFilter = {};
+    if (categoria) {
+        categoryFilter = { categoria };
+    } else if (disciplina) {
+        const cats = await Category.find({ disciplina }).select('_id').lean();
+        categoryFilter = { categoria: { $in: cats.map((c) => c._id) } };
+    }
+
+    if (scope === 'vencidos') {
+        const rows = await Payment.aggregate([
+            { $match: { estado: 'vencido', ...categoryFilter } },
+            { $group: { _id: null, count: { $sum: 1 }, monto: { $sum: '$montoFinal' } } },
+        ]);
+        const vencidos = rows[0]?.count || 0;
+        const totalVencido = rows[0]?.monto || 0;
+        return res.json({
             totalFacturado: totalVencido,
             totalCobrado: 0,
             pendientes: 0,
             pagados: 0,
-            vencidos: vencidosRows.length,
-            total: vencidosRows.length,
+            vencidos,
+            total: vencidos,
             porcentajeCobranza: 0,
             porcentajePrev: 0,
             totalCobradoPrev: 0,
-        };
-    } else {
-        const mesNum = parseInt(mes, 10);
-        const anioNum = parseInt(anio, 10);
-
-        const statsFilter = { ...categoryFilter };
-        if (mes) statsFilter.mes = mesNum;
-        if (anio) statsFilter.anio = anioNum;
-
-        const allMonth = await Payment.find(statsFilter).lean();
-        const totalFacturado = allMonth.reduce((sum, p) => sum + (p.montoFinal || 0), 0);
-        const totalCobrado = allMonth
-            .filter((p) => p.estado === 'pagado')
-            .reduce((sum, p) => sum + (p.montoFinal || 0), 0);
-        const pendientes = allMonth.filter((p) => p.estado === 'pendiente').length;
-        const pagados = allMonth.filter((p) => p.estado === 'pagado').length;
-        const vencidos = allMonth.filter((p) => p.estado === 'vencido').length;
-        const porcentajeCobranza = totalFacturado > 0 ? Math.round((totalCobrado / totalFacturado) * 100) : 0;
-
-        let porcentajePrev = 0;
-        let totalCobradoPrev = 0;
-
-        if (Number.isFinite(mesNum) && Number.isFinite(anioNum)) {
-            let mesAnt = mesNum - 1;
-            let anioAnt = anioNum;
-            if (mesAnt < 1) {
-                mesAnt = 12;
-                anioAnt -= 1;
-            }
-            const prevFilter = { mes: mesAnt, anio: anioAnt, ...categoryFilter };
-            const allPrev = await Payment.find(prevFilter).lean();
-            totalCobradoPrev = allPrev
-                .filter((p) => p.estado === 'pagado')
-                .reduce((sum, p) => sum + (p.montoFinal || 0), 0);
-            const totalFacturadoPrev = allPrev.reduce((sum, p) => sum + (p.montoFinal || 0), 0);
-            porcentajePrev =
-                totalFacturadoPrev > 0 ? Math.round((totalCobradoPrev / totalFacturadoPrev) * 100) : 0;
-        }
-
-        stats = {
-            totalFacturado,
-            totalCobrado,
-            pendientes,
-            pagados,
-            vencidos,
-            total: allMonth.length,
-            porcentajeCobranza,
-            porcentajePrev,
-            totalCobradoPrev,
-        };
+        });
     }
 
-    payments = sortPaymentsByAtleta(payments);
+    const mesNum = parseInt(mes, 10);
+    const anioNum = parseInt(anio, 10);
+    const match = { ...categoryFilter };
+    if (mes) match.mes = mesNum;
+    if (anio) match.anio = anioNum;
 
-    res.json({ payments, stats });
+    const [rows, total] = await Promise.all([
+        Payment.aggregate([
+            { $match: match },
+            { $group: { _id: '$estado', count: { $sum: 1 }, monto: { $sum: '$montoFinal' } } },
+        ]),
+        Payment.countDocuments(match),
+    ]);
+
+    const byEstado = {};
+    let totalFacturado = 0;
+    let totalCobrado = 0;
+    for (const row of rows) {
+        byEstado[row._id] = row.count;
+        totalFacturado += row.monto || 0;
+        if (row._id === 'pagado') totalCobrado += row.monto || 0;
+    }
+
+    let porcentajePrev = 0;
+    let totalCobradoPrev = 0;
+    if (Number.isFinite(mesNum) && Number.isFinite(anioNum)) {
+        let mesAnt = mesNum - 1;
+        let anioAnt = anioNum;
+        if (mesAnt < 1) {
+            mesAnt = 12;
+            anioAnt -= 1;
+        }
+        const prevRows = await Payment.aggregate([
+            { $match: { mes: mesAnt, anio: anioAnt, ...categoryFilter } },
+            {
+                $group: {
+                    _id: null,
+                    totalFacturado: { $sum: '$montoFinal' },
+                    totalCobrado: {
+                        $sum: { $cond: [{ $eq: ['$estado', 'pagado'] }, '$montoFinal', 0] },
+                    },
+                },
+            },
+        ]);
+        const prev = prevRows[0];
+        totalCobradoPrev = prev?.totalCobrado || 0;
+        const totalFacturadoPrev = prev?.totalFacturado || 0;
+        porcentajePrev =
+            totalFacturadoPrev > 0 ? Math.round((totalCobradoPrev / totalFacturadoPrev) * 100) : 0;
+    }
+
+    res.json({
+        totalFacturado,
+        totalCobrado,
+        pendientes: byEstado.pendiente || 0,
+        pagados: byEstado.pagado || 0,
+        vencidos: byEstado.vencido || 0,
+        enRevision: byEstado.en_revision || 0,
+        total,
+        porcentajeCobranza: totalFacturado > 0 ? Math.round((totalCobrado / totalFacturado) * 100) : 0,
+        porcentajePrev,
+        totalCobradoPrev,
+    });
 });
 
-// @desc    Verificar y marcar cuotas vencidas (pseudo-cron)
+// @desc    Marcar cuotas vencidas manualmente (el cron diario hace esto automáticamente)
 // @route   POST /api/financial/payments/check-overdue
 const checkOverdue = asyncHandler(async (req, res) => {
     const modified = await markOverduePayments(req.models);
@@ -200,22 +285,99 @@ const adjustPayment = asyncHandler(async (req, res) => {
     res.json(updated);
 });
 
-// @desc    Obtener grupos de hermanos (mismo tutorPrincipal)
-// @route   GET /api/financial/siblings?mes=&anio=
+// @desc    Obtener grupos de hermanos (mismo tutorPrincipal), paginado por familia
+// @route   GET /api/financial/siblings?mes=&anio=&page=1&limit=30&search=
 const getSiblings = asyncHandler(async (req, res) => {
     const { User, Enrollment, Payment } = req.models;
     const mesQ = req.query.mes ? parseInt(req.query.mes, 10) : null;
     const anioQ = req.query.anio ? parseInt(req.query.anio, 10) : null;
+    const search = String(req.query.search || '').trim();
+    const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 30, maxLimit: 100 });
 
     const globalPct = await getGlobalFamilyDiscountPct(req.models);
 
-    const atletasConTutor = await User.find({ rol: 'atleta', tutorPrincipal: { $ne: null } })
+    const athleteMatch = { rol: 'atleta', tutorPrincipal: { $ne: null } };
+
+    if (search) {
+        const tutorIds = new Set();
+        const athleteFilter = buildAthleteSearchFilter(search);
+        if (athleteFilter) {
+            const matchingAthletes = await User.find(athleteFilter).select('tutorPrincipal').lean();
+            matchingAthletes.forEach((a) => {
+                if (a.tutorPrincipal) tutorIds.add(String(a.tutorPrincipal));
+            });
+        }
+        const tutorFilter = buildUserSearchFilter(search, { rol: 'tutor' });
+        if (tutorFilter) {
+            const matchingTutors = await User.find(tutorFilter).select('_id').lean();
+            matchingTutors.forEach((t) => tutorIds.add(String(t._id)));
+        }
+        const adminFilter = buildUserSearchFilter(search, { rol: 'admin_club' });
+        if (adminFilter) {
+            const matchingAdmins = await User.find(adminFilter).select('_id').lean();
+            matchingAdmins.forEach((t) => tutorIds.add(String(t._id)));
+        }
+        if (!tutorIds.size) {
+            return res.json({
+                globalDescuento: globalPct,
+                familias: [],
+                ...paginationMeta(page, limit, 0),
+            });
+        }
+        athleteMatch.tutorPrincipal = { $in: [...tutorIds] };
+    }
+
+    const tutorPagePipeline = [
+        { $match: athleteMatch },
+        {
+            $lookup: {
+                from: 'users',
+                localField: 'tutorPrincipal',
+                foreignField: '_id',
+                as: 'tutorUser',
+            },
+        },
+        { $unwind: '$tutorUser' },
+        {
+            $group: {
+                _id: '$tutorPrincipal',
+                nombre: { $first: '$tutorUser.nombre' },
+                apellido: { $first: '$tutorUser.apellido' },
+            },
+        },
+        { $sort: { nombre: 1, apellido: 1, _id: 1 } },
+    ];
+
+    const collation = { locale: 'es', strength: 1 };
+    const [countAgg, pageAgg] = await Promise.all([
+        User.aggregate([...tutorPagePipeline, { $count: 'total' }]).collation(collation),
+        User.aggregate([...tutorPagePipeline, { $skip: skip }, { $limit: limit }]).collation(collation),
+    ]);
+
+    const totalFamilias = countAgg[0]?.total ?? 0;
+    const pageTutorIds = pageAgg.map((row) => row._id);
+
+    if (!pageTutorIds.length) {
+        return res.json({
+            globalDescuento: globalPct,
+            familias: [],
+            ...paginationMeta(page, limit, totalFamilias),
+        });
+    }
+
+    const tutorDocs = await User.find({ _id: { $in: pageTutorIds } })
+        .select('nombre apellido descuentoFamiliar')
+        .lean();
+    const tutorById = new Map(tutorDocs.map((t) => [String(t._id), t]));
+
+    const atletasConTutor = await User.find({
+        rol: 'atleta',
+        tutorPrincipal: { $in: pageTutorIds },
+    })
         .select('nombre apellido tutorPrincipal')
-        .populate('tutorPrincipal', 'nombre apellido descuentoFamiliar');
+        .lean();
 
     const atletaIds = atletasConTutor.map((a) => a._id);
-
-    await markOverduePayments(req.models, { atleta: { $in: atletaIds } });
 
     const impagas = await Payment.find({
         atleta: { $in: atletaIds },
@@ -244,11 +406,24 @@ const getSiblings = asyncHandler(async (req, res) => {
         mesByAtleta[String(p.atleta)] = p;
     }
 
+    const activeEnrollments = await Enrollment.find({
+        atleta: { $in: atletaIds },
+        estado: 'activo',
+    })
+        .select('atleta descuentoPorcentaje motivoDescuento')
+        .lean();
+    const enrollmentByAtleta = {};
+    for (const e of activeEnrollments) {
+        enrollmentByAtleta[String(e.atleta)] = e;
+    }
+
     const grupos = {};
     for (const a of atletasConTutor) {
-        const tid = a.tutorPrincipal._id.toString();
-        if (!grupos[tid]) grupos[tid] = { tutor: a.tutorPrincipal, hijos: [] };
-        const insc = await Enrollment.findOne({ atleta: a._id, estado: 'activo' });
+        const tid = String(a.tutorPrincipal);
+        if (!grupos[tid]) {
+            grupos[tid] = { tutor: tutorById.get(tid) || null, hijos: [] };
+        }
+        const insc = enrollmentByAtleta[String(a._id)];
         const aid = String(a._id);
         grupos[tid].hijos.push({
             _id: a._id,
@@ -261,13 +436,11 @@ const getSiblings = asyncHandler(async (req, res) => {
         });
     }
 
-    for (const g of Object.values(grupos)) {
-        g.hijos = sortUsersByName(g.hijos);
-    }
-
-    const result = Object.values(grupos)
-        .filter((g) => g.hijos.length >= 1)
-        .map((g) => {
+    const familias = pageTutorIds
+        .map((tid) => {
+            const g = grupos[String(tid)];
+            if (!g?.tutor || !g.hijos.length) return null;
+            g.hijos = sortUsersByName(g.hijos);
             const tutorPct = g.tutor.descuentoFamiliar;
             const fromEnrollments = Math.max(0, ...g.hijos.map((h) => h.descuentoPorcentaje || 0));
             const tieneOverride = tutorPct != null && !Number.isNaN(Number(tutorPct));
@@ -287,8 +460,13 @@ const getSiblings = asyncHandler(async (req, res) => {
                 cantidadImpagas: cuotasImpagas.length,
             };
         })
-        .sort((a, b) => compareUserByName(a.tutor, b.tutor));
-    res.json({ globalDescuento: globalPct, familias: result });
+        .filter(Boolean);
+
+    res.json({
+        globalDescuento: globalPct,
+        familias,
+        ...paginationMeta(page, limit, totalFamilias),
+    });
 });
 
 // @desc    Aplicar descuento por hermanos a todas las inscripciones de los hijos de un tutor
@@ -833,7 +1011,6 @@ const getTutorFamilyPayments = asyncHandler(async (req, res) => {
     }
 
     const ids = hijos.map((h) => h._id);
-    await markOverduePayments(req.models, { atleta: { $in: ids } });
 
     const payments = await Payment.find({ atleta: { $in: ids } })
         .sort({ anio: -1, mes: -1 })
@@ -902,28 +1079,35 @@ async function assertMemberCanViewAtletaPayments(req, atletaId) {
 // @route   GET /api/financial/payments/atleta/:atletaId
 const getAtletaPayments = asyncHandler(async (req, res) => {
     const { Payment } = req.models;
+    const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 30, maxLimit: 100 });
 
     await assertMemberCanViewAtletaPayments(req, req.params.atletaId);
 
-    const history = await Payment.find({ atleta: req.params.atletaId })
-        .sort({ anio: -1, mes: -1 }) // Los más recientes primero
+    const filter = { atleta: req.params.atletaId };
+    const total = await Payment.countDocuments(filter);
+
+    const history = await Payment.find(filter)
+        .sort({ anio: -1, mes: -1 })
+        .skip(skip)
+        .limit(limit)
         .populate('plan', 'nombre monto')
         .populate({ path: 'categoria', select: 'nombre disciplina', populate: { path: 'disciplina', select: 'nombre' } });
 
-    // Stats individuales
-    const totalPagado = history.filter((p) => p.estado === 'pagado').reduce((s, p) => s + p.montoFinal, 0);
-    const totalPendiente = history
+    const allForStats = await Payment.find({ atleta: req.params.atletaId }).select('estado montoFinal').lean();
+    const totalPagado = allForStats.filter((p) => p.estado === 'pagado').reduce((s, p) => s + p.montoFinal, 0);
+    const totalPendiente = allForStats
         .filter((p) => ['pendiente', 'vencido', 'en_revision'].includes(p.estado))
         .reduce((s, p) => s + p.montoFinal, 0);
-    const cuotasVencidas = history.filter((p) => p.estado === 'vencido').length;
+    const cuotasVencidas = allForStats.filter((p) => p.estado === 'vencido').length;
     const mpReady = await mercadoPagoReady(req.models);
     const datosTransferencia = await getTransferBankData(req.models);
 
     res.json({
         payments: history,
-        stats: { totalPagado, totalPendiente, cuotasVencidas, total: history.length },
+        stats: { totalPagado, totalPendiente, cuotasVencidas, total: allForStats.length },
         mercadoPagoReady: mpReady,
         datosTransferencia,
+        ...paginationMeta(page, limit, total),
     });
 });
 
@@ -1066,6 +1250,7 @@ export {
     getPlans,
     generarCuotasMes,
     getAllPayments,
+    getPaymentStats,
     registerManualPayment,
     registerBulkManualPayment,
     submitTransferProof,

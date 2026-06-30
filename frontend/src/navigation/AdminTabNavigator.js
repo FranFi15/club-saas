@@ -45,7 +45,7 @@ function EstructuraStackNavigator() {
       <EstructuraStack.Screen name="EstructuraHome" component={EstructuraHubScreen} />
       <EstructuraStack.Screen name="SolicitudesInscripcion" component={AdminEnrollmentRequestsScreen} />
       <EstructuraStack.Screen name="Usuarios" component={UsuariosScreen} />
-      <EstructuraStack.Screen name="Estructura" component={EstructuraScreen} />
+      <EstructuraStack.Screen name="EstructuraDeportiva" component={EstructuraScreen} />
       <EstructuraStack.Screen name="Categorias" component={CategoriasScreen} />
       <EstructuraStack.Screen name="DetalleCategoria" component={DetalleCategoriaScreen} />
       <EstructuraStack.Screen name="Espacios" component={EspaciosFisicosScreen} />

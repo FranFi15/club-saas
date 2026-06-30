@@ -12,6 +12,8 @@ import {
     finishSession,
     getCoachAgenda,
     getCoachSessionStats,
+    getCategoryAttendanceResumen,
+    getMyAttendanceResumen,
     getPendingRelocations,
     bulkRelocateSessions,
     getRestorableSessions,
@@ -40,6 +42,13 @@ router.patch('/reubicacion/bulk', protect, authorize('profe', 'preparador_fisico
 router.get('/restauracion-disponible', protect, authorize('profe', 'preparador_fisico', 'admin_club', 'administrativo'), getRestorableSessions);
 router.patch('/restauracion/bulk', protect, authorize('profe', 'preparador_fisico', 'admin_club', 'administrativo'), bulkRestoreSessions);
 router.get('/profe/stats', protect, authorize('profe', 'preparador_fisico'), getCoachSessionStats);
+router.get('/asistencia/mi-resumen', protect, authorize('atleta'), getMyAttendanceResumen);
+router.get(
+    '/categoria/:categoryId/asistencia-resumen',
+    protect,
+    authorize('admin_club', 'administrativo', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'),
+    getCategoryAttendanceResumen,
+);
 router.get('/nutricionista/agenda', protect, authorize('nutricionista'), getNutricionistaAgenda);
 router.get('/psicologo/agenda', protect, authorize('psicologo'), getPsicologoAgenda);
 router.patch('/:id/confirmar-asistencia', protect, authorize('atleta', 'tutor'), confirmConsultAttendance);

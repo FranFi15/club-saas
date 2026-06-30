@@ -118,16 +118,40 @@ export default function FinanzasScreen() {
         : `finanzas-atletas:${clubData.urlIdentifier}:${mes}:${anio}:${filtroEstado}:${debouncedBusqueda}`
       : '';
 
-  const [payments, setPayments] = useState(() => readScreenCache(paymentsCacheKey)?.payments ?? []);
+  const [athletes, setAthletes] = useState(() => readScreenCache(paymentsCacheKey)?.athletes ?? []);
+  const PAYMENTS_PAGE_SIZE = 50;
+  const [paymentsPage, setPaymentsPage] = useState(1);
+  const [paymentsHasMore, setPaymentsHasMore] = useState(false);
+  const [loadingMorePayments, setLoadingMorePayments] = useState(false);
+  const EMPTY_PAYMENT_STATS = {
+    totalFacturado: 0,
+    totalCobrado: 0,
+    pendientes: 0,
+    pagados: 0,
+    vencidos: 0,
+    porcentajeCobranza: 0,
+    porcentajePrev: 0,
+    totalCobradoPrev: 0,
+  };
+  const [paymentStats, setPaymentStats] = useState(EMPTY_PAYMENT_STATS);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
 
   useEffect(() => {
     if (!paymentsCacheKey) return;
     const cached = readScreenCache(paymentsCacheKey);
-    setPayments(cached?.payments ?? []);
+    setAthletes(cached?.athletes ?? []);
+    setPaymentsPage(cached?.page ?? 1);
+    setPaymentsHasMore(cached?.hasMore ?? false);
   }, [paymentsCacheKey]);
 
   const [siblings, setSiblings] = useState([]);
   const [isLoadingSiblings, setIsLoadingSiblings] = useState(false);
+  const FAMILIAS_PAGE_SIZE = 30;
+  const [siblingsPage, setSiblingsPage] = useState(1);
+  const [siblingsHasMore, setSiblingsHasMore] = useState(false);
+  const [loadingMoreSiblings, setLoadingMoreSiblings] = useState(false);
+  const [familiasBusqueda, setFamiliasBusqueda] = useState('');
+  const [debouncedFamiliasBusqueda, setDebouncedFamiliasBusqueda] = useState('');
   const [globalFamilyDiscount, setGlobalFamilyDiscount] = useState(0);
   const [globalDiscountInput, setGlobalDiscountInput] = useState('0');
   const [isSavingGlobalDiscount, setIsSavingGlobalDiscount] = useState(false);
@@ -196,20 +220,103 @@ export default function FinanzasScreen() {
 
   const isSearchPending = filtroBusqueda.trim() !== debouncedBusqueda;
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedFamiliasBusqueda(familiasBusqueda.trim()), 550);
+    return () => clearTimeout(t);
+  }, [familiasBusqueda]);
+
+  const isFamiliasSearchPending = familiasBusqueda.trim() !== debouncedFamiliasBusqueda;
+
+  const buildSiblingsUrl = useCallback(
+    (page) => {
+      let url = `/financial/siblings?mes=${mes}&anio=${anio}&page=${page}&limit=${FAMILIAS_PAGE_SIZE}`;
+      if (debouncedFamiliasBusqueda) {
+        url += `&search=${encodeURIComponent(debouncedFamiliasBusqueda)}`;
+      }
+      return url;
+    },
+    [mes, anio, debouncedFamiliasBusqueda],
+  );
+
+  const mergeFamiliasDiscountInput = useCallback((familias, reset = false) => {
+    setDiscountInput((prev) => {
+      const di = reset ? {} : { ...prev };
+      familias.forEach((g) => {
+        const pct = g.descuentoFamiliar ?? 0;
+        di[g.tutor._id] = pct != null && pct !== '' ? String(pct) : '';
+      });
+      return di;
+    });
+  }, []);
+
+  const buildPaymentStatsUrl = useCallback(() => {
+    if (filtroEstado === 'vencido') return '/financial/payments/stats?scope=vencidos';
+    return `/financial/payments/stats?mes=${mes}&anio=${anio}`;
+  }, [mes, anio, filtroEstado]);
+
+  const fetchPaymentStats = useCallback(async () => {
+    if (tab !== 'atletas') return;
+    setIsLoadingStats(true);
+    try {
+      const h = await getHeaders();
+      const r = await clubApi.get(buildPaymentStatsUrl(), { headers: h });
+      setPaymentStats(r.data || EMPTY_PAYMENT_STATS);
+    } catch {
+      setPaymentStats(EMPTY_PAYMENT_STATS);
+    } finally {
+      setIsLoadingStats(false);
+    }
+  }, [tab, buildPaymentStatsUrl, clubData?.urlIdentifier]);
+
+  useEffect(() => {
+    if (tab === 'atletas') fetchPaymentStats();
+  }, [tab, mes, anio, filtroEstado, fetchPaymentStats]);
+
+  const buildPaymentsUrl = useCallback(
+    (page) => {
+      let url = `/financial/payments?estado=${filtroEstado}&page=${page}&limit=${PAYMENTS_PAGE_SIZE}`;
+      if (filtroEstado !== 'vencido') {
+        url += `&mes=${mes}&anio=${anio}`;
+      }
+      if (debouncedBusqueda) url += `&search=${encodeURIComponent(debouncedBusqueda)}`;
+      return url;
+    },
+    [mes, anio, filtroEstado, debouncedBusqueda],
+  );
+
   const fetchPaymentsData = useCallback(async () => {
     const h = await getHeaders();
-    let url = `/financial/payments?estado=${filtroEstado}`;
-    if (filtroEstado !== 'vencido') {
-      url += `&mes=${mes}&anio=${anio}`;
-    }
-    if (debouncedBusqueda) url += `&search=${encodeURIComponent(debouncedBusqueda)}`;
-    const r = await clubApi.get(url, { headers: h });
-    return { payments: r.data.payments || [] };
-  }, [clubData?.urlIdentifier, mes, anio, filtroEstado, debouncedBusqueda]);
+    const r = await clubApi.get(buildPaymentsUrl(1), { headers: h });
+    return {
+      athletes: r.data.athletes || [],
+      page: r.data.page || 1,
+      hasMore: r.data.hasMore ?? false,
+    };
+  }, [buildPaymentsUrl, clubData?.urlIdentifier]);
 
   const applyPayments = useCallback((data) => {
-    setPayments(data.payments ?? []);
+    setAthletes(data.athletes ?? []);
+    setPaymentsPage(data.page ?? 1);
+    setPaymentsHasMore(data.hasMore ?? false);
   }, []);
+
+  const loadMorePayments = useCallback(async () => {
+    if (loadingMorePayments || !paymentsHasMore) return;
+    setLoadingMorePayments(true);
+    try {
+      const h = await getHeaders();
+      const nextPage = paymentsPage + 1;
+      const r = await clubApi.get(buildPaymentsUrl(nextPage), { headers: h });
+      const more = r.data.athletes || [];
+      setAthletes((prev) => [...prev, ...more]);
+      setPaymentsPage(r.data.page ?? nextPage);
+      setPaymentsHasMore(r.data.hasMore ?? false);
+    } catch {
+      showAlert('Error', 'No se pudieron cargar más atletas.');
+    } finally {
+      setLoadingMorePayments(false);
+    }
+  }, [loadingMorePayments, paymentsHasMore, paymentsPage, buildPaymentsUrl, clubData?.urlIdentifier]);
 
   const {
     loading: isLoadingPay,
@@ -226,15 +333,61 @@ export default function FinanzasScreen() {
     },
   });
 
-  const showPaymentsLoading = isLoadingPay && payments.length === 0;
-  const isRefreshingPayments = isLoadingPay && payments.length > 0;
+  const showPaymentsLoading = isLoadingPay && athletes.length === 0;
+  const isRefreshingPayments = isLoadingPay && athletes.length > 0;
 
   const [otherTabRefreshing, setOtherTabRefreshing] = useState(false);
   const tabRefreshing = tab === 'atletas' ? refreshing : otherTabRefreshing;
 
+  const fetchSiblingsFirstPage = useCallback(async () => {
+    setIsLoadingSiblings(true);
+    try {
+      const h = await getHeaders();
+      const r = await clubApi.get(buildSiblingsUrl(1), { headers: h });
+      const familias = r.data.familias || [];
+      const globalPct = r.data.globalDescuento ?? 0;
+      setSiblings(familias);
+      setGlobalFamilyDiscount(globalPct);
+      setGlobalDiscountInput(String(globalPct));
+      mergeFamiliasDiscountInput(familias, true);
+      setSiblingsPage(r.data.page ?? 1);
+      setSiblingsHasMore(r.data.hasMore ?? false);
+    } catch {
+      showAlert('Error', 'No se pudieron cargar las familias.');
+    } finally {
+      setIsLoadingSiblings(false);
+    }
+  }, [buildSiblingsUrl, clubData?.urlIdentifier, mergeFamiliasDiscountInput]);
+
+  const loadMoreSiblings = useCallback(async () => {
+    if (loadingMoreSiblings || !siblingsHasMore) return;
+    setLoadingMoreSiblings(true);
+    try {
+      const h = await getHeaders();
+      const page = siblingsPage + 1;
+      const r = await clubApi.get(buildSiblingsUrl(page), { headers: h });
+      const familias = r.data.familias || [];
+      setSiblings((prev) => [...prev, ...familias]);
+      mergeFamiliasDiscountInput(familias);
+      setSiblingsPage(r.data.page ?? page);
+      setSiblingsHasMore(r.data.hasMore ?? false);
+    } catch {
+      showAlert('Error', 'No se pudieron cargar más familias.');
+    } finally {
+      setLoadingMoreSiblings(false);
+    }
+  }, [
+    buildSiblingsUrl,
+    clubData?.urlIdentifier,
+    loadingMoreSiblings,
+    siblingsHasMore,
+    siblingsPage,
+    mergeFamiliasDiscountInput,
+  ]);
+
   useEffect(() => {
-    if (tab === 'familias') fetchSiblings();
-  }, [mes, anio, tab]);
+    if (tab === 'familias') fetchSiblingsFirstPage();
+  }, [mes, anio, tab, debouncedFamiliasBusqueda, fetchSiblingsFirstPage]);
 
   useEffect(() => {
     if (tab === 'planes') {
@@ -250,30 +403,6 @@ export default function FinanzasScreen() {
       return;
     }
     await reloadPayments();
-  };
-
-  const fetchSiblings = async () => {
-    setIsLoadingSiblings(true);
-    try {
-      const h = await getHeaders();
-      const r = await clubApi.get(`/financial/siblings?mes=${mes}&anio=${anio}`, { headers: h });
-      const payload = r.data;
-      const familias = payload.familias || [];
-      const globalPct = payload.globalDescuento ?? 0;
-      setSiblings(familias);
-      setGlobalFamilyDiscount(globalPct);
-      setGlobalDiscountInput(String(globalPct));
-      const di = {};
-      familias.forEach((g) => {
-        const pct = g.descuentoFamiliar ?? 0;
-        di[g.tutor._id] = pct != null && pct !== '' ? String(pct) : '';
-      });
-      setDiscountInput(di);
-    } catch (e) {
-      showAlert('Error', 'No se pudieron cargar las familias.');
-    } finally {
-      setIsLoadingSiblings(false);
-    }
   };
 
   const fetchPlans = async () => {
@@ -419,19 +548,20 @@ export default function FinanzasScreen() {
   const refreshAll = async () => {
     await Promise.all([
       tab === 'atletas' ? reloadPayments({ background: true }) : Promise.resolve(),
-      tab === 'familias' ? fetchSiblings() : Promise.resolve(),
+      tab === 'atletas' ? fetchPaymentStats() : Promise.resolve(),
+      tab === 'familias' ? fetchSiblingsFirstPage() : Promise.resolve(),
       tab === 'planes' ? Promise.all([fetchPlans(), fetchStructure()]) : Promise.resolve(),
     ]);
   };
 
   const onRefresh = async () => {
     if (tab === 'atletas') {
-      await refreshPayments();
+      await Promise.all([refreshPayments(), fetchPaymentStats()]);
       return;
     }
     setOtherTabRefreshing(true);
     try {
-      if (tab === 'familias') await fetchSiblings();
+      if (tab === 'familias') await fetchSiblingsFirstPage();
       if (tab === 'planes') await Promise.all([fetchPlans(), fetchStructure()]);
     } finally {
       setOtherTabRefreshing(false);
@@ -448,7 +578,7 @@ export default function FinanzasScreen() {
       setGlobalFamilyDiscount(r.data.descuentoFamiliarGlobal ?? pct);
       setGlobalDiscountInput(String(r.data.descuentoFamiliarGlobal ?? pct));
       showAlert('Éxito', r.data.message);
-      fetchSiblings();
+      fetchSiblingsFirstPage();
     } catch (e) {
       showAlert('Error', e.response?.data?.message || 'No se pudo guardar.');
     } finally {
@@ -463,7 +593,7 @@ export default function FinanzasScreen() {
       const h = await getHeaders();
       const r = await clubApi.patch('/financial/siblings/discount', { tutorId, porcentaje: pct }, { headers: h });
       showAlert('Éxito', r.data.message);
-      fetchSiblings();
+      fetchSiblingsFirstPage();
     } catch (e) {
       showAlert('Error', e.response?.data?.message || 'No se pudo aplicar.');
     }
@@ -775,7 +905,7 @@ export default function FinanzasScreen() {
           primaryColor={cc}
           mes={mes}
           anio={anio}
-          payments={payments}
+          athletes={athletes}
           isLoadingPay={showPaymentsLoading}
           isRefreshingPayments={isRefreshingPayments}
           filtroBusqueda={filtroBusqueda}
@@ -790,6 +920,11 @@ export default function FinanzasScreen() {
             openSelectPayments(cuotas, subtitle, hijos || [])
           }
           onHistory={openHistory}
+          hasMorePayments={paymentsHasMore}
+          loadingMorePayments={loadingMorePayments}
+          onLoadMorePayments={loadMorePayments}
+          paymentStats={paymentStats}
+          isLoadingStats={isLoadingStats}
         />
       )}
 
@@ -800,7 +935,16 @@ export default function FinanzasScreen() {
           mes={mes}
           anio={anio}
           siblings={siblings}
-          isLoading={isLoadingSiblings}
+          isLoading={isLoadingSiblings && siblings.length === 0}
+          isRefreshing={isLoadingSiblings && siblings.length > 0}
+          filtroBusqueda={familiasBusqueda}
+          setFiltroBusqueda={setFamiliasBusqueda}
+          isSearchPending={isFamiliasSearchPending}
+          refreshing={tabRefreshing}
+          onRefresh={onRefresh}
+          hasMoreFamilias={siblingsHasMore}
+          loadingMoreFamilias={loadingMoreSiblings}
+          onLoadMoreFamilias={loadMoreSiblings}
           globalDiscount={globalFamilyDiscount}
           globalDiscountInput={globalDiscountInput}
           onGlobalDiscountChange={setGlobalDiscountInput}

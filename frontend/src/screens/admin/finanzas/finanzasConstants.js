@@ -30,6 +30,17 @@ export const METODOS = [
   { value: 'otro', label: 'Otro', icon: 'ellipsis-horizontal' },
 ];
 
+export function metodoPagoLabel(value) {
+  const m = METODOS.find((x) => x.value === value);
+  if (m) return m.label;
+  if (!value) return null;
+  return String(value).replace(/_/g, ' ');
+}
+
+export function metodoPagoIcon(value) {
+  return METODOS.find((x) => x.value === value)?.icon || 'ellipsis-horizontal';
+}
+
 export const EST_COLOR = { pendiente: '#f59e0b', pagado: '#10b981', vencido: '#ef4444', en_revision: '#6366f1' };
 
 export const fmtMoney = (n) => `$${(n || 0).toLocaleString('es-AR')}`;

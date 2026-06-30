@@ -18,33 +18,41 @@ export async function markOverduePayments(models, extraFilter = {}) {
         estado: 'pendiente',
         fechaVencimiento: { $lt: ahora },
         ...extraFilter,
-    }).populate('plan', 'porcentajeRecargo');
+    })
+        .populate('plan', 'porcentajeRecargo')
+        .lean();
 
-    let modified = 0;
+    if (!pending.length) return 0;
 
+    const bulkOps = [];
     for (const payment of pending) {
-        try {
-            const pct = clampRecargoPct(payment.plan?.porcentajeRecargo ?? 0);
-            let recargo = 0;
+        const pct = clampRecargoPct(payment.plan?.porcentajeRecargo ?? 0);
+        let recargo = 0;
 
-            if (pct > 0 && !(payment.recargoAplicado > 0)) {
-                const base = payment.montoFinal || 0;
-                recargo = Math.round((base * pct) / 100);
-            }
-
-            payment.estado = 'vencido';
-            if (recargo > 0) {
-                payment.recargoAplicado = recargo;
-                payment.porcentajeRecargo = pct;
-                payment.montoFinal = (payment.montoFinal || 0) + recargo;
-            }
-
-            await payment.save();
-            modified += 1;
-        } catch (err) {
-            console.error('[markOverduePayments] Cuota omitida:', payment._id, err.message);
+        if (pct > 0 && !(payment.recargoAplicado > 0)) {
+            recargo = Math.round(((payment.montoFinal || 0) * pct) / 100);
         }
+
+        const update = { estado: 'vencido' };
+        if (recargo > 0) {
+            update.recargoAplicado = recargo;
+            update.porcentajeRecargo = pct;
+            update.montoFinal = (payment.montoFinal || 0) + recargo;
+        }
+
+        bulkOps.push({
+            updateOne: {
+                filter: { _id: payment._id },
+                update: { $set: update },
+            },
+        });
     }
 
-    return modified;
+    try {
+        const result = await Payment.bulkWrite(bulkOps, { ordered: false });
+        return result.modifiedCount ?? bulkOps.length;
+    } catch (err) {
+        console.error('[markOverduePayments] bulkWrite:', err.message);
+        return 0;
+    }
 }
