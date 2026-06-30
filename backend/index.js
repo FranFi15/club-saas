@@ -63,9 +63,24 @@ if (isProd) {
 // Helmet: Oculta cabeceras de Express y previene ataques XSS y Clickjacking
 app.use(helmet());
 
-// CORS: en producción solo el dominio del frontend; en desarrollo permite cualquier origen
+// CORS: en producción solo FRONTEND_URL (coma-separado si hay varios); dev = cualquier origen
+function parseFrontendOrigins() {
+    return String(process.env.FRONTEND_URL || '')
+        .split(',')
+        .map((s) => s.trim().replace(/\/$/, ''))
+        .filter(Boolean);
+}
+
+const allowedOrigins = isProd ? parseFrontendOrigins() : null;
+
 app.use(cors({
-    origin: isProd ? process.env.FRONTEND_URL : true,
+    origin: isProd
+        ? (origin, callback) => {
+            if (!origin) return callback(null, true);
+            const ok = allowedOrigins.includes(origin.replace(/\/$/, ''));
+            callback(null, ok ? origin : false);
+        }
+        : true,
     credentials: true,
 }));
 

@@ -50,7 +50,7 @@ Public URL: `https://club-super-xxxx.onrender.com`
 | `JWT_SECRET` / `JWT_REFRESH_SECRET` | strong secrets |
 | `PUBLIC_API_URL` | `https://club-backend-xxxx.onrender.com` |
 | `BACKEND_URL` | same as `PUBLIC_API_URL` |
-| `FRONTEND_URL` | `https://your-app.vercel.app` (Vercel URL, no trailing slash) |
+| `FRONTEND_URL` | Exact Vercel URL, e.g. `https://club-saas-backend.vercel.app` (no trailing slash). Comma-separated for preview URLs. |
 | `MERCADOPAGO_OAUTH_REDIRECT_URI` | `https://club-backend-xxxx.onrender.com/api/mercadopago/oauth/callback` |
 | `MERCADOPAGO_CLIENT_ID` / `MERCADOPAGO_CLIENT_SECRET` | MP developers panel |
 | `MP_OAUTH_STATE_SECRET` | `npm run mp:oauth-secret --workspace=backend` |

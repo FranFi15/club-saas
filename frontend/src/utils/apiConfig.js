@@ -7,6 +7,13 @@ function trimUrlBase(url) {
   return String(url || '').trim().replace(/\/$/, '');
 }
 
+/** Ensures env URLs end with /api (common deploy mistake: omitting the suffix). */
+function normalizeApiBase(url) {
+  const trimmed = trimUrlBase(url);
+  if (!trimmed) return '';
+  return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+}
+
 function resolveNativeApiHost() {
   const fromEnv = process.env.EXPO_PUBLIC_API_HOST;
   if (fromEnv && String(fromEnv).trim()) {
@@ -38,8 +45,8 @@ function resolveApiHost() {
 
 export const API_HOST = resolveApiHost();
 
-const clubFromEnv = trimUrlBase(process.env.EXPO_PUBLIC_CLUB_API_URL);
-const superFromEnv = trimUrlBase(process.env.EXPO_PUBLIC_SUPER_API_URL);
+const clubFromEnv = normalizeApiBase(process.env.EXPO_PUBLIC_CLUB_API_URL);
+const superFromEnv = normalizeApiBase(process.env.EXPO_PUBLIC_SUPER_API_URL);
 
 export const CLUB_API_BASE = clubFromEnv || `http://${API_HOST}:5000/api`;
 export const SUPER_API_BASE = superFromEnv || `http://${API_HOST}:4000/api`;
