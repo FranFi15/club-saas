@@ -54,18 +54,34 @@ function appDeepLink(path) {
     return `${scheme}://${clean}`;
 }
 
+function primaryFrontendUrl() {
+    const raw = String(process.env.FRONTEND_URL || '')
+        .split(',')[0]
+        ?.trim()
+        .replace(/^["']|["']$/g, '')
+        .replace(/\/$/, '');
+    return raw || '';
+}
+
+function oauthReturnUrl(ok) {
+    const frontend = primaryFrontendUrl();
+    const segment = ok ? 'mp-oauth/success' : 'mp-oauth/error';
+    if (frontend) return `${frontend}/${segment}`;
+    return appDeepLink(segment);
+}
+
 function oauthCallbackHtml(ok, message) {
     const title = ok ? 'Mercado Pago conectado' : 'No se pudo conectar';
     const safe = escapeHtml(message);
-    const deepLink = ok ? appDeepLink('mp-oauth/success') : appDeepLink('mp-oauth/error');
-    const safeLink = escapeHtml(deepLink);
+    const returnUrl = oauthReturnUrl(ok);
+    const safeLink = escapeHtml(returnUrl);
     return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${title}</title></head>
 <body style="font-family:system-ui,sans-serif;padding:24px;max-width:520px;margin:0 auto;text-align:center;">
 <h1 style="font-size:1.25rem;">${title}</h1>
 <p style="color:#374151;line-height:1.5;">${safe}</p>
 <p style="color:#6b7280;font-size:14px;">Volviendo a la app del club…</p>
 <p style="margin-top:20px;"><a href="${safeLink}" style="display:inline-block;padding:12px 20px;background:#009EE3;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Abrir la app</a></p>
-<script>setTimeout(function(){ window.location.href = ${JSON.stringify(deepLink)}; }, 600);</script>
+<script>setTimeout(function(){ window.location.href = ${JSON.stringify(returnUrl)}; }, 600);</script>
 </body></html>`;
 }
 
@@ -359,7 +375,7 @@ const createPreference = asyncHandler(async (req, res) => {
     const client = mpClientFromToken(accessToken);
     const clubIdentifier = req.headers['x-club-identifier'] || req.query?.club;
 
-    const frontend = process.env.FRONTEND_URL?.replace(/\/$/, '') || 'https://www.google.com';
+    const frontend = primaryFrontendUrl() || 'https://www.google.com';
     const okUrl = `${frontend}/pago/ok`;
     const failUrl = `${frontend}/pago/error`;
     const pendingUrl = `${frontend}/pago/pendiente`;
@@ -548,7 +564,7 @@ const createMemberFamilyPreference = asyncHandler(async (req, res) => {
     const accessToken = await resolveAccessToken(req.models);
     const client = mpClientFromToken(accessToken);
     const clubIdentifier = req.headers['x-club-identifier'] || req.query?.club;
-    const frontend = process.env.FRONTEND_URL?.replace(/\/$/, '') || 'https://www.google.com';
+    const frontend = primaryFrontendUrl() || 'https://www.google.com';
 
     try {
         const preference = new Preference(client);

@@ -114,7 +114,47 @@ Open `http://localhost:5173`.
 
 ---
 
-## 5. Verify
+## 5. Mercado Pago OAuth (producción)
+
+### A. App en [Mercado Pago Developers](https://www.mercadopago.com.ar/developers/panel/app)
+
+1. Creá o abrí tu aplicación.
+2. **Credenciales** → copiá **Client ID** y **Client Secret**.
+3. **Redirect URI** (OAuth) — debe coincidir **exacto** con Render:
+
+   `https://TU-BACKEND.onrender.com/api/mercadopago/oauth/callback`
+
+   Ejemplo: `https://club-backend.onrender.com/api/mercadopago/oauth/callback`
+
+### B. Variables en `club-backend` (Render)
+
+| Variable | Valor |
+|----------|--------|
+| `MERCADOPAGO_CLIENT_ID` | Client ID de la app MP |
+| `MERCADOPAGO_CLIENT_SECRET` | Client Secret |
+| `MERCADOPAGO_OAUTH_REDIRECT_URI` | `https://TU-BACKEND.onrender.com/api/mercadopago/oauth/callback` |
+| `MP_OAUTH_STATE_SECRET` | Generar: `npm run mp:oauth-secret --workspace=backend` (mín. 16 chars) |
+| `MERCADOPAGO_OAUTH_USE_PKCE` | `true` |
+| `FRONTEND_URL` | `https://club-saas-backend.vercel.app` |
+| `PUBLIC_API_URL` / `BACKEND_URL` | `https://TU-BACKEND.onrender.com` |
+
+Opcional: `MERCADOPAGO_ACCESS_TOKEN` solo como fallback global; con OAuth por club no hace falta.
+
+Guardá → Render redeploy.
+
+### C. Probar en la app
+
+1. Entrá como **admin del club** en [club-saas-backend.vercel.app](https://club-saas-backend.vercel.app/).
+2. **Perfil** → **Conectar a Mercado Pago**.
+3. Iniciás sesión en Mercado Pago y autorizás.
+4. MP redirige al callback en Render → la app vuelve a Vercel (`/mp-oauth/success`).
+5. En Perfil debería quedar vinculado (`tokenSource: club`).
+
+Si el botón dice *"OAuth no configurado"*, revisá logs de Render: faltan `CLIENT_ID`, `CLIENT_SECRET`, `REDIRECT_URI` o `MP_OAUTH_STATE_SECRET`.
+
+---
+
+## 6. Verify
 
 | URL | Expected |
 |-----|----------|
