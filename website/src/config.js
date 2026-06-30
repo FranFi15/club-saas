@@ -1,5 +1,8 @@
 export const APP_NAME = 'Hermes Club App';
-export const APP_URL = import.meta.env.VITE_APP_URL || 'https://your-app.vercel.app';
+export const APP_URL = import.meta.env.VITE_APP_URL || 'https://app.hermesclubapp.com';
+export const DEMO_TRIAL_BADGE = '1 mes de prueba gratis';
+export const DEMO_TRIAL_TEXT =
+  'Probá la app con tu club durante 30 días. Sin compromiso, para conocer todas las funciones antes de decidir.';
 
 export const FEATURES = [
   {

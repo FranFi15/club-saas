@@ -35,17 +35,30 @@
   font-weight: 800;
   letter-spacing: -0.04em;
   line-height: 1.08;
-  margin: 0 0 1.25rem;
+  margin: 0 0 1rem;
   color: var(--brand-navy);
   width: 100%;
   max-width: none;
+}
+
+.hero__badge {
+  display: inline-block;
+  margin: 0 0 1rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--brand-navy);
+  background: color-mix(in srgb, var(--accent) 18%, #fff);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 .hero__lead {
   font-size: 1.125rem;
   line-height: 1.65;
   color: color-mix(in srgb, var(--brand-navy) 72%, #64748b);
-  margin: 0 0 2rem;
+  margin: 0 0 1.75rem;
   max-width: 36rem;
 }
 

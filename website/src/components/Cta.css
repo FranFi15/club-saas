@@ -21,6 +21,20 @@
   pointer-events: none;
 }
 
+.cta__badge {
+  position: relative;
+  display: inline-block;
+  margin: 0 0 1rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
 .cta__title {
   position: relative;
   font-size: clamp(1.5rem, 4vw, 2.25rem);

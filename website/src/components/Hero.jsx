@@ -1,4 +1,4 @@
-import { APP_URL, APP_NAME } from '../config';
+import { APP_URL, APP_NAME, DEMO_TRIAL_BADGE, DEMO_TRIAL_TEXT } from '../config';
 import BrandLogo from './BrandLogo';
 import './Hero.css';
 
@@ -13,6 +13,8 @@ export default function Hero() {
           <h1 className="hero__title">
             Todo tu club en una sola app
           </h1>
+          <p className="hero__badge">{DEMO_TRIAL_BADGE}</p>
+          <p className="hero__lead">{DEMO_TRIAL_TEXT}</p>
           <div className="hero__actions">
             <a href={APP_URL} className="btn btn--primary">
               Abrir {APP_NAME}
