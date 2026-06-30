@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "frontend",
+    "name": "Hermes Club App",
     "slug": "frontend",
     "scheme": "clubapp",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/H.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -30,7 +30,8 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "name": "Hermes Club App",
+      "favicon": "./assets/H.png"
     },
     "plugins": [
       "expo-secure-store",
