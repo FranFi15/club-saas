@@ -39,6 +39,7 @@ export default function AdminProfileScreen({ navigation }) {
       readScreenCache(mpCacheKey)?.integration ?? {
         tokenSource: 'none',
         oauthReady: false,
+        oauthSetup: { ready: false, missing: [] },
       },
   );
   const [datosTransferencia, setDatosTransferencia] = useState(
@@ -82,7 +83,7 @@ export default function AdminProfileScreen({ navigation }) {
     if (!clubData?.urlIdentifier) {
       return {
         userRol: null,
-        integration: { tokenSource: 'none', oauthReady: false },
+        integration: { tokenSource: 'none', oauthReady: false, oauthSetup: { ready: false, missing: [] } },
         datosTransferencia: null,
       };
     }
@@ -97,6 +98,10 @@ export default function AdminProfileScreen({ navigation }) {
       integration: {
         tokenSource: mpRes.data.tokenSource || 'none',
         oauthReady: !!mpRes.data.oauthReady,
+        oauthSetup: mpRes.data.oauthSetup || { ready: false, missing: [] },
+        maskedSuffix: mpRes.data.maskedSuffix || null,
+        linkedViaOauth: !!mpRes.data.linkedViaOauth,
+        envFallbackActive: !!mpRes.data.envFallbackActive,
       },
       datosTransferencia: bankRes.data?.datosTransferencia ?? null,
     };
@@ -110,7 +115,7 @@ export default function AdminProfileScreen({ navigation }) {
     onFetchError: () => {
       applyMp({
         userRol: null,
-        integration: { tokenSource: 'none', oauthReady: false },
+        integration: { tokenSource: 'none', oauthReady: false, oauthSetup: { ready: false, missing: [] } },
         datosTransferencia: null,
       });
     },
@@ -142,6 +147,11 @@ export default function AdminProfileScreen({ navigation }) {
   const canEditClubBank = userRol === 'admin_club';
   const roleBadgeLabel = userRol === 'administrativo' ? 'Administrativo' : 'Admin club';
   const clubMpLinked = integration.tokenSource === 'club';
+  const mpStatusLabel = clubMpLinked
+    ? `Conectado${integration.maskedSuffix ? ` ${integration.maskedSuffix}` : ''}`
+    : integration.envFallbackActive
+      ? 'Usando token global del servidor'
+      : 'Sin vincular';
 
   const handleLogout = async () => {
     await clearSession();
@@ -151,9 +161,12 @@ export default function AdminProfileScreen({ navigation }) {
 
   const startMercadoPagoOAuth = async () => {
     if (!integration.oauthReady) {
+      const missing = integration.oauthSetup?.missing?.length
+        ? `\n\nFalta en el servidor: ${integration.oauthSetup.missing.join(', ')}`
+        : '';
       showAlert(
         'No disponible',
-        'Mercado Pago OAuth no está configurado en el servidor. Contactá al soporte técnico.',
+        `Mercado Pago OAuth no está configurado en el servidor. Contactá al soporte técnico.${missing}`,
       );
       return;
     }
@@ -228,6 +241,24 @@ export default function AdminProfileScreen({ navigation }) {
             />
           ) : null}
         </View>
+
+        {canManageMercadoPago ? (
+          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <ProfileInfoRow
+              icon="wallet-outline"
+              label="Mercado Pago"
+              value={mpStatusLabel}
+              theme={theme}
+              isLast={integration.oauthReady}
+            />
+            {!integration.oauthReady && integration.oauthSetup?.missing?.length ? (
+              <Text style={[styles.mpHint, { color: theme.textMuted }]}>
+                OAuth del servidor incompleto. Variables pendientes:{' '}
+                {integration.oauthSetup.missing.join(', ')}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
 
         {canManageMercadoPago ? (
           <TouchableOpacity
@@ -314,4 +345,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   mpOAuthBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  mpHint: { fontSize: 12, lineHeight: 17, paddingHorizontal: 14, paddingBottom: 14, marginTop: -4 },
 });

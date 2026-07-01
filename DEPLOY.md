@@ -140,7 +140,7 @@ Open `http://localhost:5173`.
 |----------|--------|
 | `MERCADOPAGO_CLIENT_ID` | Client ID de la app MP |
 | `MERCADOPAGO_CLIENT_SECRET` | Client Secret |
-| `MERCADOPAGO_OAUTH_REDIRECT_URI` | `https://TU-BACKEND.onrender.com/api/mercadopago/oauth/callback` |
+| `MERCADOPAGO_OAUTH_REDIRECT_URI` | `https://club-backend-t1qz.onrender.com/api/mercadopago/oauth/callback` |
 | `MP_OAUTH_STATE_SECRET` | Generar: `npm run mp:oauth-secret --workspace=backend` (mín. 16 chars) |
 | `MERCADOPAGO_OAUTH_USE_PKCE` | `true` |
 | `FRONTEND_URL` | `https://app.hermesclubapp.com` |

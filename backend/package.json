@@ -10,7 +10,8 @@
     "seed:finanzas": "node src/scripts/seedFinanzasExamples.js",
     "seed:nutri": "node src/scripts/seedNutriMetricsExamples.js",
     "seed:demo": "node src/scripts/seedClubDemoFlow.js",
-    "mp:oauth-secret": "node src/scripts/generateMpOAuthSecret.js"
+    "mp:oauth-secret": "node src/scripts/generateMpOAuthSecret.js",
+    "mp:check-oauth": "node src/scripts/checkMpOAuthEnv.js"
   },
   "keywords": [],
   "author": "",
