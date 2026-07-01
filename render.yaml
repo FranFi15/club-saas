@@ -65,7 +65,17 @@ services:
       - key: FRONTEND_URL
         sync: false
         # https://app.hermesclubapp.com
+      - key: ENABLE_SESSION_CRON
+        value: "true"
+      - key: SESSION_CRON_SCHEDULE
+        value: "0 3 * * *"
+      - key: ENABLE_PAYMENT_CRON
+        value: "true"
+      - key: PAYMENT_CRON_SCHEDULE
+        value: "0 6 1 * *"
       - key: ENABLE_OVERDUE_CRON
         value: "true"
+      - key: OVERDUE_CRON_SCHEDULE
+        value: "0 4 * * *"
       - key: APP_DEEP_LINK_SCHEME
         value: clubapp

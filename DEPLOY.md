@@ -56,6 +56,9 @@ Public URL: `https://club-super-xxxx.onrender.com`
 | `MERCADOPAGO_CLIENT_ID` / `MERCADOPAGO_CLIENT_SECRET` | MP developers panel |
 | `MP_OAUTH_STATE_SECRET` | `npm run mp:oauth-secret --workspace=backend` |
 | `CLOUDINARY_*` | Cloudinary credentials |
+| `ENABLE_SESSION_CRON` | `true` — genera sesiones futuras (default `0 3 * * *`) |
+| `ENABLE_PAYMENT_CRON` | `true` — cuotas del mes (default `0 6 1 * *`, día 1 a las 06:00) |
+| `ENABLE_OVERDUE_CRON` | `true` — marcar vencidas (default `0 4 * * *`) |
 
 Register the OAuth redirect URI in [Mercado Pago Developers](https://www.mercadopago.com.ar/developers/panel/app).
 
