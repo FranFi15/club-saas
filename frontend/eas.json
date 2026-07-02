@@ -8,7 +8,9 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_APP_URL": "https://app.hermesclubapp.com"
+        "EXPO_PUBLIC_APP_URL": "https://app.hermesclubapp.com",
+        "EXPO_PUBLIC_CLUB_API_URL": "https://club-backend-t1qz.onrender.com/api",
+        "EXPO_PUBLIC_SUPER_API_URL": "https://club-super.onrender.com/api"
       }
     },
     "preview": {
@@ -17,26 +19,28 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_APP_URL": "https://app.hermesclubapp.com"
+        "EXPO_PUBLIC_APP_URL": "https://app.hermesclubapp.com",
+        "EXPO_PUBLIC_CLUB_API_URL": "https://club-backend-t1qz.onrender.com/api",
+        "EXPO_PUBLIC_SUPER_API_URL": "https://club-super.onrender.com/api"
       }
     },
     "production": {
       "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      },
       "env": {
-        "EXPO_PUBLIC_APP_URL": "https://app.hermesclubapp.com"
+        "EXPO_PUBLIC_APP_URL": "https://app.hermesclubapp.com",
+        "EXPO_PUBLIC_CLUB_API_URL": "https://club-backend-t1qz.onrender.com/api",
+        "EXPO_PUBLIC_SUPER_API_URL": "https://club-super.onrender.com/api"
       }
     }
   },
   "submit": {
     "production": {
-      "ios": {
-        "appleId": "REPLACE_WITH_APPLE_ID",
-        "ascAppId": "REPLACE_AFTER_APP_STORE_CONNECT",
-        "appleTeamId": "REPLACE_WITH_APPLE_TEAM_ID"
-      },
       "android": {
-        "serviceAccountKeyPath": "./google-play-service-account.json",
-        "track": "internal"
+        "track": "production",
+        "releaseStatus": "completed"
       }
     }
   }

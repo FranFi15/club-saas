@@ -12,7 +12,10 @@
     "build:ios": "eas build --platform ios --profile production",
     "build:mobile": "eas build --platform all --profile production",
     "build:preview:android": "eas build --platform android --profile preview",
-    "build:preview:ios": "eas build --platform ios --profile preview"
+    "build:preview:ios": "eas build --platform ios --profile preview",
+    "submit:android": "eas submit --platform android --profile production --latest",
+    "submit:ios": "eas submit --platform ios --profile production --latest",
+    "submit:mobile": "eas submit --platform all --profile production --latest"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

@@ -20,7 +20,7 @@
     "android": {
       "package": "com.hermesclubapp.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/H.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -50,6 +50,13 @@
           "cameraPermission": "Permite escanear el QR de ingreso de socios al club.",
           "microphonePermission": false,
           "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permite subir fotos de comprobantes de pago y documentación del club.",
+          "cameraPermission": "Permite tomar fotos para comprobantes y documentación del club."
         }
       ],
       [
