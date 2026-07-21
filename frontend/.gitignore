@@ -42,3 +42,6 @@ google-play-service-account.json
 # generated native folders
 /ios
 /android
+
+# google play service account
+google-play-service-account.json

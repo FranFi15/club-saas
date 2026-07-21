@@ -58,16 +58,77 @@ Builds appear at: https://expo.dev/accounts/franfi15/projects/hermes-club-app/bu
 1. Play Console → **Setup → API access** → crear service account
 2. Descargar JSON → guardar como `frontend/google-play-service-account.json` (gitignored)
 3. En Play Console, dar permiso **Release manager** a la service account
-4. Run:
+4. **Completar en Play Console** (obligatorio antes del primer upload):
+   - Ficha de la tienda (descripción, capturas, ícono)
+   - Política de privacidad: `https://hermesclub.app/privacidad/`
+   - Clasificación de contenido
+   - Público objetivo
+   - Formularios de **App content** (permisos de fotos/video si aplica)
+5. **Primera subida → track Internal** (no Production):
 
 ```bash
 cd frontend
 npm run submit:android
 ```
 
+Esto sube al track **internal** de prueba. Cuando funcione, podés promover desde Play Console o usar:
+
+```bash
+npm run submit:android:production
+```
+
+(`production` usa `releaseStatus: draft` hasta que la ficha esté 100% lista.)
+
+#### Error: `Precondition check failed`
+
+Significa que Play Console aún no está listo para ese track. Causas habituales:
+
+| Causa | Qué hacer |
+|-------|-----------|
+| Primera app, sin release previo | Subir primero a **Internal** (`npm run submit:android`) |
+| Ficha incompleta | Completar store listing + App content en Play Console |
+| Cuenta personal (post nov 2023) | Google exige **prueba cerrada** (12 testers, 14 días) antes de Production |
+| Permisos foto/video | Subir el AAB **manual** una vez en Play Console para que aparezca el formulario de permisos |
+| Borrador abierto en la consola | Cerrar/cancelar releases en borrador y reintentar |
+
+Si EAS sigue fallando, subí el `.aab` manualmente (sección C) — suele mostrar el error exacto que falta.
+
 ### C. Manual upload (alternative)
 
 Download the `.aab` from the EAS build page → Play Console → **Production** → **Create release** → upload.
+
+### D. Fix Android App Links (`/mp-oauth`, `/pago`)
+
+Play Console shows “Los vínculos directos no funcionan” until Digital Asset Links is configured.
+
+1. Open Play Console → your app → **Protegido con Play** (antes: *Integridad de la app*)
+2. Abrí la sección de **Firma de apps** / **App signing**
+3. Copy the **SHA-256 certificate fingerprint** of **App signing key** (and ideally also **Upload key**)
+4. Put them in `frontend/public/.well-known/assetlinks.json`:
+
+```json
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.hermesclubapp.app",
+      "sha256_cert_fingerprints": [
+        "AA:BB:CC:...from Play App signing key...",
+        "DD:EE:FF:...from Upload key (optional but recommended)..."
+      ]
+    }
+  }
+]
+```
+
+5. Redeploy the web app (`app.hermesclubapp.com`) so this URL returns the real fingerprints:
+   - https://app.hermesclubapp.com/.well-known/assetlinks.json
+6. In Play Console → **Deep links**, click **Verify** / wait for revalidation.
+
+If the live file still shows `REPLACE_WITH_EAS_ANDROID_SHA256_FINGERPRINT`, domain ownership will keep failing.
+
+Tip: en esa misma pantalla Play suele mostrar un bloque **Digital Asset Links JSON** listo para copiar.
 
 ---
 
@@ -142,7 +203,8 @@ Tip: open https://app.hermesclubapp.com on a phone emulator or use browser devto
 |---------|--------|
 | `npm run build:android` | Production AAB |
 | `npm run build:ios` | Production IPA |
-| `npm run submit:android` | Upload latest Android build to Play |
+| `npm run submit:android` | Upload latest build to Play **Internal** track |
+| `npm run submit:android:production` | Upload to Production (draft) |
 | `npm run submit:ios` | Upload latest iOS build to App Store Connect |
 | `npm run build:preview:android` | APK for testers (not store) |
 

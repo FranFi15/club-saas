@@ -20,7 +20,7 @@
     "android": {
       "package": "com.hermesclubapp.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/H.png",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -62,7 +62,6 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/H.png",
           "color": "#150224",
           "defaultChannel": "default"
         }

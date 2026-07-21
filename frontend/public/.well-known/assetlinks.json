@@ -5,7 +5,8 @@
       "namespace": "android_app",
       "package_name": "com.hermesclubapp.app",
       "sha256_cert_fingerprints": [
-        "REPLACE_WITH_EAS_ANDROID_SHA256_FINGERPRINT"
+        "E4:BA:E3:60:3C:FC:BF:CC:7A:7D:39:D2:FA:0E:FB:B3:04:7F:68:43:21:E4:E8:85:C2:60:1A:EC:C7:D4:BB:9F",
+        "F1:C1:F2:5A:EE:7C:78:58:F2:D2:47:F8:1D:9D:4E:CF:21:BA:C2:B9:A4:B0:5C:AD:83:A6:5C:B2:C0:5A:D8:B0"
       ]
     }
   }

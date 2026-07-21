@@ -4,6 +4,7 @@ const IOS_BUNDLE_ID = 'com.hermesclubapp.app';
 const ANDROID_PACKAGE = 'com.hermesclubapp.app';
 const EAS_PROJECT_ID = '1f64eb80-036b-47f1-8f80-83ba3351500e';
 const PRIVACY_POLICY_URL = 'https://hermesclub.app/privacidad';
+const withMonorepoReactNative = require('./plugins/withMonorepoReactNative.cjs');
 
 export default ({ config }) => ({
   ...config,
@@ -51,6 +52,7 @@ export default ({ config }) => ({
         },
       ],
     },
+    plugins: [...(config.expo?.plugins ?? []), withMonorepoReactNative],
     extra: {
       ...config.expo?.extra,
       appWebUrl: `https://${APP_WEB_HOST}`,

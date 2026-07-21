@@ -1,0 +1,9 @@
+# Exclude other workspaces from EAS upload (frontend is the mobile app)
+backend/
+super/
+superfront/
+website/
+**/node_modules/
+**/.expo/
+**/dist/
+**/web-build/

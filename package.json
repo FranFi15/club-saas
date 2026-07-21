@@ -23,7 +23,9 @@
   },
   "overrides": {
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "expo": "~54.0.35",
+    "expo-file-system": "~19.0.23"
   },
   "dependencies": {
     "object-assign": "^4.1.1",
