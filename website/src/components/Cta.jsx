@@ -16,7 +16,12 @@ export default function Cta() {
             <a href={APP_URL} className="btn btn--primary">
               Ir a la aplicación
             </a>
-            <a href="mailto:hola@hermesclub.app" className="btn btn--outline cta__outline">
+            <a
+              href="https://wa.me/5492915279308"
+              className="btn btn--outline cta__outline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               Consultanos
             </a>
           </div>
