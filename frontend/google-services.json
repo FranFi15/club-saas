@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "968666780642",
+    "project_id": "hermes-club-app",
+    "storage_bucket": "hermes-club-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:968666780642:android:0c000a39b8289076e3dfbb",
+        "android_client_info": {
+          "package_name": "com.hermesclubapp.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCbxfOywCFSJXYQjpGlWvA3nno2f1IoctA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

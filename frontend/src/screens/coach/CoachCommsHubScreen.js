@@ -5,13 +5,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
+import BadgeDot from '../../components/BadgeDot';
+import { useBadges } from '../../context/BadgeContext';
 
 export default function CoachCommsHubScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
+  const { hub } = useBadges();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
 
-  const Row = ({ icon, title, subtitle, onPress }) => (
+  const Row = ({ icon, title, subtitle, onPress, badge = 0 }) => (
     <TouchableOpacity
       style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
       onPress={onPress}
@@ -24,6 +27,7 @@ export default function CoachCommsHubScreen({ navigation }) {
         <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
         <Text style={[styles.sub, { color: theme.textMuted }]}>{subtitle}</Text>
       </View>
+      <BadgeDot count={badge} />
       <Ionicons name="chevron-forward" size={22} color={theme.icon} />
     </TouchableOpacity>
   );
@@ -43,24 +47,31 @@ export default function CoachCommsHubScreen({ navigation }) {
         }
       />
       <View style={styles.body}>
-      <Row
-        icon="newspaper-outline"
-        title="Noticias y avisos"
-        subtitle="Publicá comunicados con alcance por categoría o rol"
-        onPress={() => navigation.navigate('NoticiasStaff')}
-      />
-      <Row
-        icon="cloud-upload-outline"
-        title="Material multimedia"
-        subtitle="Videos o imágenes como recurso para un atleta o todo un grupo"
-        onPress={() => navigation.navigate('CoachResourceSend')}
-      />
-      <Row
-        icon="document-text-outline"
-        title="Pedir documentación"
-        subtitle="Solicitá un archivo a una categoría o a un atleta (apto, DNI, etc.)"
-        onPress={() => navigation.navigate('CoachRequestDoc')}
-      />
+        <Row
+          icon="chatbubbles-outline"
+          title="Chat"
+          subtitle="Mensajes con admin, tutores y atletas (si está habilitado)"
+          badge={hub('chat')}
+          onPress={() => navigation.navigate('ChatInbox')}
+        />
+        <Row
+          icon="newspaper-outline"
+          title="Noticias y avisos"
+          subtitle="Publicá comunicados con alcance por categoría o rol"
+          onPress={() => navigation.navigate('NoticiasStaff')}
+        />
+        <Row
+          icon="cloud-upload-outline"
+          title="Material multimedia"
+          subtitle="Videos o imágenes como recurso para un atleta o todo un grupo"
+          onPress={() => navigation.navigate('CoachResourceSend')}
+        />
+        <Row
+          icon="document-text-outline"
+          title="Pedir documentación"
+          subtitle="Solicitá un archivo a una categoría o a un atleta (apto, DNI, etc.)"
+          onPress={() => navigation.navigate('CoachRequestDoc')}
+        />
       </View>
     </SafeAreaView>
   );

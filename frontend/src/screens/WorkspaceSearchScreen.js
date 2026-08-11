@@ -25,7 +25,7 @@ function apiErrorMessage(error) {
     return 'El servidor tardó demasiado en responder. Revisá que super y backend estén corriendo.';
   }
   if (error.message === 'Network Error' || !error.response) {
-    return 'No se pudo conectar al servidor. El celular tiene que estar en la misma red Wi‑Fi que la PC y Expo tiene que estar abierto.';
+    return 'No se pudo conectar al servidor. ';
   }
   return 'Verificá el código del club.';
 }
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   buttonGeneric: {
     width: '100%',
     height: 50,
-    backgroundColor: '#18375d',
+    backgroundColor: '#16559b',
     borderRadius: 5,
     justifyContent: 'center',
     alignItems: 'center',

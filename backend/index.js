@@ -38,6 +38,7 @@ import badgeRoutes from './src/routes/badge.routes.js';
 import swapRequestRoutes from './src/routes/swapRequest.routes.js';
 import enrollmentRequestRoutes from './src/routes/enrollmentRequest.routes.js';
 import clubEntryRoutes from './src/routes/clubEntry.routes.js';
+import chatRoutes from './src/routes/chat.routes.js';
 
 import { startSessionGenerationCron } from './src/cron/sessionGeneration.cron.js';
 import { startPaymentGenerationCron } from './src/cron/paymentGeneration.cron.js';
@@ -137,6 +138,7 @@ app.use('/api/badges', resolveTenant, badgeRoutes);
 app.use('/api/session-swaps', resolveTenant, swapRequestRoutes);
 app.use('/api/enrollment-requests', resolveTenant, enrollmentRequestRoutes);
 app.use('/api/club-entry', resolveTenant, clubEntryRoutes);
+app.use('/api/chat', resolveTenant, chatRoutes);
 
 
 // 3. MIDDLEWARES DE ERROR 

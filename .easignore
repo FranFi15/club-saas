@@ -7,3 +7,9 @@ website/
 **/.expo/
 **/dist/
 **/web-build/
+
+# Never upload local native folders — EAS prebuild regenerates them from app.json
+frontend/android/
+frontend/ios/
+android/
+ios/

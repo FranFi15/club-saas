@@ -7,6 +7,7 @@ import {
     countUnifiedUnread,
     buildUnifiedNotificationFeed,
 } from './notificationFeed.service.js';
+import { countUnreadChatForUser } from './chat.service.js';
 
 export async function countDocsPendientesAtleta(atletaId, models) {
     const { Requirement, Enrollment, Submission } = models;
@@ -122,7 +123,7 @@ async function countDocsRevisionForUser(user, models) {
     });
 }
 
-async function adminBadgeSummary(models) {
+async function adminBadgeSummary(models, userId) {
     const { EnrollmentRequest, Payment, Rental, Submission } = models;
     const now = new Date();
     const mes = now.getMonth() + 1;
@@ -150,15 +151,16 @@ async function adminBadgeSummary(models) {
         estadoReserva: 'confirmada',
     });
     const docsRevision = await Submission.countDocuments({ estado: 'revision' });
+    const chatUnread = await countUnreadChatForUser(models, userId);
 
     const estructura = solicitudesInscripcion;
-    const gestion = alquileresPendientes + docsRevision;
+    const gestion = alquileresPendientes + docsRevision + chatUnread;
     const finanzas = finanzasImpagas + transferenciasRevisionGrupos;
 
     return {
         tabs: {
             estructura: estructura > 0 ? estructura : 0,
-            gestion: gestion > 0 ? gestion : 0,
+            gestion: gestion > 0 ? Math.min(99, gestion) : 0,
             finanzas: finanzas > 0 ? finanzas : 0,
             perfil: 0,
         },
@@ -169,6 +171,7 @@ async function adminBadgeSummary(models) {
             finanzasFamilias: 0,
             alquileres: alquileresPendientes,
             docsRevision,
+            chat: chatUnread > 0 ? Math.min(99, chatUnread) : 0,
         },
     };
 }
@@ -176,19 +179,22 @@ async function adminBadgeSummary(models) {
 async function coachBadgeSummary(user, models) {
     const plantelPendientes = (await listRosterPendingForCoach(models, user._id, user.rol)).length;
     const docsRevision = await countDocsRevisionForUser(user, models);
+    const chatUnread = await countUnreadChatForUser(models, user._id);
     const equipo = plantelPendientes + docsRevision;
+    const comunicar = chatUnread;
 
     return {
         tabs: {
             inicio: 0,
             sesiones: 0,
             equipo: equipo > 0 ? equipo : 0,
-            comunicar: 0,
+            comunicar: comunicar > 0 ? Math.min(99, comunicar) : 0,
             perfil: 0,
         },
         hubs: {
             plantelPendientes,
             docsRevision,
+            chat: chatUnread > 0 ? Math.min(99, chatUnread) : 0,
         },
     };
 }
@@ -260,11 +266,14 @@ async function memberBadgeSummary(user, models) {
             documentacion: 0,
             recursos: 0,
             novedades: 0,
+            chat: 0,
         },
     };
 
     const newsUnread = await countUnreadNews(user, models);
+    const chatUnread = await countUnreadChatForUser(models, user._id);
     out.hubs.novedades = newsUnread;
+    out.hubs.chat = chatUnread > 0 ? Math.min(99, chatUnread) : 0;
 
     if (rol === 'atleta') {
         out.hubs.documentacion = await countDocsPendientesAtleta(user._id, models);
@@ -272,7 +281,7 @@ async function memberBadgeSummary(user, models) {
         if (atletaCuotasEnApp(user)) {
             out.tabs.cuotas = await countCuotasImpagasAtleta(user._id, models);
         }
-        const comm = out.hubs.documentacion + out.hubs.recursos + newsUnread;
+        const comm = out.hubs.documentacion + out.hubs.recursos + newsUnread + chatUnread;
         out.tabs.comunicar = comm > 0 ? Math.min(99, comm) : 0;
         const pendingConsultas = await countPendingConsultConfirmations(user, models);
         out.tabs.agenda = pendingConsultas > 0 ? Math.min(99, pendingConsultas) : 0;
@@ -293,7 +302,7 @@ async function memberBadgeSummary(user, models) {
         out.hubs.recursos = await countUnreadResources(user, models);
         out.tabs.inicio = docs + cuotas > 0 ? Math.min(99, docs + cuotas) : 0;
         out.tabs.cuotas = cuotas;
-        out.tabs.comunicar = Math.min(99, docs + out.hubs.recursos);
+        out.tabs.comunicar = Math.min(99, docs + out.hubs.recursos + chatUnread);
         out.tabs.novedades = newsUnread;
         const pendingConsultas = await countPendingConsultConfirmations(user, models);
         out.tabs.agenda = pendingConsultas > 0 ? Math.min(99, pendingConsultas) : 0;
@@ -317,7 +326,7 @@ export async function buildBadgeSummary(req) {
     let rolePart = { tabs: {}, hubs: {} };
 
     if (['admin_club', 'administrativo'].includes(rol)) {
-        rolePart = await adminBadgeSummary(req.models);
+        rolePart = await adminBadgeSummary(req.models, userId);
     } else if (['profe', 'preparador_fisico'].includes(rol)) {
         rolePart = await coachBadgeSummary(req.user, req.models);
     } else if (['nutricionista', 'psicologo'].includes(rol)) {

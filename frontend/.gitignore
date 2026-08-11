@@ -32,6 +32,10 @@ yarn-error.*
 
 google-play-service-account.json
 
+# Firebase / FCM admin keys (never commit)
+*-firebase-adminsdk-*.json
+firebase-adminsdk*.json
+
 # local env files
 .env
 .env*.local

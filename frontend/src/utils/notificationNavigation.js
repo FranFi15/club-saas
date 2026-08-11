@@ -114,6 +114,63 @@ export function getNotificationTarget(item, { rol, cuotasEnApp, isTutor }) {
     }
   }
 
+  if (tipo === 'chat') {
+    const params = item?.conversationId
+      ? { conversationId: item.conversationId }
+      : undefined;
+    if (rol === 'admin_club' || rol === 'administrativo') {
+      return {
+        tab: 'Gestión',
+        screen: item?.conversationId ? 'ChatThread' : 'ChatInbox',
+        params: item?.conversationId
+          ? { conversationId: item.conversationId }
+          : undefined,
+      };
+    }
+    if (rol === 'atleta') {
+      return {
+        tab: 'AthleteComunicar',
+        screen: item?.conversationId ? 'ChatThread' : 'ChatInbox',
+        params,
+      };
+    }
+    if (isTutor || rol === 'tutor') {
+      return {
+        tab: 'TutorComunicar',
+        screen: item?.conversationId ? 'ChatThread' : 'ChatInbox',
+        params,
+      };
+    }
+    if (rol === 'profe') {
+      return {
+        tab: 'CoachComunicar',
+        screen: item?.conversationId ? 'ChatThread' : 'ChatInbox',
+        params,
+      };
+    }
+    if (rol === 'preparador_fisico') {
+      return {
+        tab: 'PrepComunicar',
+        screen: item?.conversationId ? 'ChatThread' : 'ChatInbox',
+        params,
+      };
+    }
+    if (rol === 'nutricionista') {
+      return {
+        tab: 'NutComunicar',
+        screen: item?.conversationId ? 'ChatThread' : 'ChatInbox',
+        params,
+      };
+    }
+    if (rol === 'psicologo') {
+      return {
+        tab: 'PsiComunicar',
+        screen: item?.conversationId ? 'ChatThread' : 'ChatInbox',
+        params,
+      };
+    }
+  }
+
   return null;
 }
 

@@ -8,59 +8,62 @@ const withMonorepoReactNative = require('./plugins/withMonorepoReactNative.cjs')
 
 export default ({ config }) => ({
   ...config,
-  expo: {
-    ...config.expo,
-    slug: 'hermes-club-app',
-    scheme: 'clubapp',
-    ios: {
-      ...config.expo?.ios,
-      bundleIdentifier: IOS_BUNDLE_ID,
-      associatedDomains: [`applinks:${APP_WEB_HOST}`],
-      infoPlist: {
-        CFBundleDisplayName: 'Hermes Club App',
-        NSCameraUsageDescription:
-          'Permite escanear el QR de ingreso de socios al club.',
-        NSPhotoLibraryUsageDescription:
-          'Permite subir fotos de comprobantes de pago y documentación del club.',
-        NSPhotoLibraryAddUsageDescription:
-          'Permite guardar comprobantes y documentos en tu galería.',
-      },
-      config: {
-        usesNonExemptEncryption: false,
-      },
-      privacyManifests: {
-        NSPrivacyAccessedAPITypes: [
-          {
-            NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategoryUserDefaults',
-            NSPrivacyAccessedAPITypeReasons: ['CA92.1'],
-          },
-        ],
-      },
+  name: 'Hermes Club App',
+  slug: 'hermes-club-app',
+  scheme: 'clubapp',
+  version: config.version || '1.0.1',
+  ios: {
+    ...config.ios,
+    bundleIdentifier: IOS_BUNDLE_ID,
+    buildNumber: config.ios?.buildNumber || '2',
+    associatedDomains: [`applinks:${APP_WEB_HOST}`],
+    infoPlist: {
+      ...config.ios?.infoPlist,
+      CFBundleDisplayName: 'Hermes Club App',
+      NSCameraUsageDescription:
+        'Permite escanear el QR de ingreso de socios al club.',
+      NSPhotoLibraryUsageDescription:
+        'Permite subir fotos de comprobantes de pago y documentación del club.',
+      NSPhotoLibraryAddUsageDescription:
+        'Permite guardar comprobantes y documentos en tu galería.',
     },
-    android: {
-      ...config.expo?.android,
-      package: ANDROID_PACKAGE,
-      intentFilters: [
+    config: {
+      ...config.ios?.config,
+      usesNonExemptEncryption: false,
+    },
+    privacyManifests: {
+      NSPrivacyAccessedAPITypes: [
         {
-          action: 'VIEW',
-          autoVerify: true,
-          data: [
-            { scheme: 'https', host: APP_WEB_HOST, pathPrefix: '/mp-oauth' },
-            { scheme: 'https', host: APP_WEB_HOST, pathPrefix: '/pago' },
-          ],
-          category: ['BROWSABLE', 'DEFAULT'],
+          NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategoryUserDefaults',
+          NSPrivacyAccessedAPITypeReasons: ['CA92.1'],
         },
       ],
     },
-    plugins: [...(config.expo?.plugins ?? []), withMonorepoReactNative],
-    extra: {
-      ...config.expo?.extra,
-      appWebUrl: `https://${APP_WEB_HOST}`,
-      privacyPolicyUrl: PRIVACY_POLICY_URL,
-      eas: {
-        ...config.expo?.extra?.eas,
-        projectId: EAS_PROJECT_ID,
+  },
+  android: {
+    ...config.android,
+    package: ANDROID_PACKAGE,
+    versionCode: config.android?.versionCode || 8,
+    intentFilters: [
+      {
+        action: 'VIEW',
+        autoVerify: true,
+        data: [
+          { scheme: 'https', host: APP_WEB_HOST, pathPrefix: '/mp-oauth' },
+          { scheme: 'https', host: APP_WEB_HOST, pathPrefix: '/pago' },
+        ],
+        category: ['BROWSABLE', 'DEFAULT'],
       },
+    ],
+  },
+  plugins: [...(config.plugins ?? []), withMonorepoReactNative],
+  extra: {
+    ...config.extra,
+    appWebUrl: `https://${APP_WEB_HOST}`,
+    privacyPolicyUrl: PRIVACY_POLICY_URL,
+    eas: {
+      ...config.extra?.eas,
+      projectId: EAS_PROJECT_ID,
     },
   },
 });

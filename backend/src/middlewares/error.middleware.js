@@ -8,8 +8,8 @@ const notFound = (req, res, next) => {
 
 // 2. El Atrapa-Errores Principal
 const errorHandler = (err, req, res, next) => {
-    // Si el error llegó con un status 200 (OK), lo forzamos a 500 (Error de Servidor)
-    let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+    // Prefer explicit err.statusCode (usado por services); si no hay, respetar res.status ya seteado.
+    let statusCode = err.statusCode || (res.statusCode === 200 ? 500 : res.statusCode);
     let message = err.message;
 
     // --- TRADUCTORES DE ERRORES DE BASE DE DATOS (MONGODB) ---

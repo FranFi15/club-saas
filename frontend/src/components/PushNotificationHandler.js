@@ -29,6 +29,7 @@ function handlePushNavigation(response) {
     titulo: content?.title || data.title || 'Notificación',
     mensaje: content?.body || data.body || '',
     referencia: data.referencia || null,
+    conversationId: data.conversationId || null,
     leida: false,
     createdAt: new Date().toISOString(),
   };

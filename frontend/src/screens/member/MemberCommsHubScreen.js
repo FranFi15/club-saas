@@ -54,6 +54,17 @@ export default function MemberCommsHubScreen({ navigation }) {
       {isTutor ? <MemberChildPicker theme={theme} colorMarca={colorMarca} /> : null}
       <View style={styles.body}>
         <Row
+          icon="chatbubbles-outline"
+          title="Chat"
+          subtitle={
+            isTutor
+              ? 'Mensajes con admin y profesionales de tus atletas'
+              : 'Mensajes con administración y profesionales del club'
+          }
+          badge={hub('chat')}
+          onPress={() => navigation.navigate('ChatInbox')}
+        />
+        <Row
           icon="newspaper-outline"
           title="Noticias"
           subtitle="Avisos del club, tu categoría y mensajes directos"

@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   AppState,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -45,6 +46,8 @@ export default function AdminProfileScreen({ navigation }) {
   const [datosTransferencia, setDatosTransferencia] = useState(
     () => readScreenCache(mpCacheKey)?.datosTransferencia ?? null,
   );
+  const [chatAtletaProfesionalEnabled, setChatAtletaProfesionalEnabled] = useState(false);
+  const [chatSettingSaving, setChatSettingSaving] = useState(false);
 
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
@@ -89,10 +92,12 @@ export default function AdminProfileScreen({ navigation }) {
     }
     const rol = await getToken('userRol');
     const h = await getHeaders();
-    const [mpRes, bankRes] = await Promise.all([
+    const [mpRes, bankRes, chatRes] = await Promise.all([
       clubApi.get('/mercadopago/integration', { headers: h }),
       clubApi.get('/financial/transfer-bank', { headers: h }),
+      clubApi.get('/chat/settings', { headers: h }).catch(() => ({ data: {} })),
     ]);
+    setChatAtletaProfesionalEnabled(Boolean(chatRes.data?.chatAtletaProfesionalEnabled));
     return {
       userRol: rol,
       integration: {
@@ -106,6 +111,27 @@ export default function AdminProfileScreen({ navigation }) {
       datosTransferencia: bankRes.data?.datosTransferencia ?? null,
     };
   }, [clubData?.urlIdentifier, getHeaders]);
+
+  const toggleChatAtletaProfesional = async (value) => {
+    if (!clubData?.urlIdentifier || chatSettingSaving) return;
+    const prev = chatAtletaProfesionalEnabled;
+    setChatAtletaProfesionalEnabled(value);
+    setChatSettingSaving(true);
+    try {
+      const h = await getHeaders();
+      const { data } = await clubApi.patch(
+        '/chat/settings',
+        { chatAtletaProfesionalEnabled: value },
+        { headers: h },
+      );
+      setChatAtletaProfesionalEnabled(Boolean(data?.chatAtletaProfesionalEnabled));
+    } catch {
+      setChatAtletaProfesionalEnabled(prev);
+      showAlert('No se pudo guardar', 'Reintentá activar o desactivar el chat atleta ↔ profesionales.');
+    } finally {
+      setChatSettingSaving(false);
+    }
+  };
 
   const { loading: mpLoading, refreshing, onRefresh, reload } = useCachedFocusLoad({
     cacheKey: mpCacheKey,
@@ -279,6 +305,28 @@ export default function AdminProfileScreen({ navigation }) {
           </TouchableOpacity>
         ) : null}
 
+        {userRol === 'admin_club' || userRol === 'administrativo' ? (
+          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View style={styles.chatToggleRow}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={[styles.chatToggleTitle, { color: theme.text }]}>
+                  Chat atleta ↔ profesionales
+                </Text>
+                <Text style={[styles.chatToggleSub, { color: theme.textMuted }]}>
+                  Si está activo, atletas y coaches/nutri/psico/prep vinculados por categoría pueden mensajearse.
+                </Text>
+              </View>
+              <Switch
+                value={chatAtletaProfesionalEnabled}
+                onValueChange={toggleChatAtletaProfesional}
+                disabled={chatSettingSaving}
+                trackColor={{ false: theme.border, true: colorMarca + '99' }}
+                thumbColor={chatAtletaProfesionalEnabled ? colorMarca : '#f4f3f4'}
+              />
+            </View>
+          </View>
+        ) : null}
+
         <ProfileEditDataButton theme={theme} onPress={() => navigation.navigate('EditProfile')} />
 
         <ProfileLogoutButton onPress={handleLogout} />
@@ -335,6 +383,13 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
   card: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, marginBottom: 14, overflow: 'hidden' },
+  chatToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  chatToggleTitle: { fontSize: 15, fontWeight: '800' },
+  chatToggleSub: { fontSize: 12, marginTop: 4, lineHeight: 17 },
   mpOAuthBtn: {
     marginBottom: 14,
     height: 50,

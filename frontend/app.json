@@ -3,24 +3,27 @@
     "name": "Hermes Club App",
     "slug": "hermes-club-app",
     "scheme": "clubapp",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./assets/H.png",
+    "icon": "./assets/icono-app.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/icono-app.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.hermesclubapp.app"
+      "bundleIdentifier": "com.hermesclubapp.app",
+      "buildNumber": "3"
     },
     "android": {
       "package": "com.hermesclubapp.app",
+      "versionCode": 9,
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/androidicon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -33,7 +36,7 @@
     },
     "web": {
       "name": "Hermes Club App",
-      "favicon": "./assets/H.png"
+      "favicon": "./assets/icono-app.png"
     },
     "plugins": [
       "expo-secure-store",

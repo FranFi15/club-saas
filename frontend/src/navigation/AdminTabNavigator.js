@@ -23,6 +23,9 @@ import AdminRequestDocScreen from '../screens/admin/AdminRequestDocScreen';
 import AdminClubEntryScanScreen from '../screens/admin/AdminClubEntryScanScreen';
 import CoachTeamDocumentsScreen from '../screens/coach/CoachTeamDocumentsScreen';
 import MemberMediaViewerScreen from '../screens/member/MemberMediaViewerScreen';
+import ChatInboxScreen from '../screens/chat/ChatInboxScreen';
+import ChatThreadScreen from '../screens/chat/ChatThreadScreen';
+import ChatNewScreen from '../screens/chat/ChatNewScreen';
 import FinanzasScreen from '../screens/admin/FinanzasScreen';
 import AdminProfileScreen from '../screens/admin/AdminProfileScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
@@ -70,6 +73,9 @@ function GestionStackNavigator() {
         initialParams={{ variant: 'admin' }}
       />
       <GestionStack.Screen name="CoachMediaViewer" component={MemberMediaViewerScreen} />
+      <GestionStack.Screen name="ChatInbox" component={ChatInboxScreen} />
+      <GestionStack.Screen name="ChatThread" component={ChatThreadScreen} />
+      <GestionStack.Screen name="ChatNew" component={ChatNewScreen} />
     </GestionStack.Navigator>
   );
 }

@@ -27,6 +27,9 @@ import NoticiasScreen from '../screens/admin/NoticiasScreen';
 import CoachResourceSendScreen from '../screens/coach/CoachResourceSendScreen';
 import CoachRequestDocScreen from '../screens/coach/CoachRequestDocScreen';
 import StaffAthleteRosterScreen from '../screens/staff/StaffAthleteRosterScreen';
+import ChatInboxScreen from '../screens/chat/ChatInboxScreen';
+import ChatThreadScreen from '../screens/chat/ChatThreadScreen';
+import ChatNewScreen from '../screens/chat/ChatNewScreen';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
 import { tabBadgeLabel } from '../utils/tabBadgeLabel';
@@ -90,6 +93,9 @@ function PrepCommsStackNav() {
       />
       <PrepCommsStack.Screen name="CoachResourceSend" component={CoachResourceSendScreen} />
       <PrepCommsStack.Screen name="CoachRequestDoc" component={CoachRequestDocScreen} />
+      <PrepCommsStack.Screen name="ChatInbox" component={ChatInboxScreen} />
+      <PrepCommsStack.Screen name="ChatThread" component={ChatThreadScreen} />
+      <PrepCommsStack.Screen name="ChatNew" component={ChatNewScreen} />
     </PrepCommsStack.Navigator>
   );
 }
