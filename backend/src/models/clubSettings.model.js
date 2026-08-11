@@ -28,9 +28,6 @@ const clubSettingsSchema = new mongoose.Schema(
         transferenciaBanco: { type: String, default: '' },
         transferenciaCbu: { type: String, default: '' },
         transferenciaAlias: { type: String, default: '' },
-
-        /** Si true, atletas y profesionales vinculados pueden chatear entre sí. */
-        chatAtletaProfesionalEnabled: { type: Boolean, default: false },
     },
     { timestamps: true }
 );

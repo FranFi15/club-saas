@@ -37,6 +37,12 @@ const categorySchema = new mongoose.Schema({
     // Plan de pago default que se asigna automáticamente al inscribir un atleta
     planDefault: { type: mongoose.Schema.Types.ObjectId, ref: 'Plan' },
 
+    /**
+     * Si true, atletas de esta categoría pueden chatear con profesionales asignados a ella.
+     * Pensado para categorías adultas; dejar off en infantiles (habla el tutor).
+     */
+    chatAtletaProfesionalEnabled: { type: Boolean, default: false },
+
     /** Si el admin delegó al profesor la actualización del plantel (inscripciones). */
     plantelEdicion: {
         estado: { type: String, enum: ['delegado_coach'] },

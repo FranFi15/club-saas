@@ -3,10 +3,7 @@ import {
     canChat,
     listEligibleRecipients,
     makePairKey,
-    isChatAtletaProfesionalEnabled,
-    ADMIN_ROLES,
 } from './chatAccess.service.js';
-import { getOrCreateClubSettings } from './familyDiscount.service.js';
 
 const USER_SELECT = 'nombre apellido email rol fotoPerfil estado';
 
@@ -25,28 +22,6 @@ function unreadFor(conv, userId) {
 function otherParticipant(conv, userId) {
     const me = String(userId);
     return (conv.participants || []).find((p) => String(p._id || p) !== me) || null;
-}
-
-export async function getChatSettings(models) {
-    return {
-        chatAtletaProfesionalEnabled: await isChatAtletaProfesionalEnabled(models),
-    };
-}
-
-export async function updateChatSettings(models, { chatAtletaProfesionalEnabled }, actor) {
-    if (!ADMIN_ROLES.has(actor.rol)) {
-        const err = new Error('No autorizado.');
-        err.statusCode = 403;
-        throw err;
-    }
-    const { ClubSettings } = models;
-    await getOrCreateClubSettings(ClubSettings);
-    const doc = await ClubSettings.findOneAndUpdate(
-        {},
-        { chatAtletaProfesionalEnabled: Boolean(chatAtletaProfesionalEnabled) },
-        { upsert: true, new: true },
-    );
-    return { chatAtletaProfesionalEnabled: Boolean(doc.chatAtletaProfesionalEnabled) };
 }
 
 export async function listConversations(models, user) {

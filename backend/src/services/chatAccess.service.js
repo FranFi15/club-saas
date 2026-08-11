@@ -1,4 +1,3 @@
-import { getOrCreateClubSettings } from './familyDiscount.service.js';
 import { hijosDelTutorFilter } from '../utils/userQuery.js';
 
 export const ADMIN_ROLES = new Set(['admin_club', 'administrativo']);
@@ -27,12 +26,6 @@ function staffCategoriesQuery(rol, userId) {
     return { [staffFieldForRol(rol)]: userId };
 }
 
-export async function isChatAtletaProfesionalEnabled(models) {
-    const { ClubSettings } = models;
-    const doc = await getOrCreateClubSettings(ClubSettings);
-    return Boolean(doc.chatAtletaProfesionalEnabled);
-}
-
 async function categoryIdsForAthlete(Enrollment, atletaId) {
     return Enrollment.find({ atleta: atletaId, estado: 'activo' }).distinct('categoria');
 }
@@ -49,6 +42,28 @@ async function staffIdsForCategories(Category, catIds) {
         }
     }
     return ids;
+}
+
+/** Categorías del staff donde está habilitado chat atleta↔profesional. */
+async function enabledStaffCategoryIds(models, staffUser) {
+    const { Category } = models;
+    const cats = await Category.find({
+        ...staffCategoriesQuery(staffUser.rol, staffUser._id),
+        chatAtletaProfesionalEnabled: true,
+    })
+        .select('_id')
+        .lean();
+    return cats.map((c) => c._id);
+}
+
+async function athleteIdsForStaffInEnabledCategories(models, staffUser) {
+    const { Enrollment } = models;
+    const catIds = await enabledStaffCategoryIds(models, staffUser);
+    if (!catIds.length) return [];
+    return Enrollment.find({
+        categoria: { $in: catIds },
+        estado: 'activo',
+    }).distinct('atleta');
 }
 
 async function athleteIdsForStaff(models, staffUser) {
@@ -74,6 +89,20 @@ async function staffIdsForTutor(models, tutorId) {
     return staffIdsForCategories(Category, catIds);
 }
 
+/** Atleta ↔ staff solo si comparten al menos una categoría con el switch activo. */
+async function canAthleteChatWithStaff(models, atleta, staff) {
+    const { Category, Enrollment } = models;
+    const catIds = await categoryIdsForAthlete(Enrollment, atleta._id);
+    if (!catIds.length) return false;
+    const field = staffFieldForRol(staff.rol);
+    const linked = await Category.exists({
+        _id: { $in: catIds },
+        [field]: staff._id,
+        chatAtletaProfesionalEnabled: true,
+    });
+    return Boolean(linked);
+}
+
 /** ¿Pueden A y B chatear entre sí? */
 export async function canChat(models, userA, userB) {
     if (!userA?._id || !userB?._id) return false;
@@ -86,9 +115,7 @@ export async function canChat(models, userA, userB) {
 
     if (ADMIN_ROLES.has(rolA) || ADMIN_ROLES.has(rolB)) return true;
 
-    const { Category, Enrollment } = models;
-
-    // Tutor <-> staff vinculado a sus atletas
+    // Tutor <-> staff vinculado a sus atletas (siempre; no depende del switch)
     if (rolA === 'tutor' && STAFF_ROLES.has(rolB)) {
         const staff = await staffIdsForTutor(models, userA._id);
         return staff.has(idStr(userB));
@@ -98,22 +125,12 @@ export async function canChat(models, userA, userB) {
         return staff.has(idStr(userA));
     }
 
-    // Atleta <-> profesional (misma categoría) si el flag está activo
     const athletePro =
         (rolA === 'atleta' && STAFF_ROLES.has(rolB)) || (rolB === 'atleta' && STAFF_ROLES.has(rolA));
     if (athletePro) {
-        const enabled = await isChatAtletaProfesionalEnabled(models);
-        if (!enabled) return false;
         const atleta = rolA === 'atleta' ? userA : userB;
         const staff = rolA === 'atleta' ? userB : userA;
-        const catIds = await categoryIdsForAthlete(Enrollment, atleta._id);
-        if (!catIds.length) return false;
-        const field = staffFieldForRol(staff.rol);
-        const linked = await Category.exists({
-            _id: { $in: catIds },
-            [field]: staff._id,
-        });
-        return Boolean(linked);
+        return canAthleteChatWithStaff(models, atleta, staff);
     }
 
     return false;
@@ -192,7 +209,7 @@ export async function listEligibleRecipients(models, user) {
     }
 
     if (STAFF_ROLES.has(user.rol)) {
-        // Tutores de atletas del staff
+        // Tutores de atletas del staff (todas sus categorías)
         const athleteIds = await athleteIdsForStaff(models, user);
         if (athleteIds.length) {
             const atletas = await User.find({
@@ -217,19 +234,32 @@ export async function listEligibleRecipients(models, user) {
                     .lean();
                 addMany(tutores);
             }
+        }
 
-            if (await isChatAtletaProfesionalEnabled(models)) {
-                addMany(atletas);
-            }
+        // Atletas solo de categorías con chat habilitado
+        const enabledAthleteIds = await athleteIdsForStaffInEnabledCategories(models, user);
+        if (enabledAthleteIds.length) {
+            const atletasChat = await User.find({
+                _id: { $in: enabledAthleteIds },
+                rol: 'atleta',
+                estado: 'activo',
+            })
+                .select(USER_SELECT)
+                .lean();
+            addMany(atletasChat);
         }
         return [...out.values()].sort(sortByName);
     }
 
     if (user.rol === 'atleta') {
-        if (await isChatAtletaProfesionalEnabled(models)) {
-            const { Enrollment, Category } = models;
-            const catIds = await categoryIdsForAthlete(Enrollment, user._id);
-            const staffIds = await staffIdsForCategories(Category, catIds);
+        const { Enrollment, Category } = models;
+        const catIds = await categoryIdsForAthlete(Enrollment, user._id);
+        if (catIds.length) {
+            const enabledCatIds = await Category.find({
+                _id: { $in: catIds },
+                chatAtletaProfesionalEnabled: true,
+            }).distinct('_id');
+            const staffIds = await staffIdsForCategories(Category, enabledCatIds);
             if (staffIds.size) {
                 const staff = await User.find({
                     _id: { $in: [...staffIds] },

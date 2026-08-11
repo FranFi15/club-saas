@@ -25,7 +25,7 @@ router.get('/disciplina/:disciplineId', protect, getCategoriesByDiscipline);
 router.get('/:id/plantel', protect, authorize('admin_club', 'administrativo', 'profe', 'preparador_fisico'), getCategoryPlantel);
 router.put('/:id/plantel', protect, authorize('admin_club', 'administrativo', 'profe', 'preparador_fisico'), putCategoryPlantel);
 router.post('/:id/plantel/delegar', protect, authorize('admin_club', 'administrativo'), postDelegarCategoryPlantel);
-router.put('/:id', protect, authorize('admin_club'), updateCategory); // Edición
+router.put('/:id', protect, authorize('admin_club', 'administrativo'), updateCategory); // Edición
 router.delete('/:id', protect, authorize('admin_club'), deleteCategory); // Baja
 
 export default router;

@@ -1,8 +1,6 @@
 import express from 'express';
-import { protect, authorize } from '../middlewares/auth.middleware.js';
+import { protect } from '../middlewares/auth.middleware.js';
 import {
-    getSettings,
-    patchSettings,
     getConversations,
     getRecipients,
     postConversation,
@@ -12,9 +10,6 @@ import {
 } from '../controllers/chat.controller.js';
 
 const router = express.Router();
-
-router.get('/settings', protect, getSettings);
-router.patch('/settings', protect, authorize('admin_club', 'administrativo'), patchSettings);
 
 router.get('/conversations', protect, getConversations);
 router.post('/conversations', protect, postConversation);

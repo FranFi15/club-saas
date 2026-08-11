@@ -13,6 +13,7 @@ import {
   TextInput,
   ScrollView,
   RefreshControl,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -72,6 +73,10 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
   const [totalInscriptosPlantel, setTotalInscriptosPlantel] = useState(
     () => readScreenCache(plantelCacheKey)?.totalInscriptosPlantel ?? 0,
   );
+  const [chatAtletaProfesionalEnabled, setChatAtletaProfesionalEnabled] = useState(
+    Boolean(categoria?.chatAtletaProfesionalEnabled),
+  );
+  const [chatToggleSaving, setChatToggleSaving] = useState(false);
 
   const [alertConfig, setAlertConfig] = useState({
     visible: false, title: '', message: '', showCancel: false, isDanger: false,
@@ -146,6 +151,30 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
     fetchPlantelMeta();
     if (activeTab === 'atletas') {
       reload({ background: true });
+    }
+  };
+
+  const toggleChatAtletaProfesional = async (value) => {
+    if (!clubData?.urlIdentifier || chatToggleSaving) return;
+    const prev = chatAtletaProfesionalEnabled;
+    setChatAtletaProfesionalEnabled(value);
+    setChatToggleSaving(true);
+    try {
+      const { data } = await clubApi.put(
+        `/categories/${categoria._id}`,
+        { chatAtletaProfesionalEnabled: value },
+        { headers: await getHeaders() },
+      );
+      const enabled = Boolean(data?.chatAtletaProfesionalEnabled);
+      setChatAtletaProfesionalEnabled(enabled);
+      navigation.setParams({
+        categoria: { ...categoria, chatAtletaProfesionalEnabled: enabled },
+      });
+    } catch (e) {
+      setChatAtletaProfesionalEnabled(prev);
+      showAlert('Error', e.response?.data?.message || 'No se pudo guardar el ajuste de chat.');
+    } finally {
+      setChatToggleSaving(false);
     }
   };
 
@@ -435,6 +464,24 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
         onBack={() => navigation.goBack()}
         bottomRightAccessory={headerPlantelBtn}
       />
+
+      <View style={[styles.chatToggleCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View style={{ flex: 1, paddingRight: 12 }}>
+          <Text style={[styles.chatToggleTitle, { color: theme.text }]}>
+            Chat atleta ↔ profesionales
+          </Text>
+          <Text style={[styles.chatToggleSub, { color: theme.textMuted }]}>
+            Solo para esta categoría. Dejalo apagado en infantiles: el tutor habla con el staff.
+          </Text>
+        </View>
+        <Switch
+          value={chatAtletaProfesionalEnabled}
+          onValueChange={toggleChatAtletaProfesional}
+          disabled={chatToggleSaving}
+          trackColor={{ false: theme.border, true: colorMarca + '99' }}
+          thumbColor={chatAtletaProfesionalEnabled ? colorMarca : '#f4f3f4'}
+        />
+      </View>
 
       <ScrollView
         horizontal
@@ -728,4 +775,17 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.22)',
   },
   headerPlantelBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  chatToggleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  chatToggleTitle: { fontSize: 14, fontWeight: '800' },
+  chatToggleSub: { fontSize: 12, marginTop: 4, lineHeight: 16 },
 });
