@@ -81,6 +81,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
   );
   const [chatToggleSaving, setChatToggleSaving] = useState(false);
   const [chatGrupalToggleSaving, setChatGrupalToggleSaving] = useState(false);
+  const [chatPanelOpen, setChatPanelOpen] = useState(false);
 
   const [alertConfig, setAlertConfig] = useState({
     visible: false, title: '', message: '', showCancel: false, isDanger: false,
@@ -497,40 +498,74 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
         bottomRightAccessory={headerPlantelBtn}
       />
 
-      <View style={[styles.chatToggleCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <View style={{ flex: 1, paddingRight: 12 }}>
-          <Text style={[styles.chatToggleTitle, { color: theme.text }]}>
-            Chat atleta ↔ profesionales
-          </Text>
-          <Text style={[styles.chatToggleSub, { color: theme.textMuted }]}>
-            Solo para esta categoría. Dejalo apagado en infantiles: el tutor habla con el staff.
-          </Text>
-        </View>
-        <Switch
-          value={chatAtletaProfesionalEnabled}
-          onValueChange={toggleChatAtletaProfesional}
-          disabled={chatToggleSaving}
-          trackColor={{ false: theme.border, true: colorMarca + '99' }}
-          thumbColor={chatAtletaProfesionalEnabled ? colorMarca : '#f4f3f4'}
-        />
-      </View>
-
-      <View style={[styles.chatToggleCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <View style={{ flex: 1, paddingRight: 12 }}>
-          <Text style={[styles.chatToggleTitle, { color: theme.text }]}>
-            Chat grupal de la categoría
-          </Text>
-          <Text style={[styles.chatToggleSub, { color: theme.textMuted }]}>
-            Crea un grupo con profesores, preparadores y atletas activos. Se actualiza solo con el plantel.
-          </Text>
-        </View>
-        <Switch
-          value={chatGrupalCategoriaEnabled}
-          onValueChange={toggleChatGrupalCategoria}
-          disabled={chatGrupalToggleSaving}
-          trackColor={{ false: theme.border, true: colorMarca + '99' }}
-          thumbColor={chatGrupalCategoriaEnabled ? colorMarca : '#f4f3f4'}
-        />
+      <View style={[styles.chatPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <TouchableOpacity
+          style={styles.chatPanelHeader}
+          onPress={() => setChatPanelOpen((o) => !o)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: chatPanelOpen }}
+          accessibilityLabel="Opciones de chat"
+        >
+          <Text style={[styles.chatPanelTitle, { color: theme.text }]}>Chat</Text>
+          <View style={styles.chatDots}>
+            <View
+              style={[
+                styles.chatDot,
+                { backgroundColor: chatAtletaProfesionalEnabled ? '#22c55e' : '#ef4444' },
+              ]}
+              accessibilityLabel={
+                chatAtletaProfesionalEnabled
+                  ? 'Chat atleta profesionales activo'
+                  : 'Chat atleta profesionales inactivo'
+              }
+            />
+            <View
+              style={[
+                styles.chatDot,
+                { backgroundColor: chatGrupalCategoriaEnabled ? '#22c55e' : '#ef4444' },
+              ]}
+              accessibilityLabel={
+                chatGrupalCategoriaEnabled ? 'Chat grupal activo' : 'Chat grupal inactivo'
+              }
+            />
+          </View>
+          <Ionicons
+            name={chatPanelOpen ? 'chevron-up' : 'chevron-down'}
+            size={20}
+            color={theme.textMuted}
+          />
+        </TouchableOpacity>
+        {chatPanelOpen ? (
+          <>
+            <View style={[styles.chatRowDivider, { backgroundColor: theme.border }]} />
+            <View style={styles.chatRow}>
+              <Text style={[styles.chatRowTitle, { color: theme.text }]} numberOfLines={1}>
+                Atleta ↔ profesionales
+              </Text>
+              <Switch
+                value={chatAtletaProfesionalEnabled}
+                onValueChange={toggleChatAtletaProfesional}
+                disabled={chatToggleSaving}
+                trackColor={{ false: theme.border, true: colorMarca + '99' }}
+                thumbColor={chatAtletaProfesionalEnabled ? colorMarca : '#f4f3f4'}
+              />
+            </View>
+            <View style={[styles.chatRowDivider, { backgroundColor: theme.border }]} />
+            <View style={styles.chatRow}>
+              <Text style={[styles.chatRowTitle, { color: theme.text }]} numberOfLines={1}>
+                Grupal de la categoría
+              </Text>
+              <Switch
+                value={chatGrupalCategoriaEnabled}
+                onValueChange={toggleChatGrupalCategoria}
+                disabled={chatGrupalToggleSaving}
+                trackColor={{ false: theme.border, true: colorMarca + '99' }}
+                thumbColor={chatGrupalCategoriaEnabled ? colorMarca : '#f4f3f4'}
+              />
+            </View>
+          </>
+        ) : null}
       </View>
 
       <ScrollView
@@ -825,17 +860,32 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.22)',
   },
   headerPlantelBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 12 },
-  chatToggleCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  chatPanel: {
     marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    marginTop: 10,
+    marginBottom: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
   },
-  chatToggleTitle: { fontSize: 14, fontWeight: '800' },
-  chatToggleSub: { fontSize: 12, marginTop: 4, lineHeight: 16 },
+  chatPanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 36,
+  },
+  chatPanelTitle: { flex: 1, fontSize: 15, fontWeight: '700' },
+  chatDots: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  chatDot: { width: 8, height: 8, borderRadius: 4 },
+  chatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    minHeight: 40,
+    paddingVertical: 2,
+  },
+  chatRowTitle: { flex: 1, fontSize: 14, fontWeight: '600' },
+  chatRowDivider: { height: StyleSheet.hairlineWidth, marginVertical: 4 },
 });

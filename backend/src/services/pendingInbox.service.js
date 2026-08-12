@@ -15,6 +15,11 @@ function transferRevisionGroupCount(revisionRows) {
 export async function getAdminPendingCounts(models, userId) {
     const { EnrollmentRequest, Payment, Rental, Submission } = models;
 
+    const hoy = new Date();
+    hoy.setUTCHours(0, 0, 0, 0);
+    const alquilerDesde = new Date(hoy);
+    alquilerDesde.setUTCDate(alquilerDesde.getUTCDate() - 7);
+
     const [solicitudesInscripcion, revisionRows, alquileresPendientes, docsRevision, chatUnread] =
         await Promise.all([
             EnrollmentRequest.countDocuments({ estado: 'pendiente' }),
@@ -24,6 +29,7 @@ export async function getAdminPendingCounts(models, userId) {
             Rental.countDocuments({
                 estadoPago: { $in: ['pendiente', 'señado'] },
                 estadoReserva: 'confirmada',
+                fecha: { $gte: alquilerDesde },
             }),
             Submission.countDocuments({ estado: 'revision' }),
             countUnreadChatForUser(models, userId),
@@ -79,7 +85,7 @@ export async function listAdminPendingInbox(models, userId) {
             id: 'alquileres',
             tipo: 'alquileres',
             titulo: 'Alquileres pendientes',
-            mensaje: 'Reservas confirmadas con pago pendiente o seña',
+            mensaje: 'Reservas (últimos 7 días / futuras) con pago pendiente o seña',
             count: counts.alquileres,
             icon: 'time-outline',
             nav: { tab: 'Gestión', screen: 'Alquileres' },

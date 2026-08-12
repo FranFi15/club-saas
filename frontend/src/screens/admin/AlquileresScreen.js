@@ -14,6 +14,7 @@ import {
   getDayName,
   todayYmd,
   calendarPartsToYmd,
+  timeOverlaps,
 } from '../../utils/timeSlots';
 import { formatJsDateToDisplay, isoCalendarWeekday, isoCalendarDateToDisplay } from '../../utils/dateDisplay';
 import { maskTimeHHMM, isValidTimeHHMM } from '../../utils/timeDisplay';
@@ -269,6 +270,29 @@ export default function AlquileresScreen({ navigation }) {
       return showAlert('Error','Todos los campos son obligatorios.');
     if (!isValidTimeHHMM(formData.horaInicio) || !isValidTimeHHMM(formData.horaFin))
       return showAlert('Error','Usá horarios en formato HH:MM (24 h).');
+    if (!(formData.horaInicio < formData.horaFin))
+      return showAlert('Error','La hora de fin debe ser posterior a la de inicio.');
+
+    const hi = formData.horaInicio;
+    const hf = formData.horaFin;
+    const daySchedulesNow = schedules.filter((s) => s.diaSemana === getDayName(selectedDate));
+    const choqueSesion = sessions.some(
+      (s) => s.estado !== 'cancelada' && timeOverlaps(hi, hf, s.horaInicio, s.horaFin),
+    );
+    const choqueAlquiler = rentals.some((r) => timeOverlaps(hi, hf, r.horaInicio, r.horaFin));
+    const liberadoPorCancel = cancelledSessions.some((s) =>
+      timeOverlaps(hi, hf, s.horaInicio, s.horaFin),
+    );
+    const choqueGrilla =
+      !liberadoPorCancel &&
+      daySchedulesNow.some((sch) => timeOverlaps(hi, hf, sch.horaInicio, sch.horaFin));
+    if (choqueSesion || choqueAlquiler || choqueGrilla) {
+      return showAlert(
+        'Horario ocupado',
+        'Ese rango choca con un entrenamiento, la grilla fija u otro alquiler. Elegí un horario libre del calendario.',
+      );
+    }
+
     setIsSaving(true);
     try {
       const h = await getHeaders();
@@ -287,7 +311,7 @@ export default function AlquileresScreen({ navigation }) {
     setRentalAlert({
       visible: true,
       title: 'Cancelar Alquiler',
-      message: `¿Cancelar la reserva de ${rental.nombreCliente}?\nSe liberará el horario.`,
+      message: `¿Cancelar la reserva de ${rental.nombreCliente}?\nSe liberará el horario. El registro y los cobros se conservan.`,
       showCancel: true,
       isDanger: true,
       confirmText: 'Cancelar Reserva',
@@ -300,9 +324,10 @@ export default function AlquileresScreen({ navigation }) {
           closeDetailRental();
           fetchDayData();
           fetchAllRentals({ page: 1, append: false });
+          fetchBalance({ page: 1, append: false });
           showAlert('Listo', 'Alquiler cancelado y horario liberado.');
         } catch (e) {
-          showAlert('Error', 'No se pudo cancelar.');
+          showAlert('Error', e.response?.data?.message || 'No se pudo cancelar.');
         }
       },
       onCancel: () => setRentalAlert({ visible: false }, embedded),

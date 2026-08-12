@@ -1,6 +1,7 @@
 /**
  * Materializa la grilla semanal (Schedule) en sesiones concretas (Session).
  */
+import { hasTimeOverlap } from '../utils/timeHelper.js';
 
 const DIAS_MAPA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
@@ -128,12 +129,13 @@ export async function countFutureProgrammedSessions(models) {
  * @param {object} [scheduleExtraQuery]
  */
 async function generateLoop(models, inicio, fin, scheduleExtraQuery = {}) {
-    const { Schedule, Session } = models;
+    const { Schedule, Session, Rental } = models;
     const detalles = [];
     const errores = [];
+    const omitidas = [];
 
     if (fin < inicio) {
-        return { creadasCount: 0, detalles, errores };
+        return { creadasCount: 0, detalles, errores, omitidas };
     }
 
     let current = new Date(inicio);
@@ -145,9 +147,10 @@ async function generateLoop(models, inicio, fin, scheduleExtraQuery = {}) {
             if (!p.vigenteHasta || current > p.vigenteHasta) {
                 continue;
             }
+            const fechaDia = new Date(current);
             const existe = await Session.findOne({
                 categoria: p.categoria,
-                fecha: new Date(current),
+                fecha: fechaDia,
                 horaInicio: p.horaInicio,
                 espacio: p.espacio,
                 tipo: 'entrenamiento',
@@ -155,10 +158,52 @@ async function generateLoop(models, inicio, fin, scheduleExtraQuery = {}) {
 
             if (!existe) {
                 try {
+                    const inicioDia = new Date(fechaDia);
+                    inicioDia.setUTCHours(0, 0, 0, 0);
+                    const finDia = new Date(fechaDia);
+                    finDia.setUTCHours(23, 59, 59, 999);
+
+                    const sesionesDia = await Session.find({
+                        espacio: p.espacio,
+                        fecha: { $gte: inicioDia, $lte: finDia },
+                        estado: { $ne: 'cancelada' },
+                    }).lean();
+
+                    const choqueSesion = sesionesDia.find((s) =>
+                        hasTimeOverlap(p.horaInicio, p.horaFin, s.horaInicio, s.horaFin),
+                    );
+                    if (choqueSesion) {
+                        omitidas.push({
+                            dia: fechaDia.toISOString(),
+                            scheduleId: String(p._id),
+                            motivo: `Espacio ocupado (${choqueSesion.tipo || 'sesion'} ${choqueSesion.horaInicio}–${choqueSesion.horaFin})`,
+                        });
+                        continue;
+                    }
+
+                    if (Rental) {
+                        const alquileresDia = await Rental.find({
+                            espacio: p.espacio,
+                            fecha: { $gte: inicioDia, $lte: finDia },
+                            estadoReserva: { $ne: 'cancelada' },
+                        }).lean();
+                        const choqueAlquiler = alquileresDia.find((r) =>
+                            hasTimeOverlap(p.horaInicio, p.horaFin, r.horaInicio, r.horaFin),
+                        );
+                        if (choqueAlquiler) {
+                            omitidas.push({
+                                dia: fechaDia.toISOString(),
+                                scheduleId: String(p._id),
+                                motivo: `Alquiler ${choqueAlquiler.horaInicio}–${choqueAlquiler.horaFin}`,
+                            });
+                            continue;
+                        }
+                    }
+
                     const nuevaSesion = await Session.create({
                         tipo: 'entrenamiento',
                         categoria: p.categoria,
-                        fecha: new Date(current),
+                        fecha: fechaDia,
                         horaInicio: p.horaInicio,
                         horaFin: p.horaFin,
                         espacio: p.espacio,
@@ -174,7 +219,7 @@ async function generateLoop(models, inicio, fin, scheduleExtraQuery = {}) {
         current.setUTCDate(current.getUTCDate() + 1);
     }
 
-    return { creadasCount: detalles.length, detalles, errores };
+    return { creadasCount: detalles.length, detalles, errores, omitidas };
 }
 
 /** Rango explícito (POST /sessions/generate manual). */

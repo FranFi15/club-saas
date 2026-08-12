@@ -6,7 +6,12 @@ import { parsePageLimit, paginationMeta } from '../utils/pagination.js';
 // @route   POST /api/rentals
 const createRental = asyncHandler(async (req, res) => {
     const { nombreCliente, telefonoCliente, espacio, fecha, horaInicio, horaFin, montoTotal, señaPagada, notas } = req.body;
-    const { Rental, Session, Space } = req.models;
+    const { Rental, Session, Space, Schedule } = req.models;
+
+    if (!horaInicio || !horaFin || !(String(horaInicio) < String(horaFin))) {
+        res.status(400);
+        throw new Error('El horario de fin debe ser posterior al de inicio.');
+    }
 
     // 1. Verificamos el Espacio
     const spaceInfo = await Space.findById(espacio);
@@ -51,6 +56,38 @@ const createRental = asyncHandler(async (req, res) => {
         throw new Error(`Ya hay un alquiler de ${choqueAlquiler.horaInicio} a ${choqueAlquiler.horaFin}.`);
     }
 
+    // 2b. Grilla semanal (mismo criterio visual del calendario), salvo slot liberado por cancelación
+    const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const diaSemana = DIAS[inicioDia.getUTCDay()];
+    const plantillas = await Schedule.find({
+        espacio,
+        diaSemana,
+        vigenteHasta: { $gte: inicioDia },
+    }).lean();
+
+    if (plantillas.length) {
+        const canceladas = await Session.find({
+            espacio,
+            fecha: { $gte: inicioDia, $lte: finDia },
+            estado: 'cancelada',
+        }).lean();
+
+        const choqueGrilla = plantillas.find((sch) => {
+            if (!hasTimeOverlap(horaInicio, horaFin, sch.horaInicio, sch.horaFin)) return false;
+            const liberado = canceladas.some((s) =>
+                hasTimeOverlap(horaInicio, horaFin, s.horaInicio, s.horaFin),
+            );
+            return !liberado;
+        });
+
+        if (choqueGrilla) {
+            res.status(400);
+            throw new Error(
+                `Ese horario está reservado por la grilla de entrenamientos (${choqueGrilla.horaInicio}–${choqueGrilla.horaFin}).`,
+            );
+        }
+    }
+
     // 3. ¡Vía Libre! Creamos la Sesión "Fantasma" en el calendario
     // Usamos tipo 'alquiler' y no le pasamos categoría porque es externo
     const nuevaSesion = await Session.create({
@@ -90,7 +127,13 @@ const createRental = asyncHandler(async (req, res) => {
     };
     syncRentalEstadoPago(rentalDraft);
 
-    const rental = await Rental.create(rentalDraft);
+    let rental;
+    try {
+        rental = await Rental.create(rentalDraft);
+    } catch (err) {
+        await Session.findByIdAndDelete(nuevaSesion._id);
+        throw err;
+    }
     await rental.populate('espacio', 'nombre');
     res.status(201).json(rental);
 });
@@ -140,7 +183,7 @@ const getRentalsBySpaceAndDate = asyncHandler(async (req, res) => {
 // @desc    Editar estado o pago de un alquiler
 // @route   PUT /api/rentals/:id
 const updateRental = asyncHandler(async (req, res) => {
-    const { Rental } = req.models;
+    const { Rental, Session } = req.models;
     const { estadoPago, señaPagada, notas, estadoReserva } = req.body;
 
     const rental = await Rental.findById(req.params.id);
@@ -149,10 +192,18 @@ const updateRental = asyncHandler(async (req, res) => {
         throw new Error('Alquiler no encontrado');
     }
 
+    const nextEstado = estadoReserva || rental.estadoReserva;
+    if (nextEstado === 'cancelada' && rental.estadoReserva !== 'cancelada') {
+        if (rental.sesionVinculada) {
+            await Session.findByIdAndDelete(rental.sesionVinculada);
+            rental.sesionVinculada = undefined;
+        }
+    }
+
     rental.estadoPago = estadoPago || rental.estadoPago;
     rental.señaPagada = señaPagada !== undefined ? señaPagada : rental.señaPagada;
     rental.notas = notas || rental.notas;
-    rental.estadoReserva = estadoReserva || rental.estadoReserva;
+    rental.estadoReserva = nextEstado;
     syncRentalEstadoPago(rental);
 
     const updatedRental = await rental.save();
@@ -200,6 +251,8 @@ const getRentalBalance = asyncHandler(async (req, res) => {
     const { Rental } = req.models;
     const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 30, maxLimit: 100 });
     const baseMatch = { estadoReserva: { $ne: 'cancelada' } };
+    /** Incluye canceladas para no perder cobros ya registrados en el historial. */
+    const historialMatch = {};
 
     const [summaryRow] = await Rental.aggregate([
         { $match: baseMatch },
@@ -240,7 +293,7 @@ const getRentalBalance = asyncHandler(async (req, res) => {
     };
 
     const historialCountAgg = await Rental.aggregate([
-        { $match: baseMatch },
+        { $match: historialMatch },
         {
             $project: {
                 entries: {
@@ -264,7 +317,7 @@ const getRentalBalance = asyncHandler(async (req, res) => {
     const historialTotal = historialCountAgg[0]?.total || 0;
 
     const historialRows = await Rental.aggregate([
-        { $match: baseMatch },
+        { $match: historialMatch },
         {
             $lookup: {
                 from: 'spaces',
@@ -327,26 +380,36 @@ const getRentalBalance = asyncHandler(async (req, res) => {
         ...paginationMeta(page, limit, historialTotal),
     });
 });
-// @desc    Cancelar/Eliminar un alquiler y LIBERAR LA CANCHA
+// @desc    Cancelar un alquiler (soft) y liberar la cancha
 // @route   DELETE /api/rentals/:id
 const deleteRental = asyncHandler(async (req, res) => {
     const { Rental, Session } = req.models;
-    
+
     const rental = await Rental.findById(req.params.id);
     if (!rental) {
         res.status(404);
         throw new Error('Alquiler no encontrado');
     }
 
-    // MAGIA: Buscamos la sesión que bloqueaba el calendario y la borramos
-    if (rental.sesionVinculada) {
-        await Session.findByIdAndDelete(rental.sesionVinculada);
+    if (rental.estadoReserva === 'cancelada') {
+        res.status(400);
+        throw new Error('La reserva ya está cancelada.');
     }
 
-    // Ahora sí, borramos el recibo del alquiler
-    await rental.deleteOne();
-    
-    res.json({ message: 'Alquiler cancelado y horario de cancha liberado.' });
+    // Liberar el bloqueo del calendario (sesión fantasma)
+    if (rental.sesionVinculada) {
+        await Session.findByIdAndDelete(rental.sesionVinculada);
+        rental.sesionVinculada = undefined;
+    }
+
+    rental.estadoReserva = 'cancelada';
+    await rental.save();
+    await rental.populate('espacio', 'nombre');
+
+    res.json({
+        message: 'Alquiler cancelado y horario de cancha liberado.',
+        rental,
+    });
 });
 
 export { createRental, getRentals, updateRental, deleteRental, getRentalsBySpaceAndDate, payRentalBalance, getRentalBalance };
