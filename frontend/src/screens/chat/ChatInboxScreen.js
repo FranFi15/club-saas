@@ -18,7 +18,7 @@ import { useBadges } from '../../context/BadgeContext';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import BadgeDot from '../../components/BadgeDot';
 import { clubApi } from '../../utils/api';
-import { chatHeaders, displayName, formatChatTime, rolLabel } from './chatHelpers';
+import { chatHeaders, displayName, formatChatTime, isAdminChatRole, rolLabel } from './chatHelpers';
 
 export default function ChatInboxScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
@@ -78,9 +78,11 @@ export default function ChatInboxScreen({ navigation }) {
               {formatChatTime(item.lastMessageAt)}
             </Text>
           </View>
-          <Text style={[styles.rol, { color: theme.textMuted }]} numberOfLines={1}>
-            {rolLabel(other?.rol)}
-          </Text>
+          {!isAdminChatRole(other?.rol) ? (
+            <Text style={[styles.rol, { color: theme.textMuted }]} numberOfLines={1}>
+              {rolLabel(other?.rol)}
+            </Text>
+          ) : null}
           <Text
             style={[styles.preview, { color: unread ? theme.text : theme.textMuted, fontWeight: unread ? '700' : '400' }]}
             numberOfLines={1}

@@ -59,6 +59,7 @@ Public URL: `https://club-super-xxxx.onrender.com`
 | `ENABLE_SESSION_CRON` | `true` — genera sesiones futuras (default `0 3 * * *`) |
 | `ENABLE_PAYMENT_CRON` | `true` — cuotas del mes (default `0 6 1 * *`, día 1 a las 06:00) |
 | `ENABLE_OVERDUE_CRON` | `true` — marcar vencidas (default `0 4 * * *`) |
+| `ENABLE_PAYMENT_REMINDER_CRON` | `true` — recordatorios de cuota (default `0 10 * * *`) |
 
 Register the OAuth redirect URI in [Mercado Pago Developers](https://www.mercadopago.com.ar/developers/panel/app).
 

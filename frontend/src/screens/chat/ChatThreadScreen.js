@@ -24,6 +24,7 @@ import {
   chatHeaders,
   displayName,
   formatChatTime,
+  isAdminChatRole,
   rolLabel,
   CHAT_POLL_MS,
 } from './chatHelpers';
@@ -152,7 +153,7 @@ export default function ChatThreadScreen({ navigation, route }) {
       <CoachScreenHeader
         colorMarca={colorMarca}
         theme={theme}
-        kicker={rolLabel(otherUser?.rol)}
+        kicker={isAdminChatRole(otherUser?.rol) ? 'Club' : rolLabel(otherUser?.rol)}
         title={displayName(otherUser)}
         subtitle="Chat"
         onBack={() => navigation.goBack()}

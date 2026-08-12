@@ -166,7 +166,10 @@ export async function sendMessage(models, user, conversationId, bodyRaw) {
 
     const populated = await ChatMessage.findById(msg._id).populate('sender', USER_SELECT).lean();
 
-    const senderName = `${user.nombre || ''} ${user.apellido || ''}`.trim() || 'Mensaje nuevo';
+    const senderName =
+        user.rol === 'admin_club' || user.rol === 'administrativo'
+            ? 'Administración'
+            : `${user.nombre || ''} ${user.apellido || ''}`.trim() || 'Mensaje nuevo';
     try {
         await sendPushToUserIds(models, [otherId], {
             title: senderName,

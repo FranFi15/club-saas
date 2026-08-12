@@ -12,6 +12,7 @@ import { createAppNotification } from '../services/appNotification.service.js';
 import { isClubMercadoPagoLinked } from '../services/mercadoPagoClub.service.js';
 import { getTransferBankData, setTransferBankData } from '../services/transferBank.service.js';
 import { parsePageLimit, paginationMeta, buildAthleteSearchFilter, buildUserSearchFilter } from '../utils/pagination.js';
+import { sendCuotaReminders } from '../services/cuotaReminders.service.js';
 
 // @desc    Crear un nuevo Plan/Cuota
 // @route   POST /api/financial/plans
@@ -1180,47 +1181,12 @@ const getMorosidad = asyncHandler(async (req, res) => {
 // @desc    Enviar recordatorios de cuotas próximas a vencer / vencidas
 // @route   POST /api/financial/notifications/send-reminders
 const sendReminders = asyncHandler(async (req, res) => {
-    const { Payment, Notification, User } = req.models;
-    const ahora = new Date();
-    const en5Dias = new Date(ahora.getTime() + 5 * 24 * 60 * 60 * 1000);
-
-    // Cuotas que vencen en los próximos 5 días o ya vencieron
-    const cuotas = await Payment.find({
-        estado: { $in: ['pendiente', 'vencido'] },
-        fechaVencimiento: { $lte: en5Dias }
-    }).populate('plan', 'nombre').populate('atleta', 'nombre apellido tutorPrincipal');
-
-    let enviados = 0;
-    for (const cuota of cuotas) {
-        if (!cuota.atleta) continue;
-
-        // Destinatario: tutor si tiene, sino el atleta
-        const destinatario = cuota.atleta.tutorPrincipal || cuota.atleta._id;
-
-        // Verificar que no le hayamos mandado ya un recordatorio para esta cuota hoy
-        const hoyInicio = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
-        const yaEnviado = await Notification.findOne({
-            usuario: destinatario,
-            referencia: cuota._id,
-            createdAt: { $gte: hoyInicio }
-        });
-
-        if (yaEnviado) continue;
-
-        const esVencida = cuota.estado === 'vencido';
-        await createAppNotification(req.models, {
-            usuario: destinatario,
-            tipo: esVencida ? 'cuota_vencida' : 'cuota_proxima',
-            titulo: esVencida ? '⚠️ Cuota Vencida' : '📅 Cuota Próxima a Vencer',
-            mensaje: esVencida 
-                ? `La cuota de ${cuota.plan?.nombre || 'plan'} de ${cuota.atleta.nombre} está vencida. Monto: $${cuota.montoFinal}.`
-                : `La cuota de ${cuota.plan?.nombre || 'plan'} de ${cuota.atleta.nombre} vence pronto. Monto: $${cuota.montoFinal}.`,
-            referencia: cuota._id,
-        });
-        enviados++;
-    }
-
-    res.json({ message: `Se enviaron ${enviados} recordatorio(s).`, enviados });
+    const { enviados, daysBefore } = await sendCuotaReminders(req.models);
+    res.json({
+        message: `Se enviaron ${enviados} recordatorio(s).`,
+        enviados,
+        daysBefore,
+    });
 });
 
 // @desc    Editar un plan (Ideal para actualizar precios)

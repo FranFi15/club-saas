@@ -8,6 +8,7 @@ import {
     buildUnifiedNotificationFeed,
 } from './notificationFeed.service.js';
 import { countUnreadChatForUser } from './chat.service.js';
+import { getAdminPendingCounts, sumPendingCounts } from './pendingInbox.service.js';
 
 export async function countDocsPendientesAtleta(atletaId, models) {
     const { Requirement, Enrollment, Submission } = models;
@@ -124,35 +125,29 @@ async function countDocsRevisionForUser(user, models) {
 }
 
 async function adminBadgeSummary(models, userId) {
-    const { EnrollmentRequest, Payment, Rental, Submission } = models;
+    const { Payment } = models;
     const now = new Date();
     const mes = now.getMonth() + 1;
     const anio = now.getFullYear();
 
-    const solicitudesInscripcion = await EnrollmentRequest.countDocuments({ estado: 'pendiente' });
-    const finanzasImpagas = await Payment.countDocuments({
-        mes,
-        anio,
-        estado: { $in: ['pendiente', 'vencido'] },
-    });
-    const revisionRows = await Payment.find({ estado: 'en_revision' })
-        .select('transferGrupoId comprobante enviadoPor fechaEnvioComprobante')
-        .lean();
-    const revisionGroups = new Set(
-        revisionRows.map((p) => {
-            if (p.transferGrupoId) return String(p.transferGrupoId);
-            const ts = p.fechaEnvioComprobante ? new Date(p.fechaEnvioComprobante).getTime() : 0;
-            return `legacy:${p.comprobante || ''}|${p.enviadoPor || ''}|${ts}`;
+    const [finanzasImpagas, pendingCounts] = await Promise.all([
+        Payment.countDocuments({
+            mes,
+            anio,
+            estado: { $in: ['pendiente', 'vencido'] },
         }),
-    );
-    const transferenciasRevisionGrupos = revisionGroups.size;
-    const alquileresPendientes = await Rental.countDocuments({
-        estadoPago: { $in: ['pendiente', 'señado'] },
-        estadoReserva: 'confirmada',
-    });
-    const docsRevision = await Submission.countDocuments({ estado: 'revision' });
-    const chatUnread = await countUnreadChatForUser(models, userId);
+        getAdminPendingCounts(models, userId),
+    ]);
 
+    const {
+        transferenciasRevision: transferenciasRevisionGrupos,
+        docsRevision,
+        solicitudesInscripcion,
+        alquileres: alquileresPendientes,
+        chat: chatUnread,
+    } = pendingCounts;
+
+    const pendientes = sumPendingCounts(pendingCounts);
     const estructura = solicitudesInscripcion;
     const gestion = alquileresPendientes + docsRevision + chatUnread;
     const finanzas = finanzasImpagas + transferenciasRevisionGrupos;
@@ -172,6 +167,7 @@ async function adminBadgeSummary(models, userId) {
             alquileres: alquileresPendientes,
             docsRevision,
             chat: chatUnread > 0 ? Math.min(99, chatUnread) : 0,
+            pendientes,
         },
     };
 }

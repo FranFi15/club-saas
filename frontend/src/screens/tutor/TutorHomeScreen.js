@@ -96,7 +96,11 @@ export default function TutorHomeScreen({ navigation }) {
         theme={theme}
         kicker="Familia"
         title={`Hola, ${profile?.nombre || 'Tutor'}`}
-        subtitle={clubData?.nombre || 'Gestioná la actividad de tus atletas'}
+        subtitle={
+          activeHijo
+            ? `Gestionando a ${activeHijo.nombre} ${activeHijo.apellido}`
+            : clubData?.nombre || 'Gestioná la actividad de tus atletas'
+        }
         footer={
           <CoachHeaderBadge>
             <Ionicons name="people-outline" size={16} color="#fff" />
@@ -107,7 +111,7 @@ export default function TutorHomeScreen({ navigation }) {
         }
       />
 
-      <MemberChildPicker theme={theme} colorMarca={colorMarca} compact={hijos.length <= 1} />
+      <MemberChildPicker theme={theme} colorMarca={colorMarca} />
 
       {showInitialLoader ? (
         <View style={styles.centered}>
@@ -134,12 +138,14 @@ export default function TutorHomeScreen({ navigation }) {
             <>
               {activeHijo && activeSummary ? (
                 <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }, platformCardShadow(4)]}>
+                  <Text style={[styles.summaryKicker, { color: colorMarca }]}>Resumen del atleta</Text>
                   <Text style={[styles.summaryTitle, { color: theme.text }]}>
                     {activeHijo.nombre} {activeHijo.apellido}
                   </Text>
                   <Text style={[styles.summarySub, { color: theme.textMuted }]}>
-                    {activeHijo.edad != null ? `${activeHijo.edad} años` : 'Edad no registrada'} · Podés pagar cuotas
-                    desde tu perfil
+                    {activeHijo.edad != null ? `${activeHijo.edad} años` : 'Edad no registrada'}
+                    {' · '}
+                    Agenda, cuotas y docs de este atleta
                   </Text>
                   <View style={styles.statsRow}>
                     <View style={[styles.statBox, { backgroundColor: theme.background }]}>
@@ -192,9 +198,25 @@ export default function TutorHomeScreen({ navigation }) {
                 </View>
               ) : null}
 
+              <Text style={[styles.section, { color: theme.text }]}>
+                {activeHijo ? `Accesos de ${activeHijo.nombre}` : 'Accesos rápidos'}
+              </Text>
+              <View style={styles.grid}>
+                {SHORTCUTS.map((s) => (
+                  <TouchableOpacity
+                    key={`${s.tab}-${s.screen || s.label}`}
+                    style={[styles.tile, { backgroundColor: theme.surface, borderColor: theme.border }, platformCardShadow(3)]}
+                    onPress={() => navigateShortcut(s)}
+                  >
+                    <Ionicons name={s.icon} size={28} color={colorMarca} />
+                    <Text style={[styles.tileLbl, { color: theme.text }]}>{s.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
               {hijos.length > 1 ? (
                 <>
-                  <Text style={[styles.section, { color: theme.text }]}>Tus atletas</Text>
+                  <Text style={[styles.section, { color: theme.text }]}>Cambiar de atleta</Text>
                   {dashboard.map((d) => {
                     const on = String(d._id) === String(activeAtletaId);
                     const hasAlerts = Boolean(hijos.find((h) => String(h._id) === String(d._id))?.tieneAlertas);
@@ -225,20 +247,6 @@ export default function TutorHomeScreen({ navigation }) {
                   })}
                 </>
               ) : null}
-
-              <Text style={[styles.section, { color: theme.text }]}>Accesos rápidos</Text>
-              <View style={styles.grid}>
-                {SHORTCUTS.map((s) => (
-                  <TouchableOpacity
-                    key={`${s.tab}-${s.screen || s.label}`}
-                    style={[styles.tile, { backgroundColor: theme.surface, borderColor: theme.border }, platformCardShadow(3)]}
-                    onPress={() => navigateShortcut(s)}
-                  >
-                    <Ionicons name={s.icon} size={28} color={colorMarca} />
-                    <Text style={[styles.tileLbl, { color: theme.text }]}>{s.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
             </>
           )}
         </ScrollView>
@@ -253,6 +261,13 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   heroBadgeTxt: { color: '#fff', fontWeight: '700', fontSize: 12 },
   summaryCard: { borderRadius: 14, borderWidth: 1, padding: 16, marginBottom: 16 },
+  summaryKicker: {
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 6,
+  },
   summaryTitle: { fontSize: 18, fontWeight: '800' },
   summarySub: { fontSize: 14, marginTop: 6, lineHeight: 20 },
   statsRow: { flexDirection: 'row', gap: 8, marginTop: 14 },

@@ -3,7 +3,7 @@ import { getToken } from '../../utils/storage';
 
 export const ROL_LABELS = {
   admin_club: 'Administración',
-  administrativo: 'Administrativo',
+  administrativo: 'Administración',
   profe: 'Entrenador',
   preparador_fisico: 'Prep. físico',
   nutricionista: 'Nutricionista',
@@ -12,8 +12,13 @@ export const ROL_LABELS = {
   tutor: 'Tutor',
 };
 
+export function isAdminChatRole(rol) {
+  return rol === 'admin_club' || rol === 'administrativo';
+}
+
 export function displayName(user) {
   if (!user) return 'Usuario';
+  if (isAdminChatRole(user.rol)) return 'Administración';
   const n = `${user.nombre || ''} ${user.apellido || ''}`.trim();
   return n || user.email || 'Usuario';
 }

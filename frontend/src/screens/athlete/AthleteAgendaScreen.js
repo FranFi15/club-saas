@@ -47,7 +47,7 @@ function defaultSelectedForMonth(monthDate) {
 export default function AthleteAgendaScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
-  const { isTutor, memberId, loading: memberLoading, refresh: refreshMember } = useMember();
+  const { isTutor, memberId, activeHijo, loading: memberLoading, refresh: refreshMember } = useMember();
   const badges = useBadgesOptional();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -300,7 +300,9 @@ export default function AthleteAgendaScreen({ navigation }) {
         title="Agenda"
         subtitle={
           isTutor
-            ? 'Calendario y actividades del atleta seleccionado'
+            ? activeHijo
+              ? `Calendario de ${activeHijo.nombre} ${activeHijo.apellido}`
+              : 'Calendario y actividades del atleta seleccionado'
             : 'Calendario de entrenamientos y actividades'
         }
       />

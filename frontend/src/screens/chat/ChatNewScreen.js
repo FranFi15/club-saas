@@ -16,7 +16,7 @@ import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import { clubApi } from '../../utils/api';
-import { chatHeaders, displayName, rolLabel } from './chatHelpers';
+import { chatHeaders, displayName, isAdminChatRole, rolLabel } from './chatHelpers';
 
 export default function ChatNewScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
@@ -49,7 +49,7 @@ export default function ChatNewScreen({ navigation }) {
   const filtered = rows.filter((u) => {
     const q = query.trim().toLowerCase();
     if (!q) return true;
-    const hay = `${u.nombre || ''} ${u.apellido || ''} ${u.email || ''} ${rolLabel(u.rol)}`.toLowerCase();
+    const hay = `${displayName(u)} ${u.email || ''} ${rolLabel(u.rol)}`.toLowerCase();
     return hay.includes(q);
   });
 
@@ -118,7 +118,9 @@ export default function ChatNewScreen({ navigation }) {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.name, { color: theme.text }]}>{displayName(item)}</Text>
-                  <Text style={[styles.rol, { color: theme.textMuted }]}>{rolLabel(item.rol)}</Text>
+                  {!isAdminChatRole(item.rol) ? (
+                    <Text style={[styles.rol, { color: theme.textMuted }]}>{rolLabel(item.rol)}</Text>
+                  ) : null}
                 </View>
                 {busy ? (
                   <ActivityIndicator color={colorMarca} />

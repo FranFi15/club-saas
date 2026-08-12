@@ -17,6 +17,7 @@ import EspaciosFisicosScreen from '../screens/admin/EspaciosFisicosScreen';
 import GrillaEntrenamientosScreen from '../screens/admin/GrillaEntrenamientosScreen';
 import AdminEnrollmentRequestsScreen from '../screens/admin/AdminEnrollmentRequestsScreen';
 import AdminGestionHubScreen from '../screens/admin/AdminGestionHubScreen';
+import AdminPendientesScreen from '../screens/admin/AdminPendientesScreen';
 import AlquileresScreen from '../screens/admin/AlquileresScreen';
 import NoticiasScreen from '../screens/admin/NoticiasScreen';
 import AdminRequestDocScreen from '../screens/admin/AdminRequestDocScreen';
@@ -63,6 +64,7 @@ function GestionStackNavigator() {
   return (
     <GestionStack.Navigator screenOptions={{ headerShown: false }}>
       <GestionStack.Screen name="GestionMenu" component={AdminGestionHubScreen} />
+      <GestionStack.Screen name="Pendientes" component={AdminPendientesScreen} />
       <GestionStack.Screen name="Alquileres" component={AlquileresScreen} />
       <GestionStack.Screen name="Noticias" component={NoticiasScreen} />
       <GestionStack.Screen name="PedirDocumentacion" component={AdminRequestDocScreen} />

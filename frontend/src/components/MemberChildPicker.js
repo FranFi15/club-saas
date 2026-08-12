@@ -1,11 +1,13 @@
 import React, { useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useMember } from '../context/MemberContext';
+import UserAvatar from './UserAvatar';
 
-/** Selector horizontal de hijos para tutores. */
+/** Selector horizontal de hijos para tutores (vista por atleta). */
 export default function MemberChildPicker({ theme, colorMarca, compact }) {
-  const { hijos, activeAtletaId, setActiveAtletaId, refresh, isTutor } = useMember();
+  const { hijos, activeAtletaId, setActiveAtletaId, activeHijo, refresh, isTutor } = useMember();
 
   useFocusEffect(
     useCallback(() => {
@@ -21,38 +23,52 @@ export default function MemberChildPicker({ theme, colorMarca, compact }) {
 
   return (
     <View style={[styles.wrap, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
-      <Text style={[styles.label, { color: theme.textMuted }]}>Atleta seleccionado</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-        {hijos.map((h) => {
-          const on = String(h._id) === String(activeAtletaId);
-          const hasAlerts = Boolean(h.tieneAlertas);
-          return (
-            <TouchableOpacity
-              key={h._id}
-              style={[
-                styles.chip,
-                {
-                  borderColor: on ? colorMarca : theme.border,
-                  backgroundColor: on ? colorMarca + '22' : theme.surface,
-                },
-              ]}
-              onPress={() => setActiveAtletaId(h._id)}
-            >
-              <View style={styles.chipRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.chipTxt, { color: on ? colorMarca : theme.text }]}>
-                    {h.nombre} {h.apellido}
+      <View style={styles.headerRow}>
+        <Text style={[styles.label, { color: theme.textMuted }]}>Viendo a</Text>
+        {activeHijo ? (
+          <Text style={[styles.activeName, { color: theme.text }]} numberOfLines={1}>
+            {activeHijo.nombre} {activeHijo.apellido}
+          </Text>
+        ) : null}
+      </View>
+      {hijos.length > 1 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+          {hijos.map((h) => {
+            const on = String(h._id) === String(activeAtletaId);
+            const hasAlerts = Boolean(h.tieneAlertas);
+            return (
+              <TouchableOpacity
+                key={h._id}
+                style={[
+                  styles.chip,
+                  {
+                    borderColor: on ? colorMarca : theme.border,
+                    backgroundColor: on ? colorMarca + '22' : theme.surface,
+                  },
+                ]}
+                onPress={() => setActiveAtletaId(h._id)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={`${h.nombre} ${h.apellido}`}
+              >
+                <UserAvatar user={h} size={28} colorMarca={colorMarca} />
+                <View style={{ flexShrink: 1 }}>
+                  <Text style={[styles.chipTxt, { color: on ? colorMarca : theme.text }]} numberOfLines={1}>
+                    {h.nombre}
                   </Text>
                   {h.edad != null ? (
-                    <Text style={[styles.chipAge, { color: on ? colorMarca : theme.textMuted }]}>{h.edad} años</Text>
+                    <Text style={[styles.chipAge, { color: on ? colorMarca : theme.textMuted }]}>
+                      {h.edad} años
+                    </Text>
                   ) : null}
                 </View>
                 {hasAlerts ? <View style={[styles.alertDot, { backgroundColor: '#ef4444' }]} /> : null}
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+                {on ? <Ionicons name="checkmark-circle" size={16} color={colorMarca} /> : null}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      ) : null}
     </View>
   );
 }
@@ -64,29 +80,36 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     marginBottom: 4,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
   label: {
     fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    paddingHorizontal: 16,
-    marginBottom: 8,
   },
+  activeName: { fontSize: 15, fontWeight: '800', flex: 1 },
   row: { paddingHorizontal: 16, gap: 8, alignItems: 'center' },
   chip: {
-    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
     borderWidth: 1,
-    minWidth: 100,
+    minWidth: 110,
   },
-  chipRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   chipTxt: { fontSize: 13, fontWeight: '700' },
-  chipAge: { fontSize: 11, marginTop: 2 },
+  chipAge: { fontSize: 11, marginTop: 1 },
   alertDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    marginTop: 2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 });

@@ -74,7 +74,7 @@ const financeHeader = StyleSheet.create({
   monthNavHint: { color: 'rgba(255,255,255,0.9)', fontSize: 14, marginTop: 10, textAlign: 'center', fontWeight: '600' },
 });
 
-export default function FinanzasScreen() {
+export default function FinanzasScreen({ route }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const cc = clubData?.primaryColor || '#3b82f6';
@@ -92,7 +92,7 @@ export default function FinanzasScreen() {
     return 0;
   };
 
-  const [tab, setTab] = useState('atletas');
+  const [tab, setTab] = useState(() => route?.params?.initialTab || 'atletas');
   const [viewerRol, setViewerRol] = useState('');
   const canManageClubFinances = isClubOwnerRole(viewerRol);
   const visibleTabs = canManageClubFinances ? TABS : TABS.filter((t) => t.key !== 'planes');
@@ -100,6 +100,11 @@ export default function FinanzasScreen() {
   useEffect(() => {
     getToken('userRol').then((r) => setViewerRol(r || ''));
   }, []);
+
+  useEffect(() => {
+    const next = route?.params?.initialTab;
+    if (next) setTab(next);
+  }, [route?.params?.initialTab]);
 
   useEffect(() => {
     if (!canManageClubFinances && tab === 'planes') setTab('atletas');

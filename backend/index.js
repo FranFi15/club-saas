@@ -39,10 +39,12 @@ import swapRequestRoutes from './src/routes/swapRequest.routes.js';
 import enrollmentRequestRoutes from './src/routes/enrollmentRequest.routes.js';
 import clubEntryRoutes from './src/routes/clubEntry.routes.js';
 import chatRoutes from './src/routes/chat.routes.js';
+import inboxRoutes from './src/routes/inbox.routes.js';
 
 import { startSessionGenerationCron } from './src/cron/sessionGeneration.cron.js';
 import { startPaymentGenerationCron } from './src/cron/paymentGeneration.cron.js';
 import { startOverduePaymentsCron } from './src/cron/overduePayments.cron.js';
+import { startPaymentRemindersCron } from './src/cron/paymentReminders.cron.js';
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
@@ -139,6 +141,7 @@ app.use('/api/session-swaps', resolveTenant, swapRequestRoutes);
 app.use('/api/enrollment-requests', resolveTenant, enrollmentRequestRoutes);
 app.use('/api/club-entry', resolveTenant, clubEntryRoutes);
 app.use('/api/chat', resolveTenant, chatRoutes);
+app.use('/api/inbox', resolveTenant, inboxRoutes);
 
 
 // 3. MIDDLEWARES DE ERROR 
@@ -157,4 +160,5 @@ app.listen(PORT, () => {
     startSessionGenerationCron();
     startPaymentGenerationCron();
     startOverduePaymentsCron();
+    startPaymentRemindersCron();
 });

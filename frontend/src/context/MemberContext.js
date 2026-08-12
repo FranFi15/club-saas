@@ -123,6 +123,17 @@ export function MemberProvider({ mode, children: childNodes }) {
 
   const activeHijo = isTutor ? hijos.find((x) => String(x._id) === String(activeAtletaId)) : null;
 
+  const selectAtleta = useCallback(
+    (id) => {
+      setActiveAtletaId(id);
+      const key = memberCacheKey(clubData?.urlIdentifier, isTutor);
+      if (!key) return;
+      const prev = readScreenCache(key) || {};
+      writeScreenCache(key, { ...prev, activeAtletaId: id });
+    },
+    [clubData?.urlIdentifier, isTutor],
+  );
+
   return (
     <MemberContext.Provider
       value={{
@@ -130,7 +141,7 @@ export function MemberProvider({ mode, children: childNodes }) {
         profile,
         hijos,
         activeAtletaId,
-        setActiveAtletaId,
+        setActiveAtletaId: selectAtleta,
         activeHijo,
         memberId,
         cuotasEnApp,

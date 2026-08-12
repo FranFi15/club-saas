@@ -28,6 +28,9 @@ const clubSettingsSchema = new mongoose.Schema(
         transferenciaBanco: { type: String, default: '' },
         transferenciaCbu: { type: String, default: '' },
         transferenciaAlias: { type: String, default: '' },
+
+        /** Días de anticipación para aviso de cuota próxima (cron + botón Morosidad). */
+        cuotaReminderDaysBefore: { type: Number, default: 3, min: 1, max: 14 },
     },
     { timestamps: true }
 );

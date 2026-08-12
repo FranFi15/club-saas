@@ -83,12 +83,15 @@ export default function MorosidadTab({ theme, cc, getHeaders, clubApi, showAlert
       </View>
 
       {/* Send reminders */}
-      <TouchableOpacity style={{flexDirection:'row',justifyContent:'center',alignItems:'center',padding:14,borderRadius:12,marginBottom:15,backgroundColor:'#8b5cf6'}} onPress={sendReminders} disabled={sending}>
+      <TouchableOpacity style={{flexDirection:'row',justifyContent:'center',alignItems:'center',padding:14,borderRadius:12,marginBottom:8,backgroundColor:'#8b5cf6'}} onPress={sendReminders} disabled={sending}>
         {sending?<ActivityIndicator color="#fff"/>:<>
           <Ionicons name="notifications" size={18} color="#fff" style={{marginRight:8}}/>
           <Text style={{color:'#fff',fontWeight:'bold'}}>Enviar Recordatorios</Text>
         </>}
       </TouchableOpacity>
+      <Text style={{color:theme.textMuted,fontSize:12,marginBottom:15,lineHeight:17}}>
+        También se envían solos cada día (unos 3 días antes y al vencer).
+      </Text>
 
       {/* Evolución */}
       {evolucion && evolucion.length > 0 && (

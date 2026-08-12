@@ -11,6 +11,13 @@ import { getToken } from '../../utils/storage';
 import { isClubOwnerRole } from '../../constants/appRoles';
 
 const OWNER_ITEMS = [
+  {
+    title: 'Pendientes',
+    subtitle: 'Transferencias, docs, solicitudes, alquileres y chat',
+    icon: 'file-tray-full',
+    route: 'Pendientes',
+    badgeKey: 'pendientes',
+  },
   { title: 'Control de ingreso', subtitle: 'Escaneá el QR de atletas y tutores', icon: 'qr-code', route: 'EscanearIngreso' },
   { title: 'Alquiler de cancha', subtitle: 'Reservas externas y disponibilidad', icon: 'time', route: 'Alquileres', badgeKey: 'alquileres' },
   { title: 'Chat', subtitle: 'Mensajes con cualquier usuario del club', icon: 'chatbubbles', route: 'ChatInbox', badgeKey: 'chat' },
@@ -26,6 +33,13 @@ const OWNER_ITEMS = [
 ];
 
 const OPS_ITEMS = [
+  {
+    title: 'Pendientes',
+    subtitle: 'Transferencias, docs, solicitudes, alquileres y chat',
+    icon: 'file-tray-full',
+    route: 'Pendientes',
+    badgeKey: 'pendientes',
+  },
   { title: 'Chat', subtitle: 'Mensajes con cualquier usuario del club', icon: 'chatbubbles', route: 'ChatInbox', badgeKey: 'chat' },
   { title: 'Muro de noticias', subtitle: 'Comunicados al club', icon: 'newspaper', route: 'Noticias' },
   { title: 'Pedir documentación', subtitle: 'Solicitá archivos a categorías o atletas', icon: 'document-text', route: 'PedirDocumentacion' },
