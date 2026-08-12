@@ -32,19 +32,30 @@ import {
 export default function ChatThreadScreen({ navigation, route }) {
   const conversationId = route.params?.conversationId;
   const initialOther = route.params?.otherUser;
+  const initialKind = route.params?.kind || 'direct';
+  const initialTitle = route.params?.title || null;
+  const initialActive = route.params?.active !== false;
+
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const { refresh } = useBadges();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
 
+  const [kind, setKind] = useState(initialKind);
+  const [groupTitle, setGroupTitle] = useState(initialTitle);
+  const [groupActive, setGroupActive] = useState(initialActive);
   const [otherUser, setOtherUser] = useState(initialOther || null);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [text, setText] = useState('');
   const [myId, setMyId] = useState(null);
+  const [sendError, setSendError] = useState('');
   const listRef = useRef(null);
   const pollRef = useRef(null);
+
+  const isGroup = kind === 'category_group';
+  const canCompose = !isGroup || groupActive;
 
   const markRead = useCallback(async () => {
     if (!clubData?.urlIdentifier || !conversationId) return;
@@ -57,17 +68,26 @@ export default function ChatThreadScreen({ navigation, route }) {
     }
   }, [clubData?.urlIdentifier, conversationId, refresh]);
 
-  const ensureOtherUser = useCallback(async () => {
-    if (otherUser || !clubData?.urlIdentifier || !conversationId) return;
+  const ensureMeta = useCallback(async () => {
+    if (!clubData?.urlIdentifier || !conversationId) return;
+    if (!isGroup && otherUser) return;
     try {
       const h = await chatHeaders(clubData.urlIdentifier);
       const { data } = await clubApi.get('/chat/conversations', { headers: h });
       const row = (Array.isArray(data) ? data : []).find((c) => String(c._id) === String(conversationId));
-      if (row?.otherUser) setOtherUser(row.otherUser);
+      if (!row) return;
+      if (row.kind === 'category_group') {
+        setKind('category_group');
+        setGroupTitle(row.title || 'Chat de categoría');
+        setGroupActive(row.active !== false);
+      } else if (row.otherUser) {
+        setKind('direct');
+        setOtherUser(row.otherUser);
+      }
     } catch {
       /* ignore */
     }
-  }, [otherUser, clubData?.urlIdentifier, conversationId]);
+  }, [isGroup, otherUser, clubData?.urlIdentifier, conversationId]);
 
   const loadMessages = useCallback(async () => {
     if (!clubData?.urlIdentifier || !conversationId) return;
@@ -92,7 +112,7 @@ export default function ChatThreadScreen({ navigation, route }) {
       (async () => {
         const id = await getToken('userId');
         if (active) setMyId(id);
-        await ensureOtherUser();
+        await ensureMeta();
         await loadMessages();
       })();
       pollRef.current = setInterval(() => {
@@ -102,14 +122,15 @@ export default function ChatThreadScreen({ navigation, route }) {
         active = false;
         if (pollRef.current) clearInterval(pollRef.current);
       };
-    }, [loadMessages, ensureOtherUser]),
+    }, [loadMessages, ensureMeta]),
   );
 
   const send = async () => {
     const body = text.trim();
-    if (!body || sending || !conversationId) return;
+    if (!body || sending || !conversationId || !canCompose) return;
     setSending(true);
     setText('');
+    setSendError('');
     try {
       const h = await chatHeaders(clubData.urlIdentifier);
       const { data } = await clubApi.post(
@@ -119,8 +140,9 @@ export default function ChatThreadScreen({ navigation, route }) {
       );
       setMessages((prev) => [...prev, data]);
       requestAnimationFrame(() => listRef.current?.scrollToEnd?.({ animated: true }));
-    } catch {
+    } catch (e) {
       setText(body);
+      setSendError(e.response?.data?.message || 'No se pudo enviar.');
     } finally {
       setSending(false);
     }
@@ -128,8 +150,14 @@ export default function ChatThreadScreen({ navigation, route }) {
 
   const renderItem = ({ item }) => {
     const mine = myId && String(item.sender?._id || item.sender) === String(myId);
+    const showSender = isGroup && !mine;
     return (
       <View style={[styles.bubbleWrap, mine ? styles.mineWrap : styles.theirsWrap]}>
+        {showSender ? (
+          <Text style={[styles.senderName, { color: theme.textMuted }]} numberOfLines={1}>
+            {displayName(item.sender)}
+          </Text>
+        ) : null}
         <View
           style={[
             styles.bubble,
@@ -147,15 +175,27 @@ export default function ChatThreadScreen({ navigation, route }) {
     );
   };
 
+  const headerKicker = isGroup
+    ? 'Grupo'
+    : isAdminChatRole(otherUser?.rol)
+      ? 'Club'
+      : rolLabel(otherUser?.rol);
+  const headerTitle = isGroup ? groupTitle || 'Chat de categoría' : displayName(otherUser);
+  const headerSubtitle = isGroup
+    ? groupActive
+      ? 'Chat de categoría'
+      : 'Desactivado — solo lectura'
+    : 'Chat';
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <CoachScreenHeader
         colorMarca={colorMarca}
         theme={theme}
-        kicker={isAdminChatRole(otherUser?.rol) ? 'Club' : rolLabel(otherUser?.rol)}
-        title={displayName(otherUser)}
-        subtitle="Chat"
+        kicker={headerKicker}
+        title={headerTitle}
+        subtitle={headerSubtitle}
         onBack={() => navigation.goBack()}
         showNotifications={false}
       />
@@ -179,31 +219,46 @@ export default function ChatThreadScreen({ navigation, route }) {
             }
           />
         )}
-        <View style={[styles.composer, { borderTopColor: theme.border, backgroundColor: theme.background }]}>
-          <TextInput
-            style={[
-              styles.input,
-              { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
-            ]}
-            placeholder="Escribí un mensaje…"
-            placeholderTextColor={theme.textMuted}
-            value={text}
-            onChangeText={setText}
-            multiline
-            maxLength={2000}
-          />
-          <TouchableOpacity
-            style={[styles.sendBtn, { backgroundColor: colorMarca, opacity: text.trim() ? 1 : 0.45 }]}
-            onPress={send}
-            disabled={!text.trim() || sending}
-          >
-            {sending ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Ionicons name="send" size={18} color="#fff" />
-            )}
-          </TouchableOpacity>
-        </View>
+        {!canCompose ? (
+          <View style={[styles.readonlyBanner, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
+            <Text style={{ color: theme.textMuted, fontSize: 13, textAlign: 'center' }}>
+              El chat grupal de esta categoría está desactivado.
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.composer, { borderTopColor: theme.border, backgroundColor: theme.background }]}>
+            {sendError ? (
+              <Text style={[styles.sendErr, { color: '#ef4444' }]} numberOfLines={2}>
+                {sendError}
+              </Text>
+            ) : null}
+            <View style={styles.composerRow}>
+              <TextInput
+                style={[
+                  styles.input,
+                  { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
+                ]}
+                placeholder="Escribí un mensaje…"
+                placeholderTextColor={theme.textMuted}
+                value={text}
+                onChangeText={setText}
+                multiline
+                maxLength={2000}
+              />
+              <TouchableOpacity
+                style={[styles.sendBtn, { backgroundColor: colorMarca, opacity: text.trim() ? 1 : 0.45 }]}
+                onPress={send}
+                disabled={!text.trim() || sending}
+              >
+                {sending ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Ionicons name="send" size={18} color="#fff" />
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -215,16 +270,25 @@ const styles = StyleSheet.create({
   bubbleWrap: { marginBottom: 8, maxWidth: '82%' },
   mineWrap: { alignSelf: 'flex-end' },
   theirsWrap: { alignSelf: 'flex-start' },
+  senderName: { fontSize: 11, fontWeight: '700', marginBottom: 3, marginLeft: 4 },
   bubble: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8 },
   bubbleText: { fontSize: 15, lineHeight: 21 },
   bubbleTime: { fontSize: 11, marginTop: 4, alignSelf: 'flex-end' },
   empty: { textAlign: 'center', marginTop: 40, fontSize: 14 },
   composer: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  composerRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+  },
+  sendErr: { fontSize: 12, marginBottom: 6 },
+  readonlyBanner: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   input: {

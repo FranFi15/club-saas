@@ -3,6 +3,7 @@ import { applyFamilyDiscountToEnrollment } from './familyDiscount.service.js';
 import { categorySexoError, applyCategorySexoToAthlete } from '../utils/atletaSexo.js';
 import { sortUsersByName, userNameCollation, userNameMongoSort } from '../utils/listSort.js';
 import { buildAthletePlantelSearchFilter } from '../utils/pagination.js';
+import { syncCategoryGroupChatSafe } from './categoryGroupChat.service.js';
 
 function mapAtletaElegible(u, activeIds, otrasByAtleta) {
     return {
@@ -212,6 +213,8 @@ export async function syncCategoryAthletes(models, categoryId, atletaIds) {
 
     category.plantelEdicion = { estado: null };
     await category.save();
+
+    await syncCategoryGroupChatSafe(models, categoryId);
 
     return { altas, bajas, total: ids.length };
 }

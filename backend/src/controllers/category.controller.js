@@ -8,6 +8,10 @@ import {
     listRosterPendingForCoach,
 } from '../services/categoryRoster.service.js';
 import { getCoachCategoryAlertCounts } from '../services/coachCategoryAlerts.service.js';
+import {
+    syncCategoryGroupChatSafe,
+    deactivateCategoryGroupChat,
+} from '../services/categoryGroupChat.service.js';
 
 // @desc    Crear nueva categoría dentro de una disciplina
 // @route   POST /api/categories
@@ -72,6 +76,7 @@ const updateCategory = asyncHandler(async (req, res) => {
     const category = await Category.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
     if (!category) { res.status(404); throw new Error('Categoría no encontrada'); }
     await category.populate('planDefault', 'nombre monto');
+    await syncCategoryGroupChatSafe(req.models, category._id);
     res.json(category);
 });
 
@@ -92,6 +97,12 @@ const deleteCategory = asyncHandler(async (req, res) => {
         { categoria: category._id, estado: 'activo' },
         { $set: { estado: 'inactivo', fechaBaja: Date.now() } }
     );
+
+    try {
+        await deactivateCategoryGroupChat(req.models, category._id);
+    } catch (e) {
+        console.warn('[chat group] deactivate on delete:', e.message);
+    }
 
     // 2. Eliminamos la categoría de la base de datos
     await category.deleteOne();

@@ -76,7 +76,11 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
   const [chatAtletaProfesionalEnabled, setChatAtletaProfesionalEnabled] = useState(
     Boolean(categoria?.chatAtletaProfesionalEnabled),
   );
+  const [chatGrupalCategoriaEnabled, setChatGrupalCategoriaEnabled] = useState(
+    Boolean(categoria?.chatGrupalCategoriaEnabled),
+  );
   const [chatToggleSaving, setChatToggleSaving] = useState(false);
+  const [chatGrupalToggleSaving, setChatGrupalToggleSaving] = useState(false);
 
   const [alertConfig, setAlertConfig] = useState({
     visible: false, title: '', message: '', showCancel: false, isDanger: false,
@@ -175,6 +179,34 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
       showAlert('Error', e.response?.data?.message || 'No se pudo guardar el ajuste de chat.');
     } finally {
       setChatToggleSaving(false);
+    }
+  };
+
+  const toggleChatGrupalCategoria = async (value) => {
+    if (!clubData?.urlIdentifier || chatGrupalToggleSaving) return;
+    const prev = chatGrupalCategoriaEnabled;
+    setChatGrupalCategoriaEnabled(value);
+    setChatGrupalToggleSaving(true);
+    try {
+      const { data } = await clubApi.put(
+        `/categories/${categoria._id}`,
+        { chatGrupalCategoriaEnabled: value },
+        { headers: await getHeaders() },
+      );
+      const enabled = Boolean(data?.chatGrupalCategoriaEnabled);
+      setChatGrupalCategoriaEnabled(enabled);
+      navigation.setParams({
+        categoria: {
+          ...categoria,
+          chatAtletaProfesionalEnabled,
+          chatGrupalCategoriaEnabled: enabled,
+        },
+      });
+    } catch (e) {
+      setChatGrupalCategoriaEnabled(prev);
+      showAlert('Error', e.response?.data?.message || 'No se pudo guardar el chat grupal.');
+    } finally {
+      setChatGrupalToggleSaving(false);
     }
   };
 
@@ -480,6 +512,24 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
           disabled={chatToggleSaving}
           trackColor={{ false: theme.border, true: colorMarca + '99' }}
           thumbColor={chatAtletaProfesionalEnabled ? colorMarca : '#f4f3f4'}
+        />
+      </View>
+
+      <View style={[styles.chatToggleCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View style={{ flex: 1, paddingRight: 12 }}>
+          <Text style={[styles.chatToggleTitle, { color: theme.text }]}>
+            Chat grupal de la categoría
+          </Text>
+          <Text style={[styles.chatToggleSub, { color: theme.textMuted }]}>
+            Crea un grupo con profesores, preparadores y atletas activos. Se actualiza solo con el plantel.
+          </Text>
+        </View>
+        <Switch
+          value={chatGrupalCategoriaEnabled}
+          onValueChange={toggleChatGrupalCategoria}
+          disabled={chatGrupalToggleSaving}
+          trackColor={{ false: theme.border, true: colorMarca + '99' }}
+          thumbColor={chatGrupalCategoriaEnabled ? colorMarca : '#f4f3f4'}
         />
       </View>
 

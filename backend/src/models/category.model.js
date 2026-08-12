@@ -43,6 +43,12 @@ const categorySchema = new mongoose.Schema({
      */
     chatAtletaProfesionalEnabled: { type: Boolean, default: false },
 
+    /**
+     * Si true, se crea/sincroniza un chat grupal de la categoría
+     * (profesores + preparadores + atletas activos).
+     */
+    chatGrupalCategoriaEnabled: { type: Boolean, default: false },
+
     /** Si el admin delegó al profesor la actualización del plantel (inscripciones). */
     plantelEdicion: {
         estado: { type: String, enum: ['delegado_coach'] },

@@ -53,13 +53,27 @@ export default function ChatInboxScreen({ navigation }) {
   const openThread = (item) => {
     navigation.navigate('ChatThread', {
       conversationId: item._id,
-      otherUser: item.otherUser,
+      kind: item.kind || 'direct',
+      title: item.title || null,
+      active: item.active !== false,
+      otherUser: item.otherUser || null,
+      participantCount: item.participantCount || 0,
     });
   };
 
   const renderItem = ({ item }) => {
+    const isGroup = item.kind === 'category_group';
     const other = item.otherUser;
     const unread = item.unread || 0;
+    const name = isGroup ? item.title || 'Chat de categoría' : displayName(other);
+    const subtitle = isGroup
+      ? item.active === false
+        ? 'Grupo desactivado'
+        : `${item.participantCount || 0} integrantes`
+      : isAdminChatRole(other?.rol)
+        ? null
+        : rolLabel(other?.rol);
+
     return (
       <TouchableOpacity
         style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}
@@ -67,24 +81,27 @@ export default function ChatInboxScreen({ navigation }) {
         activeOpacity={0.75}
       >
         <View style={[styles.avatar, { backgroundColor: colorMarca + '22' }]}>
-          <Ionicons name="person" size={22} color={colorMarca} />
+          <Ionicons name={isGroup ? 'people' : 'person'} size={22} color={colorMarca} />
         </View>
         <View style={{ flex: 1 }}>
           <View style={styles.topLine}>
             <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
-              {displayName(other)}
+              {name}
             </Text>
             <Text style={[styles.time, { color: theme.textMuted }]}>
               {formatChatTime(item.lastMessageAt)}
             </Text>
           </View>
-          {!isAdminChatRole(other?.rol) ? (
+          {subtitle ? (
             <Text style={[styles.rol, { color: theme.textMuted }]} numberOfLines={1}>
-              {rolLabel(other?.rol)}
+              {subtitle}
             </Text>
           ) : null}
           <Text
-            style={[styles.preview, { color: unread ? theme.text : theme.textMuted, fontWeight: unread ? '700' : '400' }]}
+            style={[
+              styles.preview,
+              { color: unread ? theme.text : theme.textMuted, fontWeight: unread ? '700' : '400' },
+            ]}
             numberOfLines={1}
           >
             {item.lastMessagePreview || 'Sin mensajes todavía'}

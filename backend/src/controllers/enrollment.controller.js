@@ -2,6 +2,7 @@ import asyncHandler from 'express-async-handler';
 import { compareByField, sortByField, sortEnrollmentsByAtleta } from '../utils/listSort.js';
 import { applyFamilyDiscountToEnrollment } from '../services/familyDiscount.service.js';
 import { categorySexoError, applyCategorySexoToAthlete } from '../utils/atletaSexo.js';
+import { syncCategoryGroupChatSafe } from '../services/categoryGroupChat.service.js';
 
 // @desc    Inscribir un atleta a una categoría
 // @route   POST /api/enrollments
@@ -73,6 +74,8 @@ const enrollAthlete = asyncHandler(async (req, res) => {
     });
 
     enrollment = await applyFamilyDiscountToEnrollment(req.models, atletaId, enrollment);
+
+    await syncCategoryGroupChatSafe(req.models, categoriaId);
 
     res.status(201).json(enrollment);
 });
@@ -203,6 +206,8 @@ const unenrollAthlete = asyncHandler(async (req, res) => {
     enrollment.estado = 'inactivo';
     enrollment.fechaBaja = Date.now();
     await enrollment.save();
+
+    await syncCategoryGroupChatSafe(req.models, enrollment.categoria);
 
     res.json({ message: 'El atleta fue desvinculado de la categoría exitosamente.' });
 });

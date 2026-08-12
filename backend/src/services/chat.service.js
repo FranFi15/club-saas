@@ -24,6 +24,40 @@ function otherParticipant(conv, userId) {
     return (conv.participants || []).find((p) => String(p._id || p) !== me) || null;
 }
 
+function isCategoryGroup(conv) {
+    return conv?.kind === 'category_group';
+}
+
+function serializeConversation(c, userId) {
+    const base = {
+        _id: c._id,
+        kind: c.kind || 'direct',
+        lastMessageAt: c.lastMessageAt,
+        lastMessagePreview: c.lastMessagePreview || '',
+        lastSender: c.lastSender,
+        unread: unreadFor(c, userId),
+        active: c.active !== false,
+    };
+
+    if (isCategoryGroup(c)) {
+        return {
+            ...base,
+            title: c.title || 'Chat de categoría',
+            categoryId: c.category || null,
+            participantCount: (c.participants || []).length,
+            otherUser: null,
+        };
+    }
+
+    return {
+        ...base,
+        title: null,
+        categoryId: null,
+        participantCount: 2,
+        otherUser: otherParticipant(c, userId),
+    };
+}
+
 export async function listConversations(models, user) {
     const { ChatConversation } = models;
     const rows = await ChatConversation.find({ participants: user._id })
@@ -31,17 +65,7 @@ export async function listConversations(models, user) {
         .populate('participants', USER_SELECT)
         .lean({ flattenMaps: true });
 
-    return rows.map((c) => {
-        const other = otherParticipant(c, user._id);
-        return {
-            _id: c._id,
-            otherUser: other,
-            lastMessageAt: c.lastMessageAt,
-            lastMessagePreview: c.lastMessagePreview || '',
-            lastSender: c.lastSender,
-            unread: unreadFor(c, user._id),
-        };
-    });
+    return rows.map((c) => serializeConversation(c, user._id));
 }
 
 export async function getOrCreateConversation(models, user, otherUserId) {
@@ -61,27 +85,25 @@ export async function getOrCreateConversation(models, user, otherUserId) {
     }
 
     const pairKey = makePairKey(user._id, other._id);
-    let conv = await ChatConversation.findOne({ pairKey }).populate('participants', USER_SELECT);
+    let conv = await ChatConversation.findOne({ pairKey, kind: { $ne: 'category_group' } }).populate(
+        'participants',
+        USER_SELECT,
+    );
     if (!conv) {
         conv = await ChatConversation.create({
+            kind: 'direct',
             participants: [user._id, other._id],
             pairKey,
             lastMessageAt: new Date(),
             lastMessagePreview: '',
             unreadBy: {},
+            active: true,
         });
         conv = await ChatConversation.findById(conv._id).populate('participants', USER_SELECT);
     }
 
     const lean = conv.toObject({ flattenMaps: true });
-    return {
-        _id: lean._id,
-        otherUser: otherParticipant(lean, user._id),
-        lastMessageAt: lean.lastMessageAt,
-        lastMessagePreview: lean.lastMessagePreview || '',
-        lastSender: lean.lastSender,
-        unread: unreadFor(lean, user._id),
-    };
+    return serializeConversation(lean, user._id);
 }
 
 async function assertParticipant(models, conversationId, userId) {
@@ -122,7 +144,7 @@ export async function listMessages(models, user, conversationId, { before, limit
 }
 
 export async function sendMessage(models, user, conversationId, bodyRaw) {
-    const { ChatConversation, ChatMessage } = models;
+    const { ChatConversation, ChatMessage, User } = models;
     const body = String(bodyRaw || '').trim();
     if (!body) {
         const err = new Error('El mensaje no puede estar vacío.');
@@ -136,15 +158,27 @@ export async function sendMessage(models, user, conversationId, bodyRaw) {
     }
 
     const conv = await assertParticipant(models, conversationId, user._id);
-    const otherId = (conv.participants || []).find((p) => String(p) !== String(user._id));
+    const otherIds = (conv.participants || []).filter((p) => String(p) !== String(user._id));
 
-    // Revalidar permiso (flag puede haberse desactivado)
-    const { User } = models;
-    const other = await User.findById(otherId).select(USER_SELECT).lean();
-    if (!other || !(await canChat(models, user, other))) {
-        const err = new Error('Ya no podés enviar mensajes en esta conversación.');
-        err.statusCode = 403;
-        throw err;
+    if (isCategoryGroup(conv)) {
+        if (conv.active === false) {
+            const err = new Error('Este chat grupal está desactivado.');
+            err.statusCode = 403;
+            throw err;
+        }
+        if (!otherIds.length && (conv.participants || []).length < 1) {
+            const err = new Error('No hay participantes en este chat.');
+            err.statusCode = 403;
+            throw err;
+        }
+    } else {
+        const otherId = otherIds[0];
+        const other = await User.findById(otherId).select(USER_SELECT).lean();
+        if (!other || !(await canChat(models, user, other))) {
+            const err = new Error('Ya no podés enviar mensajes en esta conversación.');
+            err.statusCode = 403;
+            throw err;
+        }
     }
 
     const msg = await ChatMessage.create({
@@ -154,14 +188,15 @@ export async function sendMessage(models, user, conversationId, bodyRaw) {
     });
 
     const preview = body.length > 120 ? `${body.slice(0, 117)}…` : body;
-    const otherKey = String(otherId);
-    const prevUnread = unreadFor(conv, otherId);
     conv.lastMessageAt = msg.createdAt;
     conv.lastMessagePreview = preview;
     conv.lastSender = user._id;
     if (!conv.unreadBy) conv.unreadBy = new Map();
-    conv.unreadBy.set(otherKey, prevUnread + 1);
     conv.unreadBy.set(String(user._id), 0);
+    for (const oid of otherIds) {
+        const key = String(oid);
+        conv.unreadBy.set(key, unreadFor(conv, oid) + 1);
+    }
     await conv.save();
 
     const populated = await ChatMessage.findById(msg._id).populate('sender', USER_SELECT).lean();
@@ -170,17 +205,26 @@ export async function sendMessage(models, user, conversationId, bodyRaw) {
         user.rol === 'admin_club' || user.rol === 'administrativo'
             ? 'Administración'
             : `${user.nombre || ''} ${user.apellido || ''}`.trim() || 'Mensaje nuevo';
+
+    const pushTitle = isCategoryGroup(conv)
+        ? conv.title || 'Chat de categoría'
+        : senderName;
+    const pushBody = isCategoryGroup(conv) ? `${senderName}: ${preview}` : preview;
+
     try {
-        await sendPushToUserIds(models, [otherId], {
-            title: senderName,
-            body: preview,
-            data: {
-                tipo: 'chat',
-                conversationId: String(conv._id),
-                title: senderName,
-                body: preview,
-            },
-        });
+        if (otherIds.length) {
+            await sendPushToUserIds(models, otherIds, {
+                title: pushTitle,
+                body: pushBody,
+                data: {
+                    tipo: 'chat',
+                    conversationId: String(conv._id),
+                    kind: isCategoryGroup(conv) ? 'category_group' : 'direct',
+                    title: pushTitle,
+                    body: pushBody,
+                },
+            });
+        }
     } catch (e) {
         console.warn('[chat] push error:', e.message);
     }

@@ -2,6 +2,21 @@ import mongoose from 'mongoose';
 
 const chatConversationSchema = new mongoose.Schema(
     {
+        kind: {
+            type: String,
+            enum: ['direct', 'category_group'],
+            default: 'direct',
+            index: true,
+        },
+        /** Solo para `category_group`: una conversación por categoría. */
+        category: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Category',
+            default: null,
+        },
+        title: { type: String, default: '', trim: true },
+        /** Si false (switch apagado), se mantiene el historial pero no se envían mensajes. */
+        active: { type: Boolean, default: true },
         participants: {
             type: [
                 {
@@ -12,13 +27,15 @@ const chatConversationSchema = new mongoose.Schema(
             ],
             validate: {
                 validator(v) {
-                    return Array.isArray(v) && v.length === 2;
+                    if (!Array.isArray(v) || v.length < 1) return false;
+                    if (this.kind === 'category_group') return true;
+                    return v.length === 2;
                 },
-                message: 'Una conversación debe tener exactamente 2 participantes.',
+                message: 'Participantes inválidos para este tipo de conversación.',
             },
         },
-        /** Par ordenado "idA:idB" para unicidad 1:1 */
-        pairKey: { type: String, required: true, unique: true, index: true },
+        /** Par ordenado "idA:idB" — solo DMs (`direct`). */
+        pairKey: { type: String, default: undefined },
         lastMessageAt: { type: Date, default: Date.now },
         lastMessagePreview: { type: String, default: '' },
         lastSender: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -32,6 +49,15 @@ const chatConversationSchema = new mongoose.Schema(
 );
 
 chatConversationSchema.index({ participants: 1, lastMessageAt: -1 });
+chatConversationSchema.index({ pairKey: 1 }, { unique: true, sparse: true });
+chatConversationSchema.index(
+    { category: 1 },
+    {
+        unique: true,
+        sparse: true,
+        partialFilterExpression: { kind: 'category_group', category: { $type: 'objectId' } },
+    }
+);
 
 export const getChatConversationModel = (tenantDB) => {
     return (
