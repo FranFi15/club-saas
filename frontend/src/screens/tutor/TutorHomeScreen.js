@@ -24,6 +24,7 @@ import { platformCardShadow } from '../../utils/platformShadow';
 
 const SHORTCUTS = [
   { tab: 'TutorAgenda', icon: 'calendar-outline', label: 'Agenda' },
+  { tab: 'TutorWellness', icon: 'fitness-outline', label: 'Wellness' },
   { tab: 'TutorProfile', screen: 'TutorPayments', icon: 'wallet-outline', label: 'Cuotas' },
   {
     tab: 'TutorComunicar',

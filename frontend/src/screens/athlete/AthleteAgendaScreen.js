@@ -38,6 +38,21 @@ function ymdInMonth(ymd, monthDate) {
   return y === monthDate.getFullYear() && m - 1 === monthDate.getMonth();
 }
 
+function attendanceForMember(session, memberId) {
+  if (!memberId || !session?.asistencia?.length) return null;
+  const row = session.asistencia.find((a) => {
+    const id = a.atleta?._id || a.atleta;
+    return String(id) === String(memberId);
+  });
+  return row?.estado || null;
+}
+
+const ASIST_LABEL = {
+  presente: { text: 'Presente', color: '#22c55e' },
+  tarde: { text: 'Tarde', color: '#f59e0b' },
+  ausente: { text: 'Ausente', color: '#ef4444' },
+};
+
 function defaultSelectedForMonth(monthDate) {
   const today = todayYmd();
   if (ymdInMonth(today, monthDate)) return today;
@@ -415,6 +430,16 @@ export default function AthleteAgendaScreen({ navigation }) {
                     {item.estado === 'completada' ? 'Realizada' : 'Programada'}
                     {esConsulta && confirmEstado ? ` · ${consultaConfirmacionLabel(confirmEstado)}` : ''}
                   </Text>
+                  {(() => {
+                    const asistEstado = attendanceForMember(item, memberId);
+                    const asist = asistEstado ? ASIST_LABEL[asistEstado] : null;
+                    if (!asist) return null;
+                    return (
+                      <View style={[styles.asistBadge, { backgroundColor: asist.color + '18', borderColor: asist.color }]}>
+                        <Text style={{ color: asist.color, fontWeight: '800', fontSize: 11 }}>{asist.text}</Text>
+                      </View>
+                    );
+                  })()}
                 </View>
                 </View>
 
@@ -585,6 +610,14 @@ const styles = StyleSheet.create({
   sessionCat: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
   sessionTipo: { fontSize: 16, fontWeight: '700', marginTop: 4 },
   sessionMeta: { fontSize: 13, marginTop: 4 },
+  asistBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
   empty: {
     padding: 20,
     borderRadius: 14,

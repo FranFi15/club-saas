@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   StatusBar,
   Switch,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,9 +26,9 @@ import { sessionDisplayName, sessionEsOpcional, sessionTipoLabel, consultaConfir
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 
 const ASIST_OPTS = [
-  { key: 'presente', label: 'Presente' },
-  { key: 'tarde', label: 'Tarde' },
-  { key: 'ausente', label: 'Ausente' },
+  { key: 'presente', label: 'Presente', color: '#22c55e' },
+  { key: 'tarde', label: 'Tarde', color: '#f59e0b' },
+  { key: 'ausente', label: 'Ausente', color: '#ef4444' },
 ];
 
 /** Alineado con `training.model.js` → bloques[].enfoque */
@@ -47,6 +49,18 @@ function emptyDraftBlock() {
     enfoque: 'neutro',
     duracionMinutos: '15',
     descripcionDetallada: '',
+    moreOpen: false,
+  };
+}
+
+function draftFromPlanBloque(b) {
+  return {
+    tituloBloque: b.tituloBloque || '',
+    formato: b.formato || 'General',
+    enfoque: b.enfoque || 'neutro',
+    duracionMinutos: String(b.duracionMinutos ?? 15),
+    descripcionDetallada: b.descripcionDetallada || '',
+    moreOpen: false,
   };
 }
 
@@ -76,6 +90,10 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
   const [planNombre, setPlanNombre] = useState(() => cachedSession?.planNombre ?? '');
   const [planObjetivo, setPlanObjetivo] = useState(() => cachedSession?.planObjetivo ?? '');
   const [editingPlanDraft, setEditingPlanDraft] = useState(false);
+  /** planificar = armar bloques; vivo = cronómetro / real / finalizar */
+  const [entrenoMode, setEntrenoMode] = useState('planificar');
+  const [sessionMetaOpen, setSessionMetaOpen] = useState(false);
+  const [duplicatingLastPlan, setDuplicatingLastPlan] = useState(false);
   const [selectedTimerIndex, setSelectedTimerIndex] = useState(0);
   const [timerStartedAt, setTimerStartedAt] = useState(null);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -389,6 +407,13 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
   const plan = session?.planEntrenamiento;
   const hasPlan = !!(plan?.bloques?.length > 0);
 
+  useEffect(() => {
+    if (!session?._id) return;
+    setEntrenoMode(hasPlan ? 'vivo' : 'planificar');
+    setEditingPlanDraft(false);
+    setSessionMetaOpen(false);
+  }, [session?._id]);
+
   const restoreHomeSpace = async () => {
     if (!sessionId || !canRestoreHome) return;
     setRestoringHome(true);
@@ -404,19 +429,31 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
     }
   };
 
-  const saveAttendance = async () => {
+  const saveAttendance = async ({ notify = true, nextMap, silent = false } = {}) => {
     if (!sessionId || completed) return;
+    const map = nextMap || attendance;
     setSaving(true);
     try {
       const h = await headers();
       const asistencia = roster.map((a) => ({
         atleta: a._id,
-        estado: attendance[a._id] || 'ausente',
+        estado: map[a._id] || 'ausente',
         observaciones: '',
       }));
-      await clubApi.put(`/sessions/${sessionId}/asistencia`, { asistencia, estado: session?.estado || 'programada' }, { headers: h });
+      await clubApi.put(
+        `/sessions/${sessionId}/asistencia`,
+        { asistencia, estado: session?.estado || 'programada', notify },
+        { headers: h },
+      );
       await reload({ background: true });
-      showAlert('Listo', 'Asistencia guardada. Se envió un aviso a los tutores por novedades.');
+      if (!silent) {
+        showAlert(
+          'Listo',
+          notify
+            ? 'Asistencia guardada. Se envió un aviso a las familias por novedades.'
+            : 'Asistencia guardada.',
+        );
+      }
     } catch (e) {
       showAlert('Error', e.response?.data?.message || 'No se pudo guardar.');
     } finally {
@@ -424,30 +461,77 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
     }
   };
 
+  const setAthleteAttendance = (atletaId, estado) => {
+    if (completed) return;
+    const next = { ...attendance, [atletaId]: estado };
+    setAttendance(next);
+    saveAttendance({ notify: false, nextMap: next, silent: true });
+  };
+
+  const markAllPresent = () => {
+    if (completed || !roster.length) return;
+    const next = { ...attendance };
+    roster.forEach((a) => {
+      next[a._id] = 'presente';
+    });
+    setAttendance(next);
+    saveAttendance({ notify: false, nextMap: next, silent: true });
+  };
+
   const startEditingPlan = () => {
     const bloques = plan?.bloques || [];
     if (!bloques.length) {
       setDraftBlocks([emptyDraftBlock()]);
       setEditingPlanDraft(true);
+      setEntrenoMode('planificar');
       return;
     }
-    setDraftBlocks(
-      bloques.map((b) => ({
-        tituloBloque: b.tituloBloque || '',
-        formato: b.formato || 'General',
-        enfoque: b.enfoque || 'neutro',
-        duracionMinutos: String(b.duracionMinutos ?? 15),
-        descripcionDetallada: b.descripcionDetallada || '',
-      })),
-    );
+    setDraftBlocks(bloques.map(draftFromPlanBloque));
     setPlanNombre(plan.nombre || planNombre);
     setPlanObjetivo(plan.objetivoSesion || '');
     setEditingPlanDraft(true);
+    setEntrenoMode('planificar');
   };
 
   const cancelEditingPlan = () => {
     setEditingPlanDraft(false);
+    setEntrenoMode(hasPlan ? 'vivo' : 'planificar');
     reload({ background: true });
+  };
+
+  const applyPlanToDrafts = (sourcePlan) => {
+    const bloques = sourcePlan?.bloques || [];
+    if (!bloques.length) {
+      setDraftBlocks([emptyDraftBlock()]);
+    } else {
+      setDraftBlocks(bloques.map(draftFromPlanBloque));
+    }
+    setPlanNombre(sourcePlan?.nombre || '');
+    setPlanObjetivo(sourcePlan?.objetivoSesion || '');
+    setEditingPlanDraft(true);
+    setEntrenoMode('planificar');
+  };
+
+  const duplicateLastCategoryPlan = async () => {
+    const catId = session?.categoria?._id || session?.categoria;
+    if (!catId || completed) return;
+    setDuplicatingLastPlan(true);
+    try {
+      const h = await headers();
+      const { data } = await clubApi.get(`/sessions/categoria/${catId}/ultimo-plan`, {
+        headers: h,
+        params: { excludeSessionId: sessionId },
+      });
+      applyPlanToDrafts(data);
+      showAlert('Plan copiado', 'Revisá los bloques y guardá para vincularlo a esta sesión.');
+    } catch (e) {
+      showAlert(
+        'Sin plan previo',
+        e.response?.data?.message || 'No hay un plan reciente en esta categoría para duplicar.',
+      );
+    } finally {
+      setDuplicatingLastPlan(false);
+    }
   };
 
   const persistTrainingPlan = async () => {
@@ -497,8 +581,9 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
       await clubApi.patch(`/sessions/${sessionId}/plan`, { planEntrenamiento: created._id }, { headers: h });
       setEditingPlanDraft(false);
       setSelectedTimerIndex(0);
+      setEntrenoMode('vivo');
       await reload({ background: true });
-      showAlert('Listo', 'Plan guardado y vinculado a la sesión. Ya podés usar el cronómetro por bloque.');
+      showAlert('Listo', 'Plan guardado. Pasá a En vivo para el cronómetro.');
     } catch (e) {
       showAlert('Error', e.response?.data?.message || 'No se pudo guardar el plan.');
     } finally {
@@ -618,6 +703,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
       const h = await headers();
       await clubApi.patch(`/sessions/${sessionId}/reprogramar`, payload, { headers: h });
       await reload({ background: true });
+      setSessionMetaOpen(false);
       showAlert('Listo', 'Datos de la sesión actualizados.');
     } catch (e) {
       showAlert('Error', e.response?.data?.message || 'No se pudo actualizar la sesión.');
@@ -1007,7 +1093,193 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
             : (session.lugarExterno || '').trim() || session.espacio?.nombre || 'Sin lugar'
         }`}
         onBack={() => navigation.goBack()}
+        rightAccessory={
+          <TouchableOpacity
+            onPress={() => setSessionMetaOpen(true)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Datos de la sesión"
+          >
+            <Ionicons name="ellipsis-horizontal" size={22} color="#fff" />
+          </TouchableOpacity>
+        }
       />
+
+      <Modal
+        visible={sessionMetaOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setSessionMetaOpen(false)}
+      >
+        <View style={styles.metaModalRoot}>
+          <Pressable style={styles.metaModalBackdrop} onPress={() => setSessionMetaOpen(false)} />
+          <View style={[styles.metaModalSheet, { backgroundColor: theme.background, borderColor: theme.border }]}>
+            <View style={[styles.metaModalHandle, { backgroundColor: theme.border }]} />
+            <View style={styles.metaModalHeader}>
+              <Text style={[styles.section, { color: theme.text, marginBottom: 0 }]}>Datos de la sesión</Text>
+              <TouchableOpacity onPress={() => setSessionMetaOpen(false)} hitSlop={10}>
+                <Ionicons name="close" size={24} color={theme.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ paddingBottom: 28 }} keyboardShouldPersistTaps="handled">
+              <Text style={[styles.hint, { color: theme.textMuted }]}>
+                Corregí fecha, horario o espacio si hubo un error. Con la sesión cerrada primero tenés que reabrirla.
+              </Text>
+              {completed ? (
+                <View style={[styles.reopenBanner, { borderColor: '#f59e0b', backgroundColor: theme.surface }]}>
+                  <Ionicons name="information-circle-outline" size={22} color="#f59e0b" />
+                  <Text style={[styles.reopenBannerTxt, { color: theme.text }]}>
+                    Sesión cerrada. Reabrila para poder reprogramar o cargar tiempos otra vez.
+                  </Text>
+                </View>
+              ) : null}
+              {completed ? (
+                <TouchableOpacity
+                  style={[styles.primaryBtn, { backgroundColor: '#b45309', marginBottom: 8 }]}
+                  onPress={() => {
+                    setSessionMetaOpen(false);
+                    confirmReopenSession();
+                  }}
+                  disabled={reopeningSession}
+                >
+                  <Text style={styles.primaryBtnTxt}>
+                    {reopeningSession ? 'Procesando…' : 'Reabrir sesión para corregir'}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Fecha (DD-MM-AAAA)</Text>
+                  <TextInput
+                    style={inputStyle}
+                    value={editFecha}
+                    onChangeText={(t) => setEditFecha(maskDateDDMMAAAA(t))}
+                    placeholder="DD-MM-AAAA"
+                    placeholderTextColor={theme.textMuted}
+                    keyboardType="number-pad"
+                    maxLength={10}
+                    autoCapitalize="none"
+                  />
+                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Hora inicio / fin (HH:MM)</Text>
+                  <View style={{ flexDirection: 'row', marginBottom: 12 }}>
+                    <TextInput
+                      style={[inputStyle, { flex: 1, marginRight: 8 }]}
+                      value={editHoraInicio}
+                      onChangeText={(t) => setEditHoraInicio(maskTimeHHMM(t))}
+                      placeholder="18:00"
+                      placeholderTextColor={theme.textMuted}
+                      keyboardType="number-pad"
+                      maxLength={5}
+                    />
+                    <TextInput
+                      style={[inputStyle, { flex: 1 }]}
+                      value={editHoraFin}
+                      onChangeText={(t) => setEditHoraFin(maskTimeHHMM(t))}
+                      placeholder="19:30"
+                      placeholderTextColor={theme.textMuted}
+                      keyboardType="number-pad"
+                      maxLength={5}
+                    />
+                  </View>
+                  {(session.lugarExterno || '').trim() && !needsRelocation ? (
+                    <>
+                      <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Sede (partido fuera)</Text>
+                      <TextInput
+                        style={[inputStyle, { minHeight: 48, marginBottom: 12 }]}
+                        value={editLugarExterno}
+                        onChangeText={setEditLugarExterno}
+                        placeholder="Dónde se juega"
+                        placeholderTextColor={theme.textMuted}
+                        multiline
+                      />
+                    </>
+                  ) : needsRelocation ? (
+                    <>
+                      <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Nuevo espacio del club</Text>
+                      {availableSpaces.length ? (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                          {availableSpaces.map((s) => (
+                            <TouchableOpacity
+                              key={s._id}
+                              style={[
+                                styles.chipEspacio,
+                                {
+                                  borderColor: editEspacioId === s._id ? colorMarca : theme.border,
+                                  backgroundColor: editEspacioId === s._id ? colorMarca + '22' : theme.surface,
+                                },
+                              ]}
+                              onPress={() => setEditEspacioId(s._id)}
+                            >
+                              <Text style={{ color: theme.text, fontWeight: '600', fontSize: 13 }}>{s.nombre}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      ) : (
+                        <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 12, fontStyle: 'italic' }}>
+                          No hay espacios libres en ese horario.
+                        </Text>
+                      )}
+                      <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>O sede externa</Text>
+                      <TextInput
+                        style={[inputStyle, { minHeight: 48, marginBottom: 12 }]}
+                        value={editLugarExterno}
+                        onChangeText={setEditLugarExterno}
+                        placeholder="Dirección o sede"
+                        placeholderTextColor={theme.textMuted}
+                        multiline
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Espacio del club</Text>
+                      {availableSpaces.length ? (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                          {availableSpaces.map((s) => (
+                            <TouchableOpacity
+                              key={s._id}
+                              style={[
+                                styles.chipEspacio,
+                                {
+                                  borderColor: editEspacioId === s._id ? colorMarca : theme.border,
+                                  backgroundColor: editEspacioId === s._id ? colorMarca + '22' : theme.surface,
+                                },
+                              ]}
+                              onPress={() => setEditEspacioId(s._id)}
+                            >
+                              <Text style={{ color: theme.text, fontWeight: '600', fontSize: 13 }}>{s.nombre}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      ) : (
+                        <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 12, fontStyle: 'italic' }}>
+                          No hay espacios libres en ese horario.
+                        </Text>
+                      )}
+                    </>
+                  )}
+                  <TouchableOpacity
+                    style={[styles.secondaryOutlineBtn, { borderColor: colorMarca, marginBottom: 16 }]}
+                    onPress={saveSessionMeta}
+                    disabled={savingSessionMeta}
+                  >
+                    <Text style={{ color: colorMarca, fontWeight: '800' }}>
+                      {savingSessionMeta ? 'Guardando…' : 'Guardar cambios de fecha / lugar'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.secondaryOutlineBtn, { borderColor: '#ef4444', marginBottom: 16 }]}
+                    onPress={() => {
+                      setSessionMetaOpen(false);
+                      navigation.navigate('CoachCancelSession', { sessionId, session });
+                    }}
+                  >
+                    <Text style={{ color: '#ef4444', fontWeight: '800' }}>Cancelar sesión</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       <View style={[styles.tabBar, { borderBottomColor: theme.border, backgroundColor: theme.surface }]}>
         {[
@@ -1081,10 +1353,20 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
           ) : null}
 
           <Text style={[styles.hint, { color: theme.textMuted }]}>
-            Asistencia del plantel. El ícono wellness aparece si falta el pre del día (se renueva cada mañana).
+            Tocá Presente / Tarde / Ausente: se guarda al instante. Avisá a las familias cuando termines.
           </Text>
 
           <Text style={[styles.section, { color: theme.text }]}>Asistencia</Text>
+          {!completed ? (
+            <TouchableOpacity
+              style={[styles.markAllBtn, { borderColor: '#22c55e', backgroundColor: '#22c55e18' }]}
+              onPress={markAllPresent}
+              disabled={saving}
+            >
+              <Ionicons name="checkmark-done-outline" size={18} color="#22c55e" />
+              <Text style={{ color: '#22c55e', fontWeight: '800', fontSize: 13 }}>Marcar todos presentes</Text>
+            </TouchableOpacity>
+          ) : null}
           {roster.map((a) => {
             const aid = String(a._id);
             const needsWellness = !wellnessPreDoneToday.has(aid);
@@ -1119,14 +1401,18 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                   return (
                     <TouchableOpacity
                       key={o.key}
-                      disabled={completed}
+                      disabled={completed || saving}
                       style={[
                         styles.pill,
-                        { borderColor: on ? colorMarca : theme.border, backgroundColor: on ? colorMarca + '22' : 'transparent' },
+                        {
+                          borderColor: on ? o.color : theme.border,
+                          backgroundColor: on ? o.color + '22' : 'transparent',
+                          flex: 1,
+                        },
                       ]}
-                      onPress={() => setAttendance((prev) => ({ ...prev, [a._id]: o.key }))}
+                      onPress={() => setAthleteAttendance(a._id, o.key)}
                     >
-                      <Text style={{ color: on ? colorMarca : theme.textMuted, fontSize: 12, fontWeight: '600' }}>
+                      <Text style={{ color: on ? o.color : theme.textMuted, fontSize: 13, fontWeight: '800', textAlign: 'center' }}>
                         {o.label}
                       </Text>
                     </TouchableOpacity>
@@ -1137,8 +1423,14 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
             );
           })}
           {!completed ? (
-            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colorMarca }]} onPress={saveAttendance} disabled={saving}>
-              <Text style={styles.primaryBtnTxt}>{saving ? 'Guardando…' : 'Guardar asistencia'}</Text>
+            <TouchableOpacity
+              style={[styles.primaryBtn, { backgroundColor: colorMarca, opacity: saving ? 0.7 : 1 }]}
+              onPress={() => saveAttendance({ notify: true, silent: false })}
+              disabled={saving}
+            >
+              <Text style={styles.primaryBtnTxt}>
+                {saving ? 'Guardando…' : 'Avisar a familias'}
+              </Text>
             </TouchableOpacity>
           ) : (
             <Text style={[styles.hint, { color: theme.textMuted, marginTop: 8 }]}>
@@ -1147,403 +1439,380 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
           )}
         </ScrollView>
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll}>
-          <Text style={[styles.section, { color: theme.text }]}>Datos de la sesión</Text>
-          <Text style={[styles.hint, { color: theme.textMuted }]}>
-            Corregí fecha, horario o espacio si hubo un error. Con la sesión cerrada primero tenés que reabrirla.
-          </Text>
-          {completed ? (
-            <View style={[styles.reopenBanner, { borderColor: '#f59e0b', backgroundColor: theme.surface }]}>
-              <Ionicons name="information-circle-outline" size={22} color="#f59e0b" />
-              <Text style={[styles.reopenBannerTxt, { color: theme.text }]}>
-                Sesión cerrada. Reabrila para poder reprogramar o cargar tiempos otra vez.
-              </Text>
-            </View>
-          ) : null}
-          {completed ? (
-            <TouchableOpacity
-              style={[styles.primaryBtn, { backgroundColor: '#b45309', marginBottom: 8 }]}
-              onPress={confirmReopenSession}
-              disabled={reopeningSession}
-            >
-              <Text style={styles.primaryBtnTxt}>{reopeningSession ? 'Procesando…' : 'Reabrir sesión para corregir'}</Text>
-            </TouchableOpacity>
-          ) : (
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <View style={[styles.modeBar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            {[
+              { key: 'planificar', label: 'Planificar', icon: 'create-outline' },
+              { key: 'vivo', label: 'En vivo', icon: 'timer-outline' },
+            ].map((m) => {
+              const active = entrenoMode === m.key;
+              return (
+                <TouchableOpacity
+                  key={m.key}
+                  style={[
+                    styles.modeBtn,
+                    active && { backgroundColor: colorMarca + '22', borderColor: colorMarca },
+                  ]}
+                  onPress={() => {
+                    if (m.key === 'vivo' && (!hasPlan || editingPlanDraft)) {
+                      showAlert(
+                        'Primero el plan',
+                        editingPlanDraft
+                          ? 'Guardá o cancelá la edición del plan antes de pasar a En vivo.'
+                          : 'Armá y guardá el plan en Planificar para usar el cronómetro.',
+                      );
+                      return;
+                    }
+                    setEntrenoMode(m.key);
+                  }}
+                >
+                  <Ionicons name={m.icon} size={16} color={active ? colorMarca : theme.icon} />
+                  <Text
+                    style={{
+                      marginLeft: 6,
+                      fontWeight: '800',
+                      fontSize: 14,
+                      color: active ? colorMarca : theme.textMuted,
+                    }}
+                  >
+                    {m.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {entrenoMode === 'planificar' ? (
             <>
-              <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Fecha (DD-MM-AAAA)</Text>
-              <TextInput
-                style={inputStyle}
-                value={editFecha}
-                onChangeText={(t) => setEditFecha(maskDateDDMMAAAA(t))}
-                placeholder="DD-MM-AAAA"
-                placeholderTextColor={theme.textMuted}
-                keyboardType="number-pad"
-                maxLength={10}
-                autoCapitalize="none"
-                editable={!completed}
-              />
-              <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Hora inicio / fin (HH:MM)</Text>
-              <View style={{ flexDirection: 'row', marginBottom: 12 }}>
-                <TextInput
-                  style={[inputStyle, { flex: 1, marginRight: 8 }]}
-                  value={editHoraInicio}
-                  onChangeText={(t) => setEditHoraInicio(maskTimeHHMM(t))}
-                  placeholder="18:00"
-                  placeholderTextColor={theme.textMuted}
-                  keyboardType="number-pad"
-                  maxLength={5}
-                  editable={!completed}
-                />
-                <TextInput
-                  style={[inputStyle, { flex: 1 }]}
-                  value={editHoraFin}
-                  onChangeText={(t) => setEditHoraFin(maskTimeHHMM(t))}
-                  placeholder="19:30"
-                  placeholderTextColor={theme.textMuted}
-                  keyboardType="number-pad"
-                  maxLength={5}
-                  editable={!completed}
-                />
-              </View>
-              {(session.lugarExterno || '').trim() && !needsRelocation ? (
+              <Text style={[styles.hint, { color: theme.textMuted }]}>
+                Título y minutos por bloque. Formato, enfoque y detalle van en «más opciones».
+              </Text>
+
+              {!completed ? (
+                <TouchableOpacity
+                  style={[
+                    styles.secondaryOutlineBtn,
+                    { borderColor: theme.border, marginTop: 0, marginBottom: 4, opacity: duplicatingLastPlan ? 0.7 : 1 },
+                  ]}
+                  onPress={duplicateLastCategoryPlan}
+                  disabled={duplicatingLastPlan}
+                >
+                  <Text style={{ color: theme.text, fontWeight: '700' }}>
+                    {duplicatingLastPlan ? 'Buscando…' : 'Duplicar último plan de la categoría'}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+
+              {showPlanBuilder ? (
                 <>
-                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Sede (partido fuera)</Text>
+                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Nombre del plan</Text>
                   <TextInput
-                    style={[inputStyle, { minHeight: 48, marginBottom: 12 }]}
-                    value={editLugarExterno}
-                    onChangeText={setEditLugarExterno}
-                    placeholder="Dónde se juega"
+                    style={inputStyle}
+                    value={planNombre}
+                    onChangeText={setPlanNombre}
+                    placeholder="Ej. Práctica pre-partido"
                     placeholderTextColor={theme.textMuted}
-                    multiline
                     editable={!completed}
                   />
-                </>
-              ) : needsRelocation ? (
-                <>
-                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Nuevo espacio del club</Text>
-                  {availableSpaces.length ? (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-                      {availableSpaces.map((s) => (
+                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Objetivo (opcional)</Text>
+                  <TextInput
+                    style={[inputStyle, { minHeight: 56 }]}
+                    multiline
+                    value={planObjetivo}
+                    onChangeText={setPlanObjetivo}
+                    placeholder="Ej. Priorizar salida limpia"
+                    placeholderTextColor={theme.textMuted}
+                    editable={!completed}
+                  />
+
+                  {draftBlocks.map((d, i) => (
+                    <View
+                      key={`draft-${i}`}
+                      style={[styles.draftCard, { borderColor: theme.border, backgroundColor: theme.surface }]}
+                    >
+                      <View style={styles.compactRow}>
+                        <TextInput
+                          style={[inputStyle, styles.compactTitle, { marginBottom: 0, flex: 1 }]}
+                          value={d.tituloBloque}
+                          onChangeText={(v) => updateDraft(i, 'tituloBloque', v)}
+                          placeholder={`Bloque ${i + 1}`}
+                          placeholderTextColor={theme.textMuted}
+                          editable={!completed}
+                        />
+                        <TextInput
+                          style={[inputStyle, styles.compactMins, { marginBottom: 0 }]}
+                          value={d.duracionMinutos}
+                          onChangeText={(v) => updateDraft(i, 'duracionMinutos', v)}
+                          keyboardType="number-pad"
+                          placeholder="min"
+                          placeholderTextColor={theme.textMuted}
+                          editable={!completed}
+                        />
                         <TouchableOpacity
-                          key={s._id}
-                          style={[
-                            styles.chipEspacio,
-                            {
-                              borderColor: editEspacioId === s._id ? colorMarca : theme.border,
-                              backgroundColor: editEspacioId === s._id ? colorMarca + '22' : theme.surface,
-                            },
-                          ]}
-                          onPress={() => setEditEspacioId(s._id)}
+                          style={styles.moreToggle}
+                          onPress={() => updateDraft(i, 'moreOpen', !d.moreOpen)}
+                          hitSlop={8}
                         >
-                          <Text style={{ color: theme.text, fontWeight: '600', fontSize: 13 }}>{s.nombre}</Text>
+                          <Ionicons
+                            name={d.moreOpen ? 'chevron-up' : 'options-outline'}
+                            size={20}
+                            color={theme.textMuted}
+                          />
                         </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  ) : (
-                    <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 12, fontStyle: 'italic' }}>
-                      No hay espacios libres en ese horario.
-                    </Text>
-                  )}
-                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>O sede externa</Text>
-                  <TextInput
-                    style={[inputStyle, { minHeight: 48, marginBottom: 12 }]}
-                    value={editLugarExterno}
-                    onChangeText={setEditLugarExterno}
-                    placeholder="Ej. cancha municipal, club visitante…"
-                    placeholderTextColor={theme.textMuted}
-                    multiline
-                    editable={!completed}
-                  />
+                      </View>
+
+                      {d.moreOpen ? (
+                        <View style={{ marginTop: 12 }}>
+                          <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Formato</Text>
+                          <TextInput
+                            style={inputStyle}
+                            value={d.formato}
+                            onChangeText={(v) => updateDraft(i, 'formato', v)}
+                            placeholder="Ej. 5vs5, ruedas…"
+                            placeholderTextColor={theme.textMuted}
+                            editable={!completed}
+                          />
+                          <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Enfoque</Text>
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
+                            {ENFOQUE_OPTS.map((o) => (
+                              <TouchableOpacity
+                                key={o.key}
+                                style={[
+                                  styles.chip,
+                                  {
+                                    borderColor: d.enfoque === o.key ? colorMarca : theme.border,
+                                    backgroundColor: d.enfoque === o.key ? colorMarca + '22' : 'transparent',
+                                  },
+                                ]}
+                                onPress={() => updateDraft(i, 'enfoque', o.key)}
+                                disabled={completed}
+                              >
+                                <Text
+                                  style={{
+                                    color: d.enfoque === o.key ? colorMarca : theme.textMuted,
+                                    fontSize: 12,
+                                    fontWeight: '700',
+                                  }}
+                                >
+                                  {o.label}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                          <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Detalle / reglas</Text>
+                          <TextInput
+                            style={[inputStyle, { minHeight: 56, marginBottom: 0 }]}
+                            multiline
+                            value={d.descripcionDetallada}
+                            onChangeText={(v) => updateDraft(i, 'descripcionDetallada', v)}
+                            placeholder="Ej. A dos toques en campo propio"
+                            placeholderTextColor={theme.textMuted}
+                            editable={!completed}
+                          />
+                        </View>
+                      ) : null}
+
+                      {draftBlocks.length > 1 && !completed ? (
+                        <TouchableOpacity
+                          style={styles.removeDraftBtn}
+                          onPress={() => setDraftBlocks((prev) => prev.filter((_, j) => j !== i))}
+                        >
+                          <Text style={{ color: '#ef4444', fontWeight: '700' }}>Quitar</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  ))}
+
+                  {!completed ? (
+                    <TouchableOpacity
+                      style={[styles.secondaryOutlineBtn, { borderColor: colorMarca }]}
+                      onPress={() => setDraftBlocks((prev) => [...prev, emptyDraftBlock()])}
+                    >
+                      <Text style={{ color: colorMarca, fontWeight: '800' }}>+ Agregar bloque</Text>
+                    </TouchableOpacity>
+                  ) : null}
+
+                  {!completed ? (
+                    <View style={{ flexDirection: 'row', marginTop: 12 }}>
+                      {hasPlan && editingPlanDraft ? (
+                        <TouchableOpacity
+                          style={[styles.secondaryOutlineBtn, { borderColor: theme.border, flex: 1, marginRight: 8 }]}
+                          onPress={cancelEditingPlan}
+                        >
+                          <Text style={{ color: theme.text, fontWeight: '700' }}>Cancelar</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                      <TouchableOpacity
+                        style={[styles.primaryBtn, { backgroundColor: colorMarca, flex: 1, marginTop: 10 }]}
+                        onPress={persistTrainingPlan}
+                        disabled={savingPlan}
+                      >
+                        <Text style={styles.primaryBtnTxt}>{savingPlan ? 'Guardando…' : 'Guardar plan'}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
                 </>
               ) : (
                 <>
-                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Espacio</Text>
-                  {availableSpaces.length ? (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-                      {availableSpaces.map((s) => (
-                        <TouchableOpacity
-                          key={s._id}
-                          style={[
-                            styles.chipEspacio,
-                            {
-                              borderColor: editEspacioId === s._id ? colorMarca : theme.border,
-                              backgroundColor: editEspacioId === s._id ? colorMarca + '22' : theme.surface,
-                            },
-                          ]}
-                          onPress={() => setEditEspacioId(s._id)}
-                        >
-                          <Text style={{ color: theme.text, fontWeight: '600', fontSize: 13 }}>{s.nombre}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  ) : (
-                    <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 12, fontStyle: 'italic' }}>
-                      No hay espacios libres en ese horario.
+                  <View style={[styles.planBanner, { backgroundColor: colorMarca + '18', borderColor: colorMarca }]}>
+                    <Ionicons name="clipboard-outline" size={22} color={colorMarca} />
+                    <Text style={[styles.planBannerTxt, { color: theme.text }]}>
+                      {plan?.nombre || 'Plan cargado'} · {plan.bloques.length} bloques ·{' '}
+                      {(plan.bloques || []).reduce((a, b) => a + (Number(b.duracionMinutos) || 0), 0)} min
                     </Text>
-                  )}
+                  </View>
+                  {!completed ? (
+                    <TouchableOpacity
+                      style={[styles.secondaryOutlineBtn, { borderColor: theme.border, marginBottom: 12 }]}
+                      onPress={startEditingPlan}
+                    >
+                      <Text style={{ color: theme.text, fontWeight: '700' }}>Modificar plan</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {(plan?.bloques || []).map((b, i) => (
+                    <View key={`pv-${i}`} style={[styles.execRow, { borderColor: theme.border }]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: theme.text, fontWeight: '700' }}>{b.tituloBloque}</Text>
+                        <Text style={{ color: theme.textMuted, marginTop: 4, fontSize: 13 }}>
+                          {(b.formato || 'General') +
+                            ' · ' +
+                            (ENFOQUE_OPTS.find((x) => x.key === b.enfoque)?.label || b.enfoque) +
+                            ` · ${b.duracionMinutos || 0} min`}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                  {!completed ? (
+                    <TouchableOpacity
+                      style={[styles.primaryBtn, { backgroundColor: colorMarca, marginTop: 16 }]}
+                      onPress={() => setEntrenoMode('vivo')}
+                    >
+                      <Text style={styles.primaryBtnTxt}>Ir a En vivo</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </>
               )}
-              <TouchableOpacity
-                style={[styles.secondaryOutlineBtn, { borderColor: colorMarca, marginBottom: 16 }]}
-                onPress={saveSessionMeta}
-                disabled={savingSessionMeta}
-              >
-                <Text style={{ color: colorMarca, fontWeight: '800' }}>
-                  {savingSessionMeta ? 'Guardando…' : 'Guardar cambios de fecha / lugar'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.secondaryOutlineBtn, { borderColor: '#ef4444', marginBottom: 16 }]}
-                onPress={() =>
-                  navigation.navigate('CoachCancelSession', { sessionId, session })
-                }
-              >
-                <Text style={{ color: '#ef4444', fontWeight: '800' }}>Cancelar sesión</Text>
-              </TouchableOpacity>
             </>
-          )}
-
-          <Text style={[styles.section, { color: theme.text, marginTop: 8 }]}>Plan de entrenamiento</Text>
-        <Text style={[styles.hint, { color: theme.textMuted }]}>
-          Primero definí los bloques. Después podés medir el tiempo real de cada uno con el cronómetro.
-        </Text>
-
-        {showPlanBuilder ? (
-          <>
-            <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Nombre del plan</Text>
-            <TextInput
-              style={inputStyle}
-              value={planNombre}
-              onChangeText={setPlanNombre}
-              placeholder="Ej. Práctica pre-partido"
-              placeholderTextColor={theme.textMuted}
-              editable={!completed}
-            />
-            <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Objetivo de la sesión (opcional)</Text>
-            <TextInput
-              style={[inputStyle, { minHeight: 72 }]}
-              multiline
-              value={planObjetivo}
-              onChangeText={setPlanObjetivo}
-              placeholder="Ej. Priorizar salida limpia desde atrás"
-              placeholderTextColor={theme.textMuted}
-              editable={!completed}
-            />
-
-            {draftBlocks.map((d, i) => (
-              <View key={`draft-${i}`} style={[styles.draftCard, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-                <Text style={[styles.draftTitle, { color: theme.text }]}>Bloque {i + 1}</Text>
-                <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Título</Text>
-                <TextInput
-                  style={inputStyle}
-                  value={d.tituloBloque}
-                  onChangeText={(v) => updateDraft(i, 'tituloBloque', v)}
-                  placeholder="Ej. Partido condicionado"
-                  placeholderTextColor={theme.textMuted}
-                  editable={!completed}
-                />
-                <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Formato</Text>
-                <TextInput
-                  style={inputStyle}
-                  value={d.formato}
-                  onChangeText={(v) => updateDraft(i, 'formato', v)}
-                  placeholder="Ej. 5vs5, ruedas…"
-                  placeholderTextColor={theme.textMuted}
-                  editable={!completed}
-                />
-                <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Enfoque</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
-                  {ENFOQUE_OPTS.map((o) => (
-                    <TouchableOpacity
-                      key={o.key}
-                      style={[
-                        styles.chip,
-                        {
-                          borderColor: d.enfoque === o.key ? colorMarca : theme.border,
-                          backgroundColor: d.enfoque === o.key ? colorMarca + '22' : 'transparent',
-                        },
-                      ]}
-                      onPress={() => updateDraft(i, 'enfoque', o.key)}
-                      disabled={completed}
-                    >
-                      <Text style={{ color: d.enfoque === o.key ? colorMarca : theme.textMuted, fontSize: 12, fontWeight: '700' }}>
-                        {o.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Duración planificada (min)</Text>
-                <TextInput
-                  style={inputStyle}
-                  value={d.duracionMinutos}
-                  onChangeText={(v) => updateDraft(i, 'duracionMinutos', v)}
-                  keyboardType="number-pad"
-                  editable={!completed}
-                />
-                <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Detalle / reglas (opcional)</Text>
-                <TextInput
-                  style={[inputStyle, { minHeight: 56 }]}
-                  multiline
-                  value={d.descripcionDetallada}
-                  onChangeText={(v) => updateDraft(i, 'descripcionDetallada', v)}
-                  placeholder="Ej. A dos toques en campo propio"
-                  placeholderTextColor={theme.textMuted}
-                  editable={!completed}
-                />
-                {draftBlocks.length > 1 ? (
-                  <TouchableOpacity
-                    style={styles.removeDraftBtn}
-                    onPress={() => setDraftBlocks((prev) => prev.filter((_, j) => j !== i))}
-                    disabled={completed}
-                  >
-                    <Text style={{ color: '#ef4444', fontWeight: '700' }}>Quitar bloque</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            ))}
-
-            {!completed ? (
-              <TouchableOpacity
-                style={[styles.secondaryOutlineBtn, { borderColor: colorMarca }]}
-                onPress={() => setDraftBlocks((prev) => [...prev, emptyDraftBlock()])}
-              >
-                <Text style={{ color: colorMarca, fontWeight: '800' }}>+ Agregar bloque</Text>
-              </TouchableOpacity>
-            ) : null}
-
-            {!completed ? (
-              <View style={{ flexDirection: 'row', marginTop: 12 }}>
-                {hasPlan && editingPlanDraft ? (
-                  <TouchableOpacity style={[styles.secondaryOutlineBtn, { borderColor: theme.border, flex: 1, marginRight: 8 }]} onPress={cancelEditingPlan}>
-                    <Text style={{ color: theme.text, fontWeight: '700' }}>Cancelar edición</Text>
-                  </TouchableOpacity>
-                ) : null}
-                <TouchableOpacity
-                  style={[styles.primaryBtn, { backgroundColor: colorMarca, flex: 1 }]}
-                  onPress={persistTrainingPlan}
-                  disabled={savingPlan}
-                >
-                  <Text style={styles.primaryBtnTxt}>{savingPlan ? 'Guardando…' : 'Guardar plan en la sesión'}</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-          </>
-        ) : (
-          <>
-            <View style={[styles.planBanner, { backgroundColor: colorMarca + '18', borderColor: colorMarca }]}>
-              <Ionicons name="clipboard-outline" size={22} color={colorMarca} />
-              <Text style={[styles.planBannerTxt, { color: theme.text }]}>
-                {plan?.nombre || 'Plan cargado'} · {plan.bloques.length} bloques · {totalPlanMin} min planificados
-              </Text>
-            </View>
-            {!completed ? (
-              <TouchableOpacity style={[styles.secondaryOutlineBtn, { borderColor: theme.border, marginBottom: 12 }]} onPress={startEditingPlan}>
-                <Text style={{ color: theme.text, fontWeight: '700' }}>Modificar plan</Text>
-              </TouchableOpacity>
-            ) : null}
-
-            {executedBlocks.map((b, i) => (
-              <View key={`ex-${i}`} style={[styles.execRow, { borderColor: theme.border }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: theme.text, fontWeight: '700' }}>{b.tituloBloque}</Text>
-                  <Text style={{ color: theme.textMuted, marginTop: 4, fontSize: 13 }}>
-                    {b.formato} · {ENFOQUE_OPTS.find((x) => x.key === b.enfoque)?.label || b.enfoque} · plan {b.duracionPlanificada} min
+          ) : (
+            <>
+              {!hasPlan || editingPlanDraft ? (
+                <View style={[styles.planBanner, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                  <Ionicons name="clipboard-outline" size={22} color={theme.textMuted} />
+                  <Text style={[styles.planBannerTxt, { color: theme.textMuted }]}>
+                    Todavía no hay un plan guardado. Armalo en Planificar.
                   </Text>
                 </View>
-                {!completed ? (
-                  <View style={styles.realMinWrap}>
-                    <Text style={[styles.fieldLabel, { color: theme.textMuted, marginBottom: 4 }]}>Real</Text>
-                    <TextInput
-                      style={[styles.realMinInput, { color: theme.text, borderColor: theme.border }]}
-                      keyboardType="number-pad"
-                      value={String(b.duracionRealMinutos ?? 0)}
-                      onChangeText={(t) => setRealMinutesAt(i, t)}
-                    />
+              ) : (
+                <>
+                  <View style={[styles.planBanner, { backgroundColor: colorMarca + '18', borderColor: colorMarca }]}>
+                    <Ionicons name="clipboard-outline" size={22} color={colorMarca} />
+                    <Text style={[styles.planBannerTxt, { color: theme.text }]}>
+                      {plan?.nombre || 'Plan'} · {totalPlanMin} min planificados
+                    </Text>
                   </View>
-                ) : (
-                  <Text style={{ color: theme.text, fontWeight: '800' }}>{b.duracionRealMinutos || 0}′</Text>
-                )}
-              </View>
-            ))}
-          </>
-        )}
 
-        {hasPlan && !editingPlanDraft && executedBlocks.length > 0 ? (
-          <>
-            <Text style={[styles.section, { color: theme.text, marginTop: 22 }]}>Cronómetro por bloque</Text>
-            <Text style={[styles.hint, { color: theme.textMuted }]}>
-              Elegí el bloque, iniciá el cronómetro y al detener se guardan los minutos en “Real” (podés ajustarlos a mano).
-            </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
-              {executedBlocks.map((_, i) => (
-                <TouchableOpacity
-                  key={`tb-${i}`}
-                  style={[
-                    styles.timerChip,
-                    {
-                      borderColor: selectedTimerIndex === i ? colorMarca : theme.border,
-                      backgroundColor: selectedTimerIndex === i ? colorMarca + '28' : theme.surface,
-                    },
-                  ]}
-                  onPress={() => !timerLocked && !completed && setSelectedTimerIndex(i)}
-                  disabled={completed || timerLocked}
-                >
-                  <Text style={{ color: theme.text, fontWeight: '800', fontSize: 13 }}>{i + 1}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+                  <Text style={[styles.section, { color: theme.text, marginTop: 4 }]}>Cronómetro</Text>
+                  <Text style={[styles.hint, { color: theme.textMuted }]}>
+                    Elegí el bloque, iniciá y al detener se cargan los minutos reales.
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
+                    {executedBlocks.map((_, i) => (
+                      <TouchableOpacity
+                        key={`tb-${i}`}
+                        style={[
+                          styles.timerChip,
+                          {
+                            borderColor: selectedTimerIndex === i ? colorMarca : theme.border,
+                            backgroundColor: selectedTimerIndex === i ? colorMarca + '28' : theme.surface,
+                          },
+                        ]}
+                        onPress={() => !timerLocked && !completed && setSelectedTimerIndex(i)}
+                        disabled={completed || timerLocked}
+                      >
+                        <Text style={{ color: theme.text, fontWeight: '800', fontSize: 13 }}>{i + 1}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
 
-            <View style={[styles.timerCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.timerSub, { color: theme.textMuted }]}>
-                Bloque {selectedTimerIndex + 1}: {executedBlocks[selectedTimerIndex]?.tituloBloque}
-              </Text>
-              <Text style={[styles.timerTxt, { color: theme.text }]}>
-                {timerStartedAt == null
-                  ? 'Listo para iniciar'
-                  : `${String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:${String(elapsedSec % 60).padStart(2, '0')}`}
-              </Text>
-              {!completed ? (
-                <View style={{ flexDirection: 'row', marginTop: 12 }}>
-                  <TouchableOpacity style={[styles.secondaryBtn, { borderColor: colorMarca }]} onPress={startTimer} disabled={timerLocked}>
-                    <Text style={{ color: colorMarca, fontWeight: '700' }}>Iniciar</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.secondaryBtn, { borderColor: theme.border }]}
-                    onPress={stopTimerAndAssign}
-                    disabled={timerStartedAt == null}
-                  >
-                    <Text style={{ color: theme.text, fontWeight: '700' }}>Detener y asignar</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-            </View>
-          </>
-        ) : null}
+                  <View style={[styles.timerCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                    <Text style={[styles.timerSub, { color: theme.textMuted }]}>
+                      Bloque {selectedTimerIndex + 1}: {executedBlocks[selectedTimerIndex]?.tituloBloque}
+                    </Text>
+                    <Text style={[styles.timerTxt, { color: theme.text }]}>
+                      {timerStartedAt == null
+                        ? 'Listo para iniciar'
+                        : `${String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:${String(elapsedSec % 60).padStart(2, '0')}`}
+                    </Text>
+                    {!completed ? (
+                      <View style={{ flexDirection: 'row', marginTop: 12 }}>
+                        <TouchableOpacity
+                          style={[styles.secondaryBtn, { borderColor: colorMarca }]}
+                          onPress={startTimer}
+                          disabled={timerLocked}
+                        >
+                          <Text style={{ color: colorMarca, fontWeight: '700' }}>Iniciar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.secondaryBtn, { borderColor: theme.border }]}
+                          onPress={stopTimerAndAssign}
+                          disabled={timerStartedAt == null}
+                        >
+                          <Text style={{ color: theme.text, fontWeight: '700' }}>Detener y asignar</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
+                  </View>
 
-        {!completed ? (
-          <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: '#0f766e', marginTop: 16 }]} onPress={finishTraining}>
-            <Text style={styles.primaryBtnTxt}>Finalizar entrenamiento</Text>
-          </TouchableOpacity>
-        ) : null}
+                  <Text style={[styles.section, { color: theme.text, marginTop: 8 }]}>Tiempos reales</Text>
+                  {executedBlocks.map((b, i) => (
+                    <View key={`ex-${i}`} style={[styles.execRow, { borderColor: theme.border }]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: theme.text, fontWeight: '700' }}>{b.tituloBloque}</Text>
+                        <Text style={{ color: theme.textMuted, marginTop: 4, fontSize: 13 }}>
+                          plan {b.duracionPlanificada} min
+                        </Text>
+                      </View>
+                      {!completed ? (
+                        <View style={styles.realMinWrap}>
+                          <Text style={[styles.fieldLabel, { color: theme.textMuted, marginBottom: 4 }]}>Real</Text>
+                          <TextInput
+                            style={[styles.realMinInput, { color: theme.text, borderColor: theme.border }]}
+                            keyboardType="number-pad"
+                            value={String(b.duracionRealMinutos ?? 0)}
+                            onChangeText={(t) => setRealMinutesAt(i, t)}
+                          />
+                        </View>
+                      ) : (
+                        <Text style={{ color: theme.text, fontWeight: '800' }}>{b.duracionRealMinutos || 0}′</Text>
+                      )}
+                    </View>
+                  ))}
 
-        <Text style={[styles.section, { color: theme.text, marginTop: 24 }]}>Resumen de tiempos</Text>
-        <View style={[styles.summary, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={{ color: theme.text, fontSize: 16, fontWeight: '800' }}>
-            Total real: {totalRealMin} min{hasPlan ? ` · Plan: ${totalPlanMin} min` : ''}
-          </Text>
-          {executedBlocks.map((b, i) => (
-            <Text key={`sum-${i}`} style={{ color: theme.textMuted, marginTop: 8 }}>
-              · {b.tituloBloque}: {b.duracionRealMinutos || 0} min real
-              {hasPlan ? ` (${b.duracionPlanificada} min plan)` : ''}
-            </Text>
-          ))}
-          {executedBlocks.length === 0 ? (
-            <Text style={{ color: theme.textMuted, marginTop: 8 }}>
-              {hasPlan ? 'Guardá tiempos con el cronómetro o editando la columna Real.' : 'Creá el plan de entrenamiento para ver el desglose por bloque.'}
-            </Text>
-          ) : null}
-        </View>
-      </ScrollView>
+                  {!completed ? (
+                    <TouchableOpacity
+                      style={[styles.primaryBtn, { backgroundColor: '#0f766e', marginTop: 16 }]}
+                      onPress={finishTraining}
+                    >
+                      <Text style={styles.primaryBtnTxt}>Finalizar entrenamiento</Text>
+                    </TouchableOpacity>
+                  ) : null}
+
+                  <Text style={[styles.section, { color: theme.text, marginTop: 24 }]}>Resumen</Text>
+                  <View style={[styles.summary, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                    <Text style={{ color: theme.text, fontSize: 16, fontWeight: '800' }}>
+                      Total real: {totalRealMin} min · Plan: {totalPlanMin} min
+                    </Text>
+                    {executedBlocks.map((b, i) => (
+                      <Text key={`sum-${i}`} style={{ color: theme.textMuted, marginTop: 8 }}>
+                        · {b.tituloBloque}: {b.duracionRealMinutos || 0} min real ({b.duracionPlanificada} min plan)
+                      </Text>
+                    ))}
+                  </View>
+                </>
+              )}
+            </>
+          )}
+        </ScrollView>
       )}
     </SafeAreaView>
   );
@@ -1606,8 +1875,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
-  pill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
+  pills: { flexDirection: 'row', flexWrap: 'nowrap', gap: 8, marginTop: 10 },
+  pill: { paddingHorizontal: 8, paddingVertical: 12, borderRadius: 10, borderWidth: 1.5 },
+  markAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
   primaryBtn: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   primaryBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
   secondaryOutlineBtn: {
@@ -1684,4 +1963,70 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   summary: { borderWidth: 1, borderRadius: 12, padding: 16, marginTop: 8 },
+  modeBar: {
+    flexDirection: 'row',
+    gap: 8,
+    padding: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  modeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  compactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  compactTitle: {
+    minWidth: 0,
+  },
+  compactMins: {
+    width: 56,
+    textAlign: 'center',
+    paddingHorizontal: 6,
+  },
+  moreToggle: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metaModalRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  metaModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  metaModalSheet: {
+    maxHeight: '88%',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  metaModalHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 10,
+  },
+  metaModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
 });

@@ -24,7 +24,7 @@ import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusL
 export default function AthleteWellnessHubScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
-  const { isTutor, memberId, loading: memberLoading } = useMember();
+  const { isTutor, memberId, activeHijo, loading: memberLoading } = useMember();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const wellnessCacheKey =
     clubData?.urlIdentifier && memberId
@@ -116,7 +116,9 @@ export default function AthleteWellnessHubScreen({ navigation }) {
         title="Wellness"
         subtitle={
           isTutor
-            ? 'Registros diarios del atleta seleccionado'
+            ? activeHijo
+              ? `Registros diarios de ${activeHijo.nombre} ${activeHijo.apellido}`
+              : 'Registros diarios del atleta seleccionado'
             : 'Contanos cómo te sentís y cómo fue el entreno'
         }
       />

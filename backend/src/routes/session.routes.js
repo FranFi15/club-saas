@@ -24,6 +24,7 @@ import {
     getSessionById,
     confirmConsultAttendance,
     cambiarAtletaConsulta,
+    getLastTrainingPlanForCategory,
 } from '../controllers/session.controller.js';
 import { protect, authorize } from '../middlewares/auth.middleware.js';
 
@@ -34,6 +35,7 @@ router.post('/', protect, authorize('admin_club', 'profe', 'preparador_fisico', 
 router.post('/generate', protect, authorize('admin_club', 'administrativo'), generateSessionsFromSchedule);
 
 // Consultas
+router.get('/categoria/:categoryId/ultimo-plan', protect, authorize('admin_club', 'profe', 'preparador_fisico'), getLastTrainingPlanForCategory);
 router.get('/categoria/:categoryId', protect, getSessionsByCategory);
 router.get('/espacio/:spaceId', protect, getSessionsBySpace);
 router.get('/profe/agenda', protect, authorize('profe', 'preparador_fisico'), getCoachAgenda);

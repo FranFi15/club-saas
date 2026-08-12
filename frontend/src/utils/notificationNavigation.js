@@ -9,13 +9,28 @@ const STAFF_NEWS_ROLES = new Set([
   'psicologo',
 ]);
 
+function staffCommsTab(rol) {
+  if (rol === 'profe') return 'CoachComunicar';
+  if (rol === 'preparador_fisico') return 'PrepComunicar';
+  if (rol === 'nutricionista') return 'NutComunicar';
+  if (rol === 'psicologo') return 'PsiComunicar';
+  return null;
+}
+
+function staffEquipoTab(rol) {
+  if (rol === 'profe') return 'CoachEquipo';
+  if (rol === 'preparador_fisico') return 'PrepEquipo';
+  if (rol === 'nutricionista') return 'NutEquipo';
+  if (rol === 'psicologo') return 'PsiEquipo';
+  return null;
+}
+
 function staffNewsTarget(rol) {
   if (rol === 'admin_club' || rol === 'administrativo') {
     return { tab: 'Gestión', screen: 'Noticias' };
   }
-  if (STAFF_NEWS_ROLES.has(rol)) {
-    return { tab: 'CoachComunicar', screen: 'NoticiasStaff' };
-  }
+  const tab = staffCommsTab(rol);
+  if (tab) return { tab, screen: 'NoticiasStaff' };
   return null;
 }
 
@@ -23,9 +38,8 @@ function staffResourceTarget(rol) {
   if (rol === 'admin_club' || rol === 'administrativo') {
     return { tab: 'Gestión' };
   }
-  if (STAFF_NEWS_ROLES.has(rol)) {
-    return { tab: 'CoachComunicar', screen: 'CoachResourceSend' };
-  }
+  const tab = staffCommsTab(rol);
+  if (tab) return { tab, screen: 'CoachResourceSend' };
   return null;
 }
 
@@ -33,9 +47,8 @@ function staffDocsTarget(rol) {
   if (rol === 'admin_club' || rol === 'administrativo') {
     return { tab: 'Gestión', screen: 'PedirDocumentacion' };
   }
-  if (STAFF_NEWS_ROLES.has(rol)) {
-    return { tab: 'CoachComunicar', screen: 'CoachRequestDoc' };
-  }
+  const tab = staffCommsTab(rol);
+  if (tab) return { tab, screen: 'CoachRequestDoc' };
   return null;
 }
 
@@ -72,8 +85,9 @@ export function getNotificationTarget(item, { rol, cuotasEnApp, isTutor }) {
   }
 
   if (tipo === 'documentacion_entregada') {
-    if (STAFF_NEWS_ROLES.has(rol)) {
-      return { tab: 'CoachEquipo', screen: 'CoachTeamDocuments' };
+    const equipo = staffEquipoTab(rol);
+    if (equipo) {
+      return { tab: equipo, screen: 'CoachTeamDocuments' };
     }
     if (rol === 'admin_club' || rol === 'administrativo') {
       return { tab: 'Gestión', screen: 'RevisarDocumentacion' };
@@ -92,6 +106,15 @@ export function getNotificationTarget(item, { rol, cuotasEnApp, isTutor }) {
   }
 
   if (tipo === 'intercambio_espacio') {
+    if (rol === 'profe') {
+      return { tab: 'CoachSesiones', screen: 'CoachRelocateSessions' };
+    }
+    if (rol === 'preparador_fisico') {
+      return { tab: 'PrepSesiones', screen: 'CoachRelocateSessions' };
+    }
+    if (rol === 'admin_club' || rol === 'administrativo') {
+      return { tab: 'Estructura', screen: 'Espacios' };
+    }
     return null;
   }
 
@@ -141,30 +164,10 @@ export function getNotificationTarget(item, { rol, cuotasEnApp, isTutor }) {
         params,
       };
     }
-    if (rol === 'profe') {
+    const comms = staffCommsTab(rol);
+    if (comms) {
       return {
-        tab: 'CoachComunicar',
-        screen: item?.conversationId ? 'ChatThread' : 'ChatInbox',
-        params,
-      };
-    }
-    if (rol === 'preparador_fisico') {
-      return {
-        tab: 'PrepComunicar',
-        screen: item?.conversationId ? 'ChatThread' : 'ChatInbox',
-        params,
-      };
-    }
-    if (rol === 'nutricionista') {
-      return {
-        tab: 'NutComunicar',
-        screen: item?.conversationId ? 'ChatThread' : 'ChatInbox',
-        params,
-      };
-    }
-    if (rol === 'psicologo') {
-      return {
-        tab: 'PsiComunicar',
+        tab: comms,
         screen: item?.conversationId ? 'ChatThread' : 'ChatInbox',
         params,
       };

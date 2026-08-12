@@ -281,14 +281,17 @@ const takeAttendance = asyncHandler(async (req, res) => {
 
     const updatedSession = await session.save();
 
-    try {
-        await notifyAttendanceSaved(req.models, {
-            session: session.toObject(),
-            asistencia,
-            autorId: req.user._id,
-        });
-    } catch (notifyErr) {
-        console.warn('[attendance] notify tutors:', notifyErr.message);
+    const shouldNotify = req.body?.notify !== false;
+    if (shouldNotify) {
+        try {
+            await notifyAttendanceSaved(req.models, {
+                session: session.toObject(),
+                asistencia,
+                autorId: req.user._id,
+            });
+        } catch (notifyErr) {
+            console.warn('[attendance] notify tutors:', notifyErr.message);
+        }
     }
     
     // Poblamos el espacio y la lista de atletas para que el front tenga la info actualizada
@@ -2055,6 +2058,33 @@ const cambiarAtletaConsulta = asyncHandler(async (req, res) => {
     res.json(session);
 });
 
+// @desc    Último plan de entrenamiento usado en una categoría
+// @route   GET /api/sessions/categoria/:categoryId/ultimo-plan
+const getLastTrainingPlanForCategory = asyncHandler(async (req, res) => {
+    const { Session } = req.models;
+    const excludeId = req.query.excludeSessionId;
+
+    const filter = {
+        categoria: req.params.categoryId,
+        planEntrenamiento: { $ne: null },
+        tipo: { $nin: ['consulta_nutricion', 'consulta_psicologia'] },
+        estado: { $ne: 'cancelada' },
+    };
+    if (excludeId) filter._id = { $ne: excludeId };
+
+    const row = await Session.findOne(filter)
+        .sort({ fecha: -1, horaInicio: -1 })
+        .populate('planEntrenamiento')
+        .lean();
+
+    if (!row?.planEntrenamiento?.bloques?.length) {
+        res.status(404);
+        throw new Error('No hay un plan previo en esta categoría.');
+    }
+
+    res.json(row.planEntrenamiento);
+});
+
 export {
     createSession,
     takeAttendance,
@@ -2080,4 +2110,5 @@ export {
     getSessionById,
     confirmConsultAttendance,
     cambiarAtletaConsulta,
+    getLastTrainingPlanForCategory,
 };

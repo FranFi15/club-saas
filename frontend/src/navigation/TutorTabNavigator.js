@@ -8,6 +8,7 @@ import { ClubContext } from '../context/ClubContext';
 import { ThemeContext } from '../context/ThemeContext';
 import TutorHomeScreen from '../screens/tutor/TutorHomeScreen';
 import AthleteAgendaStack from './AthleteAgendaStack';
+import AthleteWellnessStack from './AthleteWellnessStack';
 import TutorProfileStackNav from './TutorProfileStack';
 import MemberCommsStack from './MemberCommsStack';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
@@ -63,6 +64,7 @@ function TutorTabs() {
           }
           const map = {
             TutorAgenda: focused ? 'calendar' : 'calendar-outline',
+            TutorWellness: focused ? 'fitness' : 'fitness-outline',
             TutorComunicar: focused ? 'chatbubbles' : 'chatbubbles-outline',
             TutorProfile: focused ? 'person' : 'person-outline',
           };
@@ -81,6 +83,12 @@ function TutorTabs() {
         component={AthleteAgendaStack}
         options={{ tabBarLabel: 'Agenda', tabBarBadge: tabBadgeLabel(tab('agenda')) }}
         listeners={tabPressResetToRoot('TutorAgenda', 'AthleteAgendaMain')}
+      />
+      <Tab.Screen
+        name="TutorWellness"
+        component={AthleteWellnessStack}
+        options={{ tabBarLabel: 'Wellness' }}
+        listeners={tabPressResetToRoot('TutorWellness', 'AthleteWellnessMain')}
       />
       <Tab.Screen
         name="TutorComunicar"
