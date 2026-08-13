@@ -1,5 +1,5 @@
 import express from 'express';
-import { upload } from '../config/cloudinary.js';
+import { upload, assertUploadedSize } from '../config/cloudinary.js';
 import { protect } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
@@ -7,6 +7,13 @@ const router = express.Router();
 function handleUpload(req, res) {
     if (!req.file) {
         return res.status(400).json({ message: 'No se recibió ningún archivo válido.' });
+    }
+
+    try {
+        assertUploadedSize(req.file);
+    } catch (e) {
+        const status = e.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+        return res.status(status).json({ message: e.message });
     }
 
     const f = req.file;
@@ -28,8 +35,8 @@ function handleUpload(req, res) {
     });
 }
 
-// @desc    Subir un archivo a Cloudinary y obtener la URL
-// @route   POST /api/upload
+// Cualquier usuario autenticado del club (fotos, docs, comprobantes).
+// Límites MIME/tamaño en multer + rate limit en index.js.
 router.post('/', protect, (req, res) => {
     upload.single('archivo')(req, res, (err) => {
         if (err) {

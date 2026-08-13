@@ -56,11 +56,12 @@ export default ({ config }) => ({
       },
     ],
   },
-  plugins: [...(config.plugins ?? []), withMonorepoReactNative],
+  plugins: [...(config.plugins ?? []), withMonorepoReactNative, '@sentry/react-native/expo'],
   extra: {
     ...config.extra,
     appWebUrl: `https://${APP_WEB_HOST}`,
     privacyPolicyUrl: PRIVACY_POLICY_URL,
+    sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN || config.extra?.sentryDsn || '',
     eas: {
       ...config.extra?.eas,
       projectId: EAS_PROJECT_ID,

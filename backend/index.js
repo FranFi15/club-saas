@@ -1,19 +1,16 @@
+import './instrument.js';
+
 import express from 'express';
-import 'dotenv/config';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-
-// --- SEGURIDAD ---
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import mongoSanitize from 'express-mongo-sanitize';
 
-
-
-// --- MIDDLEWARES ---
 import { resolveTenant } from './src/middlewares/tenant.middleware.js';
 import { notFound, errorHandler } from './src/middlewares/error.middleware.js';
+import { captureException } from './src/config/sentry.js';
 
-// --- RUTAS ---
 import authRoutes from './src/routes/auth.routes.js';
 import userRoutes from './src/routes/user.routes.js';
 import disciplineRoutes from './src/routes/discipline.routes.js';
@@ -29,10 +26,10 @@ import resourceRoutes from './src/routes/resource.routes.js';
 import uploadRoutes from './src/routes/upload.routes.js';
 import wellnessRoutes from './src/routes/wellness.routes.js';
 import requirementRoutes from './src/routes/requirement.routes.js';
-import performanceRoutes from './src/routes/performance.routes.js'; 
+import performanceRoutes from './src/routes/performance.routes.js';
 import spaceRoutes from './src/routes/space.routes.js';
-import trainingRoutes from './src/routes/training.routes.js'; 
-import medicalRoutes from './src/routes/medical.routes.js';   
+import trainingRoutes from './src/routes/training.routes.js';
+import medicalRoutes from './src/routes/medical.routes.js';
 import notificationRoutes from './src/routes/notification.routes.js';
 import badgeRoutes from './src/routes/badge.routes.js';
 import swapRequestRoutes from './src/routes/swapRequest.routes.js';
@@ -50,7 +47,6 @@ import { startPaymentRemindersCron } from './src/cron/paymentReminders.cron.js';
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
 
-// Render / reverse proxies: use real client IP for rate limiting
 app.set('trust proxy', 1);
 
 if (isProd) {
@@ -58,6 +54,12 @@ if (isProd) {
     if (!process.env.JWT_SECRET) missing.push('JWT_SECRET');
     if (!process.env.JWT_REFRESH_SECRET) missing.push('JWT_REFRESH_SECRET');
     if (!process.env.FRONTEND_URL) missing.push('FRONTEND_URL');
+    if (!process.env.MP_WEBHOOK_SECRET?.trim() && !process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim()) {
+        missing.push('MP_WEBHOOK_SECRET');
+    }
+    if (!process.env.CLUB_ENTRY_TOKEN_SECRET?.trim()) {
+        missing.push('CLUB_ENTRY_TOKEN_SECRET');
+    }
     if (missing.length) {
         console.error(`[Club-Backend] Variables requeridas en producción: ${missing.join(', ')}`);
         process.exit(1);
@@ -75,7 +77,6 @@ function parseFrontendOrigins() {
 
 const allowedOrigins = isProd ? parseFrontendOrigins() : null;
 
-// CORS before Helmet so preflight always gets Access-Control-* headers
 app.use(cors({
     origin: isProd
         ? (origin, callback) => {
@@ -89,15 +90,13 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'x-club-identifier'],
 }));
 
-// Helmet: Oculta cabeceras de Express y previene ataques XSS y Clickjacking
 app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
-// Rate Limiting: evita abuso; el bucket es por IP del cliente (requiere trust proxy)
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutos
-    max: 900, // app móvil + polling de chat; ~1 req/s de promedio
+    windowMs: 15 * 60 * 1000,
+    max: 900,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Demasiadas peticiones desde esta IP. Por favor intente de nuevo más tarde.' },
@@ -116,24 +115,31 @@ const authLimiter = rateLimit({
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/refresh', authLimiter);
 
-// Body Parsers con límites para evitar saturación de memoria
-app.use(express.json({ limit: '10kb' })); 
+const uploadLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Demasiadas subidas. Probá de nuevo más tarde.' },
+    skip: (req) => req.method === 'OPTIONS',
+});
+app.use('/api/upload', uploadLimiter);
+
+app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
+app.use(
+    mongoSanitize({
+        replaceWith: '_',
+        allowDots: true,
+    }),
+);
 
-
-
-
-
-// 2. RUTAS DE LA APLICACIÓN
 app.get('/', (req, res) => {
     res.send('🏟️ Backend funcionando y asegurado.');
 });
 
-// Subida a Cloudinary (requiere tenant para validar el JWT del club)
 app.use('/api/upload', resolveTenant, uploadRoutes);
-
-// Rutas protegidas por Tenant (Multi-club)
 app.use('/api/auth', resolveTenant, authRoutes);
 app.use('/api/users', resolveTenant, userRoutes);
 app.use('/api/disciplines', resolveTenant, disciplineRoutes);
@@ -161,12 +167,9 @@ app.use('/api/chat', resolveTenant, chatRoutes);
 app.use('/api/inbox', resolveTenant, inboxRoutes);
 app.use('/api/stats', resolveTenant, statsRoutes);
 
-
-// 3. MIDDLEWARES DE ERROR 
 app.use(notFound);
 app.use(errorHandler);
 
-// 4. INICIALIZACIÓN DEL SERVIDOR
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
@@ -175,8 +178,13 @@ app.listen(PORT, () => {
         console.log(`[Club-Backend] CORS origins: ${allowedOrigins.join(', ') || '(ninguno)'}`);
     }
     console.log('🛡️  Capas de seguridad activas (Helmet, RateLimit, Sanitize)');
-    startSessionGenerationCron();
-    startPaymentGenerationCron();
-    startOverduePaymentsCron();
-    startPaymentRemindersCron();
+    try {
+        startSessionGenerationCron();
+        startPaymentGenerationCron();
+        startOverduePaymentsCron();
+        startPaymentRemindersCron();
+    } catch (err) {
+        captureException(err, { area: 'cron_start' });
+        console.error('[Club-Backend] Error iniciando crons:', err.message);
+    }
 });

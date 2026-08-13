@@ -1,8 +1,9 @@
-// App.js
-import 'react-native-gesture-handler'; // <-- ESTO DEBE SER OBLIGATORIAMENTE LA PRIMERA LÍNEA
+import 'react-native-gesture-handler';
 import './src/services/pushNotifications';
+import * as Sentry from '@sentry/react-native';
+import Constants from 'expo-constants';
 import React from 'react';
-import { GestureHandlerRootView } from 'react-native-gesture-handler'; // <-- NUEVO IMPORT
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ClubProvider } from './src/context/ClubContext';
 import { BadgeProvider } from './src/context/BadgeContext';
@@ -11,9 +12,22 @@ import { ThemeProvider } from './src/context/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import AndroidSystemChrome from './src/components/AndroidSystemChrome';
 
-export default function App() {
+const sentryDsn =
+  process.env.EXPO_PUBLIC_SENTRY_DSN ||
+  Constants.expoConfig?.extra?.sentryDsn ||
+  '';
+
+if (sentryDsn) {
+  Sentry.init({
+    dsn: sentryDsn,
+    environment: process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT || (__DEV__ ? 'development' : 'production'),
+    tracesSampleRate: 0.1,
+    enableAutoSessionTracking: true,
+  });
+}
+
+function App() {
   return (
-    // Envolvemos todo para que el celular reconozca cuando deslizamos el dedo
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider>
@@ -30,3 +44,5 @@ export default function App() {
     </GestureHandlerRootView>
   );
 }
+
+export default sentryDsn ? Sentry.wrap(App) : App;

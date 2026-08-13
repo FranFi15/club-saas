@@ -82,9 +82,17 @@ const scanClubEntryQr = asyncHandler(async (req, res) => {
 
     const warnings = [];
     if (member.estado === 'inactivo') {
-        warnings.push('El usuario está inactivo en el sistema.');
-    } else if (member.estado === 'moroso') {
+        res.status(403);
+        throw new Error('El usuario está inactivo y no puede ingresar.');
+    }
+    if (member.estado === 'moroso') {
         warnings.push('El usuario figura como moroso.');
+    }
+
+    const alreadyUsed = await ClubEntry.findOne({ tokenNonce: parsed.nonce }).select('_id').lean();
+    if (alreadyUsed) {
+        res.status(409);
+        throw new Error('Este QR ya fue utilizado. Pedile al socio que actualice su pantalla.');
     }
 
     const recentCutoff = new Date(Date.now() - DUPLICATE_WINDOW_MS);
@@ -98,12 +106,21 @@ const scanClubEntryQr = asyncHandler(async (req, res) => {
 
     const duplicate = !!recent;
 
-    const entry = await ClubEntry.create({
-        user: member._id,
-        scannedBy: req.user._id,
-        tokenNonce: parsed.nonce,
-        duplicate,
-    });
+    let entry;
+    try {
+        entry = await ClubEntry.create({
+            user: member._id,
+            scannedBy: req.user._id,
+            tokenNonce: parsed.nonce,
+            duplicate,
+        });
+    } catch (e) {
+        if (e?.code === 11000) {
+            res.status(409);
+            throw new Error('Este QR ya fue utilizado. Pedile al socio que actualice su pantalla.');
+        }
+        throw e;
+    }
 
     res.json({
         ok: true,

@@ -4,14 +4,22 @@ import crypto from 'crypto';
 export const CLUB_ENTRY_TOKEN_TTL_MS = 60 * 1000;
 
 function getSecret() {
-    const s =
-        process.env.CLUB_ENTRY_TOKEN_SECRET ||
-        process.env.JWT_SECRET ||
-        process.env.MP_OAUTH_STATE_SECRET;
-    if (!s || !String(s).trim()) {
+    const dedicated = process.env.CLUB_ENTRY_TOKEN_SECRET?.trim();
+    if (dedicated) return dedicated;
+
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error('Falta CLUB_ENTRY_TOKEN_SECRET para los QR de ingreso.');
+    }
+
+    const fallback =
+        process.env.JWT_SECRET?.trim() || process.env.MP_OAUTH_STATE_SECRET?.trim();
+    if (!fallback) {
         throw new Error('Falta CLUB_ENTRY_TOKEN_SECRET o JWT_SECRET para los QR de ingreso.');
     }
-    return String(s).trim();
+    console.warn(
+        '[club-entry] Usando secreto de fallback en desarrollo; configurá CLUB_ENTRY_TOKEN_SECRET.',
+    );
+    return fallback;
 }
 
 /**
@@ -19,7 +27,7 @@ function getSecret() {
  */
 export function buildClubEntryToken(clubIdentifier, userId) {
     const exp = Date.now() + CLUB_ENTRY_TOKEN_TTL_MS;
-    const nonce = crypto.randomBytes(8).toString('hex');
+    const nonce = crypto.randomBytes(16).toString('hex');
     const inner = JSON.stringify({
         club: String(clubIdentifier),
         uid: String(userId),
