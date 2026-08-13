@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useState } from 'react';
+import React, { useCallback, useContext, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  TextInput,
   StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,6 +22,14 @@ import UserAvatar from '../../components/UserAvatar';
 import { clubApi } from '../../utils/api';
 import { chatHeaders, displayName, formatChatTime, isAdminChatRole, rolLabel } from './chatHelpers';
 
+function conversationSearchText(item) {
+  const isGroup = item.kind === 'category_group';
+  const other = item.otherUser;
+  const name = isGroup ? item.title || 'Chat de categoría' : displayName(other);
+  const role = isGroup ? 'grupo' : isAdminChatRole(other?.rol) ? 'administración' : rolLabel(other?.rol);
+  return `${name} ${role} ${item.lastMessagePreview || ''}`.toLowerCase();
+}
+
 export default function ChatInboxScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
@@ -29,6 +38,7 @@ export default function ChatInboxScreen({ navigation }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [query, setQuery] = useState('');
 
   const load = useCallback(async () => {
     if (!clubData?.urlIdentifier) return;
@@ -50,6 +60,12 @@ export default function ChatInboxScreen({ navigation }) {
       refresh?.();
     }, [load, refresh]),
   );
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((item) => conversationSearchText(item).includes(q));
+  }, [rows, query]);
 
   const openThread = (item) => {
     navigation.navigate('ChatThread', {
@@ -117,6 +133,8 @@ export default function ChatInboxScreen({ navigation }) {
     );
   };
 
+  const emptyFiltered = query.trim().length > 0;
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
@@ -137,14 +155,44 @@ export default function ChatInboxScreen({ navigation }) {
           </TouchableOpacity>
         }
       />
+      <View style={styles.searchWrap}>
+        <View
+          style={[
+            styles.searchBox,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          <Ionicons name="search-outline" size={18} color={theme.textMuted} />
+          <TextInput
+            style={[styles.search, { color: theme.text }]}
+            placeholder="Buscar chats…"
+            placeholderTextColor={theme.textMuted}
+            value={query}
+            onChangeText={setQuery}
+            autoCorrect={false}
+            autoCapitalize="none"
+            clearButtonMode="while-editing"
+          />
+          {query.length > 0 ? (
+            <TouchableOpacity
+              onPress={() => setQuery('')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel="Limpiar búsqueda"
+            >
+              <Ionicons name="close-circle" size={18} color={theme.textMuted} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </View>
       {loading ? (
         <ActivityIndicator style={{ marginTop: 32 }} color={colorMarca} />
       ) : (
         <FlatList
-          data={rows}
+          data={filtered}
           keyExtractor={(item) => String(item._id)}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -157,10 +205,18 @@ export default function ChatInboxScreen({ navigation }) {
           }
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Ionicons name="chatbubbles-outline" size={40} color={theme.textMuted} />
-              <Text style={[styles.emptyTitle, { color: theme.text }]}>Todavía no hay chats</Text>
+              <Ionicons
+                name={emptyFiltered ? 'search-outline' : 'chatbubbles-outline'}
+                size={40}
+                color={theme.textMuted}
+              />
+              <Text style={[styles.emptyTitle, { color: theme.text }]}>
+                {emptyFiltered ? 'Sin resultados' : 'Todavía no hay chats'}
+              </Text>
               <Text style={[styles.emptySub, { color: theme.textMuted }]}>
-                Tocá el ícono de arriba a la derecha para iniciar una conversación.
+                {emptyFiltered
+                  ? 'Probá con otro nombre, rol o texto del último mensaje.'
+                  : 'Tocá el ícono de arriba a la derecha para iniciar una conversación.'}
               </Text>
             </View>
           }
@@ -172,6 +228,17 @@ export default function ChatInboxScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  searchWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  search: { flex: 1, fontSize: 15, padding: 0 },
   list: { padding: 16, paddingBottom: 40 },
   row: {
     flexDirection: 'row',

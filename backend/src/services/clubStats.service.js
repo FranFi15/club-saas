@@ -6,11 +6,9 @@ const GESTION_ROLES = ['admin_club', 'administrativo', 'control_ingreso'];
 
 function ageBand(edad) {
     if (edad === null || edad === undefined) return 'sinFecha';
-    if (edad < 12) return 'lt12';
-    if (edad <= 17) return '12_17';
-    if (edad <= 25) return '18_25';
-    if (edad <= 35) return '26_35';
-    return '36_plus';
+    if (edad <= 10) return 'lte10';
+    if (edad >= 11 && edad <= 18) return String(edad);
+    return 'gte19';
 }
 
 function idStr(v) {
@@ -125,11 +123,16 @@ export async function buildClubStats(models, adminUserId) {
 
     const sexo = { M: 0, F: 0, sinDato: 0 };
     const edad = {
-        lt12: 0,
-        '12_17': 0,
-        '18_25': 0,
-        '26_35': 0,
-        '36_plus': 0,
+        lte10: 0,
+        11: 0,
+        12: 0,
+        13: 0,
+        14: 0,
+        15: 0,
+        16: 0,
+        17: 0,
+        18: 0,
+        gte19: 0,
         sinFecha: 0,
     };
 
@@ -139,7 +142,8 @@ export async function buildClubStats(models, adminUserId) {
         else sexo.sinDato += 1;
 
         const band = ageBand(calcEdad(a.fechaNacimiento));
-        edad[band] += 1;
+        if (Object.prototype.hasOwnProperty.call(edad, band)) edad[band] += 1;
+        else edad.sinFecha += 1;
     }
 
     const staffTotal = staffCounts.reduce((s, r) => s + r.count, 0);
