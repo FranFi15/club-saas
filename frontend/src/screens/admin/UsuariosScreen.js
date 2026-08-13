@@ -216,8 +216,8 @@ export default function UsuariosScreen({ navigation }) {
 
   const handleDelete = (item) => {
     showAlert(
-      `Dar de Baja a ${item.nombre}`,
-      `¿Estás seguro de que deseas desactivar a ${item.nombre} ${item.apellido}?`,
+      `Dar de baja a ${item.nombre}`,
+      `¿Querés desactivar a ${item.nombre} ${item.apellido}? Podés volver a activarlo después.`,
       {
         showCancel: true,
         isDanger: true,

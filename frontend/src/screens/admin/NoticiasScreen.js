@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, Image, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, Image, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -254,7 +254,7 @@ export default function NoticiasScreen({ navigation, route }) {
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') return showAlert('Permiso', 'Se necesita acceso a la galería.');
+    if (status !== 'granted') return showAlert('Permiso', 'Necesitamos acceso a tus fotos para continuar.');
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
@@ -351,7 +351,7 @@ export default function NoticiasScreen({ navigation, route }) {
 
   const confirmDelete = (id) => {
     setAlertConfig({
-      visible:true, title:'Eliminar Noticia', message:'¿Eliminar esta noticia?',
+      visible:true, title:'Quitar noticia', message:'¿Querés quitar esta noticia del muro?',
       showCancel:true, isDanger:true, confirmText:'Eliminar', cancelText:'Cancelar',
       onConfirm: async () => {
         setAlertConfig(p=>({...p,visible:false}));
@@ -554,6 +554,7 @@ export default function NoticiasScreen({ navigation, route }) {
 
       {/* Modal de creación */}
       <Modal visible={isModalVisible} animationType="slide" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent,{backgroundColor:theme.surface}]}>
             <View style={styles.modalHeader}>
@@ -823,6 +824,7 @@ export default function NoticiasScreen({ navigation, route }) {
             </ScrollView>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal

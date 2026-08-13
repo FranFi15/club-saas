@@ -20,7 +20,7 @@ export default function CoachRequestDocScreen({ navigation }) {
         theme={theme}
         kicker="Documentación"
         title="Pedir documentación"
-        subtitle="Los atletas recibirán un aviso y podrán subir el archivo"
+        subtitle="Se envía por chat (grupal o personal) y queda en Documentación"
         onBack={() => navigation.goBack()}
       />
 

@@ -1,7 +1,8 @@
 import React, { useState, useContext, useCallback, useMemo, useEffect } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, TouchableOpacity, 
-  ActivityIndicator, StatusBar, Modal, TextInput, RefreshControl, ScrollView
+  ActivityIndicator, StatusBar, Modal, TextInput, RefreshControl, ScrollView,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -254,7 +255,7 @@ export default function EspaciosFisicosScreen({ navigation }) {
   };
 
   const handleSaveSpace = async () => {
-    if (!formData.nombre.trim()) return showAlert('Error', 'El nombre es requerido');
+    if (!formData.nombre.trim()) return showAlert('Error', 'Poné un nombre para el espacio.');
     
     setIsSaving(true);
     try {
@@ -399,6 +400,7 @@ export default function EspaciosFisicosScreen({ navigation }) {
 
       {/* MODAL CREAR / EDITAR */}
       <Modal visible={isModalVisible} animationType="slide" transparent={true}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
            <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
               <View style={styles.modalHeader}>
@@ -407,7 +409,8 @@ export default function EspaciosFisicosScreen({ navigation }) {
                     <Ionicons name="close" size={28} color={theme.icon} />
                  </TouchableOpacity>
               </View>
-              
+
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <Text style={[styles.label, { color: theme.textMuted }]}>Nombre del Espacio *</Text>
               <TextInput style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
                  placeholder="Ej: Cancha 1" placeholderTextColor={theme.textMuted}
@@ -440,14 +443,18 @@ export default function EspaciosFisicosScreen({ navigation }) {
               <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colorMarca, marginTop: 20 }]} onPress={handleSaveSpace} disabled={isSaving}>
                 {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Guardar</Text>}
               </TouchableOpacity>
+              </ScrollView>
            </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* MODAL ESTADO */}
       <Modal visible={statusModalVisible} animationType="fade" transparent={true}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={styles.modalOverlayCenter}>
            <View style={[styles.modalContentCenter, { backgroundColor: theme.surface }]}>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <Text style={[styles.modalTitle, { color: theme.text, textAlign: 'center', marginBottom: 5 }]}>Cambiar Estado</Text>
               <Text style={{ color: theme.textMuted, textAlign: 'center', marginBottom: 20 }}>{selectedSpaceForStatus?.nombre}</Text>
 
@@ -487,8 +494,10 @@ export default function EspaciosFisicosScreen({ navigation }) {
               <TouchableOpacity style={{ marginTop: 15, padding: 10 }} onPress={() => setStatusModalVisible(false)}>
                 <Text style={{ color: theme.textMuted, textAlign: 'center', fontWeight: 'bold' }}>Cancelar</Text>
               </TouchableOpacity>
+              </ScrollView>
            </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={sessionActionModalVisible} animationType="slide" transparent>

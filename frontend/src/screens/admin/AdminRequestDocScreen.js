@@ -20,7 +20,7 @@ export default function AdminRequestDocScreen({ navigation }) {
         theme={theme}
         kicker="Documentación"
         title="Pedir documentación"
-        subtitle="Podés solicitar archivos a cualquier miembro del club"
+        subtitle="Se envía por chat (grupal o personal) y queda en Documentación"
         onBack={() => navigation.goBack()}
       />
 

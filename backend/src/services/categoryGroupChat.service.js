@@ -1,5 +1,5 @@
 /**
- * Chat grupal por categoría: profesores + preparadores + atletas activos.
+ * Chat grupal por categoría: staff de la categoría + atletas activos.
  * Se crea/sincroniza cuando `chatGrupalCategoriaEnabled` está activo.
  */
 
@@ -12,6 +12,8 @@ async function resolveMemberIds(models, category) {
     const set = new Set();
     for (const id of category.profesores || []) set.add(idStr(id));
     for (const id of category.preparadoresFisicos || []) set.add(idStr(id));
+    for (const id of category.nutricionistas || []) set.add(idStr(id));
+    for (const id of category.psicologos || []) set.add(idStr(id));
 
     const athleteIds = await Enrollment.find({
         categoria: category._id,
@@ -39,7 +41,9 @@ export async function syncCategoryGroupChat(models, categoryId) {
     if (!Category || !ChatConversation || !categoryId) return null;
 
     const category = await Category.findById(categoryId)
-        .select('nombre profesores preparadoresFisicos chatGrupalCategoriaEnabled')
+        .select(
+            'nombre profesores preparadoresFisicos nutricionistas psicologos chatGrupalCategoriaEnabled',
+        )
         .lean();
     if (!category) return null;
 

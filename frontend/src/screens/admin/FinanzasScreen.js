@@ -498,9 +498,9 @@ export default function FinanzasScreen({ route }) {
     const monto = parseFloat(String(planMonto).replace(',', '.'));
     const dia = parseInt(planDiaVenc, 10);
     const recargo = parseInt(planRecargoPct, 10);
-    if (!nombre) return showAlert('Error', 'El nombre es obligatorio.');
-    if (isNaN(monto) || monto < 0) return showAlert('Error', 'Monto inválido.');
-    if (isNaN(dia) || dia < 1 || dia > 28) return showAlert('Error', 'Día de vencimiento entre 1 y 28.');
+    if (!nombre) return showAlert('Error', 'Poné un nombre para el plan.');
+    if (isNaN(monto) || monto < 0) return showAlert('Error', 'Revisá el monto.');
+    if (isNaN(dia) || dia < 1 || dia > 28) return showAlert('Error', 'El día de vencimiento tiene que estar entre 1 y 28.');
     if (isNaN(recargo) || recargo < 0 || recargo > 100) {
       return showAlert('Error', 'Recargo por vencimiento: porcentaje entre 0 y 100.');
     }
@@ -535,7 +535,7 @@ export default function FinanzasScreen({ route }) {
     setAlertConfig({
       visible: true,
       title: 'Archivar plan',
-      message: `¿Archivar "${plan.nombre}"? No se podrá asignar a nuevas inscripciones.`,
+      message: `¿Archivamos "${plan.nombre}"? No se va a asignar a inscripciones nuevas.`,
       showCancel: true,
       isDanger: true,
       confirmText: 'Archivar',
@@ -792,7 +792,7 @@ export default function FinanzasScreen({ route }) {
     setAlertConfig({
       visible: true,
       title: 'Generar cuotas',
-      message: `¿Generar las cuotas de ${MN[mes - 1]} ${anio} para todas las inscripciones activas con plan? Las que ya existen se omiten.`,
+      message: `¿Generamos las cuotas de ${MN[mes - 1]} ${anio} para las inscripciones activas con plan? Las que ya están creadas se dejan como están.`,
       showCancel: true,
       confirmText: 'Generar',
       onConfirm: async () => {
@@ -826,7 +826,7 @@ export default function FinanzasScreen({ route }) {
     setAlertConfig({
       visible: true,
       title: 'Chequear vencidos',
-      message: '¿Marcar como vencidas las cuotas pendientes cuya fecha de vencimiento ya pasó? Se aplica el recargo del plan si corresponde.',
+      message: '¿Marcamos como vencidas las cuotas pendientes cuya fecha ya pasó? Si el plan tiene recargo, se aplica.',
       showCancel: true,
       confirmText: 'Chequear',
       onConfirm: async () => {

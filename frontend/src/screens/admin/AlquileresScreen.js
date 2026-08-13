@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, RefreshControl, Platform, Linking } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, RefreshControl, Platform, Linking, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
@@ -347,7 +347,7 @@ export default function AlquileresScreen({ navigation }) {
 
   const handleSaveRental = async () => {
     if (!formData.nombreCliente || !formData.telefonoCliente || !formData.horaInicio || !formData.horaFin || !formData.montoTotal)
-      return showAlert('Error','Todos los campos son obligatorios.');
+      return showAlert('Error','Completá todos los campos para seguir.');
     if (!isValidTimeHHMM(formData.horaInicio) || !isValidTimeHHMM(formData.horaFin))
       return showAlert('Error','Usá horarios en formato HH:MM (24 h).');
     if (!(formData.horaInicio < formData.horaFin))
@@ -390,8 +390,8 @@ export default function AlquileresScreen({ navigation }) {
   const handleDeleteRental = (rental, embedded = false) => {
     setRentalAlert({
       visible: true,
-      title: 'Cancelar Alquiler',
-      message: `¿Cancelar la reserva de ${rental.nombreCliente}?\nSe liberará el horario. El registro y los cobros se conservan.`,
+      title: 'Cancelar reserva',
+      message: `¿Cancelamos la reserva de ${rental.nombreCliente}? El horario queda libre y se conservan el registro y los cobros.`,
       showCancel: true,
       isDanger: true,
       confirmText: 'Cancelar Reserva',
@@ -778,60 +778,62 @@ export default function AlquileresScreen({ navigation }) {
 
       {/* New Rental Modal */}
       <Modal visible={isModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>Nuevo Alquiler</Text>
-              <TouchableOpacity onPress={()=>setIsModalVisible(false)}><Ionicons name="close" size={28} color={theme.icon}/></TouchableOpacity>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>Nuevo Alquiler</Text>
+                <TouchableOpacity onPress={()=>setIsModalVisible(false)}><Ionicons name="close" size={28} color={theme.icon}/></TouchableOpacity>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <Text style={{ color: cc, fontWeight: 'bold', marginBottom: 15 }}>
+                  Fecha: {formatJsDateToDisplay(selectedDate)} — {isoCalendarWeekday(selectedDate, { style: 'long' }) || dayName}
+                </Text>
+                <Text style={[styles.label,{color:theme.textMuted}]}>Nombre del Cliente</Text>
+                <TextInput style={[styles.input,{backgroundColor:theme.background,borderColor:theme.border,color:theme.text}]}
+                  placeholder="Ej: Juan Pérez" placeholderTextColor={theme.textMuted}
+                  value={formData.nombreCliente} onChangeText={v=>setFormData({...formData,nombreCliente:v})} />
+                <Text style={[styles.label,{color:theme.textMuted}]}>Teléfono</Text>
+                <TextInput style={[styles.input,{backgroundColor:theme.background,borderColor:theme.border,color:theme.text}]}
+                  placeholder="Ej: 1123456789" placeholderTextColor={theme.textMuted} keyboardType="phone-pad"
+                  value={formData.telefonoCliente} onChangeText={v=>setFormData({...formData,telefonoCliente:v})} />
+                <View style={styles.row}>
+                  <View style={{flex:1,marginRight:10}}>
+                    <Text style={[styles.label,{color:theme.textMuted}]}>Hora Inicio</Text>
+                    <TextInput style={[styles.input,{backgroundColor:theme.background,borderColor:theme.border,color:theme.text}]}
+                      placeholder="18:00" placeholderTextColor={theme.textMuted}
+                      keyboardType="number-pad" maxLength={5}
+                      value={formData.horaInicio} onChangeText={v=>setFormData({...formData,horaInicio:maskTimeHHMM(v)})} />
+                  </View>
+                  <View style={{flex:1}}>
+                    <Text style={[styles.label,{color:theme.textMuted}]}>Hora Fin</Text>
+                    <TextInput style={[styles.input,{backgroundColor:theme.background,borderColor:theme.border,color:theme.text}]}
+                      placeholder="19:00" placeholderTextColor={theme.textMuted}
+                      keyboardType="number-pad" maxLength={5}
+                      value={formData.horaFin} onChangeText={v=>setFormData({...formData,horaFin:maskTimeHHMM(v)})} />
+                  </View>
+                </View>
+                <View style={styles.row}>
+                  <View style={{flex:1,marginRight:10}}>
+                    <Text style={[styles.label,{color:theme.textMuted}]}>Monto Total ($)</Text>
+                    <TextInput style={[styles.input,{backgroundColor:theme.background,borderColor:theme.border,color:theme.text}]}
+                      placeholder="10000" placeholderTextColor={theme.textMuted} keyboardType="numeric"
+                      value={formData.montoTotal} onChangeText={v=>setFormData({...formData,montoTotal:v})} />
+                  </View>
+                  <View style={{flex:1}}>
+                    <Text style={[styles.label,{color:theme.textMuted}]}>Seña Pagada ($)</Text>
+                    <TextInput style={[styles.input,{backgroundColor:theme.background,borderColor:theme.border,color:theme.text}]}
+                      placeholder="0" placeholderTextColor={theme.textMuted} keyboardType="numeric"
+                      value={formData.señaPagada} onChangeText={v=>setFormData({...formData,señaPagada:v})} />
+                  </View>
+                </View>
+                <TouchableOpacity style={[styles.saveBtn,{backgroundColor:'#10b981',marginTop:15}]} onPress={handleSaveRental} disabled={isSaving}>
+                  {isSaving ? <ActivityIndicator color="#fff"/> : <Text style={styles.saveBtnText}>Confirmar Reserva</Text>}
+                </TouchableOpacity>
+              </ScrollView>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={{ color: cc, fontWeight: 'bold', marginBottom: 15 }}>
-                Fecha: {formatJsDateToDisplay(selectedDate)} — {isoCalendarWeekday(selectedDate, { style: 'long' }) || dayName}
-              </Text>
-              <Text style={[styles.label,{color:theme.textMuted}]}>Nombre del Cliente</Text>
-              <TextInput style={[styles.input,{backgroundColor:theme.background,borderColor:theme.border,color:theme.text}]}
-                placeholder="Ej: Juan Pérez" placeholderTextColor={theme.textMuted}
-                value={formData.nombreCliente} onChangeText={v=>setFormData({...formData,nombreCliente:v})} />
-              <Text style={[styles.label,{color:theme.textMuted}]}>Teléfono</Text>
-              <TextInput style={[styles.input,{backgroundColor:theme.background,borderColor:theme.border,color:theme.text}]}
-                placeholder="Ej: 1123456789" placeholderTextColor={theme.textMuted} keyboardType="phone-pad"
-                value={formData.telefonoCliente} onChangeText={v=>setFormData({...formData,telefonoCliente:v})} />
-              <View style={styles.row}>
-                <View style={{flex:1,marginRight:10}}>
-                  <Text style={[styles.label,{color:theme.textMuted}]}>Hora Inicio</Text>
-                  <TextInput style={[styles.input,{backgroundColor:theme.background,borderColor:theme.border,color:theme.text}]}
-                    placeholder="18:00" placeholderTextColor={theme.textMuted}
-                    keyboardType="number-pad" maxLength={5}
-                    value={formData.horaInicio} onChangeText={v=>setFormData({...formData,horaInicio:maskTimeHHMM(v)})} />
-                </View>
-                <View style={{flex:1}}>
-                  <Text style={[styles.label,{color:theme.textMuted}]}>Hora Fin</Text>
-                  <TextInput style={[styles.input,{backgroundColor:theme.background,borderColor:theme.border,color:theme.text}]}
-                    placeholder="19:00" placeholderTextColor={theme.textMuted}
-                    keyboardType="number-pad" maxLength={5}
-                    value={formData.horaFin} onChangeText={v=>setFormData({...formData,horaFin:maskTimeHHMM(v)})} />
-                </View>
-              </View>
-              <View style={styles.row}>
-                <View style={{flex:1,marginRight:10}}>
-                  <Text style={[styles.label,{color:theme.textMuted}]}>Monto Total ($)</Text>
-                  <TextInput style={[styles.input,{backgroundColor:theme.background,borderColor:theme.border,color:theme.text}]}
-                    placeholder="10000" placeholderTextColor={theme.textMuted} keyboardType="numeric"
-                    value={formData.montoTotal} onChangeText={v=>setFormData({...formData,montoTotal:v})} />
-                </View>
-                <View style={{flex:1}}>
-                  <Text style={[styles.label,{color:theme.textMuted}]}>Seña Pagada ($)</Text>
-                  <TextInput style={[styles.input,{backgroundColor:theme.background,borderColor:theme.border,color:theme.text}]}
-                    placeholder="0" placeholderTextColor={theme.textMuted} keyboardType="numeric"
-                    value={formData.señaPagada} onChangeText={v=>setFormData({...formData,señaPagada:v})} />
-                </View>
-              </View>
-              <TouchableOpacity style={[styles.saveBtn,{backgroundColor:'#10b981',marginTop:15}]} onPress={handleSaveRental} disabled={isSaving}>
-                {isSaving ? <ActivityIndicator color="#fff"/> : <Text style={styles.saveBtnText}>Confirmar Reserva</Text>}
-              </TouchableOpacity>
-            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Rental Detail Bottom Sheet (MP cobro vive acá — no apilar otro Modal) */}
@@ -842,6 +844,7 @@ export default function AlquileresScreen({ navigation }) {
         presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
         onRequestClose={closeDetailRental}
       >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
             {detailRental && (
@@ -1131,6 +1134,7 @@ export default function AlquileresScreen({ navigation }) {
             )}
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
 

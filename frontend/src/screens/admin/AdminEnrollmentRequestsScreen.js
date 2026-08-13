@@ -100,7 +100,7 @@ export default function AdminEnrollmentRequestsScreen({ navigation }) {
   };
 
   const confirmReject = (item) => {
-    showAlert('Rechazar solicitud', '¿Confirmás que no se inscriben estos atletas?', {
+    showAlert('Rechazar solicitud', '¿Confirmás que estos atletas no se inscriben?', {
       showCancel: true,
       confirmText: 'Rechazar',
       onConfirm: () => {

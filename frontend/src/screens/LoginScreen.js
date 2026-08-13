@@ -128,7 +128,7 @@ export default function LoginScreen({ navigation }) {
     const emailValue = (emailValueRef.current || email).trim();
     const passwordValue = passwordValueRef.current || password;
     if (!emailValue || !passwordValue) {
-      showAlert('Atención', 'Por favor completá tu email y contraseña.');
+      showAlert('Atención', 'Completá tu email y contraseña para entrar.');
       return;
     }
 
@@ -143,7 +143,7 @@ export default function LoginScreen({ navigation }) {
 
       const { token, refreshToken, rol, nombre, apellido, _id, fotoPerfil } = response.data;
       if (!token || !refreshToken) {
-        showAlert('Error', 'El servidor no devolvió tokens de sesión. Reiniciá el backend.');
+        showAlert('Error', 'No pudimos iniciar la sesión. Probá de nuevo en un momento.');
         return;
       }
 
@@ -169,7 +169,7 @@ export default function LoginScreen({ navigation }) {
     } catch (error) {
       console.log('Error de Axios:', error.message);
       console.log('Respuesta del servidor:', error.response?.data);
-      showAlert('Acceso denegado', error.response?.data?.message || 'Error de conexión.');
+      showAlert('No pudimos entrar', error.response?.data?.message || 'Revisá tu conexión e intentá de nuevo.');
     } finally {
       setIsLoading(false);
       loginLockRef.current = false;

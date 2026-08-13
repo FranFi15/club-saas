@@ -11,6 +11,8 @@ import {
   Switch,
   Modal,
   Pressable,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -737,7 +739,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
   const confirmReopenSession = () => {
     showAlert(
       'Reabrir sesión',
-      'La sesión volverá a estar abierta y se borrarán los tiempos por bloque. Se mantienen el plan de entrenamiento y la asistencia. ¿Continuar?',
+      'La sesión vuelve a quedar abierta y se borran los tiempos por bloque. El plan y la asistencia se mantienen. ¿Seguimos?',
       {
         showCancel: true,
         onConfirm: () => {
@@ -764,7 +766,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
 
   const finishTraining = () => {
     if (completed) return;
-    showAlert('Finalizar', '¿Guardar tiempos por bloque y marcar la sesión como completada?', {
+    showAlert('Finalizar', '¿Guardamos los tiempos y cerramos la sesión?', {
       showCancel: true,
       onConfirm: () => {
         (async () => {
@@ -810,7 +812,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
 
     const finishConsulta = () => {
       if (completed) return;
-      showAlert('Finalizar', '¿Marcar esta consulta como realizada?', {
+      showAlert('Finalizar', '¿Marcamos esta consulta como realizada?', {
         showCancel: true,
         onConfirm: () => {
           (async () => {
@@ -1111,6 +1113,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
         transparent
         onRequestClose={() => setSessionMetaOpen(false)}
       >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={styles.metaModalRoot}>
           <Pressable style={styles.metaModalBackdrop} onPress={() => setSessionMetaOpen(false)} />
           <View style={[styles.metaModalSheet, { backgroundColor: theme.background, borderColor: theme.border }]}>
@@ -1279,6 +1282,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
             </ScrollView>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <View style={[styles.tabBar, { borderBottomColor: theme.border, backgroundColor: theme.surface }]}>

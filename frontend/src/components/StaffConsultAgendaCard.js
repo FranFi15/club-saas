@@ -136,7 +136,7 @@ export default function StaffConsultAgendaCard({
   };
 
   const confirmCancel = () => {
-    showAlert('Eliminar sesión', '¿Cancelar esta consulta? Se pedirá un comunicado para avisar al atleta.', {
+    showAlert('Cancelar consulta', '¿Cancelamos esta consulta? Después vas a poder avisar al atleta con un comunicado.', {
       showCancel: true,
       isDanger: true,
       confirmText: 'Continuar',

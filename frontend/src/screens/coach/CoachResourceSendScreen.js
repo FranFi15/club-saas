@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   StatusBar,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
@@ -149,7 +151,7 @@ export default function CoachResourceSendScreen({ navigation }) {
   const pickMedia = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      showAlert('Permiso', 'Se necesita acceso a la galería.');
+      showAlert('Permiso', 'Necesitamos acceso a tus fotos para continuar.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -245,11 +247,20 @@ export default function CoachResourceSendScreen({ navigation }) {
         theme={theme}
         kicker="Material"
         title={userRol === 'nutricionista' ? 'Enviar PDF o material' : 'Enviar recurso'}
-        subtitle={clubData?.nombre || 'Tu club'}
+        subtitle="Se envía por chat (grupal o personal)"
         onBack={() => navigation.goBack()}
       />
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+      >
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+      >
         <Text style={[styles.label, { color: theme.text }]}>Título</Text>
         <TextInput style={inputStyle} value={titulo} onChangeText={setTitulo} placeholder="Ej. Video táctico rival" placeholderTextColor={theme.textMuted} />
 
@@ -300,6 +311,11 @@ export default function CoachResourceSendScreen({ navigation }) {
             </TouchableOpacity>
           ))}
         </View>
+        <Text style={[styles.hint, { color: theme.textMuted }]}>
+          {alcance === 'categoria'
+            ? 'Va al chat grupal de la categoría. Si no está activo, se manda uno por uno (o al tutor).'
+            : 'Va al chat personal. Si el atleta no tiene chat habilitado, se envía al tutor.'}
+        </Text>
 
         {alcance === 'categoria' ? (
           <>
@@ -440,6 +456,7 @@ export default function CoachResourceSendScreen({ navigation }) {
           {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnTxt}>Enviar recurso</Text>}
         </TouchableOpacity>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

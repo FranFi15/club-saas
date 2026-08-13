@@ -174,8 +174,8 @@ export default function CategoriasScreen({ navigation, route }) {
   // ==========================================
   const handleDelete = (item) => {
     showAlert(
-      "Eliminar Categoría",
-      `¿Estás seguro de que querés eliminar "${item.nombre}"?`,
+      "Quitar categoría",
+      `¿Querés quitar "${item.nombre}"?`,
       {
         showCancel: true,
         isDanger: true,

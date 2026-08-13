@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   StatusBar,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ClubContext } from '../../context/ClubContext';
@@ -253,7 +255,16 @@ export default function CoachNewSessionScreen({ navigation }) {
       {showInitialLoader ? (
         <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+        >
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+        >
           {!soloEntrenamientoPf ? (
             <>
               <Text style={[styles.label, { color: theme.textMuted }]}>Tipo</Text>
@@ -467,6 +478,7 @@ export default function CoachNewSessionScreen({ navigation }) {
             </Text>
           </TouchableOpacity>
         </ScrollView>
+        </KeyboardAvoidingView>
       )}
     </SafeAreaView>
   );

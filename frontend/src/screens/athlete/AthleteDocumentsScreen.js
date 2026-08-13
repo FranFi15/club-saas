@@ -147,7 +147,7 @@ export default function AthleteDocumentsScreen({ navigation }) {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        showAlert('Permiso', 'Se necesita acceso a la galería.');
+        showAlert('Permiso', 'Necesitamos acceso a tus fotos para continuar.');
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({

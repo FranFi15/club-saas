@@ -11,6 +11,8 @@ import {
   TextInput,
   ScrollView,
   RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
@@ -210,6 +212,7 @@ export default function ComprobantesReviewTab({ clubData, theme, primaryColor, g
       </Modal>
 
       <Modal visible={!!rejectGroup} transparent animationType="fade" onRequestClose={() => setRejectGroup(null)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={styles.viewerOverlay}>
           <View style={[styles.rejectSheet, { backgroundColor: theme.surface }]}>
             <Text style={[styles.rejectTitle, { color: theme.text }]}>Rechazar comprobante</Text>
@@ -246,6 +249,7 @@ export default function ComprobantesReviewTab({ clubData, theme, primaryColor, g
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );

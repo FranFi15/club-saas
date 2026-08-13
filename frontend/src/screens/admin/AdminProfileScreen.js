@@ -165,7 +165,7 @@ export default function AdminProfileScreen({ navigation }) {
   const mpStatusLabel = clubMpLinked
     ? `Conectado${integration.maskedSuffix ? ` ${integration.maskedSuffix}` : ''}`
     : integration.envFallbackActive
-      ? 'Usando token global del servidor'
+      ? 'Conectado de forma temporal'
       : 'Sin vincular';
 
   const showInitialLoader = loading && !profile;
@@ -178,12 +178,9 @@ export default function AdminProfileScreen({ navigation }) {
 
   const startMercadoPagoOAuth = async () => {
     if (!integration.oauthReady) {
-      const missing = integration.oauthSetup?.missing?.length
-        ? `\n\nFalta en el servidor: ${integration.oauthSetup.missing.join(', ')}`
-        : '';
       showAlert(
         'No disponible',
-        `Mercado Pago OAuth no está configurado en el servidor. Contactá al soporte técnico.${missing}`,
+        'Mercado Pago todavía no está listo en este club. Escribile a soporte para activarlo.',
       );
       return;
     }
@@ -195,7 +192,7 @@ export default function AdminProfileScreen({ navigation }) {
     } catch (e) {
       showAlert(
         'No se pudo iniciar la conexión',
-        e.response?.data?.message || e.message || 'Revisá la configuración del servidor o tu conexión.',
+        e.response?.data?.message || 'No pudimos abrir Mercado Pago. Revisá tu conexión e intentá de nuevo.',
       );
     } finally {
       setMpSaving(false);
@@ -335,10 +332,9 @@ export default function AdminProfileScreen({ navigation }) {
                         theme={theme}
                         isLast={integration.oauthReady}
                       />
-                      {!integration.oauthReady && integration.oauthSetup?.missing?.length ? (
+                      {!integration.oauthReady ? (
                         <Text style={[styles.mpHint, { color: theme.textMuted }]}>
-                          OAuth del servidor incompleto. Variables pendientes:{' '}
-                          {integration.oauthSetup.missing.join(', ')}
+                          Mercado Pago todavía no está listo. Escribile a soporte para activarlo.
                         </Text>
                       ) : null}
                     </>

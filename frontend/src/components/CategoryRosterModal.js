@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   StyleSheet,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../utils/api';
@@ -329,6 +331,7 @@ export default function CategoryRosterModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
       <View style={styles.overlay}>
         <View style={[styles.sheet, { backgroundColor: theme.surface }]}>
           <View style={styles.header}>
@@ -407,6 +410,7 @@ export default function CategoryRosterModal({
           )}
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

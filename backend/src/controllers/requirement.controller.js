@@ -1,5 +1,9 @@
 import asyncHandler from 'express-async-handler';
 import { createAppNotification } from '../services/appNotification.service.js';
+import {
+    deliverRequirementToChat,
+    countSuccessfulDeliveries,
+} from '../services/deliveryToChat.service.js';
 import { sortPaymentsByAtleta, sortUsersByName } from '../utils/listSort.js';
 import { parsePageLimit, paginationMeta } from '../utils/pagination.js';
 
@@ -83,7 +87,7 @@ async function assertPsicologoAtleta(userId, atletaId, Category, Enrollment) {
 // @route   POST /api/requirements
 const createRequirement = asyncHandler(async (req, res) => {
     const { titulo, descripcion, obligatorio, fechaVencimiento, alcance, targetCategoria, targetUsuario } = req.body;
-    const { Requirement, News, Category, Enrollment } = req.models;
+    const { Requirement, Category, Enrollment } = req.models;
 
     if (
         req.user.rol === 'profe' ||
@@ -172,18 +176,22 @@ const createRequirement = asyncHandler(async (req, res) => {
         creadoPor: req.user._id,
     });
 
-    await News.create({
-        titulo: `Nuevo documento requerido: ${titulo}`,
-        contenido: `Se ha solicitado la carga obligatoria de: ${titulo}. Por favor, subirlo antes de la fecha límite.`,
-        autor: req.user._id,
-        tipo: 'urgente',
-        alcance,
-        targetRoles: [],
-        targetCategorias: alcance === 'categoria' && targetCategoria ? [targetCategoria] : [],
-        targetUsuarios: alcance === 'usuario' && targetUsuario ? [targetUsuario] : [],
-    });
+    let chatDelivered = 0;
+    try {
+        const delivery = await deliverRequirementToChat(req.models, req.user, requirement);
+        chatDelivered = countSuccessfulDeliveries(delivery);
+    } catch (e) {
+        console.warn('[requirements] chat delivery:', e.message);
+    }
 
-    res.status(201).json(requirement);
+    res.status(201).json({
+        ...requirement.toObject(),
+        chatDelivered,
+        message:
+            chatDelivered > 0
+                ? 'Pedido creado y enviado por chat.'
+                : 'Pedido creado. No se pudo enviar por chat; el destinatario igual lo ve en Documentación.',
+    });
 });
 
 // @desc    Subir un documento (Atleta/Tutor)

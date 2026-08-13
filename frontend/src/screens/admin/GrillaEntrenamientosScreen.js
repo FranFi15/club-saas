@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext, useMemo, useCallback } from 're
 import { 
   View, Text, StyleSheet, FlatList, TouchableOpacity, 
   ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, RefreshControl,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -162,7 +163,7 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
 
   const handleSaveSchedule = async () => {
     if (!formData.categoria || !formData.espacio || !formData.horaInicio || !formData.horaFin || formData.diasSemana.length === 0) {
-      return showAlert('Error', 'Todos los campos son obligatorios. Elige al menos un día.');
+      return showAlert('Error', 'Todos los campos son necesarios. Elegí al menos un día.');
     }
     if (!isValidTimeHHMM(formData.horaInicio) || !isValidTimeHHMM(formData.horaFin)) {
       return showAlert('Error', 'Usá horarios en formato HH:MM (24 h), por ejemplo 18:30.');
@@ -207,7 +208,7 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
       setFormData({ ...EMPTY_FORM, vigenteHasta: defaultVigenteHastaDisplay() });
       setIsEditingId(null);
     } catch (error) {
-      showAlert('Error', error.response?.data?.message || 'No se pudo guardar el horario. Verifique que no haya choques.');
+      showAlert('Error', error.response?.data?.message || 'No se pudo guardar el horario. Revisá que no se pise con otro.');
     } finally {
       setIsSaving(false);
     }
@@ -231,7 +232,7 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
 
   const confirmDelete = (id) => {
     setAlertConfig({
-      visible: true, title: 'Eliminar Horario', message: '¿Estás seguro de eliminar este horario de la grilla?',
+      visible: true, title: 'Quitar horario', message: '¿Querés quitar este horario de la grilla?',
       showCancel: true, isDanger: true, confirmText: 'Eliminar', cancelText: 'Cancelar',
       onConfirm: async () => {
         setAlertConfig(p => ({...p, visible: false}));
@@ -389,6 +390,7 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
       )}
 
       <Modal visible={isModalVisible} animationType="slide" transparent={true}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
            <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
               <View style={styles.modalHeader}>
@@ -518,6 +520,7 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
               </ScrollView>
            </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <CustomAlert 

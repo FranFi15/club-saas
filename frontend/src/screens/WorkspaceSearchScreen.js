@@ -22,12 +22,12 @@ const IS_WEB = Platform.OS === 'web';
 function apiErrorMessage(error) {
   if (error.response?.data?.message) return error.response.data.message;
   if (error.code === 'ECONNABORTED') {
-    return 'El servidor tardó demasiado en responder. Revisá que super y backend estén corriendo.';
+    return 'Está tardando más de lo normal. Probá de nuevo en un momento.';
   }
   if (error.message === 'Network Error' || !error.response) {
-    return 'No se pudo conectar al servidor. ';
+    return 'No hay conexión ahora. Revisá tu internet e intentá otra vez.';
   }
-  return 'Verificá el código del club.';
+  return 'Revisá el código del club e intentá de nuevo.';
 }
 
 export default function WorkspaceSearchScreen({ navigation }) {
@@ -54,7 +54,7 @@ export default function WorkspaceSearchScreen({ navigation }) {
 
   const handleSearchClub = async () => {
     if (!identifier.trim()) {
-      showAlert('Atención', 'Por favor ingresá el código de tu club.');
+      showAlert('Atención', 'Ingresá el código de tu club para continuar.');
       return;
     }
     setIsLoading(true);

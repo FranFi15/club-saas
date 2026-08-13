@@ -290,8 +290,8 @@ export default function NotificationsModal({ visible, onClose }) {
   const confirmDismissAll = () => {
     setAlertConfig({
       visible: true,
-      title: 'Eliminar todas',
-      message: '¿Querés eliminar todas las notificaciones? Esta acción no se puede deshacer.',
+      title: 'Limpiar notificaciones',
+      message: '¿Querés borrar todas las notificaciones? Esta acción no se puede deshacer.',
       confirmText: 'Eliminar todas',
       showCancel: true,
       isDanger: true,

@@ -86,7 +86,7 @@ function GestionStackNavigator() {
 function FinanzasStackNavigator() {
   return (
     <FinanzasStack.Navigator screenOptions={{ headerShown: false }}>
-      <FinanzasStack.Screen name="Finanzas" component={FinanzasScreen} />
+      <FinanzasStack.Screen name="FinanzasHome" component={FinanzasScreen} />
     </FinanzasStack.Navigator>
   );
 }
@@ -94,7 +94,7 @@ function FinanzasStackNavigator() {
 function PerfilStackNavigator() {
   return (
     <PerfilStack.Navigator screenOptions={{ headerShown: false }}>
-      <PerfilStack.Screen name="Perfil" component={AdminProfileScreen} />
+      <PerfilStack.Screen name="PerfilMain" component={AdminProfileScreen} />
       <PerfilStack.Screen name="EditProfile" component={EditProfileScreen} />
       <PerfilStack.Screen name="ClubEntryQr" component={MemberClubEntryScreen} />
     </PerfilStack.Navigator>
@@ -179,12 +179,12 @@ export default function AdminTabNavigator() {
         name="Finanzas"
         component={FinanzasStackNavigator}
         options={{ tabBarBadge: tabBadgeLabel(tab('finanzas')) }}
-        listeners={tabPressResetToRoot('Finanzas', 'Finanzas')}
+        listeners={tabPressResetToRoot('Finanzas', 'FinanzasHome')}
       />
       <Tab.Screen
         name="Perfil"
         component={PerfilStackNavigator}
-        listeners={tabPressResetToRoot('Perfil', 'Perfil')}
+        listeners={tabPressResetToRoot('Perfil', 'PerfilMain')}
       />
     </Tab.Navigator>
   );

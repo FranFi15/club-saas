@@ -9,6 +9,8 @@ import {
   StatusBar,
   ActivityIndicator,
   RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ClubContext } from '../../context/ClubContext';
@@ -225,7 +227,7 @@ export default function EditProfileScreen({ navigation }) {
         });
       }
       if (memberCtx?.refresh) await memberCtx.refresh({ background: true });
-      showAlert('Listo', 'Tus datos se actualizaron correctamente.', () => navigation.goBack());
+      showAlert('Listo', 'Tus datos quedaron actualizados.', () => navigation.goBack());
     } catch (e) {
       showAlert('Error', e.response?.data?.message || 'No se pudo guardar.');
     } finally {
@@ -258,9 +260,15 @@ export default function EditProfileScreen({ navigation }) {
       {showInitialLoader ? (
         <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />
       ) : (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+        >
         <ScrollView
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
         >
           <ProfilePhotoField
@@ -402,6 +410,7 @@ export default function EditProfileScreen({ navigation }) {
             {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnTxt}>Guardar cambios</Text>}
           </TouchableOpacity>
         </ScrollView>
+        </KeyboardAvoidingView>
       )}
     </SafeAreaView>
   );

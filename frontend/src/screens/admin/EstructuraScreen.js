@@ -156,8 +156,8 @@ export default function EstructuraScreen({ navigation }) {
   const handleDelete = (item) => {
     // 3. USAMOS LA NUEVA ALERTA ACÁ (CON BOTÓN DE CANCELAR Y COLOR ROJO)
     showAlert(
-      "Eliminar Disciplina",
-      `¿Estás seguro de que querés eliminar ${item.nombre}? Esta acción no se puede deshacer.`,
+      "Quitar disciplina",
+      `¿Querés quitar ${item.nombre} de la estructura? Si tiene categorías asociadas, no se va a poder.`,
       {
         showCancel: true,
         isDanger: true,

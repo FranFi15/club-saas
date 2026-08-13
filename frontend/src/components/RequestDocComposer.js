@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Switch,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -22,14 +24,14 @@ import { displayDateToIsoCalendar, maskDateDDMMAAAA } from '../utils/dateDisplay
 import { USER_FILTER_ROLES, USER_ROL_LABELS, userRoleFilterLabel } from '../constants/userRoles';
 
 const DOC_ADMIN_ALCANCE = [
-  { value: 'global', label: 'Todo el club', icon: 'globe-outline', hint: 'Todos los atletas activos' },
-  { value: 'categoria', label: 'Categorías', icon: 'shirt-outline', hint: 'Una o varias categorías' },
-  { value: 'usuario', label: 'Personas', icon: 'person-outline', hint: 'Una o varias personas del club' },
+  { value: 'global', label: 'Todo el club', icon: 'globe-outline', hint: 'Se envía por chat a cada atleta (o a su tutor si no hay chat con el atleta)' },
+  { value: 'categoria', label: 'Categorías', icon: 'shirt-outline', hint: 'Chat grupal de la categoría; si no está activo, se manda uno por uno' },
+  { value: 'usuario', label: 'Personas', icon: 'person-outline', hint: 'Chat personal; si el atleta no tiene chat, va al tutor' },
 ];
 
 const DOC_STAFF_ALCANCE = [
-  { value: 'categoria', label: 'Mis categorías', icon: 'shirt-outline', hint: 'Uno o varios equipos' },
-  { value: 'usuario', label: 'Atletas', icon: 'person-outline', hint: 'Uno o varios atletas' },
+  { value: 'categoria', label: 'Mis categorías', icon: 'shirt-outline', hint: 'Chat grupal de la categoría; si no está activo, se manda uno por uno' },
+  { value: 'usuario', label: 'Atletas', icon: 'person-outline', hint: 'Chat personal; si el atleta no tiene chat, va al tutor' },
 ];
 
 export default function RequestDocComposer({
@@ -305,11 +307,17 @@ export default function RequestDocComposer({
 
   return (
     <>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+      >
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         nestedScrollEnabled
       >
         <Text style={[styles.label, { color: theme.textMuted }]}>Título del pedido</Text>
@@ -518,6 +526,7 @@ export default function RequestDocComposer({
           )}
         </TouchableOpacity>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <CustomAlert
         visible={alertConfig.visible}

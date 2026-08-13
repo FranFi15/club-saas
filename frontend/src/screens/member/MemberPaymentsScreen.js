@@ -178,7 +178,7 @@ export default function MemberPaymentsScreen({ navigation }) {
       );
       const url = res.data.linkDePago;
       if (!url) {
-        showAlert('Error', 'Mercado Pago no devolvió un enlace de pago.');
+        showAlert('Error', 'No pudimos armar el link de pago. Probá de nuevo.');
         return;
       }
       await Linking.openURL(url);
@@ -240,7 +240,7 @@ export default function MemberPaymentsScreen({ navigation }) {
       const res = await clubApi.post(endpoint, body, { headers: h });
       const url = res.data.linkDePago;
       if (!url) {
-        showAlert('Error', 'Mercado Pago no devolvió un enlace de pago.');
+        showAlert('Error', 'No pudimos armar el link de pago. Probá de nuevo.');
         return;
       }
       setMpConfirmOpen(false);

@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   StatusBar,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -186,7 +188,16 @@ export default function NutritionNewConsultScreen({ navigation }) {
       {showInitialLoader ? (
         <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+        >
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+        >
           <Text style={[styles.label, { color: theme.textMuted }]}>Categoría</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
             {categories.map((c) => (
@@ -281,6 +292,7 @@ export default function NutritionNewConsultScreen({ navigation }) {
             <Text style={styles.primaryBtnTxt}>{saving ? 'Guardando…' : 'Crear consulta'}</Text>
           </TouchableOpacity>
         </ScrollView>
+        </KeyboardAvoidingView>
       )}
     </SafeAreaView>
   );

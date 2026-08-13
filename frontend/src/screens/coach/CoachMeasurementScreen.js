@@ -399,7 +399,7 @@ export default function CoachMeasurementScreen({ navigation, route }) {
   };
 
   const confirmDelete = (m) => {
-    showAlert('Eliminar medición', '¿Seguro que querés borrar este registro?', {
+    showAlert('Quitar medición', '¿Querés borrar este registro?', {
       showCancel: true,
       isDanger: true,
       confirmText: 'Eliminar',

@@ -371,7 +371,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
     
     showAlert(
       "Desvincular",
-      `¿Estás seguro de desvincular a ${nombre}?`,
+      `¿Querés desvincular a ${nombre} de esta categoría?`,
       {
         showCancel: true, isDanger: true, confirmText: "Desvincular",
         onConfirm: async () => {
@@ -803,8 +803,8 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
         visible={isDetailsModalVisible} 
         user={selectedUser} 
         onClose={() => setIsDetailsModalVisible(false)}
-        onEdit={() => showAlert('Aviso', 'Por favor, ve a la sección de Usuarios para editar perfiles.')}
-        onDelete={() => showAlert('Aviso', 'Por favor, ve a la sección de Usuarios para eliminar perfiles.')}
+        onEdit={() => showAlert('Aviso', 'Para editar un perfil, andá a Usuarios.')}
+        onDelete={() => showAlert('Aviso', 'Para dar de baja un perfil, andá a Usuarios.')}
       />
     </SafeAreaView>
   );

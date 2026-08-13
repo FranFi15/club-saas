@@ -1,5 +1,9 @@
 import asyncHandler from 'express-async-handler';
 import { parsePageLimit, paginationMeta } from '../utils/pagination.js';
+import {
+    deliverResourceToChat,
+    countSuccessfulDeliveries,
+} from '../services/deliveryToChat.service.js';
 
 function parseYouTubeVideoId(url) {
     if (!url || typeof url !== 'string') return null;
@@ -43,7 +47,7 @@ function normalizeResourceFileUrl(fileUrl) {
 // @route   POST /api/resources
 const uploadResource = asyncHandler(async (req, res) => {
     const { titulo, descripcion, fileUrl, tipo, alcance, targetCategoria, targetUsuario } = req.body;
-    const { Resource, News } = req.models;
+    const { Resource } = req.models;
 
     const normalizedFileUrl = normalizeResourceFileUrl(fileUrl);
     if (!normalizedFileUrl) {
@@ -51,7 +55,6 @@ const uploadResource = asyncHandler(async (req, res) => {
         throw new Error('URL de archivo inválida. Usá un enlace http(s) o de YouTube.');
     }
 
-    // 1. Creamos el Recurso (el archivo persistente)
     const resource = await Resource.create({
         titulo,
         descripcion,
@@ -60,26 +63,24 @@ const uploadResource = asyncHandler(async (req, res) => {
         autor: req.user._id,
         alcance,
         targetCategoria,
-        targetUsuario
+        targetUsuario,
     });
 
-    // 2. MAGIA: Creamos la noticia automática para que al usuario le "vibre" el celu
-    const mensajeNoticia = `${req.user.nombre} (${req.user.rol}) ha subido un nuevo recurso de ${tipo}: "${titulo}"`;
-    
-    await News.create({
-        titulo: 'Nuevo Recurso Disponible',
-        contenido: mensajeNoticia,
-        autor: req.user._id,
-        tipo: 'deportivo',
-        alcance,
-        targetRoles: [],
-        targetCategorias: targetCategoria ? [targetCategoria] : [],
-        targetUsuarios: targetUsuario ? [targetUsuario] : [],
-    });
+    let chatDelivered = 0;
+    try {
+        const delivery = await deliverResourceToChat(req.models, req.user, resource);
+        chatDelivered = countSuccessfulDeliveries(delivery);
+    } catch (e) {
+        console.warn('[resources] chat delivery:', e.message);
+    }
 
     res.status(201).json({
-        message: 'Recurso subido y atletas notificados',
-        resource
+        message:
+            chatDelivered > 0
+                ? 'Recurso subido y enviado por chat.'
+                : 'Recurso subido. No se pudo enviar por chat; igual queda en Recursos.',
+        resource,
+        chatDelivered,
     });
 });
 
