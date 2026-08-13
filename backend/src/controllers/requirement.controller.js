@@ -4,165 +4,21 @@ import {
     deliverRequirementToChat,
     countSuccessfulDeliveries,
 } from '../services/deliveryToChat.service.js';
+import { assertDeliveryTargets } from '../services/staffCategoryAccess.service.js';
 import { sortPaymentsByAtleta, sortUsersByName } from '../utils/listSort.js';
 import { parsePageLimit, paginationMeta } from '../utils/pagination.js';
-
-async function assertProfeCategoria(userId, categoriaId, Category) {
-    const c = await Category.findById(categoriaId).select('profesores');
-    if (!c) {
-        throw new Error('Categoría no encontrada');
-    }
-    if (!(c.profesores || []).some((p) => p.equals(userId))) {
-        throw new Error('No sos profesor de esta categoría');
-    }
-}
-
-async function assertProfeAtleta(userId, atletaId, Category, Enrollment) {
-    const cats = await Category.find({ profesores: userId }).select('_id');
-    const ids = cats.map((x) => x._id);
-    const ok = await Enrollment.findOne({ atleta: atletaId, categoria: { $in: ids }, estado: 'activo' });
-    if (!ok) {
-        throw new Error('No podés solicitar documentos a este atleta (no está en tus categorías).');
-    }
-}
-
-async function assertPreparadorCategoria(userId, categoriaId, Category) {
-    const c = await Category.findById(categoriaId).select('preparadoresFisicos');
-    if (!c) {
-        throw new Error('Categoría no encontrada');
-    }
-    if (!(c.preparadoresFisicos || []).some((p) => p.equals(userId))) {
-        throw new Error('No sos preparador físico de esta categoría');
-    }
-}
-
-async function assertPreparadorAtleta(userId, atletaId, Category, Enrollment) {
-    const cats = await Category.find({ preparadoresFisicos: userId }).select('_id');
-    const ids = cats.map((x) => x._id);
-    const ok = await Enrollment.findOne({ atleta: atletaId, categoria: { $in: ids }, estado: 'activo' });
-    if (!ok) {
-        throw new Error('No podés solicitar documentos a este atleta (no está en tus categorías).');
-    }
-}
-
-async function assertNutricionistaCategoria(userId, categoriaId, Category) {
-    const c = await Category.findById(categoriaId).select('nutricionistas');
-    if (!c) {
-        throw new Error('Categoría no encontrada');
-    }
-    if (!(c.nutricionistas || []).some((p) => p.equals(userId))) {
-        throw new Error('No sos nutricionista de esta categoría');
-    }
-}
-
-async function assertNutricionistaAtleta(userId, atletaId, Category, Enrollment) {
-    const cats = await Category.find({ nutricionistas: userId }).select('_id');
-    const ids = cats.map((x) => x._id);
-    const ok = await Enrollment.findOne({ atleta: atletaId, categoria: { $in: ids }, estado: 'activo' });
-    if (!ok) {
-        throw new Error('No podés solicitar documentos a este atleta (no está en tus categorías).');
-    }
-}
-
-async function assertPsicologoCategoria(userId, categoriaId, Category) {
-    const c = await Category.findById(categoriaId).select('psicologos');
-    if (!c) {
-        throw new Error('Categoría no encontrada');
-    }
-    if (!(c.psicologos || []).some((p) => p.equals(userId))) {
-        throw new Error('No sos psicólogo de esta categoría');
-    }
-}
-
-async function assertPsicologoAtleta(userId, atletaId, Category, Enrollment) {
-    const cats = await Category.find({ psicologos: userId }).select('_id');
-    const ids = cats.map((x) => x._id);
-    const ok = await Enrollment.findOne({ atleta: atletaId, categoria: { $in: ids }, estado: 'activo' });
-    if (!ok) {
-        throw new Error('No podés solicitar documentos a este atleta (no está en tus categorías).');
-    }
-}
 
 // @desc    Crear un nuevo requerimiento de documentos
 // @route   POST /api/requirements
 const createRequirement = asyncHandler(async (req, res) => {
     const { titulo, descripcion, obligatorio, fechaVencimiento, alcance, targetCategoria, targetUsuario } = req.body;
-    const { Requirement, Category, Enrollment } = req.models;
+    const { Requirement } = req.models;
 
-    if (
-        req.user.rol === 'profe' ||
-        req.user.rol === 'preparador_fisico' ||
-        req.user.rol === 'nutricionista' ||
-        req.user.rol === 'psicologo'
-    ) {
-        if (!['categoria', 'usuario'].includes(alcance)) {
-            res.status(400);
-            throw new Error('Solo podés pedir documentos a una categoría o a un atleta puntual.');
-        }
-        if (alcance === 'categoria') {
-            if (!targetCategoria) {
-                res.status(400);
-                throw new Error('Indicá la categoría destino.');
-            }
-            if (req.user.rol === 'profe') {
-                await assertProfeCategoria(req.user._id, targetCategoria, Category);
-            } else if (req.user.rol === 'preparador_fisico') {
-                await assertPreparadorCategoria(req.user._id, targetCategoria, Category);
-            } else if (req.user.rol === 'nutricionista') {
-                await assertNutricionistaCategoria(req.user._id, targetCategoria, Category);
-            } else {
-                await assertPsicologoCategoria(req.user._id, targetCategoria, Category);
-            }
-        }
-        if (alcance === 'usuario') {
-            if (!targetUsuario) {
-                res.status(400);
-                throw new Error('Indicá el atleta destino.');
-            }
-            if (req.user.rol === 'profe') {
-                await assertProfeAtleta(req.user._id, targetUsuario, Category, Enrollment);
-            } else if (req.user.rol === 'preparador_fisico') {
-                await assertPreparadorAtleta(req.user._id, targetUsuario, Category, Enrollment);
-            } else if (req.user.rol === 'nutricionista') {
-                await assertNutricionistaAtleta(req.user._id, targetUsuario, Category, Enrollment);
-            } else {
-                await assertPsicologoAtleta(req.user._id, targetUsuario, Category, Enrollment);
-            }
-        }
-    }
-
-    if (['admin_club', 'administrativo'].includes(req.user.rol)) {
-        const { User, Category } = req.models;
-        if (!['global', 'categoria', 'usuario'].includes(alcance)) {
-            res.status(400);
-            throw new Error('Alcance inválido.');
-        }
-        if (alcance === 'categoria') {
-            if (!targetCategoria) {
-                res.status(400);
-                throw new Error('Indicá la categoría destino.');
-            }
-            const cat = await Category.findById(targetCategoria).select('_id');
-            if (!cat) {
-                res.status(404);
-                throw new Error('Categoría no encontrada.');
-            }
-        }
-        if (alcance === 'usuario') {
-            if (!targetUsuario) {
-                res.status(400);
-                throw new Error('Indicá la persona destino.');
-            }
-            const person = await User.findById(targetUsuario).select('rol estado');
-            if (!person) {
-                res.status(404);
-                throw new Error('Usuario no encontrado en el club.');
-            }
-            if (person.estado === 'inactivo') {
-                res.status(400);
-                throw new Error('No podés pedir documentación a un usuario inactivo.');
-            }
-        }
+    try {
+        await assertDeliveryTargets(req, { allowGlobal: true });
+    } catch (e) {
+        res.status(e.statusCode || 400);
+        throw e;
     }
 
     const requirement = await Requirement.create({

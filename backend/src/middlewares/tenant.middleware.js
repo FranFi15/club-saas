@@ -4,6 +4,8 @@ import { getTenantModels } from '../utils/tenantModels.js';
 import { getCachedTenant, setCachedTenant } from '../utils/cache.js';
 import { parseMpOAuthState, isMercadoPagoOAuthCallback } from '../utils/mpOAuthState.js';
 
+const CLUB_ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
+
 export const resolveTenant = async (req, res, next) => {
     if (req.method === 'OPTIONS') return next();
 
@@ -23,17 +25,24 @@ export const resolveTenant = async (req, res, next) => {
         return res.status(400).json({ message: 'Falta el identificador del club (x-club-identifier).' });
     }
 
+    if (!CLUB_ID_RE.test(clubIdentifier)) {
+        return res.status(400).json({ message: 'Identificador de club inválido.' });
+    }
+
     try {
         let connectionStringDB = getCachedTenant(clubIdentifier);
 
         // Si no está en caché, le preguntamos al Super-Admin
         if (!connectionStringDB) {
             console.log(`[Cache Miss] Solicitando DB info para el tenant: ${clubIdentifier} al Super-Admin...`);
-            const response = await axios.get(`${process.env.SUPER_ADMIN_URL}/api/clubs/internal/${clubIdentifier}/db-info`, {
-                headers: {
-                    'x-internal-api-key': process.env.INTERNAL_ADMIN_API_KEY 
-                }
-            });
+            const response = await axios.get(
+                `${process.env.SUPER_ADMIN_URL}/api/clubs/internal/${encodeURIComponent(clubIdentifier)}/db-info`,
+                {
+                    headers: {
+                        'x-internal-api-key': process.env.INTERNAL_ADMIN_API_KEY,
+                    },
+                },
+            );
 
             connectionStringDB = response.data.connectionStringDB;
             // Guardamos en caché

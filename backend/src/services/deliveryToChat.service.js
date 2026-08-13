@@ -173,7 +173,13 @@ async function tryCategoryGroup(models, sender, categoryId, body, meta) {
 
     const isParticipant = (conv.participants || []).some((p) => idStr(p) === idStr(sender._id));
     if (!isParticipant) {
-        await ensureGroupParticipant(models, conv._id, sender._id);
+        // Solo administración puede publicar sin estar en el plantel del grupo.
+        // Staff debe estar sincronizado vía syncCategoryGroupChat (asignación a la categoría).
+        if (sender.rol === 'admin_club' || sender.rol === 'administrativo') {
+            await ensureGroupParticipant(models, conv._id, sender._id);
+        } else {
+            return { ok: false, reason: 'sender_not_in_group' };
+        }
     }
 
     try {

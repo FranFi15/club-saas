@@ -4,6 +4,7 @@ import {
     deliverResourceToChat,
     countSuccessfulDeliveries,
 } from '../services/deliveryToChat.service.js';
+import { assertDeliveryTargets } from '../services/staffCategoryAccess.service.js';
 
 function parseYouTubeVideoId(url) {
     if (!url || typeof url !== 'string') return null;
@@ -48,6 +49,13 @@ function normalizeResourceFileUrl(fileUrl) {
 const uploadResource = asyncHandler(async (req, res) => {
     const { titulo, descripcion, fileUrl, tipo, alcance, targetCategoria, targetUsuario } = req.body;
     const { Resource } = req.models;
+
+    try {
+        await assertDeliveryTargets(req, { allowGlobal: false });
+    } catch (e) {
+        res.status(e.statusCode || 400);
+        throw e;
+    }
 
     const normalizedFileUrl = normalizeResourceFileUrl(fileUrl);
     if (!normalizedFileUrl) {

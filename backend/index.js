@@ -114,6 +114,7 @@ const authLimiter = rateLimit({
     skip: (req) => req.method === 'OPTIONS',
 });
 app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/refresh', authLimiter);
 
 // Body Parsers con límites para evitar saturación de memoria
 app.use(express.json({ limit: '10kb' })); 

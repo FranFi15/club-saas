@@ -5,19 +5,17 @@ import { getUserModel } from '../models/user.model.js';
 const protect = asyncHandler(async (req, res, next) => {
     let token;
 
-    // El token debería venir en el header Authorization: Bearer <token>
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
         try {
-            // 1. Obtenemos el token del string "Bearer XXXXXX"
             token = req.headers.authorization.split(' ')[1];
-
-            // 2. Decodificamos el token usando el secreto de acceso
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-            // 3. Obtenemos el modelo de usuario de la DB del club actual
-            const User = getUserModel(req.tenantDB);
+            if (decoded.club && req.clubIdentifier && decoded.club !== req.clubIdentifier) {
+                res.status(401);
+                throw new Error('Token no válido para este club');
+            }
 
-            // 4. Buscamos al usuario y lo inyectamos en la petición (sin el password)
+            const User = getUserModel(req.tenantDB);
             req.user = await User.findById(decoded.id).select('-password');
 
             if (!req.user) {
@@ -25,8 +23,14 @@ const protect = asyncHandler(async (req, res, next) => {
                 throw new Error('No autorizado, usuario no encontrado en este club');
             }
 
+            if (req.user.estado === 'inactivo') {
+                res.status(401);
+                throw new Error('Tu cuenta está desactivada. Consultá en administración.');
+            }
+
             next();
         } catch (error) {
+            if (res.statusCode === 401) throw error;
             console.error('Error en la validación del token:', error.message);
             res.status(401);
             throw new Error('No autorizado, token fallido o expirado');
@@ -39,7 +43,6 @@ const protect = asyncHandler(async (req, res, next) => {
     }
 });
 
-// Middleware extra para filtrar por ROLES
 const authorize = (...roles) => {
     return (req, res, next) => {
         if (!req.user || !roles.includes(req.user.rol)) {

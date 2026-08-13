@@ -10,6 +10,11 @@ import {
     resolveRentalMpCharge,
     applyMercadoPagoToRental,
 } from '../utils/rentalPayments.js';
+import {
+    verifyMercadoPagoWebhookSignature,
+    getMercadoPagoWebhookSecret,
+    amountsMatch,
+} from '../utils/mpWebhookSignature.js';
 
 const MP_TOKEN_URL = 'https://api.mercadopago.com/oauth/token';
 const MP_AUTH_BASE = 'https://auth.mercadopago.com/authorization';
@@ -385,8 +390,45 @@ const clearMpIntegration = asyncHandler(async (req, res) => {
 });
 
 // @route   POST /api/mercadopago/create-preference
+// Preferencias de cuota: el monto SIEMPRE sale de la DB (no del body).
 const createPreference = asyncHandler(async (req, res) => {
-    const { itemId, titulo, monto, tipo } = req.body;
+    const { itemId, tipo } = req.body;
+    const { Payment } = req.models;
+
+    if (tipo !== 'cuota' || !itemId) {
+        res.status(400);
+        throw new Error('Usá el endpoint específico para este tipo de cobro.');
+    }
+
+    const payment = await Payment.findById(itemId).populate('plan', 'nombre');
+    if (!payment) {
+        res.status(404);
+        throw new Error('Cuota no encontrada');
+    }
+    if (!['pendiente', 'vencido'].includes(payment.estado)) {
+        res.status(400);
+        throw new Error('Esta cuota ya no está pendiente de pago.');
+    }
+
+    const meses = [
+        'Enero',
+        'Febrero',
+        'Marzo',
+        'Abril',
+        'Mayo',
+        'Junio',
+        'Julio',
+        'Agosto',
+        'Septiembre',
+        'Octubre',
+        'Noviembre',
+        'Diciembre',
+    ];
+    const titulo =
+        req.body.titulo ||
+        `${payment.plan?.nombre || 'Cuota'} ${meses[payment.mes - 1] || payment.mes} ${payment.anio}`;
+    const monto = Number(payment.montoFinal);
+
     const accessToken = await resolveAccessToken(req.models);
     const client = mpClientFromToken(accessToken);
     const clubIdentifier = req.headers['x-club-identifier'] || req.query?.club;
@@ -401,14 +443,14 @@ const createPreference = asyncHandler(async (req, res) => {
         const body = {
             items: [
                 {
-                    id: itemId,
-                    title: titulo,
+                    id: String(payment._id),
+                    title: String(titulo).slice(0, 256),
                     quantity: 1,
-                    unit_price: Number(monto),
+                    unit_price: monto,
                     currency_id: 'ARS',
                 },
             ],
-            external_reference: `${tipo}_${itemId}`,
+            external_reference: `cuota_${payment._id}`,
             back_urls: {
                 success: okUrl,
                 failure: failUrl,
@@ -689,6 +731,22 @@ const createRentalPreference = asyncHandler(async (req, res) => {
 
 // @route   POST /api/mercadopago/webhook
 const webhookReceiver = asyncHandler(async (req, res) => {
+    const isProd = process.env.NODE_ENV === 'production';
+    const webhookSecret = getMercadoPagoWebhookSecret();
+
+    if (webhookSecret) {
+        const check = verifyMercadoPagoWebhookSignature(req, webhookSecret);
+        if (!check.ok) {
+            console.warn('[mp-webhook] firma inválida:', check.reason);
+            return res.status(401).send('Firma inválida');
+        }
+    } else if (isProd) {
+        console.error('[mp-webhook] MP_WEBHOOK_SECRET no configurado — rechazando');
+        return res.status(503).send('Webhook no configurado');
+    } else {
+        console.warn('[mp-webhook] sin secreto (solo desarrollo)');
+    }
+
     const paymentId =
         req.query?.id ||
         req.query?.['data.id'] ||
@@ -708,30 +766,50 @@ const webhookReceiver = asyncHandler(async (req, res) => {
         if (paymentData.status === 'approved') {
             const externalRef = paymentData.external_reference;
             const { tipo, dbId, extra } = parseExternalRef(externalRef);
+            const paidAmount = Number(paymentData.transaction_amount);
 
             const { Payment, Rental } = req.models;
 
             if (tipo === 'cuota' && dbId) {
-                await Payment.findByIdAndUpdate(dbId, {
-                    estado: 'pagado',
-                    metodoPago: 'mercado_pago',
-                    fechaPago: Date.now(),
-                    comprobante: paymentId.toString(),
-                });
+                const cuota = await Payment.findById(dbId);
+                if (cuota && ['pendiente', 'vencido', 'en_revision'].includes(cuota.estado)) {
+                    if (!amountsMatch(cuota.montoFinal, paidAmount)) {
+                        console.warn(
+                            `[mp-webhook] monto no coincide cuota ${dbId}: esperado ${cuota.montoFinal}, pagado ${paidAmount}`,
+                        );
+                    } else {
+                        cuota.estado = 'pagado';
+                        cuota.metodoPago = 'mercado_pago';
+                        cuota.fechaPago = Date.now();
+                        cuota.comprobante = paymentId.toString();
+                        await cuota.save();
+                    }
+                }
             } else if (tipo === 'cuotas_bulk' && dbId) {
                 const bulkIds = dbId.split(',').filter(Boolean);
                 if (bulkIds.length) {
-                    await Payment.updateMany(
-                        { _id: { $in: bulkIds }, estado: { $in: ['pendiente', 'vencido'] } },
-                        {
-                            $set: {
-                                estado: 'pagado',
-                                metodoPago: 'mercado_pago',
-                                fechaPago: Date.now(),
-                                comprobante: paymentId.toString(),
+                    const cuotas = await Payment.find({
+                        _id: { $in: bulkIds },
+                        estado: { $in: ['pendiente', 'vencido', 'en_revision'] },
+                    });
+                    const expected = cuotas.reduce((s, p) => s + (Number(p.montoFinal) || 0), 0);
+                    if (!amountsMatch(expected, paidAmount)) {
+                        console.warn(
+                            `[mp-webhook] monto no coincide bulk: esperado ${expected}, pagado ${paidAmount}`,
+                        );
+                    } else if (cuotas.length) {
+                        await Payment.updateMany(
+                            { _id: { $in: cuotas.map((c) => c._id) } },
+                            {
+                                $set: {
+                                    estado: 'pagado',
+                                    metodoPago: 'mercado_pago',
+                                    fechaPago: Date.now(),
+                                    comprobante: paymentId.toString(),
+                                },
                             },
-                        },
-                    );
+                        );
+                    }
                 }
             } else if (tipo === 'alquiler' && dbId) {
                 const rental = await Rental.findById(dbId);
