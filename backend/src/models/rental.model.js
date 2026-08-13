@@ -34,6 +34,8 @@ const rentalSchema = new mongoose.Schema({
         fecha: { type: Date, default: Date.now },
         registradoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         nota: { type: String, trim: true, default: '' },
+        /** Id de pago MP u otro comprobante externo (idempotencia). */
+        comprobante: { type: String, trim: true, default: '' },
     }],
 
     estadoReserva: { 

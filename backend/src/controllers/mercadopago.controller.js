@@ -6,6 +6,10 @@ import { buildMpOAuthState } from '../utils/mpOAuthState.js';
 import { generateMercadoPagoPKCE } from '../utils/mpOAuthPkce.js';
 import { puedePagarComoAtleta, atletaCuotasEnApp } from '../utils/ageHelper.js';
 import { isClubMercadoPagoLinked } from '../services/mercadoPagoClub.service.js';
+import {
+    resolveRentalMpCharge,
+    applyMercadoPagoToRental,
+} from '../utils/rentalPayments.js';
 
 const MP_TOKEN_URL = 'https://api.mercadopago.com/oauth/token';
 const MP_AUTH_BASE = 'https://auth.mercadopago.com/authorization';
@@ -176,10 +180,19 @@ function mpClientFromToken(accessToken) {
 }
 
 function parseExternalRef(externalRef) {
-    if (!externalRef || typeof externalRef !== 'string') return { tipo: null, dbId: null };
+    if (!externalRef || typeof externalRef !== 'string') return { tipo: null, dbId: null, extra: null };
     const i = externalRef.indexOf('_');
-    if (i <= 0) return { tipo: null, dbId: null };
-    return { tipo: externalRef.slice(0, i), dbId: externalRef.slice(i + 1) };
+    if (i <= 0) return { tipo: null, dbId: null, extra: null };
+    const tipo = externalRef.slice(0, i);
+    const rest = externalRef.slice(i + 1);
+    if (tipo === 'alquiler') {
+        const j = rest.indexOf('_');
+        if (j > 0) {
+            return { tipo, dbId: rest.slice(0, j), extra: rest.slice(j + 1) };
+        }
+        return { tipo, dbId: rest, extra: null };
+    }
+    return { tipo, dbId: rest, extra: null };
 }
 
 function webhookNotificationUrl(clubIdentifier) {
@@ -597,6 +610,83 @@ const createMemberFamilyPreference = asyncHandler(async (req, res) => {
     }
 });
 
+// @desc    Preferencia MP para cobrar seña/saldo/total de un alquiler
+// @route   POST /api/mercadopago/create-preference-rental
+const createRentalPreference = asyncHandler(async (req, res) => {
+    const { rentalId, concepto, monto } = req.body;
+    const { Rental } = req.models;
+
+    if (!(await isClubMercadoPagoLinked(req.models)) && !process.env.MERCADOPAGO_ACCESS_TOKEN?.trim()) {
+        res.status(400);
+        throw new Error('Mercado Pago no está habilitado en este club.');
+    }
+
+    if (!rentalId) {
+        res.status(400);
+        throw new Error('Indicá el alquiler a cobrar.');
+    }
+
+    const rental = await Rental.findById(rentalId).populate('espacio', 'nombre');
+    if (!rental) {
+        res.status(404);
+        throw new Error('Alquiler no encontrado');
+    }
+
+    let charge;
+    try {
+        charge = resolveRentalMpCharge(rental, concepto, monto);
+    } catch (e) {
+        res.status(e.statusCode || 400);
+        throw e;
+    }
+
+    const espacioNombre = rental.espacio?.nombre || 'cancha';
+    const titulo = `Alquiler ${espacioNombre} — ${rental.nombreCliente}`.slice(0, 256);
+
+    const accessToken = await resolveAccessToken(req.models);
+    const client = mpClientFromToken(accessToken);
+    const clubIdentifier = req.headers['x-club-identifier'] || req.query?.club;
+    const frontend = primaryFrontendUrl() || 'https://www.google.com';
+
+    try {
+        const preference = new Preference(client);
+        const body = {
+            items: [
+                {
+                    id: String(rental._id),
+                    title: titulo,
+                    quantity: 1,
+                    unit_price: Number(charge.monto),
+                    currency_id: 'ARS',
+                },
+            ],
+            external_reference: `alquiler_${rental._id}_${charge.conceptoKey}`,
+            back_urls: {
+                success: `${frontend}/pago/ok`,
+                failure: `${frontend}/pago/error`,
+                pending: `${frontend}/pago/pendiente`,
+            },
+            auto_return: 'approved',
+        };
+        const notificationUrl = webhookNotificationUrl(clubIdentifier);
+        if (notificationUrl) body.notification_url = notificationUrl;
+
+        const response = await preference.create({ body });
+        res.status(200).json({
+            idPreferencia: response.id,
+            linkDePago: response.init_point,
+            monto: charge.monto,
+            concepto: charge.conceptoKey,
+            historialConcepto: charge.historialConcepto,
+            rentalId: String(rental._id),
+        });
+    } catch (error) {
+        console.error('Error preferencia alquiler MP:', error);
+        res.status(500);
+        throw new Error('No se pudo conectar con Mercado Pago');
+    }
+});
+
 // @route   POST /api/mercadopago/webhook
 const webhookReceiver = asyncHandler(async (req, res) => {
     const paymentId =
@@ -617,7 +707,7 @@ const webhookReceiver = asyncHandler(async (req, res) => {
 
         if (paymentData.status === 'approved') {
             const externalRef = paymentData.external_reference;
-            const { tipo, dbId } = parseExternalRef(externalRef);
+            const { tipo, dbId, extra } = parseExternalRef(externalRef);
 
             const { Payment, Rental } = req.models;
 
@@ -644,10 +734,17 @@ const webhookReceiver = asyncHandler(async (req, res) => {
                     );
                 }
             } else if (tipo === 'alquiler' && dbId) {
-                await Rental.findByIdAndUpdate(dbId, {
-                    estadoPago: 'pagado',
-                    notas: `Pagado vía Mercado Pago (Ref: ${paymentId})`,
-                });
+                const rental = await Rental.findById(dbId);
+                if (rental) {
+                    const result = applyMercadoPagoToRental(rental, {
+                        paymentId: String(paymentId),
+                        transactionAmount: paymentData.transaction_amount,
+                        conceptoKey: extra || 'total',
+                    });
+                    if (result.applied) {
+                        await rental.save();
+                    }
+                }
             }
 
             console.log(`✅ Pago procesado: ${externalRef}`);
@@ -664,6 +761,7 @@ export {
     createPreference,
     createMemberPreference,
     createMemberFamilyPreference,
+    createRentalPreference,
     webhookReceiver,
     getMpIntegration,
     updateMpIntegration,

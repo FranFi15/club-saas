@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, RefreshControl, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, RefreshControl, Platform, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../utils/api';
@@ -26,6 +26,7 @@ import {
   PAGO_CONCEPTO_LABEL,
 } from './alquileres/rentalPaymentUtils';
 import { pickPaginatedRows } from '../../utils/paginatedApi';
+import { copyText } from '../../utils/copyText';
 
 const MN = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DN = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
@@ -66,6 +67,11 @@ export default function AlquileresScreen({ navigation }) {
   const [balanceHistorialPage, setBalanceHistorialPage] = useState(1);
   const [loadingMoreHistorial, setLoadingMoreHistorial] = useState(false);
   const [payingRentalId, setPayingRentalId] = useState(null);
+  const [mpReady, setMpReady] = useState(false);
+  const [mpSheetOpen, setMpSheetOpen] = useState(false);
+  const [mpCreating, setMpCreating] = useState(false);
+  const [mpSenaMonto, setMpSenaMonto] = useState('');
+  const [mpLinkResult, setMpLinkResult] = useState(null);
 
   const [isLoadingGrid, setIsLoadingGrid] = useState(false);
 
@@ -94,6 +100,21 @@ export default function AlquileresScreen({ navigation }) {
     const token = await getToken('userToken');
     return { 'x-club-identifier': clubData.urlIdentifier, 'Authorization': `Bearer ${token}` };
   };
+
+  const fetchMpReady = useCallback(async () => {
+    if (!clubData?.urlIdentifier) return;
+    try {
+      const h = await getHeaders();
+      const { data } = await clubApi.get('/mercadopago/integration', { headers: h });
+      setMpReady(data?.tokenSource === 'club' || data?.tokenSource === 'server_env');
+    } catch {
+      setMpReady(false);
+    }
+  }, [clubData?.urlIdentifier]);
+
+  useEffect(() => {
+    fetchMpReady();
+  }, [fetchMpReady]);
 
   const fetchSpacesData = useCallback(async () => {
     const h = await getHeaders();
@@ -206,6 +227,60 @@ export default function AlquileresScreen({ navigation }) {
     if (activeTab === 'reservas') fetchAllRentals({ page: 1, append: false });
     if (activeTab === 'balance') fetchBalance({ page: 1, append: false });
   }, [activeTab, reservasSpaceFilter]);
+
+  const openMpCobro = (rental) => {
+    if (!rental || rentalSaldoPendiente(rental) <= 0) return;
+    const total = Number(rental.montoTotal) || 0;
+    const cobrado = Number(rental.señaPagada) || 0;
+    const defaultSena = cobrado > 0 ? '' : String(Math.max(1, Math.round(total / 2)));
+    setMpSenaMonto(defaultSena);
+    setMpLinkResult(null);
+    setMpSheetOpen(true);
+  };
+
+  const closeMpSheet = () => {
+    setMpSheetOpen(false);
+    setMpLinkResult(null);
+    setMpCreating(false);
+  };
+
+  const createMpLink = async (concepto) => {
+    if (!detailRental?._id || mpCreating) return;
+    setMpCreating(true);
+    try {
+      const h = await getHeaders();
+      const body = { rentalId: detailRental._id, concepto };
+      if (concepto === 'sena') {
+        body.monto = Number(mpSenaMonto);
+      }
+      const { data } = await clubApi.post('/mercadopago/create-preference-rental', body, { headers: h });
+      setMpLinkResult(data);
+    } catch (e) {
+      showAlert('Error', e.response?.data?.message || 'No se pudo crear el link de Mercado Pago.');
+    } finally {
+      setMpCreating(false);
+    }
+  };
+
+  const copyMpLink = async () => {
+    if (!mpLinkResult?.linkDePago) return;
+    try {
+      await copyText(mpLinkResult.linkDePago);
+      showAlert('Listo', 'Link copiado. Pegalo en WhatsApp o mail al cliente.');
+    } catch {
+      showAlert('Error', 'No se pudo copiar el link.');
+    }
+  };
+
+  const openMpLink = async () => {
+    const url = mpLinkResult?.linkDePago;
+    if (!url) return;
+    try {
+      await Linking.openURL(url);
+    } catch {
+      showAlert('Error', 'No se pudo abrir Mercado Pago.');
+    }
+  };
 
   const handlePayTotal = (rental, embedded = false) => {
     const saldo = rentalSaldoPendiente(rental);
@@ -825,10 +900,20 @@ export default function AlquileresScreen({ navigation }) {
                     <ActivityIndicator color="#fff" />
                   ) : (
                     <>
-                      <Ionicons name="card-outline" size={18} color="#fff" style={{marginRight:8}}/>
-                      <Text style={styles.saveBtnText}>Pagar total</Text>
+                      <Ionicons name="cash-outline" size={18} color="#fff" style={{marginRight:8}}/>
+                      <Text style={styles.saveBtnText}>Registrar pago (efectivo)</Text>
                     </>
                   )}
+                </TouchableOpacity>
+              ) : null}
+              {mpReady && rentalNeedsFullPayment(detailRental) ? (
+                <TouchableOpacity
+                  style={[styles.saveBtn,{backgroundColor:'#009EE3',marginBottom:12}]}
+                  onPress={() => openMpCobro(detailRental)}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons name="wallet-outline" size={18} color="#fff" style={{marginRight:8}}/>
+                  <Text style={styles.saveBtnText}>Cobrar con Mercado Pago</Text>
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity
@@ -852,6 +937,120 @@ export default function AlquileresScreen({ navigation }) {
                 onCancel={detailAlertConfig.onCancel}
               />
             </>)}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={mpSheetOpen}
+        animationType="slide"
+        transparent
+        presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+        onRequestClose={closeMpSheet}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Mercado Pago</Text>
+              <TouchableOpacity onPress={closeMpSheet}>
+                <Ionicons name="close" size={28} color={theme.icon} />
+              </TouchableOpacity>
+            </View>
+            {detailRental ? (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={{ color: theme.textMuted, marginBottom: 12, lineHeight: 20 }}>
+                  Generá un link de pago para {detailRental.nombreCliente}. El saldo actual es{' '}
+                  {fmtRentalMoney(rentalSaldoPendiente(detailRental))}.
+                </Text>
+
+                {!mpLinkResult ? (
+                  <>
+                    {Number(detailRental.señaPagada) <= 0 ? (
+                      <View style={{ marginBottom: 14 }}>
+                        <Text style={[styles.label, { color: theme.textMuted }]}>Monto de seña</Text>
+                        <TextInput
+                          style={[
+                            styles.input,
+                            { backgroundColor: theme.background, borderColor: theme.border, color: theme.text },
+                          ]}
+                          keyboardType="numeric"
+                          value={mpSenaMonto}
+                          onChangeText={setMpSenaMonto}
+                          placeholder="Ej. 5000"
+                          placeholderTextColor={theme.textMuted}
+                        />
+                        <TouchableOpacity
+                          style={[styles.saveBtn, { backgroundColor: '#009EE3', marginBottom: 10, opacity: mpCreating ? 0.7 : 1 }]}
+                          onPress={() => createMpLink('sena')}
+                          disabled={mpCreating}
+                        >
+                          {mpCreating ? (
+                            <ActivityIndicator color="#fff" />
+                          ) : (
+                            <Text style={styles.saveBtnText}>
+                              Link de seña ({fmtRentalMoney(mpSenaMonto)})
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
+
+                    <TouchableOpacity
+                      style={[styles.saveBtn, { backgroundColor: '#009EE3', marginBottom: 10, opacity: mpCreating ? 0.7 : 1 }]}
+                      onPress={() => createMpLink(Number(detailRental.señaPagada) > 0 ? 'saldo' : 'total')}
+                      disabled={mpCreating}
+                    >
+                      {mpCreating ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text style={styles.saveBtnText}>
+                          {Number(detailRental.señaPagada) > 0
+                            ? `Link de saldo (${fmtRentalMoney(rentalSaldoPendiente(detailRental))})`
+                            : `Link de total (${fmtRentalMoney(rentalSaldoPendiente(detailRental))})`}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <View>
+                    <Text style={{ color: theme.text, fontWeight: '700', marginBottom: 8 }}>
+                      Link listo · {fmtRentalMoney(mpLinkResult.monto)}
+                    </Text>
+                    <Text
+                      style={{
+                        color: theme.textMuted,
+                        fontSize: 13,
+                        marginBottom: 14,
+                        lineHeight: 18,
+                      }}
+                      selectable
+                    >
+                      {mpLinkResult.linkDePago}
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.saveBtn, { backgroundColor: '#009EE3', marginBottom: 10 }]}
+                      onPress={copyMpLink}
+                    >
+                      <Ionicons name="copy-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+                      <Text style={styles.saveBtnText}>Copiar link</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.saveBtn, { backgroundColor: cc, marginBottom: 10 }]}
+                      onPress={openMpLink}
+                    >
+                      <Ionicons name="open-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+                      <Text style={styles.saveBtnText}>Abrir checkout</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.saveBtn, { backgroundColor: theme.border }]}
+                      onPress={() => setMpLinkResult(null)}
+                    >
+                      <Text style={[styles.saveBtnText, { color: theme.text }]}>Generar otro link</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </ScrollView>
+            ) : null}
           </View>
         </View>
       </Modal>

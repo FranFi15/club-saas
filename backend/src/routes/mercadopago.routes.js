@@ -3,6 +3,7 @@ import {
     createPreference,
     createMemberPreference,
     createMemberFamilyPreference,
+    createRentalPreference,
     webhookReceiver,
     getMpIntegration,
     updateMpIntegration,
@@ -24,6 +25,12 @@ router.delete('/integration', protect, authorize('admin_club'), clearMpIntegrati
 router.post('/create-preference', protect, authorize('admin_club', 'administrativo'), createPreference);
 router.post('/create-preference-member', protect, authorize('atleta', 'tutor'), createMemberPreference);
 router.post('/create-preference-family', protect, authorize('tutor'), createMemberFamilyPreference);
+router.post(
+    '/create-preference-rental',
+    protect,
+    authorize('admin_club', 'administrativo'),
+    createRentalPreference,
+);
 
 router.post('/webhook', webhookReceiver);
 
