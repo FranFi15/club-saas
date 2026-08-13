@@ -210,6 +210,138 @@ function parseExternalRef(externalRef) {
     return { tipo, dbId: rest, extra: null };
 }
 
+/**
+ * Aplica un pago aprobado de MP a cuotas/alquiler.
+ * El pago debe venir de la API de MP con el token del club (no confiar solo en el body del webhook).
+ */
+async function applyApprovedMercadoPagoPayment(models, paymentData) {
+    if (!paymentData || paymentData.status !== 'approved') {
+        return { applied: false, reason: 'not_approved' };
+    }
+
+    const paymentId = String(paymentData.id);
+    const externalRef = paymentData.external_reference;
+    const { tipo, dbId, extra } = parseExternalRef(externalRef);
+    const paidAmount = Number(paymentData.transaction_amount);
+    const { Payment, Rental } = models;
+
+    if (tipo === 'cuota' && dbId) {
+        const cuota = await Payment.findById(dbId);
+        if (!cuota) return { applied: false, reason: 'cuota_not_found' };
+        if (cuota.estado === 'pagado' && String(cuota.comprobante || '') === paymentId) {
+            return { applied: false, reason: 'already_applied' };
+        }
+        if (!['pendiente', 'vencido', 'en_revision'].includes(cuota.estado)) {
+            return { applied: false, reason: 'bad_state' };
+        }
+        if (!amountsMatch(cuota.montoFinal, paidAmount)) {
+            console.warn(
+                `[mp] monto no coincide cuota ${dbId}: esperado ${cuota.montoFinal}, pagado ${paidAmount} — se marca igual (pago MP autenticado)`,
+            );
+        }
+        cuota.estado = 'pagado';
+        cuota.metodoPago = 'mercado_pago';
+        cuota.fechaPago = Date.now();
+        cuota.comprobante = paymentId;
+        await cuota.save();
+        return { applied: true, tipo: 'cuota', ids: [String(cuota._id)] };
+    }
+
+    if (tipo === 'cuotas_bulk' && dbId) {
+        const bulkIds = dbId.split(',').filter(Boolean);
+        if (!bulkIds.length) return { applied: false, reason: 'empty_bulk' };
+        const cuotas = await Payment.find({
+            _id: { $in: bulkIds },
+            estado: { $in: ['pendiente', 'vencido', 'en_revision'] },
+        });
+        if (!cuotas.length) return { applied: false, reason: 'already_applied' };
+        const expected = cuotas.reduce((s, p) => s + (Number(p.montoFinal) || 0), 0);
+        if (!amountsMatch(expected, paidAmount)) {
+            console.warn(
+                `[mp] monto no coincide bulk: esperado ${expected}, pagado ${paidAmount} — se marca igual (pago MP autenticado)`,
+            );
+        }
+        await Payment.updateMany(
+            { _id: { $in: cuotas.map((c) => c._id) } },
+            {
+                $set: {
+                    estado: 'pagado',
+                    metodoPago: 'mercado_pago',
+                    fechaPago: Date.now(),
+                    comprobante: paymentId,
+                },
+            },
+        );
+        return { applied: true, tipo: 'cuotas_bulk', ids: cuotas.map((c) => String(c._id)) };
+    }
+
+    if (tipo === 'alquiler' && dbId) {
+        const rental = await Rental.findById(dbId);
+        if (!rental) return { applied: false, reason: 'rental_not_found' };
+        const result = applyMercadoPagoToRental(rental, {
+            paymentId,
+            transactionAmount: paymentData.transaction_amount,
+            conceptoKey: extra || 'total',
+        });
+        if (result.applied) {
+            await rental.save();
+            return { applied: true, tipo: 'alquiler', ids: [String(rental._id)] };
+        }
+        return { applied: false, reason: result.reason || 'rental_not_applied' };
+    }
+
+    return { applied: false, reason: 'unknown_ref' };
+}
+
+async function fetchMpPaymentById(accessToken, paymentId) {
+    const client = mpClientFromToken(accessToken);
+    const paymentClient = new MPPayment(client);
+    return paymentClient.get({ id: paymentId });
+}
+
+async function searchApprovedMpPaymentByExternalRef(accessToken, externalReference) {
+    const { data } = await axios.get('https://api.mercadopago.com/v1/payments/search', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        params: {
+            sort: 'date_created',
+            criteria: 'desc',
+            external_reference: externalReference,
+        },
+    });
+    const results = data?.results || [];
+    return results.find((p) => p.status === 'approved') || null;
+}
+
+async function assertMemberOwnsCuotas(req, paymentDocs) {
+    const { User } = req.models;
+    if (req.user.rol === 'atleta') {
+        for (const p of paymentDocs) {
+            const aid = String(p.atleta?._id || p.atleta);
+            if (aid !== String(req.user._id)) {
+                const err = new Error('No podés sincronizar cuotas de otro atleta.');
+                err.statusCode = 403;
+                throw err;
+            }
+        }
+        return;
+    }
+    if (req.user.rol === 'tutor') {
+        for (const p of paymentDocs) {
+            const atletaId = p.atleta?._id || p.atleta;
+            const hijo = await User.findById(atletaId).select('tutorPrincipal rol').lean();
+            if (!hijo || hijo.rol !== 'atleta' || String(hijo.tutorPrincipal) !== String(req.user._id)) {
+                const err = new Error('No podés sincronizar cuotas de un atleta que no está a tu cargo.');
+                err.statusCode = 403;
+                throw err;
+            }
+        }
+        return;
+    }
+    const err = new Error('No autorizado.');
+    err.statusCode = 403;
+    throw err;
+}
+
 function webhookNotificationUrl(clubIdentifier) {
     const base =
         process.env.PUBLIC_API_URL?.replace(/\/$/, '') || process.env.BACKEND_URL?.replace(/\/$/, '') || '';
@@ -751,13 +883,17 @@ const createRentalPreference = asyncHandler(async (req, res) => {
 const webhookReceiver = asyncHandler(async (req, res) => {
     const isProd = process.env.NODE_ENV === 'production';
     const webhookSecret = getMercadoPagoWebhookSecret();
+    const hasSignature = !!req.headers['x-signature'];
 
-    if (webhookSecret) {
+    if (webhookSecret && hasSignature) {
         const check = verifyMercadoPagoWebhookSignature(req, webhookSecret);
         if (!check.ok) {
             console.warn('[mp-webhook] firma inválida:', check.reason);
             return res.status(401).send('Firma inválida');
         }
+    } else if (webhookSecret && !hasSignature) {
+        // notification_url / IPN de preferencias suele no traer x-signature; se valida vía GET al pago.
+        console.warn('[mp-webhook] sin x-signature (IPN); se valida contra API MP');
     } else if (isProd) {
         console.error('[mp-webhook] MP_WEBHOOK_SECRET no configurado — rechazando');
         return res.status(503).send('Webhook no configurado');
@@ -776,81 +912,116 @@ const webhookReceiver = asyncHandler(async (req, res) => {
 
     try {
         const accessToken = await resolveAccessToken(req.models, req.clubIdentifier);
-        const client = mpClientFromToken(accessToken);
-
-        const paymentClient = new MPPayment(client);
-        const paymentData = await paymentClient.get({ id: paymentId });
-
-        if (paymentData.status === 'approved') {
-            const externalRef = paymentData.external_reference;
-            const { tipo, dbId, extra } = parseExternalRef(externalRef);
-            const paidAmount = Number(paymentData.transaction_amount);
-
-            const { Payment, Rental } = req.models;
-
-            if (tipo === 'cuota' && dbId) {
-                const cuota = await Payment.findById(dbId);
-                if (cuota && ['pendiente', 'vencido', 'en_revision'].includes(cuota.estado)) {
-                    if (!amountsMatch(cuota.montoFinal, paidAmount)) {
-                        console.warn(
-                            `[mp-webhook] monto no coincide cuota ${dbId}: esperado ${cuota.montoFinal}, pagado ${paidAmount}`,
-                        );
-                    } else {
-                        cuota.estado = 'pagado';
-                        cuota.metodoPago = 'mercado_pago';
-                        cuota.fechaPago = Date.now();
-                        cuota.comprobante = paymentId.toString();
-                        await cuota.save();
-                    }
-                }
-            } else if (tipo === 'cuotas_bulk' && dbId) {
-                const bulkIds = dbId.split(',').filter(Boolean);
-                if (bulkIds.length) {
-                    const cuotas = await Payment.find({
-                        _id: { $in: bulkIds },
-                        estado: { $in: ['pendiente', 'vencido', 'en_revision'] },
-                    });
-                    const expected = cuotas.reduce((s, p) => s + (Number(p.montoFinal) || 0), 0);
-                    if (!amountsMatch(expected, paidAmount)) {
-                        console.warn(
-                            `[mp-webhook] monto no coincide bulk: esperado ${expected}, pagado ${paidAmount}`,
-                        );
-                    } else if (cuotas.length) {
-                        await Payment.updateMany(
-                            { _id: { $in: cuotas.map((c) => c._id) } },
-                            {
-                                $set: {
-                                    estado: 'pagado',
-                                    metodoPago: 'mercado_pago',
-                                    fechaPago: Date.now(),
-                                    comprobante: paymentId.toString(),
-                                },
-                            },
-                        );
-                    }
-                }
-            } else if (tipo === 'alquiler' && dbId) {
-                const rental = await Rental.findById(dbId);
-                if (rental) {
-                    const result = applyMercadoPagoToRental(rental, {
-                        paymentId: String(paymentId),
-                        transactionAmount: paymentData.transaction_amount,
-                        conceptoKey: extra || 'total',
-                    });
-                    if (result.applied) {
-                        await rental.save();
-                    }
-                }
-            }
-
-            console.log(`✅ Pago procesado: ${externalRef}`);
+        const paymentData = await fetchMpPaymentById(accessToken, paymentId);
+        const result = await applyApprovedMercadoPagoPayment(req.models, paymentData);
+        if (result.applied) {
+            console.log(`✅ Pago procesado: ${paymentData.external_reference}`);
         }
-
         res.status(200).send('OK');
     } catch (error) {
         console.error('Error en el Webhook:', error);
         res.status(500).send('Error procesando el webhook');
     }
+});
+
+/**
+ * Tras volver de Checkout Pro: busca pagos aprobados en MP y marca las cuotas.
+ * @route POST /api/mercadopago/sync-member-payments
+ */
+const syncMemberPayments = asyncHandler(async (req, res) => {
+    const { Payment } = req.models;
+    const rawIds = Array.isArray(req.body?.paymentIds) ? req.body.paymentIds : [];
+    const paymentIds = [...new Set(rawIds.map((id) => String(id).trim()).filter(Boolean))];
+    const mpPaymentId =
+        req.body?.mpPaymentId != null && String(req.body.mpPaymentId).trim()
+            ? String(req.body.mpPaymentId).trim()
+            : null;
+
+    if (!paymentIds.length && !mpPaymentId) {
+        res.status(400);
+        throw new Error('Indicá las cuotas o el id de pago de Mercado Pago.');
+    }
+
+    const accessToken = await resolveAccessToken(req.models, req.clubIdentifier);
+    if (!accessToken) {
+        res.status(503);
+        throw new Error('Mercado Pago no está configurado en este club.');
+    }
+
+    const updated = [];
+
+    if (mpPaymentId) {
+        const paymentData = await fetchMpPaymentById(accessToken, mpPaymentId);
+        const { tipo, dbId } = parseExternalRef(paymentData.external_reference);
+        if (tipo === 'cuota' && dbId) {
+            const doc = await Payment.findById(dbId);
+            if (doc) await assertMemberOwnsCuotas(req, [doc]);
+        } else if (tipo === 'cuotas_bulk' && dbId) {
+            const docs = await Payment.find({ _id: { $in: dbId.split(',').filter(Boolean) } });
+            if (docs.length) await assertMemberOwnsCuotas(req, docs);
+        } else {
+            res.status(400);
+            throw new Error('Este pago de Mercado Pago no corresponde a cuotas del club.');
+        }
+        const result = await applyApprovedMercadoPagoPayment(req.models, paymentData);
+        if (result.applied && result.ids) updated.push(...result.ids);
+    }
+
+    if (paymentIds.length) {
+        const docs = await Payment.find({ _id: { $in: paymentIds } });
+        if (docs.length !== paymentIds.length) {
+            res.status(400);
+            throw new Error('Hay cuotas inválidas.');
+        }
+        await assertMemberOwnsCuotas(req, docs);
+
+        const pending = docs.filter((p) => ['pendiente', 'vencido', 'en_revision'].includes(p.estado));
+        for (const cuota of pending) {
+            const found = await searchApprovedMpPaymentByExternalRef(
+                accessToken,
+                `cuota_${cuota._id}`,
+            );
+            if (!found) continue;
+            const result = await applyApprovedMercadoPagoPayment(req.models, found);
+            if (result.applied && result.ids) updated.push(...result.ids);
+        }
+
+        const stillPendingIds = pending
+            .map((p) => String(p._id))
+            .filter((id) => !updated.includes(id));
+        if (stillPendingIds.length > 1) {
+            const bulkRef = `cuotas_bulk_${stillPendingIds.join(',')}`;
+            const foundBulk = await searchApprovedMpPaymentByExternalRef(accessToken, bulkRef);
+            if (foundBulk) {
+                const result = await applyApprovedMercadoPagoPayment(req.models, foundBulk);
+                if (result.applied && result.ids) updated.push(...result.ids);
+            } else {
+                // Preferencia familiar puede haber usado otro orden de ids
+                const sortedRef = `cuotas_bulk_${[...stillPendingIds].sort().join(',')}`;
+                if (sortedRef !== bulkRef) {
+                    const foundSorted = await searchApprovedMpPaymentByExternalRef(accessToken, sortedRef);
+                    if (foundSorted) {
+                        const result = await applyApprovedMercadoPagoPayment(req.models, foundSorted);
+                        if (result.applied && result.ids) updated.push(...result.ids);
+                    }
+                }
+                // Último intento: el ref exacto con el orden original del body
+                const bodyOrderRef = `cuotas_bulk_${paymentIds.join(',')}`;
+                if (bodyOrderRef !== bulkRef && bodyOrderRef !== sortedRef) {
+                    const foundOrder = await searchApprovedMpPaymentByExternalRef(accessToken, bodyOrderRef);
+                    if (foundOrder) {
+                        const result = await applyApprovedMercadoPagoPayment(req.models, foundOrder);
+                        if (result.applied && result.ids) updated.push(...result.ids);
+                    }
+                }
+            }
+        }
+    }
+
+    res.json({
+        updated: [...new Set(updated)],
+        synced: updated.length > 0,
+    });
 });
 
 export {
@@ -859,6 +1030,7 @@ export {
     createMemberFamilyPreference,
     createRentalPreference,
     webhookReceiver,
+    syncMemberPayments,
     getMpIntegration,
     updateMpIntegration,
     clearMpIntegration,

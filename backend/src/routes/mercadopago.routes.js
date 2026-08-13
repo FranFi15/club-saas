@@ -5,6 +5,7 @@ import {
     createMemberFamilyPreference,
     createRentalPreference,
     webhookReceiver,
+    syncMemberPayments,
     getMpIntegration,
     updateMpIntegration,
     clearMpIntegration,
@@ -31,7 +32,9 @@ router.post(
     authorize('admin_club', 'administrativo'),
     createRentalPreference,
 );
+router.post('/sync-member-payments', protect, authorize('atleta', 'tutor'), syncMemberPayments);
 
 router.post('/webhook', webhookReceiver);
+router.get('/webhook', webhookReceiver);
 
 export default router;

@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useState, useMemo } from 'react';
+import React, { useCallback, useContext, useState, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   SectionList,
   Modal,
   Platform,
+  AppState,
 } from 'react-native';
 import { runAfterIosModalDismiss } from '../../utils/iosModalChain';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -30,6 +31,7 @@ import { useBadgesOptional } from '../../context/BadgeContext';
 import SelectPaymentsModal from '../../components/SelectPaymentsModal';
 import PaymentPaySummary from '../../components/PaymentPaySummary';
 import MemberPayFlowModal from '../../components/MemberPayFlowModal';
+import { subscribeMercadoPagoDeepLinks } from '../../utils/mpDeepLinks';
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -146,6 +148,74 @@ export default function MemberPaymentsScreen({ navigation }) {
     onFocus: onPaymentsFocus,
   });
 
+  const pendingMpPaymentIdsRef = useRef([]);
+  const syncingMpRef = useRef(false);
+
+  const syncMercadoPagoPayments = useCallback(
+    async ({ mpPaymentId, silent } = {}) => {
+      const paymentIds = pendingMpPaymentIdsRef.current;
+      if ((!paymentIds.length && !mpPaymentId) || !clubData?.urlIdentifier) return false;
+      if (syncingMpRef.current) return false;
+      syncingMpRef.current = true;
+      try {
+        const h = await clubHeaders(clubData);
+        const { data } = await clubApi.post(
+          '/mercadopago/sync-member-payments',
+          {
+            paymentIds: paymentIds.length ? paymentIds : undefined,
+            mpPaymentId: mpPaymentId || undefined,
+          },
+          { headers: h },
+        );
+        if (data?.synced) {
+          pendingMpPaymentIdsRef.current = [];
+          await reload();
+          badges?.refresh?.();
+          if (!silent) {
+            showAlert('Pago registrado', 'Tus cuotas ya figuran como pagadas.');
+          }
+          return true;
+        }
+        await reload();
+        badges?.refresh?.();
+        return false;
+      } catch (e) {
+        if (!silent) {
+          showAlert(
+            'Pago en proceso',
+            e.response?.data?.message ||
+              'Si ya pagaste, tirá hacia abajo para actualizar. Puede demorar unos segundos.',
+          );
+        } else {
+          await reload();
+        }
+        return false;
+      } finally {
+        syncingMpRef.current = false;
+      }
+    },
+    [clubData, reload, badges],
+  );
+
+  useEffect(() => {
+    const unsub = subscribeMercadoPagoDeepLinks((event) => {
+      if (event?.type !== 'payment') return;
+      if (event.status === 'ok' || event.status === 'pending') {
+        syncMercadoPagoPayments({ mpPaymentId: event.mpPaymentId, silent: false });
+      }
+    });
+    return unsub;
+  }, [syncMercadoPagoPayments]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && pendingMpPaymentIdsRef.current.length) {
+        syncMercadoPagoPayments({ silent: true });
+      }
+    });
+    return () => sub.remove();
+  }, [syncMercadoPagoPayments]);
+
   const showInitialLoader =
     (memberLoading || loading) &&
     list.length === 0 &&
@@ -181,6 +251,7 @@ export default function MemberPaymentsScreen({ navigation }) {
         showAlert('Error', 'No pudimos armar el link de pago. Probá de nuevo.');
         return;
       }
+      pendingMpPaymentIdsRef.current = [String(payment._id)];
       await Linking.openURL(url);
     } catch (e) {
       showAlert('Error', e.response?.data?.message || 'No se pudo iniciar el pago.');
@@ -246,6 +317,7 @@ export default function MemberPaymentsScreen({ navigation }) {
       setMpConfirmOpen(false);
       setSelectedForMp([]);
       setPendingPayPayments([]);
+      pendingMpPaymentIdsRef.current = selectedForMp.map((p) => String(p._id));
       await Linking.openURL(url);
     } catch (e) {
       showAlert('Error', e.response?.data?.message || 'No se pudo iniciar el pago.');
