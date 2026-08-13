@@ -17,7 +17,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import { useBadges } from '../../context/BadgeContext';
-import CoachScreenHeader from '../../components/CoachScreenHeader';
+import CoachScreenHeader, { COACH_HEADER_HERO_RIGHT_SIZE } from '../../components/CoachScreenHeader';
+import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
 import { clubApi } from '../../utils/api';
 import { getToken } from '../../utils/storage';
 import {
@@ -55,6 +56,7 @@ export default function ChatThreadScreen({ navigation, route }) {
   const [sendError, setSendError] = useState('');
   const listRef = useRef(null);
   const pollRef = useRef(null);
+  const lastMsgIdRef = useRef(null);
 
   const isGroup = kind === 'category_group';
   const canCompose = !isGroup || groupActive;
@@ -91,22 +93,29 @@ export default function ChatThreadScreen({ navigation, route }) {
     }
   }, [isGroup, otherUser, clubData?.urlIdentifier, conversationId]);
 
-  const loadMessages = useCallback(async () => {
-    if (!clubData?.urlIdentifier || !conversationId) return;
-    try {
-      const h = await chatHeaders(clubData.urlIdentifier);
-      const { data } = await clubApi.get(`/chat/conversations/${conversationId}/messages`, {
-        headers: h,
-        params: { limit: 80 },
-      });
-      setMessages(Array.isArray(data) ? data : []);
-      await markRead();
-    } catch {
-      /* keep previous */
-    } finally {
-      setLoading(false);
-    }
-  }, [clubData?.urlIdentifier, conversationId, markRead]);
+  const loadMessages = useCallback(
+    async ({ markAsRead = false } = {}) => {
+      if (!clubData?.urlIdentifier || !conversationId) return;
+      try {
+        const h = await chatHeaders(clubData.urlIdentifier);
+        const { data } = await clubApi.get(`/chat/conversations/${conversationId}/messages`, {
+          headers: h,
+          params: { limit: 80 },
+        });
+        const rows = Array.isArray(data) ? data : [];
+        setMessages(rows);
+        const lastId = rows.length ? String(rows[rows.length - 1]._id) : null;
+        const changed = lastId !== lastMsgIdRef.current;
+        lastMsgIdRef.current = lastId;
+        if (markAsRead || changed) await markRead();
+      } catch {
+        /* keep previous */
+      } finally {
+        setLoading(false);
+      }
+    },
+    [clubData?.urlIdentifier, conversationId, markRead],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -115,10 +124,10 @@ export default function ChatThreadScreen({ navigation, route }) {
         const id = await getToken('userId');
         if (active) setMyId(id);
         await ensureMeta();
-        await loadMessages();
+        await loadMessages({ markAsRead: true });
       })();
       pollRef.current = setInterval(() => {
-        if (active) loadMessages();
+        if (active) loadMessages({ markAsRead: false });
       }, CHAT_POLL_MS);
       return () => {
         active = false;
@@ -141,6 +150,7 @@ export default function ChatThreadScreen({ navigation, route }) {
         { headers: h },
       );
       setMessages((prev) => [...prev, data]);
+      if (data?._id) lastMsgIdRef.current = String(data._id);
       requestAnimationFrame(() => listRef.current?.scrollToEnd?.({ animated: true }));
     } catch (e) {
       setText(body);
@@ -220,6 +230,25 @@ export default function ChatThreadScreen({ navigation, route }) {
       : 'Desactivado — solo lectura'
     : 'Chat';
 
+  const headerAvatar = isGroup ? (
+    <View
+      style={{
+        width: COACH_HEADER_HERO_RIGHT_SIZE,
+        height: COACH_HEADER_HERO_RIGHT_SIZE,
+        borderRadius: COACH_HEADER_HERO_RIGHT_SIZE / 2,
+        borderWidth: 2,
+        borderColor: 'rgba(255,255,255,0.9)',
+        backgroundColor: 'rgba(255,255,255,0.28)',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Ionicons name="people" size={40} color="#fff" />
+    </View>
+  ) : otherUser ? (
+    <ProfileHeaderAvatar user={otherUser} />
+  ) : null;
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
@@ -231,6 +260,7 @@ export default function ChatThreadScreen({ navigation, route }) {
         subtitle={headerSubtitle}
         onBack={() => navigation.goBack()}
         showNotifications={false}
+        heroRight={headerAvatar}
       />
       <KeyboardAvoidingView
         style={{ flex: 1 }}

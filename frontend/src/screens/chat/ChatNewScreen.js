@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
+import UserAvatar from '../../components/UserAvatar';
 import { clubApi } from '../../utils/api';
 import { chatHeaders, displayName, isAdminChatRole, rolLabel } from './chatHelpers';
 
@@ -113,9 +114,7 @@ export default function ChatNewScreen({ navigation }) {
                 disabled={!!creating}
                 activeOpacity={0.75}
               >
-                <View style={[styles.avatar, { backgroundColor: colorMarca + '22' }]}>
-                  <Ionicons name="person" size={20} color={colorMarca} />
-                </View>
+                <UserAvatar user={item} size={40} colorMarca={colorMarca} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.name, { color: theme.text }]}>{displayName(item)}</Text>
                   {!isAdminChatRole(item.rol) ? (
@@ -155,13 +154,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     marginBottom: 10,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   name: { fontSize: 16, fontWeight: '800' },
   rol: { fontSize: 12, marginTop: 2 },

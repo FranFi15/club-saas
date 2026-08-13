@@ -49,6 +49,9 @@ import { startPaymentRemindersCron } from './src/cron/paymentReminders.cron.js';
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
 
+// Render / reverse proxies: use real client IP for rate limiting
+app.set('trust proxy', 1);
+
 if (isProd) {
     const missing = [];
     if (!process.env.JWT_SECRET) missing.push('JWT_SECRET');
@@ -90,14 +93,26 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
-// Rate Limiting: Previene ataques de Fuerza Bruta y denegación de servicio (DDoS)
+// Rate Limiting: evita abuso; el bucket es por IP del cliente (requiere trust proxy)
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos
-    max: 200, // Limita cada IP a 200 peticiones por ventana de 15 minutos
+    max: 900, // app móvil + polling de chat; ~1 req/s de promedio
+    standardHeaders: true,
+    legacyHeaders: false,
     message: { error: 'Demasiadas peticiones desde esta IP. Por favor intente de nuevo más tarde.' },
     skip: (req) => req.method === 'OPTIONS',
 });
-app.use('/api', limiter); // Se aplica a todas las rutas que empiecen con /api
+app.use('/api', limiter);
+
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 40,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Demasiados intentos. Probá de nuevo en unos minutos.' },
+    skip: (req) => req.method === 'OPTIONS',
+});
+app.use('/api/auth/login', authLimiter);
 
 // Body Parsers con límites para evitar saturación de memoria
 app.use(express.json({ limit: '10kb' })); 

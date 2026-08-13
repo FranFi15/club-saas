@@ -50,7 +50,7 @@ export function formatChatTime(iso) {
   return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
 }
 
-export const CHAT_POLL_MS = Platform.OS === 'web' ? 5000 : 4000;
+export const CHAT_POLL_MS = Platform.OS === 'web' ? 10000 : 8000;
 
 const DELIVERY_TITLES = {
   requirement: 'Pedido de documentación',

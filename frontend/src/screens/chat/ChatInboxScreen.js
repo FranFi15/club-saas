@@ -17,6 +17,7 @@ import { ThemeContext } from '../../context/ThemeContext';
 import { useBadges } from '../../context/BadgeContext';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import BadgeDot from '../../components/BadgeDot';
+import UserAvatar from '../../components/UserAvatar';
 import { clubApi } from '../../utils/api';
 import { chatHeaders, displayName, formatChatTime, isAdminChatRole, rolLabel } from './chatHelpers';
 
@@ -80,9 +81,13 @@ export default function ChatInboxScreen({ navigation }) {
         onPress={() => openThread(item)}
         activeOpacity={0.75}
       >
-        <View style={[styles.avatar, { backgroundColor: colorMarca + '22' }]}>
-          <Ionicons name={isGroup ? 'people' : 'person'} size={22} color={colorMarca} />
-        </View>
+        {isGroup ? (
+          <View style={[styles.avatar, { backgroundColor: colorMarca + '22' }]}>
+            <Ionicons name="people" size={22} color={colorMarca} />
+          </View>
+        ) : (
+          <UserAvatar user={other} size={44} colorMarca={colorMarca} />
+        )}
         <View style={{ flex: 1 }}>
           <View style={styles.topLine}>
             <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
