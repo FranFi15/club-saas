@@ -143,7 +143,7 @@ export async function listMessages(models, user, conversationId, { before, limit
     return rows.reverse();
 }
 
-export async function sendMessage(models, user, conversationId, bodyRaw) {
+export async function sendMessage(models, user, conversationId, bodyRaw, meta = {}) {
     const { ChatConversation, ChatMessage, User } = models;
     const body = String(bodyRaw || '').trim();
     if (!body) {
@@ -156,6 +156,18 @@ export async function sendMessage(models, user, conversationId, bodyRaw) {
         err.statusCode = 400;
         throw err;
     }
+
+    const kind =
+        meta?.kind === 'requirement' || meta?.kind === 'resource' ? meta.kind : 'text';
+    const action =
+        meta?.action && (meta.action.type === 'requirement' || meta.action.type === 'resource')
+            ? {
+                  type: meta.action.type,
+                  requirementId: meta.action.requirementId || undefined,
+                  resourceId: meta.action.resourceId || undefined,
+                  label: meta.action.label ? String(meta.action.label).slice(0, 80) : undefined,
+              }
+            : undefined;
 
     const conv = await assertParticipant(models, conversationId, user._id);
     const otherIds = (conv.participants || []).filter((p) => String(p) !== String(user._id));
@@ -185,6 +197,8 @@ export async function sendMessage(models, user, conversationId, bodyRaw) {
         conversation: conv._id,
         sender: user._id,
         body,
+        kind,
+        ...(action ? { action } : {}),
     });
 
     const preview = body.length > 120 ? `${body.slice(0, 117)}…` : body;

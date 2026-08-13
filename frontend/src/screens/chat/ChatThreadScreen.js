@@ -24,7 +24,9 @@ import {
   chatHeaders,
   displayName,
   formatChatTime,
+  getDeliveryPresentation,
   isAdminChatRole,
+  navigateChatDeliveryAction,
   rolLabel,
   CHAT_POLL_MS,
 } from './chatHelpers';
@@ -151,6 +153,12 @@ export default function ChatThreadScreen({ navigation, route }) {
   const renderItem = ({ item }) => {
     const mine = myId && String(item.sender?._id || item.sender) === String(myId);
     const showSender = isGroup && !mine;
+    const delivery = getDeliveryPresentation(item);
+    const textColor = mine ? '#fff' : theme.text;
+    const mutedColor = mine ? 'rgba(255,255,255,0.75)' : theme.textMuted;
+    const ctaBg = mine ? 'rgba(255,255,255,0.2)' : `${colorMarca}18`;
+    const ctaFg = mine ? '#fff' : colorMarca;
+
     return (
       <View style={[styles.bubbleWrap, mine ? styles.mineWrap : styles.theirsWrap]}>
         {showSender ? (
@@ -161,13 +169,38 @@ export default function ChatThreadScreen({ navigation, route }) {
         <View
           style={[
             styles.bubble,
+            delivery ? styles.deliveryBubble : null,
             mine
               ? { backgroundColor: colorMarca }
               : { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 },
           ]}
         >
-          <Text style={[styles.bubbleText, { color: mine ? '#fff' : theme.text }]}>{item.body}</Text>
-          <Text style={[styles.bubbleTime, { color: mine ? 'rgba(255,255,255,0.75)' : theme.textMuted }]}>
+          {delivery ? (
+            <>
+              <View style={styles.deliveryHeader}>
+                <Ionicons name={delivery.icon} size={18} color={ctaFg} />
+                <Text style={[styles.deliveryTitle, { color: textColor }]} numberOfLines={2}>
+                  {delivery.title}
+                </Text>
+              </View>
+              {delivery.bodyText ? (
+                <Text style={[styles.bubbleText, { color: textColor }]}>{delivery.bodyText}</Text>
+              ) : null}
+              {delivery.showCta ? (
+                <TouchableOpacity
+                  style={[styles.deliveryCta, { backgroundColor: ctaBg }]}
+                  onPress={() => navigateChatDeliveryAction(navigation, delivery.kind)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.deliveryCtaText, { color: ctaFg }]}>{delivery.ctaLabel}</Text>
+                  <Ionicons name="chevron-forward" size={16} color={ctaFg} />
+                </TouchableOpacity>
+              ) : null}
+            </>
+          ) : (
+            <Text style={[styles.bubbleText, { color: textColor }]}>{item.body}</Text>
+          )}
+          <Text style={[styles.bubbleTime, { color: mutedColor }]}>
             {formatChatTime(item.createdAt)}
           </Text>
         </View>
@@ -272,6 +305,24 @@ const styles = StyleSheet.create({
   theirsWrap: { alignSelf: 'flex-start' },
   senderName: { fontSize: 11, fontWeight: '700', marginBottom: 3, marginLeft: 4 },
   bubble: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8 },
+  deliveryBubble: { minWidth: 220 },
+  deliveryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  deliveryTitle: { flex: 1, fontSize: 14, fontWeight: '700', lineHeight: 18 },
+  deliveryCta: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+  },
+  deliveryCtaText: { fontSize: 13, fontWeight: '700' },
   bubbleText: { fontSize: 15, lineHeight: 21 },
   bubbleTime: { fontSize: 11, marginTop: 4, alignSelf: 'flex-end' },
   empty: { textAlign: 'center', marginTop: 40, fontSize: 14 },

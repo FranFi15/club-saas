@@ -23,25 +23,44 @@ function formatDueDate(value) {
 }
 
 export function buildRequirementChatBody(requirement, { athleteName } = {}) {
-    const lines = ['📄 Pedido de documentación'];
+    const lines = ['Pedido de documentación'];
     if (athleteName) lines.push(`Para: ${athleteName}`);
     lines.push(requirement.titulo || 'Documento');
     if (requirement.descripcion?.trim()) lines.push(requirement.descripcion.trim());
     const due = formatDueDate(requirement.fechaVencimiento);
     if (due) lines.push(`Vence: ${due}`);
-    lines.push('Subilo desde Comunicar → Documentación.');
     return clip(lines.join('\n'));
 }
 
 export function buildResourceChatBody(resource, sender, { athleteName } = {}) {
     const who = `${sender?.nombre || ''} ${sender?.apellido || ''}`.trim() || 'El club';
-    const lines = ['📎 Nuevo material'];
+    const lines = ['Nuevo material'];
     if (athleteName) lines.push(`Para: ${athleteName}`);
     lines.push(`${who} compartió: ${resource.titulo || 'Recurso'}`);
     if (resource.descripcion?.trim()) lines.push(resource.descripcion.trim());
-    if (resource.fileUrl) lines.push(String(resource.fileUrl));
-    lines.push('También lo encontrás en Comunicar → Recursos.');
     return clip(lines.join('\n'));
+}
+
+function requirementMeta(requirement) {
+    return {
+        kind: 'requirement',
+        action: {
+            type: 'requirement',
+            requirementId: requirement._id,
+            label: 'Ir a Documentación',
+        },
+    };
+}
+
+function resourceMeta(resource) {
+    return {
+        kind: 'resource',
+        action: {
+            type: 'resource',
+            resourceId: resource._id,
+            label: 'Ver material',
+        },
+    };
 }
 
 async function ensureGroupParticipant(models, conversationId, userId) {
@@ -52,9 +71,9 @@ async function ensureGroupParticipant(models, conversationId, userId) {
     );
 }
 
-async function sendDirect(models, sender, recipientId, body) {
+async function sendDirect(models, sender, recipientId, body, meta) {
     const conv = await getOrCreateConversation(models, sender, recipientId);
-    await sendMessage(models, sender, conv._id, body);
+    await sendMessage(models, sender, conv._id, body, meta);
     return { ok: true, mode: 'direct', to: idStr(recipientId) };
 }
 
@@ -62,7 +81,7 @@ async function sendDirect(models, sender, recipientId, body) {
  * Atleta: chat 1:1 si está habilitado; si no, tutor.
  * Otros roles (admin → persona): chat directo si canChat.
  */
-export async function deliverToUserOrTutor(models, sender, recipient, bodyForRecipient, bodyForTutor) {
+export async function deliverToUserOrTutor(models, sender, recipient, bodyForRecipient, bodyForTutor, meta) {
     const { User } = models;
     if (!recipient || recipient.estado === 'inactivo') {
         return { ok: false, reason: 'inactive' };
@@ -71,7 +90,7 @@ export async function deliverToUserOrTutor(models, sender, recipient, bodyForRec
     if (recipient.rol === 'atleta') {
         if (await canChat(models, sender, recipient)) {
             try {
-                return await sendDirect(models, sender, recipient._id, bodyForRecipient);
+                return await sendDirect(models, sender, recipient._id, bodyForRecipient, meta);
             } catch (e) {
                 console.warn('[deliveryToChat] direct athlete:', e.message);
             }
@@ -88,7 +107,7 @@ export async function deliverToUserOrTutor(models, sender, recipient, bodyForRec
                         typeof bodyForTutor === 'function'
                             ? bodyForTutor(athleteName)
                             : bodyForTutor || bodyForRecipient;
-                    return await sendDirect(models, sender, tutor._id, body);
+                    return await sendDirect(models, sender, tutor._id, body, meta);
                 } catch (e) {
                     console.warn('[deliveryToChat] tutor fallback:', e.message);
                 }
@@ -99,7 +118,7 @@ export async function deliverToUserOrTutor(models, sender, recipient, bodyForRec
 
     if (await canChat(models, sender, recipient)) {
         try {
-            return await sendDirect(models, sender, recipient._id, bodyForRecipient);
+            return await sendDirect(models, sender, recipient._id, bodyForRecipient, meta);
         } catch (e) {
             console.warn('[deliveryToChat] direct user:', e.message);
             return { ok: false, reason: e.message };
@@ -108,7 +127,7 @@ export async function deliverToUserOrTutor(models, sender, recipient, bodyForRec
     return { ok: false, reason: 'no_chat_path' };
 }
 
-async function fanOutAthletes(models, sender, athleteIds, buildBodies) {
+async function fanOutAthletes(models, sender, athleteIds, buildBodies, meta) {
     const { User } = models;
     const results = [];
     if (!athleteIds?.length) return results;
@@ -125,13 +144,13 @@ async function fanOutAthletes(models, sender, athleteIds, buildBodies) {
         const athleteName = `${athlete.nombre || ''} ${athlete.apellido || ''}`.trim() || 'el atleta';
         const { bodyDirect, bodyTutor } = buildBodies(athleteName);
         // eslint-disable-next-line no-await-in-loop
-        const r = await deliverToUserOrTutor(models, sender, athlete, bodyDirect, bodyTutor);
+        const r = await deliverToUserOrTutor(models, sender, athlete, bodyDirect, bodyTutor, meta);
         results.push({ athleteId: idStr(athlete._id), ...r });
     }
     return results;
 }
 
-async function tryCategoryGroup(models, sender, categoryId, body) {
+async function tryCategoryGroup(models, sender, categoryId, body, meta) {
     const { Category, ChatConversation } = models;
     const category = await Category.findById(categoryId)
         .select('nombre chatGrupalCategoriaEnabled')
@@ -158,7 +177,7 @@ async function tryCategoryGroup(models, sender, categoryId, body) {
     }
 
     try {
-        await sendMessage(models, sender, conv._id, body);
+        await sendMessage(models, sender, conv._id, body, meta);
         return { ok: true, mode: 'group', conversationId: idStr(conv._id) };
     } catch (e) {
         console.warn('[deliveryToChat] group send:', e.message);
@@ -172,6 +191,7 @@ async function tryCategoryGroup(models, sender, categoryId, body) {
 export async function deliverRequirementToChat(models, sender, requirement) {
     const { User, Enrollment } = models;
     const results = { mode: requirement.alcance, deliveries: [], viaNewsFallback: false };
+    const meta = requirementMeta(requirement);
 
     if (requirement.alcance === 'usuario' && requirement.targetUsuario) {
         const person = await User.findById(requirement.targetUsuario)
@@ -191,6 +211,7 @@ export async function deliverRequirementToChat(models, sender, requirement) {
             person,
             athleteName ? buildRequirementChatBody(requirement) : bodyDirect,
             bodyTutor,
+            meta,
         );
         results.deliveries.push(r);
         return results;
@@ -198,7 +219,13 @@ export async function deliverRequirementToChat(models, sender, requirement) {
 
     if (requirement.alcance === 'categoria' && requirement.targetCategoria) {
         const bodyGroup = buildRequirementChatBody(requirement);
-        const group = await tryCategoryGroup(models, sender, requirement.targetCategoria, bodyGroup);
+        const group = await tryCategoryGroup(
+            models,
+            sender,
+            requirement.targetCategoria,
+            bodyGroup,
+            meta,
+        );
         if (group.ok) {
             results.deliveries.push(group);
             return results;
@@ -208,20 +235,32 @@ export async function deliverRequirementToChat(models, sender, requirement) {
             categoria: requirement.targetCategoria,
             estado: 'activo',
         }).distinct('atleta');
-        const fan = await fanOutAthletes(models, sender, athleteIds, (athleteName) => ({
-            bodyDirect: buildRequirementChatBody(requirement),
-            bodyTutor: buildRequirementChatBody(requirement, { athleteName }),
-        }));
+        const fan = await fanOutAthletes(
+            models,
+            sender,
+            athleteIds,
+            (athleteName) => ({
+                bodyDirect: buildRequirementChatBody(requirement),
+                bodyTutor: buildRequirementChatBody(requirement, { athleteName }),
+            }),
+            meta,
+        );
         results.deliveries.push(...fan);
         return results;
     }
 
     if (requirement.alcance === 'global') {
         const athleteIds = await User.find({ rol: 'atleta', estado: 'activo' }).distinct('_id');
-        const fan = await fanOutAthletes(models, sender, athleteIds, (athleteName) => ({
-            bodyDirect: buildRequirementChatBody(requirement),
-            bodyTutor: buildRequirementChatBody(requirement, { athleteName }),
-        }));
+        const fan = await fanOutAthletes(
+            models,
+            sender,
+            athleteIds,
+            (athleteName) => ({
+                bodyDirect: buildRequirementChatBody(requirement),
+                bodyTutor: buildRequirementChatBody(requirement, { athleteName }),
+            }),
+            meta,
+        );
         results.deliveries.push(...fan);
         return results;
     }
@@ -235,6 +274,7 @@ export async function deliverRequirementToChat(models, sender, requirement) {
 export async function deliverResourceToChat(models, sender, resource) {
     const { User, Enrollment } = models;
     const results = { mode: resource.alcance, deliveries: [] };
+    const meta = resourceMeta(resource);
 
     if (resource.alcance === 'usuario' && resource.targetUsuario) {
         const person = await User.findById(resource.targetUsuario)
@@ -248,6 +288,7 @@ export async function deliverResourceToChat(models, sender, resource) {
             person,
             buildResourceChatBody(resource, sender),
             (athleteName) => buildResourceChatBody(resource, sender, { athleteName }),
+            meta,
         );
         results.deliveries.push(r);
         return results;
@@ -255,7 +296,13 @@ export async function deliverResourceToChat(models, sender, resource) {
 
     if (resource.alcance === 'categoria' && resource.targetCategoria) {
         const bodyGroup = buildResourceChatBody(resource, sender);
-        const group = await tryCategoryGroup(models, sender, resource.targetCategoria, bodyGroup);
+        const group = await tryCategoryGroup(
+            models,
+            sender,
+            resource.targetCategoria,
+            bodyGroup,
+            meta,
+        );
         if (group.ok) {
             results.deliveries.push(group);
             return results;
@@ -265,10 +312,16 @@ export async function deliverResourceToChat(models, sender, resource) {
             categoria: resource.targetCategoria,
             estado: 'activo',
         }).distinct('atleta');
-        const fan = await fanOutAthletes(models, sender, athleteIds, (athleteName) => ({
-            bodyDirect: buildResourceChatBody(resource, sender),
-            bodyTutor: buildResourceChatBody(resource, sender, { athleteName }),
-        }));
+        const fan = await fanOutAthletes(
+            models,
+            sender,
+            athleteIds,
+            (athleteName) => ({
+                bodyDirect: buildResourceChatBody(resource, sender),
+                bodyTutor: buildResourceChatBody(resource, sender, { athleteName }),
+            }),
+            meta,
+        );
         results.deliveries.push(...fan);
         return results;
     }

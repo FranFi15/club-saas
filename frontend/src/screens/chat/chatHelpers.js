@@ -51,3 +51,99 @@ export function formatChatTime(iso) {
 }
 
 export const CHAT_POLL_MS = Platform.OS === 'web' ? 5000 : 4000;
+
+const DELIVERY_TITLES = {
+  requirement: 'Pedido de documentación',
+  resource: 'Nuevo material',
+};
+
+const DELIVERY_ICONS = {
+  requirement: 'document-attach-outline',
+  resource: 'folder-open-outline',
+};
+
+const DELIVERY_CTA = {
+  requirement: 'Ir a Documentación',
+  resource: 'Ver material',
+};
+
+const STAFF_TEAM_TABS = [
+  ['CoachEquipo', 'CoachTeamDocuments'],
+  ['PrepEquipo', 'CoachTeamDocuments'],
+  ['NutEquipo', 'CoachTeamDocuments'],
+  ['PsiEquipo', 'CoachTeamDocuments'],
+];
+
+export function getDeliveryKind(message) {
+  const kind = message?.kind || message?.action?.type;
+  if (kind === 'requirement' || kind === 'resource') return kind;
+  const first = String(message?.body || '').split('\n')[0]?.trim() || '';
+  if (first.includes('Pedido de documentación')) return 'requirement';
+  if (first.includes('Nuevo material')) return 'resource';
+  return null;
+}
+
+export function getDeliveryPresentation(message) {
+  const kind = getDeliveryKind(message);
+  if (!kind) return null;
+
+  const raw = String(message?.body || '');
+  const lines = raw.split('\n').map((l) => l.trim()).filter(Boolean);
+  const title = DELIVERY_TITLES[kind];
+  const bodyLines =
+    lines[0] === title || lines[0] === `📄 ${title}` || lines[0] === `📎 ${title}`
+      ? lines.slice(1)
+      : lines;
+
+  return {
+    kind,
+    icon: DELIVERY_ICONS[kind],
+    title,
+    bodyText: bodyLines.join('\n'),
+    ctaLabel: message?.action?.label || DELIVERY_CTA[kind],
+    showCta: true,
+  };
+}
+
+function routeNames(nav) {
+  return nav?.getState?.()?.routeNames || [];
+}
+
+/**
+ * Navigate from ChatThread to documents / resources for the current role stack.
+ */
+export function navigateChatDeliveryAction(navigation, kind) {
+  if (!navigation || (kind !== 'requirement' && kind !== 'resource')) return false;
+
+  const names = routeNames(navigation);
+
+  if (kind === 'requirement') {
+    if (names.includes('MemberDocuments')) {
+      navigation.navigate('MemberDocuments');
+      return true;
+    }
+    if (names.includes('RevisarDocumentacion')) {
+      navigation.navigate('RevisarDocumentacion');
+      return true;
+    }
+    const parent = navigation.getParent?.();
+    const tabs = routeNames(parent);
+    for (const [tab, screen] of STAFF_TEAM_TABS) {
+      if (tabs.includes(tab)) {
+        parent.navigate(tab, { screen });
+        return true;
+      }
+    }
+    return false;
+  }
+
+  if (names.includes('MemberResources')) {
+    navigation.navigate('MemberResources');
+    return true;
+  }
+  if (names.includes('CoachResourceSend')) {
+    navigation.navigate('CoachResourceSend');
+    return true;
+  }
+  return false;
+}

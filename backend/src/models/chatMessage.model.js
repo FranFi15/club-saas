@@ -19,6 +19,21 @@ const chatMessageSchema = new mongoose.Schema(
             trim: true,
             maxlength: 2000,
         },
+        /** text | requirement | resource — drives chat UI chrome + CTA */
+        kind: {
+            type: String,
+            enum: ['text', 'requirement', 'resource'],
+            default: 'text',
+        },
+        action: {
+            type: {
+                type: String,
+                enum: ['requirement', 'resource'],
+            },
+            requirementId: { type: mongoose.Schema.Types.ObjectId },
+            resourceId: { type: mongoose.Schema.Types.ObjectId },
+            label: { type: String, trim: true, maxlength: 80 },
+        },
     },
     { timestamps: true }
 );
