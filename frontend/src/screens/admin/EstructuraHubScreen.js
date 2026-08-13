@@ -125,6 +125,14 @@ export default function EstructuraHubScreen({ navigation }) {
         {isClubOwner ? (
           <>
             <HubMenuCard
+              title="Estadísticas del club"
+              subtitle="Demografía, plantel, pendientes y finanzas"
+              icon="stats-chart"
+              theme={theme}
+              colorMarca={colorMarca}
+              onPress={() => navigation.navigate('Estadisticas')}
+            />
+            <HubMenuCard
               title="Usuarios y Staff"
               subtitle="Jugadores, profes, médicos y tutores"
               icon="people"
@@ -168,6 +176,14 @@ export default function EstructuraHubScreen({ navigation }) {
           </>
         ) : (
           <>
+            <HubMenuCard
+              title="Estadísticas del club"
+              subtitle="Demografía, plantel, pendientes y finanzas"
+              icon="stats-chart"
+              theme={theme}
+              colorMarca={colorMarca}
+              onPress={() => navigation.navigate('Estadisticas')}
+            />
             <HubMenuCard
               title="Control de ingreso"
               subtitle="Escaneá el QR de atletas y tutores"

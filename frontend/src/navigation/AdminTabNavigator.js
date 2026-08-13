@@ -16,6 +16,7 @@ import UsuariosScreen from '../screens/admin/UsuariosScreen';
 import EspaciosFisicosScreen from '../screens/admin/EspaciosFisicosScreen';
 import GrillaEntrenamientosScreen from '../screens/admin/GrillaEntrenamientosScreen';
 import AdminEnrollmentRequestsScreen from '../screens/admin/AdminEnrollmentRequestsScreen';
+import AdminStatsScreen from '../screens/admin/AdminStatsScreen';
 import AdminGestionHubScreen from '../screens/admin/AdminGestionHubScreen';
 import AdminPendientesScreen from '../screens/admin/AdminPendientesScreen';
 import AlquileresScreen from '../screens/admin/AlquileresScreen';
@@ -48,6 +49,7 @@ function EstructuraStackNavigator() {
   return (
     <EstructuraStack.Navigator screenOptions={{ headerShown: false }}>
       <EstructuraStack.Screen name="EstructuraHome" component={EstructuraHubScreen} />
+      <EstructuraStack.Screen name="Estadisticas" component={AdminStatsScreen} />
       <EstructuraStack.Screen name="SolicitudesInscripcion" component={AdminEnrollmentRequestsScreen} />
       <EstructuraStack.Screen name="Usuarios" component={UsuariosScreen} />
       <EstructuraStack.Screen name="EstructuraDeportiva" component={EstructuraScreen} />
