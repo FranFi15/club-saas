@@ -17,34 +17,39 @@ import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
 import { clubApi } from '../../utils/api';
+import { isoCalendarDateToDisplay } from '../../utils/dateDisplay';
+import { persistUserTokensFromProfile } from '../../utils/profileTokens';
 import CustomAlert from '../../components/CustomAlert';
+import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScreenHeader';
 import ProfileEditDataButton from '../../components/ProfileEditDataButton';
+import ProfileClubEntryButton from '../../components/ProfileClubEntryButton';
 import ProfileLogoutButton from '../../components/ProfileLogoutButton';
-import ProfileInfoRow from '../../components/ProfileInfoRow';
+import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
+import ProfileInfoRow, { profileCardStyles } from '../../components/ProfileInfoRow';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { subscribeMercadoPagoDeepLinks } from '../../utils/mpDeepLinks';
 
 const MP_BLUE = '#009EE3';
 
+const emptyIntegration = () => ({
+  tokenSource: 'none',
+  oauthReady: false,
+  oauthSetup: { ready: false, missing: [] },
+});
+
 export default function AdminProfileScreen({ navigation }) {
   const { clubData, setClubData, clearSession } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
-  const mpCacheKey = clubData?.urlIdentifier ? `admin-mp:${clubData.urlIdentifier}` : '';
+  const profileCacheKey = clubData?.urlIdentifier ? `admin-profile:${clubData.urlIdentifier}` : '';
 
-  const [userRol, setUserRolState] = useState(() => readScreenCache(mpCacheKey)?.userRol ?? null);
+  const cached = () => readScreenCache(profileCacheKey);
+  const [userRol, setUserRolState] = useState(() => cached()?.userRol ?? null);
+  const [profile, setProfile] = useState(() => cached()?.profile ?? null);
   const [mpSaving, setMpSaving] = useState(false);
-  const [integration, setIntegration] = useState(
-    () =>
-      readScreenCache(mpCacheKey)?.integration ?? {
-        tokenSource: 'none',
-        oauthReady: false,
-        oauthSetup: { ready: false, missing: [] },
-      },
-  );
-  const [datosTransferencia, setDatosTransferencia] = useState(
-    () => readScreenCache(mpCacheKey)?.datosTransferencia ?? null,
-  );
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [integration, setIntegration] = useState(() => cached()?.integration ?? emptyIntegration());
+  const [datosTransferencia, setDatosTransferencia] = useState(() => cached()?.datosTransferencia ?? null);
 
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
@@ -73,28 +78,33 @@ export default function AdminProfileScreen({ navigation }) {
     return { 'x-club-identifier': clubData.urlIdentifier, Authorization: `Bearer ${token}` };
   }, [clubData?.urlIdentifier]);
 
-  const applyMp = useCallback((data) => {
+  const applyProfile = useCallback((data) => {
     setUserRolState(data.userRol);
+    setProfile(data.profile);
     setIntegration(data.integration);
     setDatosTransferencia(data.datosTransferencia ?? null);
   }, []);
 
-  const fetchMp = useCallback(async () => {
+  const fetchProfile = useCallback(async () => {
     if (!clubData?.urlIdentifier) {
       return {
         userRol: null,
-        integration: { tokenSource: 'none', oauthReady: false, oauthSetup: { ready: false, missing: [] } },
+        profile: null,
+        integration: emptyIntegration(),
         datosTransferencia: null,
       };
     }
-    const rol = await getToken('userRol');
     const h = await getHeaders();
-    const [mpRes, bankRes] = await Promise.all([
+    const [meRes, mpRes, bankRes, rolToken] = await Promise.all([
+      clubApi.get('/users/me', { headers: h }),
       clubApi.get('/mercadopago/integration', { headers: h }),
       clubApi.get('/financial/transfer-bank', { headers: h }),
+      getToken('userRol'),
     ]);
+    await persistUserTokensFromProfile(meRes.data);
     return {
-      userRol: rol,
+      userRol: meRes.data?.rol || rolToken || null,
+      profile: meRes.data,
       integration: {
         tokenSource: mpRes.data.tokenSource || 'none',
         oauthReady: !!mpRes.data.oauthReady,
@@ -107,15 +117,20 @@ export default function AdminProfileScreen({ navigation }) {
     };
   }, [clubData?.urlIdentifier, getHeaders]);
 
-  const { loading: mpLoading, refreshing, onRefresh, reload } = useCachedFocusLoad({
-    cacheKey: mpCacheKey,
-    enabled: !!mpCacheKey,
-    fetchData: fetchMp,
-    onFetched: applyMp,
-    onFetchError: () => {
-      applyMp({
-        userRol: null,
-        integration: { tokenSource: 'none', oauthReady: false, oauthSetup: { ready: false, missing: [] } },
+  const { loading, refreshing, onRefresh, reload } = useCachedFocusLoad({
+    cacheKey: profileCacheKey,
+    enabled: !!profileCacheKey,
+    fetchData: fetchProfile,
+    onFetched: applyProfile,
+    onFetchError: async () => {
+      applyProfile({
+        userRol: (await getToken('userRol')) || null,
+        profile: {
+          nombre: (await getToken('userNombre')) || '',
+          apellido: (await getToken('userApellido')) || '',
+          email: (await getToken('userEmail')) || '',
+        },
+        integration: emptyIntegration(),
         datosTransferencia: null,
       });
     },
@@ -153,6 +168,8 @@ export default function AdminProfileScreen({ navigation }) {
       ? 'Usando token global del servidor'
       : 'Sin vincular';
 
+  const showInitialLoader = loading && !profile;
+
   const handleLogout = async () => {
     await clearSession();
     setClubData(null);
@@ -185,103 +202,181 @@ export default function AdminProfileScreen({ navigation }) {
     }
   };
 
+  const fullName = profile
+    ? `${profile.nombre || ''}${profile.nombre && profile.apellido ? ' ' : ''}${profile.apellido || ''}`.trim() ||
+      'Tu cuenta'
+    : 'Tu cuenta';
+
+  const fechaDisplay = profile?.fechaNacimiento
+    ? isoCalendarDateToDisplay(String(profile.fechaNacimiento))
+    : '';
+
+  const showBankFields = canEditClubBank || !!datosTransferencia?.titular || !!datosTransferencia?.alias;
+  const showBankHint = !canEditClubBank && !datosTransferencia?.titular && !datosTransferencia?.alias;
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
+      <CoachScreenHeader
+        colorMarca={colorMarca}
+        theme={theme}
+        kicker="Perfil"
+        title={fullName}
+        subtitle={clubData?.nombre || 'Tu club'}
+        heroRight={profile ? <ProfileHeaderAvatar user={profile} /> : null}
+        showNotifications={false}
+        footer={
+          <CoachHeaderBadge>
+            <Ionicons name="shield-checkmark-outline" size={16} color="#fff" />
+            <Text style={styles.heroBadgeTxt}>{roleBadgeLabel}</Text>
+          </CoachHeaderBadge>
+        }
+      />
+
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={profileCardStyles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
       >
-        <View style={[styles.headerCard, { backgroundColor: colorMarca }]}>
-          <Text style={styles.headerKicker}>Perfil</Text>
-          <Text style={styles.headerTitle}>{clubData?.nombre || 'Club'}</Text>
-          <View style={[styles.badge, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-            <Ionicons name="shield-checkmark-outline" size={18} color="#fff" />
-            <Text style={styles.badgeText}>{roleBadgeLabel}</Text>
-          </View>
-        </View>
+        {showInitialLoader ? (
+          <ActivityIndicator color={colorMarca} style={{ marginVertical: 24 }} />
+        ) : (
+          <>
+            <View style={[profileCardStyles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <TouchableOpacity
+                style={styles.detailsHeader}
+                onPress={() => setDetailsOpen((o) => !o)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: detailsOpen }}
+                accessibilityLabel="Datos del perfil"
+              >
+                <View style={styles.detailsHeaderLeft}>
+                  <Ionicons name="information-circle-outline" size={18} color={theme.icon} />
+                  <Text style={[styles.detailsTitle, { color: theme.text }]}>Datos del perfil</Text>
+                </View>
+                <Ionicons
+                  name={detailsOpen ? 'chevron-up' : 'chevron-down'}
+                  size={20}
+                  color={theme.textMuted}
+                />
+              </TouchableOpacity>
 
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <ProfileInfoRow
-            icon="link-outline"
-            label="Identificador"
-            value={clubData?.urlIdentifier}
-            theme={theme}
-          />
-          {canEditClubBank || datosTransferencia?.titular || datosTransferencia?.alias ? (
-            <>
-              <ProfileInfoRow
-                icon="person-outline"
-                label="Titular"
-                value={datosTransferencia?.titular}
-                theme={theme}
-              />
-              <ProfileInfoRow icon="business-outline" label="Banco" value={datosTransferencia?.banco} theme={theme} />
-              <ProfileInfoRow icon="at-outline" label="Alias" value={datosTransferencia?.alias} theme={theme} />
-              <ProfileInfoRow
-                icon="card-outline"
-                label="CBU"
-                value={datosTransferencia?.cbu}
-                theme={theme}
-                isLast
-              />
-            </>
-          ) : null}
-          {!canEditClubBank && !datosTransferencia?.titular && !datosTransferencia?.alias ? (
-            <ProfileInfoRow
-              icon="information-circle-outline"
-              label="Datos bancarios"
-              value="Los configura el administrador del club"
-              theme={theme}
-              isLast
-            />
-          ) : null}
-        </View>
+              {detailsOpen ? (
+                <>
+                  <ProfileInfoRow
+                    icon="calendar-outline"
+                    label="Fecha de nacimiento"
+                    value={fechaDisplay}
+                    theme={theme}
+                  />
+                  <ProfileInfoRow icon="call-outline" label="Teléfono" value={profile?.telefono} theme={theme} />
+                  <ProfileInfoRow
+                    icon="location-outline"
+                    label="Dirección"
+                    value={profile?.direccion}
+                    theme={theme}
+                  />
+                  <ProfileInfoRow icon="mail-outline" label="Email" value={profile?.email} theme={theme} />
+                  <ProfileInfoRow icon="business-outline" label="Club" value={clubData?.nombre} theme={theme} />
+                  <ProfileInfoRow
+                    icon="link-outline"
+                    label="Identificador"
+                    value={clubData?.urlIdentifier}
+                    theme={theme}
+                    isLast={!showBankFields && !showBankHint && !canManageMercadoPago}
+                  />
+                  {showBankFields ? (
+                    <>
+                      <ProfileInfoRow
+                        icon="person-outline"
+                        label="Titular"
+                        value={datosTransferencia?.titular}
+                        theme={theme}
+                      />
+                      <ProfileInfoRow
+                        icon="business-outline"
+                        label="Banco"
+                        value={datosTransferencia?.banco}
+                        theme={theme}
+                      />
+                      <ProfileInfoRow
+                        icon="at-outline"
+                        label="Alias"
+                        value={datosTransferencia?.alias}
+                        theme={theme}
+                      />
+                      <ProfileInfoRow
+                        icon="card-outline"
+                        label="CBU"
+                        value={datosTransferencia?.cbu}
+                        theme={theme}
+                        isLast={!canManageMercadoPago}
+                      />
+                    </>
+                  ) : null}
+                  {showBankHint ? (
+                    <ProfileInfoRow
+                      icon="information-circle-outline"
+                      label="Datos bancarios"
+                      value="Los configura el administrador del club"
+                      theme={theme}
+                      isLast={!canManageMercadoPago}
+                    />
+                  ) : null}
+                  {canManageMercadoPago ? (
+                    <>
+                      <ProfileInfoRow
+                        icon="wallet-outline"
+                        label="Mercado Pago"
+                        value={mpStatusLabel}
+                        theme={theme}
+                        isLast={integration.oauthReady}
+                      />
+                      {!integration.oauthReady && integration.oauthSetup?.missing?.length ? (
+                        <Text style={[styles.mpHint, { color: theme.textMuted }]}>
+                          OAuth del servidor incompleto. Variables pendientes:{' '}
+                          {integration.oauthSetup.missing.join(', ')}
+                        </Text>
+                      ) : null}
+                    </>
+                  ) : null}
+                </>
+              ) : null}
+            </View>
 
-        {canManageMercadoPago ? (
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <ProfileInfoRow
-              icon="wallet-outline"
-              label="Mercado Pago"
-              value={mpStatusLabel}
-              theme={theme}
-              isLast={integration.oauthReady}
-            />
-            {!integration.oauthReady && integration.oauthSetup?.missing?.length ? (
-              <Text style={[styles.mpHint, { color: theme.textMuted }]}>
-                OAuth del servidor incompleto. Variables pendientes:{' '}
-                {integration.oauthSetup.missing.join(', ')}
-              </Text>
+            {canManageMercadoPago ? (
+              <TouchableOpacity
+                style={[styles.mpOAuthBtn, { opacity: mpSaving || loading ? 0.7 : 1 }]}
+                onPress={startMercadoPagoOAuth}
+                disabled={mpSaving || loading}
+              >
+                {mpSaving || loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="wallet-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
+                    <Text style={styles.mpOAuthBtnText}>
+                      {clubMpLinked ? 'Reconectar a Mercado Pago' : 'Conectar a Mercado Pago'}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
             ) : null}
-          </View>
-        ) : null}
 
-        {canManageMercadoPago ? (
-          <TouchableOpacity
-            style={[styles.mpOAuthBtn, { opacity: mpSaving || mpLoading ? 0.7 : 1 }]}
-            onPress={startMercadoPagoOAuth}
-            disabled={mpSaving || mpLoading}
-          >
-            {mpSaving || mpLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="wallet-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={styles.mpOAuthBtnText}>
-                  {clubMpLinked ? 'Reconectar a Mercado Pago' : 'Conectar a Mercado Pago'}
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-        ) : null}
+            <ProfileClubEntryButton
+              theme={theme}
+              colorMarca={colorMarca}
+              onPress={() => navigation.navigate('ClubEntryQr')}
+            />
 
-        <ProfileEditDataButton theme={theme} onPress={() => navigation.navigate('EditProfile')} />
+            <ProfileEditDataButton theme={theme} onPress={() => navigation.navigate('EditProfile')} />
 
-        <ProfileLogoutButton onPress={handleLogout} />
+            <ProfileLogoutButton onPress={handleLogout} />
+          </>
+        )}
       </ScrollView>
 
       <CustomAlert
@@ -299,42 +394,16 @@ export default function AdminProfileScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32 },
-  headerCard: {
-    borderRadius: 12,
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 20,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  headerKicker: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    marginBottom: 6,
-  },
-  headerTitle: { color: '#fff', fontSize: 22, fontWeight: 'bold' },
-  badge: {
-    marginTop: 12,
-    alignSelf: 'flex-start',
+  safe: { flex: 1 },
+  heroBadgeTxt: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  detailsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
+    justifyContent: 'space-between',
+    paddingVertical: 14,
   },
-  badgeText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
-  card: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, marginBottom: 14, overflow: 'hidden' },
+  detailsHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 },
+  detailsTitle: { fontSize: 15, fontWeight: '700' },
   mpOAuthBtn: {
     marginBottom: 14,
     height: 50,

@@ -2,7 +2,16 @@ import asyncHandler from 'express-async-handler';
 import { hijosDelTutorFilter } from '../utils/userQuery.js';
 import { buildClubEntryToken, parseClubEntryToken } from '../services/clubEntryToken.service.js';
 
-const MEMBER_QR_ROLES = ['atleta', 'tutor', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'];
+const MEMBER_QR_ROLES = [
+    'atleta',
+    'tutor',
+    'profe',
+    'preparador_fisico',
+    'nutricionista',
+    'psicologo',
+    'admin_club',
+    'administrativo',
+];
 const SCANNER_ROLES = ['admin_club', 'administrativo', 'control_ingreso'];
 const DUPLICATE_WINDOW_MS = 3 * 60 * 1000;
 

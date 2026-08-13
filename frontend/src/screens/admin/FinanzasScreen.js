@@ -42,8 +42,8 @@ const financeHeader = StyleSheet.create({
     width: '100%',
     paddingHorizontal: 16,
     paddingRight: 52,
-    paddingTop: 18,
-    paddingBottom: 22,
+    paddingTop: 14,
+    paddingBottom: 14,
     position: 'relative',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -57,37 +57,58 @@ const financeHeader = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
-    marginBottom: 6,
+    marginBottom: 4,
   },
-  headerTitle: { color: '#fff', fontSize: 22, fontWeight: 'bold' },
-  headerSub: { color: '#e5e7eb', fontSize: 14, marginTop: 8, lineHeight: 20 },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  headerTitle: { color: '#fff', fontSize: 22, fontWeight: 'bold', flexShrink: 0 },
+  headerSub: { color: '#e5e7eb', fontSize: 14, marginTop: 6, lineHeight: 20 },
   headerBell: { position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center', zIndex: 2 },
   monthNav: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 10,
-    gap: 12,
+    justifyContent: 'flex-end',
+    flex: 1,
+    gap: 4,
+    minWidth: 0,
   },
-  monthNavBtn: { padding: 4 },
-  monthNavText: { color: '#fff', fontSize: 16, fontWeight: '700', minWidth: 140, textAlign: 'center' },
-  monthNavHint: { color: 'rgba(255,255,255,0.9)', fontSize: 14, marginTop: 10, textAlign: 'center', fontWeight: '600' },
+  monthNavBtn: { padding: 2 },
+  monthNavText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'center',
+    flexShrink: 1,
+  },
+  monthNavHint: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'right',
+  },
   periodActions: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
     gap: 8,
-    marginTop: 12,
-    flexWrap: 'wrap',
+    marginTop: 10,
   },
   periodActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.18)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
     borderRadius: 8,
-    gap: 6,
+    gap: 5,
+    flexShrink: 1,
   },
-  periodActionTxt: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  periodActionTxt: { color: '#fff', fontSize: 12, fontWeight: '700', flexShrink: 1 },
 });
 
 export default function FinanzasScreen({ route }) {
@@ -928,9 +949,9 @@ export default function FinanzasScreen({ route }) {
             <NotificationBell />
           </View>
           <Text style={financeHeader.headerKicker}>Finanzas</Text>
-          <Text style={financeHeader.headerTitle}>Pagos</Text>
-          {showMonthNav ? (
-            <>
+          <View style={financeHeader.titleRow}>
+            <Text style={financeHeader.headerTitle}>Pagos</Text>
+            {showMonthNav ? (
               <View style={financeHeader.monthNav}>
                 <TouchableOpacity
                   style={financeHeader.monthNavBtn}
@@ -938,9 +959,9 @@ export default function FinanzasScreen({ route }) {
                   accessibilityLabel="Mes anterior"
                   hitSlop={8}
                 >
-                  <Ionicons name="chevron-back" size={24} color="#fff" />
+                  <Ionicons name="chevron-back" size={20} color="#fff" />
                 </TouchableOpacity>
-                <Text style={financeHeader.monthNavText}>
+                <Text style={financeHeader.monthNavText} numberOfLines={1}>
                   {MN[mes - 1]} {anio}
                 </Text>
                 <TouchableOpacity
@@ -949,41 +970,47 @@ export default function FinanzasScreen({ route }) {
                   accessibilityLabel="Mes siguiente"
                   hitSlop={8}
                 >
-                  <Ionicons name="chevron-forward" size={24} color="#fff" />
+                  <Ionicons name="chevron-forward" size={20} color="#fff" />
                 </TouchableOpacity>
               </View>
-              {canRunPeriodActions ? (
-                <View style={financeHeader.periodActions}>
-                  <TouchableOpacity
-                    style={[financeHeader.periodActionBtn, periodBusy && { opacity: 0.6 }]}
-                    onPress={runGenerateMonth}
-                    disabled={periodBusy}
-                  >
-                    {periodBusy ? (
-                      <ActivityIndicator color="#fff" size="small" />
-                    ) : (
-                      <Ionicons name="flash-outline" size={14} color="#fff" />
-                    )}
-                    <Text style={financeHeader.periodActionTxt}>Generar cuotas</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[financeHeader.periodActionBtn, periodBusy && { opacity: 0.6 }]}
-                    onPress={runCheckOverdue}
-                    disabled={periodBusy}
-                  >
-                    <Ionicons name="alert-circle-outline" size={14} color="#fff" />
-                    <Text style={financeHeader.periodActionTxt}>Chequear vencidos</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-            </>
-          ) : showVencidosHeader ? (
-            <Text style={financeHeader.monthNavHint}>Todas las cuotas vencidas</Text>
-          ) : (
+            ) : showVencidosHeader ? (
+              <Text style={financeHeader.monthNavHint} numberOfLines={1}>
+                Todas las cuotas vencidas
+              </Text>
+            ) : null}
+          </View>
+          {showMonthNav && canRunPeriodActions ? (
+            <View style={financeHeader.periodActions}>
+              <TouchableOpacity
+                style={[financeHeader.periodActionBtn, periodBusy && { opacity: 0.6 }]}
+                onPress={runGenerateMonth}
+                disabled={periodBusy}
+              >
+                {periodBusy ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Ionicons name="flash-outline" size={14} color="#fff" />
+                )}
+                <Text style={financeHeader.periodActionTxt} numberOfLines={1}>
+                  Generar cuotas
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[financeHeader.periodActionBtn, periodBusy && { opacity: 0.6 }]}
+                onPress={runCheckOverdue}
+                disabled={periodBusy}
+              >
+                <Ionicons name="alert-circle-outline" size={14} color="#fff" />
+                <Text style={financeHeader.periodActionTxt} numberOfLines={1}>
+                  Chequear vencidos
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : !showMonthNav && !showVencidosHeader ? (
             <Text style={financeHeader.headerSub} numberOfLines={2}>
               {clubData?.nombre || 'Tu club'}
             </Text>
-          )}
+          ) : null}
         </View>
       </View>
 

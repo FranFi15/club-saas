@@ -18,7 +18,7 @@ const OWNER_ITEMS = [
     route: 'Pendientes',
     badgeKey: 'pendientes',
   },
-  { title: 'Control de ingreso', subtitle: 'Escaneá el QR de atletas y tutores', icon: 'qr-code', route: 'EscanearIngreso' },
+  { title: 'Control de ingreso', subtitle: 'Escaneá el QR de socios y personal', icon: 'qr-code', route: 'EscanearIngreso' },
   { title: 'Alquiler de cancha', subtitle: 'Reservas externas y disponibilidad', icon: 'time', route: 'Alquileres', badgeKey: 'alquileres' },
   { title: 'Chat', subtitle: 'Mensajes con cualquier usuario del club', icon: 'chatbubbles', route: 'ChatInbox', badgeKey: 'chat' },
   { title: 'Muro de noticias', subtitle: 'Comunicados al club', icon: 'newspaper', route: 'Noticias' },

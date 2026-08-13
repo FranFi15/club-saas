@@ -43,7 +43,12 @@ export const ATHLETE_APP_ROLES = ['atleta'];
 export const TUTOR_APP_ROLES = ['tutor'];
 
 /** Quienes pueden mostrar QR de ingreso al club */
-export const CLUB_ENTRY_QR_ROLES = ['atleta', 'tutor', ...STAFF_APP_ROLES];
+export const CLUB_ENTRY_QR_ROLES = [
+  'atleta',
+  'tutor',
+  ...STAFF_APP_ROLES,
+  ...ADMIN_APP_ROLES,
+];
 
 export function resolveMainNavigator(rol) {
   if (!rol) return 'MemberPlaceholder';
