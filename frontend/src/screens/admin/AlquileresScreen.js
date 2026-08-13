@@ -68,7 +68,7 @@ export default function AlquileresScreen({ navigation }) {
   const [loadingMoreHistorial, setLoadingMoreHistorial] = useState(false);
   const [payingRentalId, setPayingRentalId] = useState(null);
   const [mpReady, setMpReady] = useState(false);
-  const [mpSheetOpen, setMpSheetOpen] = useState(false);
+  const [detailMpMode, setDetailMpMode] = useState(false);
   const [mpCreating, setMpCreating] = useState(false);
   const [mpSenaMonto, setMpSenaMonto] = useState('');
   const [mpLinkResult, setMpLinkResult] = useState(null);
@@ -88,6 +88,9 @@ export default function AlquileresScreen({ navigation }) {
 
   const closeDetailRental = () => {
     setDetailRental(null);
+    setDetailMpMode(false);
+    setMpLinkResult(null);
+    setMpCreating(false);
     setDetailAlertConfig((p) => ({ ...p, visible: false }));
   };
 
@@ -235,11 +238,12 @@ export default function AlquileresScreen({ navigation }) {
     const defaultSena = cobrado > 0 ? '' : String(Math.max(1, Math.round(total / 2)));
     setMpSenaMonto(defaultSena);
     setMpLinkResult(null);
-    setMpSheetOpen(true);
+    setMpCreating(false);
+    setDetailMpMode(true);
   };
 
-  const closeMpSheet = () => {
-    setMpSheetOpen(false);
+  const backFromMpMode = () => {
+    setDetailMpMode(false);
     setMpLinkResult(null);
     setMpCreating(false);
   };
@@ -829,7 +833,7 @@ export default function AlquileresScreen({ navigation }) {
         </View>
       </Modal>
 
-      {/* Rental Detail Bottom Sheet */}
+      {/* Rental Detail Bottom Sheet (MP cobro vive acá — no apilar otro Modal) */}
       <Modal
         visible={!!detailRental}
         animationType="slide"
@@ -839,221 +843,273 @@ export default function AlquileresScreen({ navigation }) {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-            {detailRental && (<>
-              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle,{color:theme.text}]}>Detalle Alquiler</Text>
-                <TouchableOpacity onPress={closeDetailRental}><Ionicons name="close" size={28} color={theme.icon}/></TouchableOpacity>
-              </View>
-              <View style={{alignItems:'center',marginBottom:20}}>
-                <View style={{backgroundColor:PAGO_COLOR[detailRental.estadoPago]+'20',width:70,height:70,borderRadius:35,justifyContent:'center',alignItems:'center',marginBottom:10}}>
-                  <Ionicons name="person" size={32} color={PAGO_COLOR[detailRental.estadoPago]}/>
-                </View>
-                <Text style={{fontSize:20,fontWeight:'bold',color:theme.text}}>{detailRental.nombreCliente}</Text>
-                <View style={{backgroundColor:PAGO_COLOR[detailRental.estadoPago],paddingHorizontal:14,paddingVertical:4,borderRadius:12,marginTop:8}}>
-                  <Text style={{color:'#fff',fontWeight:'bold',fontSize:13}}>{PAGO_LABEL[detailRental.estadoPago]}</Text>
-                </View>
-              </View>
-              <View style={[styles.detailRow,{backgroundColor:theme.background}]}>
-                <Ionicons name="call-outline" size={18} color={cc}/>
-                <Text style={{color:theme.text,marginLeft:10,flex:1}}>{detailRental.telefonoCliente}</Text>
-              </View>
-              <View style={[styles.detailRow,{backgroundColor:theme.background}]}>
-                <Ionicons name="calendar-outline" size={18} color={cc}/>
-                <Text style={{color:theme.text,marginLeft:10,flex:1}}>
-                  {isoCalendarDateToDisplay(detailRental.fecha) || formatJsDateToDisplay(detailRental.fecha)}
-                </Text>
-              </View>
-              <View style={[styles.detailRow,{backgroundColor:theme.background}]}>
-                <Ionicons name="location-outline" size={18} color={cc}/>
-                <Text style={{color:theme.text,marginLeft:10,flex:1}}>{detailRental.espacio?.nombre || '—'}</Text>
-              </View>
-              <View style={[styles.detailRow,{backgroundColor:theme.background}]}>
-                <Ionicons name="time-outline" size={18} color={cc}/>
-                <Text style={{color:theme.text,marginLeft:10,flex:1}}>{detailRental.horaInicio} a {detailRental.horaFin}</Text>
-              </View>
-              <View style={{flexDirection:'row',gap:10,marginBottom:15}}>
-                <View style={[styles.detailRow,{backgroundColor:theme.background,flex:1}]}>
-                  <Text style={{color:theme.textMuted,fontSize:12}}>Total</Text>
-                  <Text style={{color:theme.text,fontWeight:'bold',fontSize:18}}>{fmtRentalMoney(detailRental.montoTotal)}</Text>
-                </View>
-                <View style={[styles.detailRow,{backgroundColor:theme.background,flex:1}]}>
-                  <Text style={{color:theme.textMuted,fontSize:12}}>Cobrado</Text>
-                  <Text style={{color:'#10b981',fontWeight:'bold',fontSize:18}}>{fmtRentalMoney(detailRental.señaPagada)}</Text>
-                </View>
-              </View>
-              {rentalSaldoPendiente(detailRental) > 0 ? (
-                <View style={[styles.detailRow,{backgroundColor:theme.background,marginBottom:12}]}>
-                  <Ionicons name="alert-circle-outline" size={18} color="#ef4444"/>
-                  <Text style={{color:theme.text,marginLeft:10,flex:1,fontWeight:'600'}}>
-                    Saldo pendiente: {fmtRentalMoney(rentalSaldoPendiente(detailRental))}
+            {detailRental && (
+              <>
+                <View style={styles.modalHeader}>
+                  <Text style={[styles.modalTitle, { color: theme.text }]}>
+                    {detailMpMode ? 'Mercado Pago' : 'Detalle Alquiler'}
                   </Text>
+                  <TouchableOpacity onPress={closeDetailRental}>
+                    <Ionicons name="close" size={28} color={theme.icon} />
+                  </TouchableOpacity>
                 </View>
-              ) : null}
-              {rentalNeedsFullPayment(detailRental) ? (
-                <TouchableOpacity
-                  style={[styles.saveBtn,{backgroundColor:cc,marginBottom:12,opacity:String(payingRentalId)===String(detailRental._id)?0.7:1}]}
-                  onPress={() => handlePayTotal(detailRental, true)}
-                  disabled={String(payingRentalId) === String(detailRental._id)}
-                  activeOpacity={0.75}
-                >
-                  {String(payingRentalId) === String(detailRental._id) ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <>
-                      <Ionicons name="cash-outline" size={18} color="#fff" style={{marginRight:8}}/>
-                      <Text style={styles.saveBtnText}>Registrar pago (efectivo)</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              ) : null}
-              {mpReady && rentalNeedsFullPayment(detailRental) ? (
-                <TouchableOpacity
-                  style={[styles.saveBtn,{backgroundColor:'#009EE3',marginBottom:12}]}
-                  onPress={() => openMpCobro(detailRental)}
-                  activeOpacity={0.75}
-                >
-                  <Ionicons name="wallet-outline" size={18} color="#fff" style={{marginRight:8}}/>
-                  <Text style={styles.saveBtnText}>Cobrar con Mercado Pago</Text>
-                </TouchableOpacity>
-              ) : null}
-              <TouchableOpacity
-                style={[styles.saveBtn,{backgroundColor:'#ef4444'}]}
-                onPress={() => handleDeleteRental(detailRental, true)}
-                activeOpacity={0.75}
-              >
-                <Ionicons name="trash-outline" size={18} color="#fff" style={{marginRight:8}}/>
-                <Text style={styles.saveBtnText}>Cancelar Reserva</Text>
-              </TouchableOpacity>
-              <CustomAlert
-                embedded
-                visible={detailAlertConfig.visible}
-                title={detailAlertConfig.title}
-                message={detailAlertConfig.message}
-                showCancel={detailAlertConfig.showCancel}
-                isDanger={detailAlertConfig.isDanger}
-                confirmText={detailAlertConfig.confirmText}
-                onConfirm={detailAlertConfig.onConfirm}
-                cancelText={detailAlertConfig.cancelText}
-                onCancel={detailAlertConfig.onCancel}
-              />
-            </>)}
-          </View>
-        </View>
-      </Modal>
 
-      <Modal
-        visible={mpSheetOpen}
-        animationType="slide"
-        transparent
-        presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
-        onRequestClose={closeMpSheet}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>Mercado Pago</Text>
-              <TouchableOpacity onPress={closeMpSheet}>
-                <Ionicons name="close" size={28} color={theme.icon} />
-              </TouchableOpacity>
-            </View>
-            {detailRental ? (
-              <ScrollView showsVerticalScrollIndicator={false}>
-                <Text style={{ color: theme.textMuted, marginBottom: 12, lineHeight: 20 }}>
-                  Generá un link de pago para {detailRental.nombreCliente}. El saldo actual es{' '}
-                  {fmtRentalMoney(rentalSaldoPendiente(detailRental))}.
-                </Text>
+                {detailMpMode ? (
+                  <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                    <Text style={{ color: theme.textMuted, marginBottom: 12, lineHeight: 20 }}>
+                      Generá un link de pago para {detailRental.nombreCliente}. El saldo actual es{' '}
+                      {fmtRentalMoney(rentalSaldoPendiente(detailRental))}.
+                    </Text>
 
-                {!mpLinkResult ? (
-                  <>
-                    {Number(detailRental.señaPagada) <= 0 ? (
-                      <View style={{ marginBottom: 14 }}>
-                        <Text style={[styles.label, { color: theme.textMuted }]}>Monto de seña</Text>
-                        <TextInput
-                          style={[
-                            styles.input,
-                            { backgroundColor: theme.background, borderColor: theme.border, color: theme.text },
-                          ]}
-                          keyboardType="numeric"
-                          value={mpSenaMonto}
-                          onChangeText={setMpSenaMonto}
-                          placeholder="Ej. 5000"
-                          placeholderTextColor={theme.textMuted}
-                        />
+                    {!mpLinkResult ? (
+                      <>
+                        {Number(detailRental.señaPagada) <= 0 ? (
+                          <View style={{ marginBottom: 14 }}>
+                            <Text style={[styles.label, { color: theme.textMuted }]}>Monto de seña</Text>
+                            <TextInput
+                              style={[
+                                styles.input,
+                                {
+                                  backgroundColor: theme.background,
+                                  borderColor: theme.border,
+                                  color: theme.text,
+                                },
+                              ]}
+                              keyboardType="numeric"
+                              value={mpSenaMonto}
+                              onChangeText={setMpSenaMonto}
+                              placeholder="Ej. 5000"
+                              placeholderTextColor={theme.textMuted}
+                            />
+                            <TouchableOpacity
+                              style={[
+                                styles.saveBtn,
+                                { backgroundColor: '#009EE3', marginBottom: 10, opacity: mpCreating ? 0.7 : 1 },
+                              ]}
+                              onPress={() => createMpLink('sena')}
+                              disabled={mpCreating}
+                            >
+                              {mpCreating ? (
+                                <ActivityIndicator color="#fff" />
+                              ) : (
+                                <Text style={styles.saveBtnText}>
+                                  Link de seña ({fmtRentalMoney(mpSenaMonto)})
+                                </Text>
+                              )}
+                            </TouchableOpacity>
+                          </View>
+                        ) : null}
+
                         <TouchableOpacity
-                          style={[styles.saveBtn, { backgroundColor: '#009EE3', marginBottom: 10, opacity: mpCreating ? 0.7 : 1 }]}
-                          onPress={() => createMpLink('sena')}
+                          style={[
+                            styles.saveBtn,
+                            { backgroundColor: '#009EE3', marginBottom: 10, opacity: mpCreating ? 0.7 : 1 },
+                          ]}
+                          onPress={() =>
+                            createMpLink(Number(detailRental.señaPagada) > 0 ? 'saldo' : 'total')
+                          }
                           disabled={mpCreating}
                         >
                           {mpCreating ? (
                             <ActivityIndicator color="#fff" />
                           ) : (
                             <Text style={styles.saveBtnText}>
-                              Link de seña ({fmtRentalMoney(mpSenaMonto)})
+                              {Number(detailRental.señaPagada) > 0
+                                ? `Link de saldo (${fmtRentalMoney(rentalSaldoPendiente(detailRental))})`
+                                : `Link de total (${fmtRentalMoney(rentalSaldoPendiente(detailRental))})`}
                             </Text>
                           )}
                         </TouchableOpacity>
+                      </>
+                    ) : (
+                      <View>
+                        <Text style={{ color: theme.text, fontWeight: '700', marginBottom: 8 }}>
+                          Link listo · {fmtRentalMoney(mpLinkResult.monto)}
+                        </Text>
+                        <Text
+                          style={{
+                            color: theme.textMuted,
+                            fontSize: 13,
+                            marginBottom: 14,
+                            lineHeight: 18,
+                          }}
+                          selectable
+                        >
+                          {mpLinkResult.linkDePago}
+                        </Text>
+                        <TouchableOpacity
+                          style={[styles.saveBtn, { backgroundColor: '#009EE3', marginBottom: 10 }]}
+                          onPress={copyMpLink}
+                        >
+                          <Ionicons name="copy-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+                          <Text style={styles.saveBtnText}>Copiar link</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.saveBtn, { backgroundColor: cc, marginBottom: 10 }]}
+                          onPress={openMpLink}
+                        >
+                          <Ionicons name="open-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+                          <Text style={styles.saveBtnText}>Abrir checkout</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.saveBtn, { backgroundColor: theme.border, marginBottom: 10 }]}
+                          onPress={() => setMpLinkResult(null)}
+                        >
+                          <Text style={[styles.saveBtnText, { color: theme.text }]}>Generar otro link</Text>
+                        </TouchableOpacity>
                       </View>
-                    ) : null}
+                    )}
 
                     <TouchableOpacity
-                      style={[styles.saveBtn, { backgroundColor: '#009EE3', marginBottom: 10, opacity: mpCreating ? 0.7 : 1 }]}
-                      onPress={() => createMpLink(Number(detailRental.señaPagada) > 0 ? 'saldo' : 'total')}
-                      disabled={mpCreating}
+                      style={[styles.saveBtn, { backgroundColor: theme.border, marginTop: 4 }]}
+                      onPress={backFromMpMode}
                     >
-                      {mpCreating ? (
-                        <ActivityIndicator color="#fff" />
-                      ) : (
-                        <Text style={styles.saveBtnText}>
-                          {Number(detailRental.señaPagada) > 0
-                            ? `Link de saldo (${fmtRentalMoney(rentalSaldoPendiente(detailRental))})`
-                            : `Link de total (${fmtRentalMoney(rentalSaldoPendiente(detailRental))})`}
-                        </Text>
-                      )}
+                      <Text style={[styles.saveBtnText, { color: theme.text }]}>Volver al detalle</Text>
                     </TouchableOpacity>
-                  </>
+                  </ScrollView>
                 ) : (
-                  <View>
-                    <Text style={{ color: theme.text, fontWeight: '700', marginBottom: 8 }}>
-                      Link listo · {fmtRentalMoney(mpLinkResult.monto)}
-                    </Text>
-                    <Text
-                      style={{
-                        color: theme.textMuted,
-                        fontSize: 13,
-                        marginBottom: 14,
-                        lineHeight: 18,
-                      }}
-                      selectable
-                    >
-                      {mpLinkResult.linkDePago}
-                    </Text>
+                  <ScrollView showsVerticalScrollIndicator={false}>
+                    <View style={{ alignItems: 'center', marginBottom: 20 }}>
+                      <View
+                        style={{
+                          backgroundColor: PAGO_COLOR[detailRental.estadoPago] + '20',
+                          width: 70,
+                          height: 70,
+                          borderRadius: 35,
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          marginBottom: 10,
+                        }}
+                      >
+                        <Ionicons name="person" size={32} color={PAGO_COLOR[detailRental.estadoPago]} />
+                      </View>
+                      <Text style={{ fontSize: 20, fontWeight: 'bold', color: theme.text }}>
+                        {detailRental.nombreCliente}
+                      </Text>
+                      <View
+                        style={{
+                          backgroundColor: PAGO_COLOR[detailRental.estadoPago],
+                          paddingHorizontal: 14,
+                          paddingVertical: 4,
+                          borderRadius: 12,
+                          marginTop: 8,
+                        }}
+                      >
+                        <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13 }}>
+                          {PAGO_LABEL[detailRental.estadoPago]}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={[styles.detailRow, { backgroundColor: theme.background }]}>
+                      <Ionicons name="call-outline" size={18} color={cc} />
+                      <Text style={{ color: theme.text, marginLeft: 10, flex: 1 }}>
+                        {detailRental.telefonoCliente}
+                      </Text>
+                    </View>
+                    <View style={[styles.detailRow, { backgroundColor: theme.background }]}>
+                      <Ionicons name="calendar-outline" size={18} color={cc} />
+                      <Text style={{ color: theme.text, marginLeft: 10, flex: 1 }}>
+                        {isoCalendarDateToDisplay(detailRental.fecha) ||
+                          formatJsDateToDisplay(detailRental.fecha)}
+                      </Text>
+                    </View>
+                    <View style={[styles.detailRow, { backgroundColor: theme.background }]}>
+                      <Ionicons name="location-outline" size={18} color={cc} />
+                      <Text style={{ color: theme.text, marginLeft: 10, flex: 1 }}>
+                        {detailRental.espacio?.nombre || '—'}
+                      </Text>
+                    </View>
+                    <View style={[styles.detailRow, { backgroundColor: theme.background }]}>
+                      <Ionicons name="time-outline" size={18} color={cc} />
+                      <Text style={{ color: theme.text, marginLeft: 10, flex: 1 }}>
+                        {detailRental.horaInicio} a {detailRental.horaFin}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 15 }}>
+                      <View style={[styles.detailRow, { backgroundColor: theme.background, flex: 1 }]}>
+                        <Text style={{ color: theme.textMuted, fontSize: 12 }}>Total</Text>
+                        <Text style={{ color: theme.text, fontWeight: 'bold', fontSize: 18 }}>
+                          {fmtRentalMoney(detailRental.montoTotal)}
+                        </Text>
+                      </View>
+                      <View style={[styles.detailRow, { backgroundColor: theme.background, flex: 1 }]}>
+                        <Text style={{ color: theme.textMuted, fontSize: 12 }}>Cobrado</Text>
+                        <Text style={{ color: '#10b981', fontWeight: 'bold', fontSize: 18 }}>
+                          {fmtRentalMoney(detailRental.señaPagada)}
+                        </Text>
+                      </View>
+                    </View>
+                    {rentalSaldoPendiente(detailRental) > 0 ? (
+                      <View style={[styles.detailRow, { backgroundColor: theme.background, marginBottom: 12 }]}>
+                        <Ionicons name="alert-circle-outline" size={18} color="#ef4444" />
+                        <Text style={{ color: theme.text, marginLeft: 10, flex: 1, fontWeight: '600' }}>
+                          Saldo pendiente: {fmtRentalMoney(rentalSaldoPendiente(detailRental))}
+                        </Text>
+                      </View>
+                    ) : null}
+                    {rentalNeedsFullPayment(detailRental) ? (
+                      <TouchableOpacity
+                        style={[
+                          styles.saveBtn,
+                          {
+                            backgroundColor: cc,
+                            marginBottom: 12,
+                            opacity: String(payingRentalId) === String(detailRental._id) ? 0.7 : 1,
+                          },
+                        ]}
+                        onPress={() => handlePayTotal(detailRental, true)}
+                        disabled={String(payingRentalId) === String(detailRental._id)}
+                        activeOpacity={0.75}
+                      >
+                        {String(payingRentalId) === String(detailRental._id) ? (
+                          <ActivityIndicator color="#fff" />
+                        ) : (
+                          <>
+                            <Ionicons name="cash-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+                            <Text style={styles.saveBtnText}>Registrar pago (efectivo)</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    ) : null}
+                    {mpReady && rentalNeedsFullPayment(detailRental) ? (
+                      <TouchableOpacity
+                        style={[styles.saveBtn, { backgroundColor: '#009EE3', marginBottom: 12 }]}
+                        onPress={() => openMpCobro(detailRental)}
+                        activeOpacity={0.75}
+                      >
+                        <Ionicons name="wallet-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+                        <Text style={styles.saveBtnText}>Cobrar con Mercado Pago</Text>
+                      </TouchableOpacity>
+                    ) : null}
                     <TouchableOpacity
-                      style={[styles.saveBtn, { backgroundColor: '#009EE3', marginBottom: 10 }]}
-                      onPress={copyMpLink}
+                      style={[styles.saveBtn, { backgroundColor: '#ef4444' }]}
+                      onPress={() => handleDeleteRental(detailRental, true)}
+                      activeOpacity={0.75}
                     >
-                      <Ionicons name="copy-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
-                      <Text style={styles.saveBtnText}>Copiar link</Text>
+                      <Ionicons name="trash-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+                      <Text style={styles.saveBtnText}>Cancelar Reserva</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.saveBtn, { backgroundColor: cc, marginBottom: 10 }]}
-                      onPress={openMpLink}
-                    >
-                      <Ionicons name="open-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
-                      <Text style={styles.saveBtnText}>Abrir checkout</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.saveBtn, { backgroundColor: theme.border }]}
-                      onPress={() => setMpLinkResult(null)}
-                    >
-                      <Text style={[styles.saveBtnText, { color: theme.text }]}>Generar otro link</Text>
-                    </TouchableOpacity>
-                  </View>
+                  </ScrollView>
                 )}
-              </ScrollView>
-            ) : null}
+
+                <CustomAlert
+                  embedded
+                  visible={detailAlertConfig.visible}
+                  title={detailAlertConfig.title}
+                  message={detailAlertConfig.message}
+                  showCancel={detailAlertConfig.showCancel}
+                  isDanger={detailAlertConfig.isDanger}
+                  confirmText={detailAlertConfig.confirmText}
+                  onConfirm={detailAlertConfig.onConfirm}
+                  cancelText={detailAlertConfig.cancelText}
+                  onCancel={detailAlertConfig.onCancel}
+                />
+              </>
+            )}
           </View>
         </View>
       </Modal>
+
 
       <CustomAlert visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message}
         showCancel={alertConfig.showCancel} isDanger={alertConfig.isDanger}
