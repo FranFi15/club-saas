@@ -3,6 +3,7 @@ import { compareByField, sortByField, sortEnrollmentsByAtleta } from '../utils/l
 import { applyFamilyDiscountToEnrollment } from '../services/familyDiscount.service.js';
 import { categorySexoError, applyCategorySexoToAthlete } from '../utils/atletaSexo.js';
 import { syncCategoryGroupChatSafe } from '../services/categoryGroupChat.service.js';
+import { ensureCurrentMonthPaymentForEnrollment } from '../services/generateMonthlyPayments.service.js';
 
 // @desc    Inscribir un atleta a una categoría
 // @route   POST /api/enrollments
@@ -74,6 +75,12 @@ const enrollAthlete = asyncHandler(async (req, res) => {
     });
 
     enrollment = await applyFamilyDiscountToEnrollment(req.models, atletaId, enrollment);
+
+    try {
+        await ensureCurrentMonthPaymentForEnrollment(req.models, enrollment);
+    } catch (e) {
+        console.warn('[enroll] cuota mes actual:', e.message);
+    }
 
     await syncCategoryGroupChatSafe(req.models, categoriaId);
 

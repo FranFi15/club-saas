@@ -4,6 +4,7 @@ import { categorySexoError, applyCategorySexoToAthlete } from '../utils/atletaSe
 import { sortUsersByName, userNameCollation, userNameMongoSort } from '../utils/listSort.js';
 import { buildAthletePlantelSearchFilter } from '../utils/pagination.js';
 import { syncCategoryGroupChatSafe } from './categoryGroupChat.service.js';
+import { ensureCurrentMonthPaymentForEnrollment } from './generateMonthlyPayments.service.js';
 
 function mapAtletaElegible(u, activeIds, otrasByAtleta) {
     return {
@@ -198,7 +199,9 @@ export async function syncCategoryAthletes(models, categoryId, atletaIds) {
         if (enr) {
             enr.estado = 'activo';
             enr.fechaBaja = undefined;
+            if (!enr.plan && planAuto) enr.plan = planAuto;
             await enr.save();
+            enr = await applyFamilyDiscountToEnrollment(models, aid, enr);
         } else {
             enr = await Enrollment.create({
                 atleta: aid,
@@ -206,7 +209,12 @@ export async function syncCategoryAthletes(models, categoryId, atletaIds) {
                 aptoMedico: false,
                 plan: planAuto,
             });
-            await applyFamilyDiscountToEnrollment(models, aid, enr);
+            enr = await applyFamilyDiscountToEnrollment(models, aid, enr);
+        }
+        try {
+            await ensureCurrentMonthPaymentForEnrollment(models, enr);
+        } catch (e) {
+            console.warn('[plantel] cuota mes actual:', e.message);
         }
         altas += 1;
     }

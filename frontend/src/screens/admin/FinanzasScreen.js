@@ -33,7 +33,7 @@ import { useBadges } from '../../context/BadgeContext';
 import NotificationBell from '../../components/NotificationBell';
 import BadgeDot from '../../components/BadgeDot';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
-import { isClubOwnerRole } from '../../constants/appRoles';
+import { isClubOwnerRole, ADMIN_APP_ROLES } from '../../constants/appRoles';
 
 const financeHeader = StyleSheet.create({
   headerWrap: { width: '100%', paddingTop: 8, paddingBottom: 4 },
@@ -72,6 +72,22 @@ const financeHeader = StyleSheet.create({
   monthNavBtn: { padding: 4 },
   monthNavText: { color: '#fff', fontSize: 16, fontWeight: '700', minWidth: 140, textAlign: 'center' },
   monthNavHint: { color: 'rgba(255,255,255,0.9)', fontSize: 14, marginTop: 10, textAlign: 'center', fontWeight: '600' },
+  periodActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+    flexWrap: 'wrap',
+  },
+  periodActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  periodActionTxt: { color: '#fff', fontSize: 12, fontWeight: '700' },
 });
 
 export default function FinanzasScreen({ route }) {
@@ -95,7 +111,9 @@ export default function FinanzasScreen({ route }) {
   const [tab, setTab] = useState(() => route?.params?.initialTab || 'atletas');
   const [viewerRol, setViewerRol] = useState('');
   const canManageClubFinances = isClubOwnerRole(viewerRol);
+  const canRunPeriodActions = ADMIN_APP_ROLES.includes(viewerRol);
   const visibleTabs = canManageClubFinances ? TABS : TABS.filter((t) => t.key !== 'planes');
+  const [periodBusy, setPeriodBusy] = useState(false);
 
   useEffect(() => {
     getToken('userRol').then((r) => setViewerRol(r || ''));
@@ -749,6 +767,66 @@ export default function FinanzasScreen({ route }) {
     setAnio(a);
   };
 
+  const runGenerateMonth = () => {
+    setAlertConfig({
+      visible: true,
+      title: 'Generar cuotas',
+      message: `¿Generar las cuotas de ${MN[mes - 1]} ${anio} para todas las inscripciones activas con plan? Las que ya existen se omiten.`,
+      showCancel: true,
+      confirmText: 'Generar',
+      onConfirm: async () => {
+        setAlertConfig((p) => ({ ...p, visible: false }));
+        setPeriodBusy(true);
+        try {
+          const h = await getHeaders();
+          const { data } = await clubApi.post(
+            '/financial/payments/generate',
+            { mes, anio },
+            { headers: h },
+          );
+          const st = data?.estadisticas || {};
+          showAlert(
+            'Listo',
+            `Creadas: ${st.cuotasCreadas || 0}. Omitidas: ${st.cuotasOmitidas || 0}. Sin plan: ${st.inscripcionesSinPlan || 0}.`,
+          );
+          await fetchPayments();
+          refresh?.();
+        } catch (e) {
+          showAlert('Error', e.response?.data?.message || 'No se pudieron generar las cuotas.');
+        } finally {
+          setPeriodBusy(false);
+        }
+      },
+      onCancel: () => setAlertConfig((p) => ({ ...p, visible: false })),
+    });
+  };
+
+  const runCheckOverdue = () => {
+    setAlertConfig({
+      visible: true,
+      title: 'Chequear vencidos',
+      message: '¿Marcar como vencidas las cuotas pendientes cuya fecha de vencimiento ya pasó? Se aplica el recargo del plan si corresponde.',
+      showCancel: true,
+      confirmText: 'Chequear',
+      onConfirm: async () => {
+        setAlertConfig((p) => ({ ...p, visible: false }));
+        setPeriodBusy(true);
+        try {
+          const h = await getHeaders();
+          const { data } = await clubApi.post('/financial/payments/check-overdue', {}, { headers: h });
+          showAlert('Listo', data?.message || `Vencidas: ${data?.vencidas || 0}.`);
+          await fetchPayments();
+          refresh?.();
+        } catch (e) {
+          showAlert('Error', e.response?.data?.message || 'No se pudo chequear vencidos.');
+        } finally {
+          setPeriodBusy(false);
+        }
+      },
+      onCancel: () => setAlertConfig((p) => ({ ...p, visible: false })),
+    });
+  };
+
   const paymentsToPay = bulkPayments.length > 0 ? bulkPayments : selectedPayment ? [selectedPayment] : [];
 
   const summaryLineLabel = (p) => {
@@ -852,27 +930,53 @@ export default function FinanzasScreen({ route }) {
           <Text style={financeHeader.headerKicker}>Finanzas</Text>
           <Text style={financeHeader.headerTitle}>Pagos</Text>
           {showMonthNav ? (
-            <View style={financeHeader.monthNav}>
-              <TouchableOpacity
-                style={financeHeader.monthNavBtn}
-                onPress={() => chgMonth(-1)}
-                accessibilityLabel="Mes anterior"
-                hitSlop={8}
-              >
-                <Ionicons name="chevron-back" size={24} color="#fff" />
-              </TouchableOpacity>
-              <Text style={financeHeader.monthNavText}>
-                {MN[mes - 1]} {anio}
-              </Text>
-              <TouchableOpacity
-                style={financeHeader.monthNavBtn}
-                onPress={() => chgMonth(1)}
-                accessibilityLabel="Mes siguiente"
-                hitSlop={8}
-              >
-                <Ionicons name="chevron-forward" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
+            <>
+              <View style={financeHeader.monthNav}>
+                <TouchableOpacity
+                  style={financeHeader.monthNavBtn}
+                  onPress={() => chgMonth(-1)}
+                  accessibilityLabel="Mes anterior"
+                  hitSlop={8}
+                >
+                  <Ionicons name="chevron-back" size={24} color="#fff" />
+                </TouchableOpacity>
+                <Text style={financeHeader.monthNavText}>
+                  {MN[mes - 1]} {anio}
+                </Text>
+                <TouchableOpacity
+                  style={financeHeader.monthNavBtn}
+                  onPress={() => chgMonth(1)}
+                  accessibilityLabel="Mes siguiente"
+                  hitSlop={8}
+                >
+                  <Ionicons name="chevron-forward" size={24} color="#fff" />
+                </TouchableOpacity>
+              </View>
+              {canRunPeriodActions ? (
+                <View style={financeHeader.periodActions}>
+                  <TouchableOpacity
+                    style={[financeHeader.periodActionBtn, periodBusy && { opacity: 0.6 }]}
+                    onPress={runGenerateMonth}
+                    disabled={periodBusy}
+                  >
+                    {periodBusy ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Ionicons name="flash-outline" size={14} color="#fff" />
+                    )}
+                    <Text style={financeHeader.periodActionTxt}>Generar cuotas</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[financeHeader.periodActionBtn, periodBusy && { opacity: 0.6 }]}
+                    onPress={runCheckOverdue}
+                    disabled={periodBusy}
+                  >
+                    <Ionicons name="alert-circle-outline" size={14} color="#fff" />
+                    <Text style={financeHeader.periodActionTxt}>Chequear vencidos</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+            </>
           ) : showVencidosHeader ? (
             <Text style={financeHeader.monthNavHint}>Todas las cuotas vencidas</Text>
           ) : (

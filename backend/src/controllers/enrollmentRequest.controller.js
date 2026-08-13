@@ -2,6 +2,9 @@ import asyncHandler from 'express-async-handler';
 import { calcEdad, matchesCategoryAgeLimits } from '../utils/ageHelper.js';
 import { sortUsersByName, userNameCollation, userNameMongoSort } from '../utils/listSort.js';
 import { categorySexoError, applyCategorySexoToAthlete } from '../utils/atletaSexo.js';
+import { applyFamilyDiscountToEnrollment } from '../services/familyDiscount.service.js';
+import { ensureCurrentMonthPaymentForEnrollment } from '../services/generateMonthlyPayments.service.js';
+import { syncCategoryGroupChatSafe } from '../services/categoryGroupChat.service.js';
 
 async function assertStaffCategoryAccess(req, res, categoriaId) {
     const { Category } = req.models;
@@ -279,14 +282,26 @@ const resolveEnrollmentRequest = asyncHandler(async (req, res) => {
             exists.fechaBaja = undefined;
             if (!exists.plan && planAuto) exists.plan = planAuto;
             await exists.save();
-            creadas.push(exists);
+            let enr = await applyFamilyDiscountToEnrollment(req.models, atletaId, exists);
+            try {
+                await ensureCurrentMonthPaymentForEnrollment(req.models, enr);
+            } catch (e) {
+                console.warn('[enrollment-request] cuota mes actual:', e.message);
+            }
+            creadas.push(enr);
         } else {
-            const enrollment = await Enrollment.create({
+            let enrollment = await Enrollment.create({
                 atleta: atletaId,
                 categoria: request.categoria,
                 aptoMedico: false,
                 plan: planAuto,
             });
+            enrollment = await applyFamilyDiscountToEnrollment(req.models, atletaId, enrollment);
+            try {
+                await ensureCurrentMonthPaymentForEnrollment(req.models, enrollment);
+            } catch (e) {
+                console.warn('[enrollment-request] cuota mes actual:', e.message);
+            }
             creadas.push(enrollment);
         }
     }
@@ -295,6 +310,8 @@ const resolveEnrollmentRequest = asyncHandler(async (req, res) => {
     request.revisadoPor = req.user._id;
     request.fechaResolucion = new Date();
     await request.save();
+
+    await syncCategoryGroupChatSafe(req.models, request.categoria);
 
     await request.populate([
         { path: 'solicitante', select: 'nombre apellido rol' },
