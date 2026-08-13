@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, RefreshControl, Platform, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import QRCode from 'react-native-qrcode-svg';
 import { clubApi } from '../../utils/api';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
@@ -923,17 +924,39 @@ export default function AlquileresScreen({ navigation }) {
                       </>
                     ) : (
                       <View>
-                        <Text style={{ color: theme.text, fontWeight: '700', marginBottom: 8 }}>
-                          Link listo · {fmtRentalMoney(mpLinkResult.monto)}
+                        <Text style={{ color: theme.text, fontWeight: '700', marginBottom: 6 }}>
+                          Listo · {fmtRentalMoney(mpLinkResult.monto)}
                         </Text>
+                        <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 14, lineHeight: 18 }}>
+                          Mostrá el QR al cliente en mostrador, o copiá el link para mandarlo.
+                        </Text>
+                        <View
+                          style={{
+                            alignSelf: 'center',
+                            backgroundColor: '#fff',
+                            padding: 14,
+                            borderRadius: 12,
+                            marginBottom: 14,
+                            borderWidth: 1,
+                            borderColor: theme.border,
+                          }}
+                        >
+                          <QRCode
+                            value={mpLinkResult.linkDePago}
+                            size={200}
+                            backgroundColor="#fff"
+                            color="#111827"
+                          />
+                        </View>
                         <Text
                           style={{
                             color: theme.textMuted,
-                            fontSize: 13,
+                            fontSize: 12,
                             marginBottom: 14,
-                            lineHeight: 18,
+                            lineHeight: 17,
                           }}
                           selectable
+                          numberOfLines={2}
                         >
                           {mpLinkResult.linkDePago}
                         </Text>
