@@ -37,7 +37,7 @@ export async function buildClubStats(models, adminUserId) {
             .lean(),
         User.countDocuments({ rol: 'tutor', estado: 'activo' }),
         Discipline.find({ estado: 'activa' }).select('_id nombre').lean(),
-        Category.find().select('_id disciplina').lean(),
+        Category.find().select('_id nombre disciplina').lean(),
         Enrollment.find({ estado: 'activo' }).select('atleta categoria').lean(),
         Promise.all(
             STAFF_ROLES.map(async (rol) => ({
@@ -93,12 +93,16 @@ export async function buildClubStats(models, adminUserId) {
 
     const athleteIds = new Set(activeAthletes.map((a) => idStr(a._id)));
     const catById = new Map(categories.map((c) => [idStr(c._id), c]));
-    const discById = new Map(disciplines.map((d) => [idStr(d._id), d]));
 
     /** disciplinaId -> Set(athleteId) */
     const athletesByDisc = new Map();
+    /** categoriaId -> Set(athleteId) */
+    const athletesByCat = new Map();
     for (const d of disciplines) {
         athletesByDisc.set(idStr(d._id), new Set());
+    }
+    for (const c of categories) {
+        athletesByCat.set(idStr(c._id), new Set());
     }
 
     const athletesWithEnrollment = new Set();
@@ -106,20 +110,42 @@ export async function buildClubStats(models, adminUserId) {
         const aid = idStr(en.atleta);
         if (!athleteIds.has(aid)) continue;
         athletesWithEnrollment.add(aid);
-        const cat = catById.get(idStr(en.categoria));
+        const catId = idStr(en.categoria);
+        const cat = catById.get(catId);
         if (!cat?.disciplina) continue;
         const did = idStr(cat.disciplina);
+        if (athletesByCat.has(catId)) athletesByCat.get(catId).add(aid);
         if (!athletesByDisc.has(did)) continue;
         athletesByDisc.get(did).add(aid);
     }
 
     const porDisciplina = disciplines
-        .map((d) => ({
-            _id: d._id,
-            nombre: d.nombre,
-            atletas: athletesByDisc.get(idStr(d._id))?.size || 0,
-        }))
-        .sort((a, b) => b.atletas - a.atletas || String(a.nombre).localeCompare(String(b.nombre)));
+        .map((d) => {
+            const did = idStr(d._id);
+            const categorias = categories
+                .filter((c) => idStr(c.disciplina) === did)
+                .map((c) => ({
+                    _id: c._id,
+                    nombre: c.nombre,
+                    atletas: athletesByCat.get(idStr(c._id))?.size || 0,
+                }))
+                .sort(
+                    (a, b) =>
+                        b.atletas - a.atletas ||
+                        String(a.nombre).localeCompare(String(b.nombre), 'es'),
+                );
+            return {
+                _id: d._id,
+                nombre: d.nombre,
+                atletas: athletesByDisc.get(did)?.size || 0,
+                categorias,
+            };
+        })
+        .sort(
+            (a, b) =>
+                b.atletas - a.atletas ||
+                String(a.nombre).localeCompare(String(b.nombre), 'es'),
+        );
 
     const sexo = { M: 0, F: 0, sinDato: 0 };
     const edad = {

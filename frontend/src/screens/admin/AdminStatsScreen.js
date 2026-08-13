@@ -167,7 +167,7 @@ export default function AdminStatsScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
-  const cacheKey = clubData?.urlIdentifier ? `admin-club-stats:v2:${clubData.urlIdentifier}` : '';
+  const cacheKey = clubData?.urlIdentifier ? `admin-club-stats:v3:${clubData.urlIdentifier}` : '';
 
   const [stats, setStats] = useState(() => readScreenCache(cacheKey) ?? null);
   const [openId, setOpenId] = useState(null);
@@ -272,17 +272,43 @@ export default function AdminStatsScreen({ navigation }) {
             {(stats?.porDisciplina || []).length === 0 ? (
               <Text style={[styles.empty, { color: theme.textMuted }]}>No hay disciplinas activas.</Text>
             ) : (
-              (stats.porDisciplina || []).map((d) => (
-                <BarRow
-                  key={String(d._id)}
-                  label={d.nombre}
-                  count={d.atletas || 0}
-                  total={discMax}
-                  theme={theme}
-                  colorMarca={colorMarca}
-                  showPct={false}
-                />
-              ))
+              (stats.porDisciplina || []).map((d) => {
+                const catMax = Math.max(
+                  1,
+                  ...(d.categorias || []).map((c) => c.atletas || 0),
+                  1,
+                );
+                return (
+                  <View key={String(d._id)} style={styles.discBlock}>
+                    <BarRow
+                      label={d.nombre}
+                      count={d.atletas || 0}
+                      total={discMax}
+                      theme={theme}
+                      colorMarca={colorMarca}
+                      showPct={false}
+                    />
+                    {(d.categorias || []).length === 0 ? (
+                      <Text style={[styles.catEmpty, { color: theme.textMuted }]}>
+                        Sin categorías
+                      </Text>
+                    ) : (
+                      (d.categorias || []).map((c) => (
+                        <View key={String(c._id)} style={styles.catIndent}>
+                          <BarRow
+                            label={c.nombre}
+                            count={c.atletas || 0}
+                            total={catMax}
+                            theme={theme}
+                            colorMarca={colorMarca}
+                            showPct={false}
+                          />
+                        </View>
+                      ))
+                    )}
+                  </View>
+                );
+              })
             )}
           </AccordionSection>
 
@@ -449,6 +475,9 @@ const styles = StyleSheet.create({
   accordionTitle: { fontSize: 16, fontWeight: '800' },
   accordionSummary: { fontSize: 12, marginTop: 2 },
   accordionBody: { paddingHorizontal: 14, paddingBottom: 14 },
+  discBlock: { marginBottom: 10 },
+  catIndent: { paddingLeft: 14, opacity: 0.95 },
+  catEmpty: { fontSize: 12, marginBottom: 10, paddingLeft: 14 },
   subHead: { fontSize: 13, fontWeight: '700', marginTop: 10, marginBottom: 6 },
   tileGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tile: {
