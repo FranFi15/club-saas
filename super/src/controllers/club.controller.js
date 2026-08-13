@@ -208,6 +208,73 @@ const syncAthleteCount = asyncHandler(async (req, res) => {
     });
 });
 
+/** Resuelve club por seller id de Mercado Pago (webhooks sin ?club=). */
+const getClubByMpUser = asyncHandler(async (req, res) => {
+    const internalKey = req.headers['x-internal-api-key'];
+    if (internalKey !== process.env.INTERNAL_ADMIN_API_KEY) {
+        res.status(401);
+        throw new Error('No autorizado. Clave interna inválida.');
+    }
+
+    const mpUserId = String(req.params.mpUserId || '').trim();
+    if (!mpUserId) {
+        res.status(400);
+        throw new Error('Falta mercadopagoUserId.');
+    }
+
+    const club = await Club.findOne({ mercadopagoUserId: mpUserId });
+    if (!club) {
+        res.status(404);
+        throw new Error('No hay club vinculado a ese usuario de Mercado Pago.');
+    }
+
+    const bloqueados = ['inactivo', 'vencido', 'cancelado'];
+    if (bloqueados.includes(club.estadoSuscripcion)) {
+        res.status(403);
+        throw new Error(`El servicio del club se encuentra ${club.estadoSuscripcion}.`);
+    }
+
+    res.json({
+        urlIdentifier: club.urlIdentifier,
+        clubId: club.clubId,
+        connectionStringDB: club.connectionStringDB,
+        apiSecretKey: club.apiSecretKey,
+    });
+});
+
+/** Registra o limpia el mapping MP user → club (llamado desde el backend del tenant). */
+const upsertClubMpUser = asyncHandler(async (req, res) => {
+    const internalKey = req.headers['x-internal-api-key'];
+    if (internalKey !== process.env.INTERNAL_ADMIN_API_KEY) {
+        res.status(401);
+        throw new Error('No autorizado. Clave interna inválida.');
+    }
+
+    const club = await Club.findOne({ urlIdentifier: req.params.identifier });
+    if (!club) {
+        res.status(404);
+        throw new Error('Club no encontrado en el sistema central.');
+    }
+
+    const raw = req.body?.mercadopagoUserId;
+    const mpUserId = raw === null || raw === undefined ? '' : String(raw).trim();
+
+    if (mpUserId) {
+        await Club.updateMany(
+            { mercadopagoUserId: mpUserId, _id: { $ne: club._id } },
+            { $set: { mercadopagoUserId: '' } },
+        );
+    }
+
+    club.mercadopagoUserId = mpUserId;
+    await club.save();
+
+    res.json({
+        urlIdentifier: club.urlIdentifier,
+        mercadopagoUserId: club.mercadopagoUserId || null,
+    });
+});
+
 // @desc    Obtener información PÚBLICA del club para el Frontend (Login/Branding)
 // @route   GET /api/clubs/public/:identifier
 // @access  Public
@@ -248,4 +315,6 @@ export {
     getPublicClubInfo,
     getCronTenantIndex,
     syncAthleteCount,
+    getClubByMpUser,
+    upsertClubMpUser,
 };

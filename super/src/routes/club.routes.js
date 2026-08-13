@@ -9,6 +9,8 @@ import {
     getPublicClubInfo,
     getCronTenantIndex,
     syncAthleteCount,
+    getClubByMpUser,
+    upsertClubMpUser,
 } from '../controllers/club.controller.js';
 
 // Importamos el nuevo patovica
@@ -21,6 +23,8 @@ const router = express.Router();
 // ==========================================
 // Esta usa el 'x-internal-api-key', por lo que no necesita el token JWT de un humano
 router.get('/internal/cron-tenants', getCronTenantIndex);
+router.get('/internal/by-mp-user/:mpUserId', getClubByMpUser);
+router.put('/internal/:identifier/mp-user', upsertClubMpUser);
 router.get('/internal/:identifier/db-info', getClubDbInfo);
 router.patch('/internal/:identifier/athlete-count', syncAthleteCount);
 

@@ -21,7 +21,17 @@ const ClubSchema = new mongoose.Schema({
     // El string de conexión único para la BD de este club en particular
     connectionStringDB: { type: String, required: true, unique: true },
     userCount: { type: Number, required: true, default: 0 }, // Atletas (rol atleta) — base para facturación
+    /** ID de usuario/vendedor Mercado Pago (OAuth) para rutear webhooks multi-tenant. */
+    mercadopagoUserId: { type: String, default: '', trim: true },
 }, { timestamps: true });
+
+ClubSchema.index(
+    { mercadopagoUserId: 1 },
+    {
+        unique: true,
+        partialFilterExpression: { mercadopagoUserId: { $exists: true, $type: 'string', $gt: '' } },
+    },
+);
 
 const Club = mongoose.model('Club', ClubSchema);
 

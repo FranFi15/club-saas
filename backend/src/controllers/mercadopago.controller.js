@@ -15,6 +15,10 @@ import {
     getMercadoPagoWebhookSecret,
     amountsMatch,
 } from '../utils/mpWebhookSignature.js';
+import {
+    resolveMercadoPagoSellerId,
+    syncMercadoPagoUserMapping,
+} from '../utils/mpSellerMapping.js';
 
 const MP_TOKEN_URL = 'https://api.mercadopago.com/oauth/token';
 const MP_AUTH_BASE = 'https://auth.mercadopago.com/authorization';
@@ -125,7 +129,7 @@ async function exchangeRefreshToken(refreshToken) {
     });
 }
 
-async function persistTokensFromOAuthResponse(ClubSettings, existingDoc, data) {
+async function persistTokensFromOAuthResponse(ClubSettings, existingDoc, data, clubIdentifier) {
     const expiresMs = (Number(data.expires_in) || 15552000) * 1000;
     const newAccess = String(data.access_token || '').trim();
     const newRefreshRaw = typeof data.refresh_token === 'string' ? data.refresh_token.trim() : '';
@@ -142,10 +146,16 @@ async function persistTokensFromOAuthResponse(ClubSettings, existingDoc, data) {
         },
         { upsert: true }
     );
+
+    if (clubIdentifier && newAccess) {
+        const sellerId = await resolveMercadoPagoSellerId(data, newAccess);
+        if (sellerId) await syncMercadoPagoUserMapping(clubIdentifier, sellerId);
+    }
+
     return ClubSettings.findOne();
 }
 
-async function resolveAccessToken(models) {
+async function resolveAccessToken(models, clubIdentifier) {
     const { ClubSettings } = models;
     let doc = await ClubSettings.findOne();
     const access = doc?.mercadopagoAccessToken?.trim();
@@ -165,7 +175,7 @@ async function resolveAccessToken(models) {
     if (refresh && mpOauthClientConfigured()) {
         try {
             const data = await exchangeRefreshToken(refresh);
-            doc = await persistTokensFromOAuthResponse(ClubSettings, doc, data);
+            doc = await persistTokensFromOAuthResponse(ClubSettings, doc, data, clubIdentifier);
             return doc?.mercadopagoAccessToken?.trim() || null;
         } catch (e) {
             console.warn('Mercado Pago refresh_token falló:', e.response?.data || e.message);
@@ -299,7 +309,7 @@ const mercadoPagoOAuthCallback = asyncHandler(async (req, res) => {
         return fail(typeof mpMsg === 'string' ? mpMsg : 'Error al canjear el código con Mercado Pago.');
     }
 
-    await persistTokensFromOAuthResponse(ClubSettings, doc, tokenData);
+    await persistTokensFromOAuthResponse(ClubSettings, doc, tokenData, req.clubIdentifier);
     await ClubSettings.findOneAndUpdate(
         {},
         { $set: { mpOAuthCodeVerifier: '', mpOAuthStateNonce: '' } },
@@ -359,6 +369,11 @@ const updateMpIntegration = asyncHandler(async (req, res) => {
         await doc.save();
     }
 
+    const sellerId = await resolveMercadoPagoSellerId(null, trimmed);
+    if (sellerId && req.clubIdentifier) {
+        await syncMercadoPagoUserMapping(req.clubIdentifier, sellerId);
+    }
+
     res.json({
         tokenSource: 'club',
         maskedSuffix: `…${trimmed.slice(-4)}`,
@@ -386,6 +401,9 @@ const clearMpIntegration = asyncHandler(async (req, res) => {
         },
         { upsert: true }
     );
+    if (req.clubIdentifier) {
+        await syncMercadoPagoUserMapping(req.clubIdentifier, '');
+    }
     res.status(204).send();
 });
 
@@ -429,9 +447,9 @@ const createPreference = asyncHandler(async (req, res) => {
         `${payment.plan?.nombre || 'Cuota'} ${meses[payment.mes - 1] || payment.mes} ${payment.anio}`;
     const monto = Number(payment.montoFinal);
 
-    const accessToken = await resolveAccessToken(req.models);
+    const accessToken = await resolveAccessToken(req.models, req.clubIdentifier);
     const client = mpClientFromToken(accessToken);
-    const clubIdentifier = req.headers['x-club-identifier'] || req.query?.club;
+    const clubIdentifier = req.clubIdentifier || req.headers['x-club-identifier'] || req.query?.club;
 
     const frontend = primaryFrontendUrl() || 'https://www.google.com';
     const okUrl = `${frontend}/pago/ok`;
@@ -619,9 +637,9 @@ const createMemberFamilyPreference = asyncHandler(async (req, res) => {
         });
     }
 
-    const accessToken = await resolveAccessToken(req.models);
+    const accessToken = await resolveAccessToken(req.models, req.clubIdentifier);
     const client = mpClientFromToken(accessToken);
-    const clubIdentifier = req.headers['x-club-identifier'] || req.query?.club;
+    const clubIdentifier = req.clubIdentifier || req.headers['x-club-identifier'] || req.query?.club;
     const frontend = primaryFrontendUrl() || 'https://www.google.com';
 
     try {
@@ -685,9 +703,9 @@ const createRentalPreference = asyncHandler(async (req, res) => {
     const espacioNombre = rental.espacio?.nombre || 'cancha';
     const titulo = `Alquiler ${espacioNombre} — ${rental.nombreCliente}`.slice(0, 256);
 
-    const accessToken = await resolveAccessToken(req.models);
+    const accessToken = await resolveAccessToken(req.models, req.clubIdentifier);
     const client = mpClientFromToken(accessToken);
-    const clubIdentifier = req.headers['x-club-identifier'] || req.query?.club;
+    const clubIdentifier = req.clubIdentifier || req.headers['x-club-identifier'] || req.query?.club;
     const frontend = primaryFrontendUrl() || 'https://www.google.com';
 
     try {
@@ -757,7 +775,7 @@ const webhookReceiver = asyncHandler(async (req, res) => {
     }
 
     try {
-        const accessToken = await resolveAccessToken(req.models);
+        const accessToken = await resolveAccessToken(req.models, req.clubIdentifier);
         const client = mpClientFromToken(accessToken);
 
         const paymentClient = new MPPayment(client);

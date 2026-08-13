@@ -3,6 +3,11 @@ import { getTenantDB } from '../config/db.js';
 import { getTenantModels } from '../utils/tenantModels.js';
 import { getCachedTenant, setCachedTenant } from '../utils/cache.js';
 import { parseMpOAuthState, isMercadoPagoOAuthCallback } from '../utils/mpOAuthState.js';
+import {
+    extractMpWebhookUserId,
+    isMercadoPagoWebhookRequest,
+    lookupClubIdentifierByMpUser,
+} from '../utils/mpSellerMapping.js';
 
 const CLUB_ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
@@ -18,6 +23,21 @@ export const resolveTenant = async (req, res, next) => {
             clubIdentifier = req.mpOAuthPayload.clubIdentifier;
         } catch (err) {
             return res.status(400).type('text').send(`Mercado Pago OAuth: ${err.message}`);
+        }
+    }
+
+    // Webhooks del panel MP no llevan ?club=; rutear por seller user_id del body.
+    if (!clubIdentifier && isMercadoPagoWebhookRequest(req)) {
+        const mpUserId = extractMpWebhookUserId(req);
+        if (mpUserId) {
+            clubIdentifier = await lookupClubIdentifierByMpUser(mpUserId);
+            if (!clubIdentifier) {
+                console.warn(`[mp-webhook] sin club para MP user_id=${mpUserId}`);
+                return res.status(404).json({
+                    message:
+                        'No hay club vinculado a este usuario de Mercado Pago. Relinká OAuth en el club.',
+                });
+            }
         }
     }
 
