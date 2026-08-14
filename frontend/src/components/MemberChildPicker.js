@@ -6,7 +6,7 @@ import { useMember } from '../context/MemberContext';
 import UserAvatar from './UserAvatar';
 
 /** Selector horizontal de hijos para tutores (vista por atleta). */
-export default function MemberChildPicker({ theme, colorMarca, compact }) {
+export default function MemberChildPicker({ theme, colorMarca, compact, viewingLabel = 'Viendo a' }) {
   const { hijos, activeAtletaId, setActiveAtletaId, activeHijo, refresh, isTutor } = useMember();
 
   useFocusEffect(
@@ -24,7 +24,7 @@ export default function MemberChildPicker({ theme, colorMarca, compact }) {
   return (
     <View style={[styles.wrap, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
       <View style={styles.headerRow}>
-        <Text style={[styles.label, { color: theme.textMuted }]}>Viendo a</Text>
+        <Text style={[styles.label, { color: theme.textMuted }]}>{viewingLabel}</Text>
         {activeHijo ? (
           <Text style={[styles.activeName, { color: theme.text }]} numberOfLines={1}>
             {activeHijo.nombre} {activeHijo.apellido}

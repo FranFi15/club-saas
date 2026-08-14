@@ -18,6 +18,11 @@ import { uploadFileToClub, pickWebFile, imageFromPickerAsset } from '../utils/up
 import PaymentPaySummary from './PaymentPaySummary';
 import TransferBankInfo from './TransferBankInfo';
 
+function hasBankData(data) {
+  if (!data) return false;
+  return !!(data.titular?.trim() || data.banco?.trim() || data.cbu?.trim() || data.alias?.trim());
+}
+
 export default function MemberPayFlowModal({
   visible,
   onClose,
@@ -39,6 +44,7 @@ export default function MemberPayFlowModal({
   const [uploadError, setUploadError] = useState('');
   const activePaymentsRef = useRef([]);
   const pickingRef = useRef(false);
+  const bankReady = hasBankData(datosTransferencia);
 
   useEffect(() => {
     if (!visible) return;
@@ -115,6 +121,13 @@ export default function MemberPayFlowModal({
 
   const submitProof = async () => {
     const activePayments = activePaymentsRef.current.length ? activePaymentsRef.current : payments;
+    if (!bankReady) {
+      onError?.(
+        'Faltan datos bancarios',
+        'El club todavía no cargó CBU o alias. Consultá en administración antes de transferir.',
+      );
+      return;
+    }
     if (!proofUrl) {
       onError?.('Falta el comprobante', 'Subí una foto de la transferencia antes de enviar.');
       return;
@@ -235,7 +248,8 @@ export default function MemberPayFlowModal({
                 />
 
                 <Text style={[styles.hint, { color: theme.textMuted }]}>
-                  Realizá la transferencia y subí una captura o foto clara del comprobante. El club lo revisará y te avisará.
+                  En el concepto de la transferencia podés poner «Cuotas» y el mes o el nombre del
+                  atleta. Después subí una foto clara del comprobante; el club lo revisa y te avisa.
                 </Text>
 
                 {uploadError ? (
@@ -248,16 +262,23 @@ export default function MemberPayFlowModal({
                     <TouchableOpacity
                       style={[styles.changeBtn, { borderColor: theme.border }]}
                       onPress={pickProof}
-                      disabled={busy}
+                      disabled={busy || !bankReady}
                     >
                       <Text style={[styles.changeBtnTxt, { color: theme.text }]}>Cambiar foto</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
                   <TouchableOpacity
-                    style={[styles.pickBtn, { borderColor: primaryColor, backgroundColor: primaryColor + '12' }]}
+                    style={[
+                      styles.pickBtn,
+                      {
+                        borderColor: primaryColor,
+                        backgroundColor: primaryColor + '12',
+                        opacity: bankReady ? 1 : 0.55,
+                      },
+                    ]}
                     onPress={pickProof}
-                    disabled={busy}
+                    disabled={busy || !bankReady}
                   >
                     {uploading ? (
                       <ActivityIndicator color={primaryColor} />
@@ -275,10 +296,13 @@ export default function MemberPayFlowModal({
                 <TouchableOpacity
                   style={[
                     styles.submitBtn,
-                    { backgroundColor: primaryColor, opacity: busy || !proofUrl ? 0.7 : 1 },
+                    {
+                      backgroundColor: primaryColor,
+                      opacity: busy || !proofUrl || !bankReady ? 0.7 : 1,
+                    },
                   ]}
                   onPress={submitProof}
-                  disabled={busy || !proofUrl}
+                  disabled={busy || !proofUrl || !bankReady}
                 >
                   {submitting ? (
                     <ActivityIndicator color="#fff" />

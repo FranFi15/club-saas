@@ -10,9 +10,8 @@ import {
   ActivityIndicator,
   Linking,
   SectionList,
-  Modal,
-  Platform,
   AppState,
+  ScrollView,
 } from 'react-native';
 import { runAfterIosModalDismiss } from '../../utils/iosModalChain';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,11 +24,9 @@ import { clubHeaders } from '../athlete/athleteApi';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
-import MemberChildPicker from '../../components/MemberChildPicker';
 import { MIN_AGE_SELF_PAY } from '../../utils/ageHelper';
 import { useBadgesOptional } from '../../context/BadgeContext';
 import SelectPaymentsModal from '../../components/SelectPaymentsModal';
-import PaymentPaySummary from '../../components/PaymentPaySummary';
 import MemberPayFlowModal from '../../components/MemberPayFlowModal';
 import { subscribeMercadoPagoDeepLinks } from '../../utils/mpDeepLinks';
 
@@ -43,13 +40,20 @@ const ESTADO_LABEL = {
   pendiente: 'pendiente',
   pagado: 'pagado',
   vencido: 'vencido',
-  en_revision: 'en revisión',
+  en_revision: 'en revisión del club',
 };
 
 export default function MemberPaymentsScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
-  const { isTutor, memberId, puedePagar, cuotasEnApp, loading: memberLoading, profile } = useMember();
+  const {
+    isTutor,
+    memberId,
+    puedePagar,
+    cuotasEnApp,
+    loading: memberLoading,
+    profile,
+  } = useMember();
   const badges = useBadgesOptional();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const paymentsCacheKey =
@@ -66,13 +70,13 @@ export default function MemberPaymentsScreen({ navigation }) {
   const [datosTransferencia, setDatosTransferencia] = useState(
     () => readScreenCache(paymentsCacheKey)?.datosTransferencia ?? null,
   );
+  /** Tutor: 'all' | atletaId */
+  const [cuotasFilterId, setCuotasFilterId] = useState('all');
   const [payingId, setPayingId] = useState(null);
   const [payingSelected, setPayingSelected] = useState(false);
   const [selectModalOpen, setSelectModalOpen] = useState(false);
   const [payFlowOpen, setPayFlowOpen] = useState(false);
   const [pendingPayPayments, setPendingPayPayments] = useState([]);
-  const [mpConfirmOpen, setMpConfirmOpen] = useState(false);
-  const [selectedForMp, setSelectedForMp] = useState([]);
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
     title: '',
@@ -230,33 +234,42 @@ export default function MemberPaymentsScreen({ navigation }) {
     setPayFlowOpen(true);
   };
 
-  const payWithMp = async (payment, { asTutor = isTutor } = {}) => {
-    if (!asTutor && !puedePagar) {
+  const payPaymentsWithMp = async (paymentsToPay) => {
+    const payable = (paymentsToPay || []).filter((p) => ['pendiente', 'vencido'].includes(p.estado));
+    if (!payable.length) return;
+    if (!isTutor && !puedePagar) {
       showAlert(
         'Pago en la app',
         `Solo atletas de ${MIN_AGE_SELF_PAY} años o más pueden pagar desde su cuenta. Un tutor puede abonar por vos.`,
       );
       return;
     }
-    setPayingId(payment._id);
+
+    const single = payable.length === 1;
+    if (single) setPayingId(payable[0]._id);
+    else setPayingSelected(true);
+
     try {
       const h = await clubHeaders(clubData);
-      const res = await clubApi.post(
-        '/mercadopago/create-preference-member',
-        { paymentId: payment._id },
-        { headers: h },
-      );
+      const endpoint = single
+        ? '/mercadopago/create-preference-member'
+        : '/mercadopago/create-preference-family';
+      const body = single
+        ? { paymentId: payable[0]._id }
+        : { paymentIds: payable.map((p) => p._id) };
+      const res = await clubApi.post(endpoint, body, { headers: h });
       const url = res.data.linkDePago;
       if (!url) {
         showAlert('Error', 'No pudimos armar el link de pago. Probá de nuevo.');
         return;
       }
-      pendingMpPaymentIdsRef.current = [String(payment._id)];
+      pendingMpPaymentIdsRef.current = payable.map((p) => String(p._id));
       await Linking.openURL(url);
     } catch (e) {
       showAlert('Error', e.response?.data?.message || 'No se pudo iniciar el pago.');
     } finally {
       setPayingId(null);
+      setPayingSelected(false);
     }
   };
 
@@ -286,44 +299,8 @@ export default function MemberPaymentsScreen({ navigation }) {
     setPayFlowOpen(false);
     setPendingPayPayments([]);
     runAfterIosModalDismiss(() => {
-      if (pending.length === 1) {
-        payWithMp(pending[0], { asTutor: isTutor });
-        return;
-      }
-      setSelectedForMp(pending);
-      setMpConfirmOpen(true);
+      payPaymentsWithMp(pending);
     });
-  };
-
-  const paySelectedWithMp = async () => {
-    if (!selectedForMp.length) return;
-    setPayingSelected(true);
-    try {
-      const h = await clubHeaders(clubData);
-      const endpoint =
-        selectedForMp.length === 1
-          ? '/mercadopago/create-preference-member'
-          : '/mercadopago/create-preference-family';
-      const body =
-        selectedForMp.length === 1
-          ? { paymentId: selectedForMp[0]._id }
-          : { paymentIds: selectedForMp.map((p) => p._id) };
-      const res = await clubApi.post(endpoint, body, { headers: h });
-      const url = res.data.linkDePago;
-      if (!url) {
-        showAlert('Error', 'No pudimos armar el link de pago. Probá de nuevo.');
-        return;
-      }
-      setMpConfirmOpen(false);
-      setSelectedForMp([]);
-      setPendingPayPayments([]);
-      pendingMpPaymentIdsRef.current = selectedForMp.map((p) => String(p._id));
-      await Linking.openURL(url);
-    } catch (e) {
-      showAlert('Error', e.response?.data?.message || 'No se pudo iniciar el pago.');
-    } finally {
-      setPayingSelected(false);
-    }
   };
 
   const renderPaymentRow = (item, atletaNombre) => {
@@ -331,6 +308,7 @@ export default function MemberPaymentsScreen({ navigation }) {
     const canPay =
       (isTutor || (cuotasEnApp && puedePagar)) && ['pendiente', 'vencido'].includes(item.estado);
     const busy = payingId === item._id;
+    const inReview = item.estado === 'en_revision';
 
     return (
       <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -352,6 +330,11 @@ export default function MemberPaymentsScreen({ navigation }) {
         {item.motivoRechazo && ['pendiente', 'vencido'].includes(item.estado) ? (
           <Text style={[styles.rejectNote, { color: '#ef4444' }]}>
             Rechazado: {item.motivoRechazo}
+          </Text>
+        ) : null}
+        {inReview ? (
+          <Text style={[styles.reviewNote, { color: '#6366f1' }]}>
+            Comprobante en revisión por el club. Te avisamos cuando lo confirmen.
           </Text>
         ) : null}
         <View style={styles.cardFooter}>
@@ -379,26 +362,73 @@ export default function MemberPaymentsScreen({ navigation }) {
     );
   };
 
+  const tutorHijos = familyData?.hijos || [];
+  const filterIsAll = !isTutor || cuotasFilterId === 'all';
+  const filteredHijo = useMemo(() => {
+    if (filterIsAll) return null;
+    return tutorHijos.find((h) => String(h._id) === String(cuotasFilterId)) || null;
+  }, [filterIsAll, tutorHijos, cuotasFilterId]);
+
   const tutorSections = useMemo(() => {
-    if (!isTutor || !familyData?.hijos) return [];
+    if (!isTutor || !tutorHijos.length) return [];
     const byAtleta = {};
     for (const p of familyData.payments || []) {
       const aid = String(p.atleta?._id || p.atleta);
       if (!byAtleta[aid]) byAtleta[aid] = [];
       byAtleta[aid].push(p);
     }
-    return familyData.hijos.map((h) => ({
+    const hijos = filterIsAll
+      ? tutorHijos
+      : tutorHijos.filter((h) => String(h._id) === String(cuotasFilterId));
+    return hijos.map((h) => ({
       title: `${h.nombre} ${h.apellido}`,
       data: byAtleta[String(h._id)] || [],
     }));
-  }, [isTutor, familyData]);
+  }, [isTutor, familyData, tutorHijos, filterIsAll, cuotasFilterId]);
 
-  const impagasFamilia = familyData?.impagas || [];
+  const scopedImpagas = useMemo(() => {
+    const all = familyData?.impagas || [];
+    if (filterIsAll) return all;
+    return all.filter((p) => String(p.atleta?._id || p.atleta) === String(cuotasFilterId));
+  }, [familyData?.impagas, filterIsAll, cuotasFilterId]);
+
+  const visibleStats = useMemo(() => {
+    if (!isTutor || filterIsAll || !familyData?.payments) return stats;
+    const rows = (familyData.payments || []).filter(
+      (p) => String(p.atleta?._id || p.atleta) === String(cuotasFilterId),
+    );
+    let totalPagado = 0;
+    let totalPendiente = 0;
+    let cuotasVencidas = 0;
+    for (const p of rows) {
+      const m = Number(p.montoFinal) || 0;
+      if (p.estado === 'pagado') totalPagado += m;
+      if (['pendiente', 'vencido', 'en_revision'].includes(p.estado)) totalPendiente += m;
+      if (p.estado === 'vencido') cuotasVencidas += 1;
+    }
+    return { totalPagado, totalPendiente, cuotasVencidas };
+  }, [isTutor, filterIsAll, cuotasFilterId, familyData?.payments, stats]);
+
+  const payCtaLabel = useMemo(() => {
+    const n = scopedImpagas.length;
+    if (!n) return '';
+    const total = scopedImpagas.reduce((s, p) => s + (Number(p.montoFinal) || 0), 0);
+    if (filterIsAll) {
+      if (n === 1) return `Pagar la cuota · ${fmt(total)}`;
+      return `Pagar todas · ${n} · ${fmt(total)}`;
+    }
+    if (n === 1) return `Pagar · ${fmt(total)}`;
+    return `Pagar pendientes · ${n} · ${fmt(total)}`;
+  }, [scopedImpagas, filterIsAll]);
 
   const subtitle = isTutor
-    ? mercadoPagoReady
-      ? 'Cuotas de tus hijos · Mercado Pago o transferencia'
-      : 'Cuotas de tus hijos · transferencia con comprobante'
+    ? filterIsAll
+      ? mercadoPagoReady
+        ? 'Todas las cuotas · Mercado Pago o transferencia'
+        : 'Todas las cuotas · transferencia'
+      : mercadoPagoReady
+        ? `Cuotas de ${filteredHijo?.nombre || 'atleta'} · Mercado Pago o transferencia`
+        : `Cuotas de ${filteredHijo?.nombre || 'atleta'} · transferencia`
     : mercadoPagoReady
       ? puedePagar
         ? 'Mercado Pago o transferencia'
@@ -414,27 +444,46 @@ export default function MemberPaymentsScreen({ navigation }) {
       ) : null}
       <View style={styles.statsRow}>
         <View style={[styles.stat, { backgroundColor: theme.surface }]}>
-          <Text style={[styles.statVal, { color: '#10b981' }]}>{fmt(stats.totalPagado)}</Text>
+          <Text style={[styles.statVal, { color: '#10b981' }]}>{fmt(visibleStats.totalPagado)}</Text>
           <Text style={[styles.statLbl, { color: theme.textMuted }]}>Pagado</Text>
         </View>
         <View style={[styles.stat, { backgroundColor: theme.surface }]}>
-          <Text style={[styles.statVal, { color: '#ef4444' }]}>{fmt(stats.totalPendiente)}</Text>
+          <Text style={[styles.statVal, { color: '#ef4444' }]}>{fmt(visibleStats.totalPendiente)}</Text>
           <Text style={[styles.statLbl, { color: theme.textMuted }]}>Debe</Text>
         </View>
         <View style={[styles.stat, { backgroundColor: theme.surface }]}>
-          <Text style={[styles.statVal, { color: '#f59e0b' }]}>{stats.cuotasVencidas || 0}</Text>
+          <Text style={[styles.statVal, { color: '#f59e0b' }]}>{visibleStats.cuotasVencidas || 0}</Text>
           <Text style={[styles.statLbl, { color: theme.textMuted }]}>Vencidas</Text>
         </View>
       </View>
 
-      {isTutor && impagasFamilia.length > 0 ? (
-        <TouchableOpacity
-          style={[styles.payAllBtn, { backgroundColor: colorMarca }]}
-          onPress={() => setSelectModalOpen(true)}
-        >
-          <Ionicons name="card-outline" size={20} color="#fff" />
-          <Text style={styles.payAllTxt}>Pagar</Text>
-        </TouchableOpacity>
+      {isTutor && scopedImpagas.length > 0 ? (
+        <View style={styles.payActions}>
+          <TouchableOpacity
+            style={[styles.payAllBtn, { backgroundColor: colorMarca, opacity: payingSelected ? 0.7 : 1 }]}
+            onPress={() => openPayFlow(scopedImpagas)}
+            disabled={payingSelected}
+          >
+            {payingSelected ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="wallet-outline" size={20} color="#fff" />
+                <Text style={styles.payAllTxt}>{payCtaLabel}</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          {scopedImpagas.length > 1 ? (
+            <TouchableOpacity
+              style={[styles.payChooseBtn, { borderColor: colorMarca }]}
+              onPress={() => setSelectModalOpen(true)}
+              disabled={payingSelected}
+            >
+              <Ionicons name="checkbox-outline" size={18} color={colorMarca} />
+              <Text style={[styles.payChooseTxt, { color: colorMarca }]}>Elegir cuáles pagar</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       ) : null}
     </>
   ) : null;
@@ -462,7 +511,54 @@ export default function MemberPaymentsScreen({ navigation }) {
         onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
       />
 
-      {isTutor ? <MemberChildPicker theme={theme} colorMarca={colorMarca} /> : null}
+      {isTutor && tutorHijos.length > 0 ? (
+        <View style={[styles.filterWrap, { borderBottomColor: theme.border }]}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRow}
+          >
+            <TouchableOpacity
+              style={[
+                styles.filterPill,
+                {
+                  borderColor: filterIsAll ? colorMarca : theme.border,
+                  backgroundColor: filterIsAll ? colorMarca + '22' : theme.surface,
+                },
+              ]}
+              onPress={() => setCuotasFilterId('all')}
+              accessibilityRole="button"
+              accessibilityState={{ selected: filterIsAll }}
+            >
+              <Text style={[styles.filterPillTxt, { color: filterIsAll ? colorMarca : theme.text }]}>
+                Todas
+              </Text>
+            </TouchableOpacity>
+            {tutorHijos.map((h) => {
+              const on = String(cuotasFilterId) === String(h._id);
+              return (
+                <TouchableOpacity
+                  key={h._id}
+                  style={[
+                    styles.filterPill,
+                    {
+                      borderColor: on ? colorMarca : theme.border,
+                      backgroundColor: on ? colorMarca + '22' : theme.surface,
+                    },
+                  ]}
+                  onPress={() => setCuotasFilterId(String(h._id))}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: on }}
+                >
+                  <Text style={[styles.filterPillTxt, { color: on ? colorMarca : theme.text }]} numberOfLines={1}>
+                    {h.nombre}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
 
       {!isTutor && !puedePagar && profile && (
         <View style={[styles.infoBox, { backgroundColor: colorMarca + '15', borderColor: colorMarca }]}>
@@ -488,9 +584,11 @@ export default function MemberPaymentsScreen({ navigation }) {
             <SectionList
               sections={tutorSections}
               keyExtractor={(item) => String(item._id)}
-              renderSectionHeader={({ section: { title } }) => (
-                <Text style={[styles.sectionHdr, { color: theme.text }]}>{title}</Text>
-              )}
+              renderSectionHeader={({ section: { title } }) =>
+                filterIsAll && tutorHijos.length > 1 ? (
+                  <Text style={[styles.sectionHdr, { color: theme.text }]}>{title}</Text>
+                ) : null
+              }
               renderItem={({ item }) => renderPaymentRow(item, null)}
               contentContainerStyle={styles.list}
               ListHeaderComponent={listHeader}
@@ -526,8 +624,12 @@ export default function MemberPaymentsScreen({ navigation }) {
           visible={selectModalOpen}
           onClose={() => setSelectModalOpen(false)}
           title="Elegir cuotas a pagar"
-          subtitle="Cuotas pendientes y vencidas de tus hijos"
-          payments={impagasFamilia}
+          subtitle={
+            filterIsAll
+              ? 'Marcá solo las que querés abonar ahora'
+              : `Pendientes de ${filteredHijo?.nombre || 'este atleta'}`
+          }
+          payments={scopedImpagas}
           getPaymentLabel={mpPaymentLabel}
           theme={theme}
           primaryColor={colorMarca}
@@ -559,53 +661,6 @@ export default function MemberPaymentsScreen({ navigation }) {
         }}
         onError={showAlert}
       />
-
-      <Modal
-        visible={mpConfirmOpen}
-        animationType="slide"
-        transparent
-        presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
-      >
-        <View style={styles.mpOverlay}>
-          <View style={[styles.mpSheet, { backgroundColor: theme.surface }]}>
-            <View style={styles.mpHeader}>
-              <Text style={[styles.mpTitle, { color: theme.text }]}>Confirmar pago</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setMpConfirmOpen(false);
-                  setSelectedForMp([]);
-                }}
-              >
-                <Ionicons name="close" size={28} color={theme.icon} />
-              </TouchableOpacity>
-            </View>
-
-            <PaymentPaySummary
-              subtitle="Pago con Mercado Pago"
-              payments={selectedForMp}
-              getLineLabel={mpPaymentLabel}
-              theme={theme}
-              primaryColor={colorMarca}
-              maxListHeight={selectedForMp.length > 3 ? 240 : 140}
-            />
-
-            <TouchableOpacity
-              style={[styles.payAllBtn, { backgroundColor: colorMarca, opacity: payingSelected ? 0.7 : 1 }]}
-              onPress={paySelectedWithMp}
-              disabled={payingSelected}
-            >
-              {payingSelected ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="card-outline" size={20} color="#fff" />
-                  <Text style={styles.payAllTxt}>Pagar con Mercado Pago</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -618,17 +673,26 @@ const styles = StyleSheet.create({
   stat: { flex: 1, borderRadius: 5, padding: 12, alignItems: 'center' },
   statVal: { fontSize: 15, fontWeight: '800' },
   statLbl: { fontSize: 10, marginTop: 4 },
+  payActions: { marginHorizontal: 16, marginBottom: 12, gap: 8 },
   payAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginHorizontal: 16,
-    marginBottom: 12,
     paddingVertical: 14,
     borderRadius: 5,
   },
   payAllTxt: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  payChooseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 5,
+    borderWidth: 1.5,
+  },
+  payChooseTxt: { fontWeight: '700', fontSize: 14 },
   sectionHdr: { fontSize: 16, fontWeight: '800', marginBottom: 8, marginTop: 4 },
   cuotasSectionHdr: { marginHorizontal: 16, marginTop: 4 },
   card: { borderRadius: 5, borderWidth: 1, padding: 14, marginBottom: 10 },
@@ -638,9 +702,10 @@ const styles = StyleSheet.create({
   amount: { fontSize: 16, fontWeight: '800' },
   sub: { fontSize: 13, marginTop: 6 },
   rejectNote: { fontSize: 12, lineHeight: 17, marginTop: 8 },
+  reviewNote: { fontSize: 12, lineHeight: 17, marginTop: 8 },
   cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 5 },
-  badgeTxt: { fontSize: 12, fontWeight: '700', textTransform: 'capitalize' },
+  badgeTxt: { fontSize: 12, fontWeight: '700' },
   payBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -662,14 +727,17 @@ const styles = StyleSheet.create({
   },
   infoTxt: { flex: 1, fontSize: 13, lineHeight: 20 },
   empty: { textAlign: 'center', marginTop: 40, fontSize: 15, paddingHorizontal: 24 },
-  mpOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  mpSheet: {
-    borderTopLeftRadius: 5,
-    borderTopRightRadius: 5,
-    padding: 24,
-    paddingBottom: 32,
-    maxHeight: '90%',
+  filterWrap: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 10,
   },
-  mpHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  mpTitle: { fontSize: 20, fontWeight: '800', flex: 1 },
+  filterRow: { paddingHorizontal: 16, gap: 8, alignItems: 'center' },
+  filterPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    maxWidth: 140,
+  },
+  filterPillTxt: { fontSize: 13, fontWeight: '700' },
 });

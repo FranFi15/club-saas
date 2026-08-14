@@ -19,7 +19,6 @@ import { clubHeaders } from '../athlete/athleteApi';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScreenHeader';
 import MemberChildPicker from '../../components/MemberChildPicker';
-import UserAvatar from '../../components/UserAvatar';
 import { platformCardShadow } from '../../utils/platformShadow';
 
 const SHORTCUTS = [
@@ -47,7 +46,7 @@ function fmtMoney(n) {
 export default function TutorHomeScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
-  const { profile, hijos, activeHijo, activeAtletaId, setActiveAtletaId, loading, loadError, refresh } = useMember();
+  const { profile, hijos, activeHijo, activeAtletaId, loading, loadError, refresh } = useMember();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const dashboardCacheKey = clubData?.urlIdentifier ? `tutor-dashboard:${clubData.urlIdentifier}` : '';
 
@@ -214,40 +213,6 @@ export default function TutorHomeScreen({ navigation }) {
                   </TouchableOpacity>
                 ))}
               </View>
-
-              {hijos.length > 1 ? (
-                <>
-                  <Text style={[styles.section, { color: theme.text }]}>Cambiar de atleta</Text>
-                  {dashboard.map((d) => {
-                    const on = String(d._id) === String(activeAtletaId);
-                    const hasAlerts = Boolean(hijos.find((h) => String(h._id) === String(d._id))?.tieneAlertas);
-                    return (
-                      <TouchableOpacity
-                        key={d._id}
-                        style={[
-                          styles.hijoRow,
-                          { backgroundColor: theme.surface, borderColor: on ? colorMarca : theme.border },
-                        ]}
-                        onPress={() => setActiveAtletaId(d._id)}
-                      >
-                        <UserAvatar user={d} size={44} colorMarca={colorMarca} />
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.hijoName, { color: theme.text }]}>
-                            {d.nombre} {d.apellido}
-                          </Text>
-                          <Text style={[styles.hijoMeta, { color: theme.textMuted }]}>
-                            {d.edad != null ? `${d.edad} años` : ''}
-                            {d.docsPendientes ? ` · ${d.docsPendientes} doc. pend.` : ''}
-                            {d.cuotasPendientes ? ` · ${d.cuotasPendientes} cuota(s)` : ''}
-                          </Text>
-                        </View>
-                        {hasAlerts ? <View style={styles.alertDot} /> : null}
-                        {on ? <Ionicons name="checkmark-circle" size={22} color={colorMarca} /> : null}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </>
-              ) : null}
             </>
           )}
         </ScrollView>
@@ -286,18 +251,6 @@ const styles = StyleSheet.create({
   },
   alertTxt: { flex: 1, fontSize: 14, fontWeight: '600' },
   section: { fontSize: 16, fontWeight: '700', marginBottom: 10, marginTop: 4 },
-  hijoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 8,
-  },
-  hijoName: { fontSize: 16, fontWeight: '700' },
-  hijoMeta: { fontSize: 13, marginTop: 2 },
-  alertDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#ef4444' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   tile: {
     width: '47%',
