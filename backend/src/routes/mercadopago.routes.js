@@ -7,6 +7,7 @@ import {
     webhookReceiver,
     syncMemberPayments,
     getMpIntegration,
+    backfillSellerMapping,
     updateMpIntegration,
     clearMpIntegration,
     startMercadoPagoOAuth,
@@ -20,6 +21,7 @@ router.get('/oauth/callback', mercadoPagoOAuthCallback);
 router.post('/oauth/start', protect, authorize('admin_club'), startMercadoPagoOAuth);
 
 router.get('/integration', protect, authorize('admin_club', 'administrativo'), getMpIntegration);
+router.post('/backfill-seller-mapping', protect, authorize('admin_club'), backfillSellerMapping);
 router.put('/integration', protect, authorize('admin_club'), updateMpIntegration);
 router.delete('/integration', protect, authorize('admin_club'), clearMpIntegration);
 

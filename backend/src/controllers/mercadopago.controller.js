@@ -19,6 +19,7 @@ import {
     resolveMercadoPagoSellerId,
     syncMercadoPagoUserMapping,
 } from '../utils/mpSellerMapping.js';
+import { backfillClubMpSellerMapping } from '../services/backfillMpSellerMapping.service.js';
 
 const MP_TOKEN_URL = 'https://api.mercadopago.com/oauth/token';
 const MP_AUTH_BASE = 'https://auth.mercadopago.com/authorization';
@@ -466,6 +467,19 @@ const getMpIntegration = asyncHandler(async (req, res) => {
     const maskedSuffix =
         tenantAccess && tenantAccess.length >= 4 ? `…${tenantAccess.slice(-4)}` : null;
 
+    let sellerMapped = false;
+    let mercadopagoUserId = null;
+    if (tokenSource === 'club' && req.clubIdentifier) {
+        const accessToken = await resolveAccessToken(req.models, req.clubIdentifier);
+        const backfill = await backfillClubMpSellerMapping({
+            models: req.models,
+            clubIdentifier: req.clubIdentifier,
+            accessToken,
+        });
+        sellerMapped = !!backfill.ok;
+        mercadopagoUserId = backfill.sellerId || null;
+    }
+
     res.json({
         tokenSource,
         maskedSuffix,
@@ -474,6 +488,32 @@ const getMpIntegration = asyncHandler(async (req, res) => {
         oauthReady: mpOauthFlowReady(),
         oauthSetup: getMpOAuthSetupStatus(),
         envFallbackActive: !tenantAccess && !!envToken,
+        sellerMapped,
+        mercadopagoUserId,
+    });
+});
+
+// @route   POST /api/mercadopago/backfill-seller-mapping
+const backfillSellerMapping = asyncHandler(async (req, res) => {
+    const accessToken = await resolveAccessToken(req.models, req.clubIdentifier);
+    const result = await backfillClubMpSellerMapping({
+        models: req.models,
+        clubIdentifier: req.clubIdentifier,
+        accessToken,
+    });
+    if (!result.ok) {
+        const messages = {
+            no_token: 'Este club no tiene Mercado Pago vinculado.',
+            users_me_failed: 'No se pudo leer el usuario de Mercado Pago. Relinká OAuth.',
+            super_sync_failed: 'No se pudo guardar el mapping en el servidor central.',
+            no_club: 'Falta el identificador del club.',
+        };
+        res.status(result.reason === 'no_token' ? 400 : 502);
+        throw new Error(messages[result.reason] || 'No se pudo sincronizar el vendedor de Mercado Pago.');
+    }
+    res.json({
+        sellerMapped: true,
+        mercadopagoUserId: result.sellerId,
     });
 });
 
@@ -1032,6 +1072,7 @@ export {
     webhookReceiver,
     syncMemberPayments,
     getMpIntegration,
+    backfillSellerMapping,
     updateMpIntegration,
     clearMpIntegration,
     startMercadoPagoOAuth,

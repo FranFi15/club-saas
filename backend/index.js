@@ -43,6 +43,10 @@ import { startSessionGenerationCron } from './src/cron/sessionGeneration.cron.js
 import { startPaymentGenerationCron } from './src/cron/paymentGeneration.cron.js';
 import { startOverduePaymentsCron } from './src/cron/overduePayments.cron.js';
 import { startPaymentRemindersCron } from './src/cron/paymentReminders.cron.js';
+import {
+    backfillAllClubsMpSellers,
+    runMpSellerBackfillOnStart,
+} from './src/services/backfillMpSellerMapping.service.js';
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
@@ -139,6 +143,20 @@ app.get('/', (req, res) => {
     res.send('🏟️ Backend funcionando y asegurado.');
 });
 
+/** Backfill MP seller → club (todos los tenants). Header: x-internal-api-key */
+app.post('/api/internal/mp-seller-backfill', async (req, res) => {
+    if (req.headers['x-internal-api-key'] !== process.env.INTERNAL_ADMIN_API_KEY) {
+        return res.status(401).json({ message: 'No autorizado.' });
+    }
+    try {
+        const result = await backfillAllClubsMpSellers();
+        return res.json(result);
+    } catch (e) {
+        console.error('[mp-seller-backfill] endpoint:', e.message);
+        return res.status(500).json({ message: 'Error en backfill de vendedores MP.' });
+    }
+});
+
 app.use('/api/upload', resolveTenant, uploadRoutes);
 app.use('/api/auth', resolveTenant, authRoutes);
 app.use('/api/users', resolveTenant, userRoutes);
@@ -183,6 +201,7 @@ app.listen(PORT, () => {
         startPaymentGenerationCron();
         startOverduePaymentsCron();
         startPaymentRemindersCron();
+        runMpSellerBackfillOnStart();
     } catch (err) {
         captureException(err, { area: 'cron_start' });
         console.error('[Club-Backend] Error iniciando crons:', err.message);

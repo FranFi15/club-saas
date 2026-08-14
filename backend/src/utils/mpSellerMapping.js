@@ -20,11 +20,11 @@ export async function resolveMercadoPagoSellerId(tokenData, accessToken) {
     return null;
 }
 
-/** Registra o limpia el mapping en Super (webhooks sin ?club=). */
+/** Registra o limpia el mapping en Super (webhooks sin ?club=). @returns {Promise<boolean>} */
 export async function syncMercadoPagoUserMapping(clubIdentifier, mercadopagoUserId) {
     const base = process.env.SUPER_ADMIN_URL?.replace(/\/$/, '');
     const key = process.env.INTERNAL_ADMIN_API_KEY;
-    if (!base || !key || !clubIdentifier) return;
+    if (!base || !key || !clubIdentifier) return false;
 
     const value =
         mercadopagoUserId === null || mercadopagoUserId === undefined
@@ -37,11 +37,13 @@ export async function syncMercadoPagoUserMapping(clubIdentifier, mercadopagoUser
             { mercadopagoUserId: value },
             { headers: { 'x-internal-api-key': key } },
         );
+        return true;
     } catch (e) {
         console.warn(
             '[mp-seller] no se pudo sincronizar mapping con Super:',
             e.response?.data?.message || e.message,
         );
+        return false;
     }
 }
 

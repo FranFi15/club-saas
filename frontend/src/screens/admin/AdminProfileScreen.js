@@ -35,6 +35,8 @@ const emptyIntegration = () => ({
   tokenSource: 'none',
   oauthReady: false,
   oauthSetup: { ready: false, missing: [] },
+  sellerMapped: false,
+  mercadopagoUserId: null,
 });
 
 export default function AdminProfileScreen({ navigation }) {
@@ -112,6 +114,8 @@ export default function AdminProfileScreen({ navigation }) {
         maskedSuffix: mpRes.data.maskedSuffix || null,
         linkedViaOauth: !!mpRes.data.linkedViaOauth,
         envFallbackActive: !!mpRes.data.envFallbackActive,
+        sellerMapped: !!mpRes.data.sellerMapped,
+        mercadopagoUserId: mpRes.data.mercadopagoUserId || null,
       },
       datosTransferencia: bankRes.data?.datosTransferencia ?? null,
     };
@@ -163,7 +167,9 @@ export default function AdminProfileScreen({ navigation }) {
   const roleBadgeLabel = userRol === 'administrativo' ? 'Administrativo' : 'Admin club';
   const clubMpLinked = integration.tokenSource === 'club';
   const mpStatusLabel = clubMpLinked
-    ? `Conectado${integration.maskedSuffix ? ` ${integration.maskedSuffix}` : ''}`
+    ? `Conectado${integration.maskedSuffix ? ` ${integration.maskedSuffix}` : ''}${
+        integration.sellerMapped ? ' · webhooks listos' : ''
+      }`
     : integration.envFallbackActive
       ? 'Conectado de forma temporal'
       : 'Sin vincular';
