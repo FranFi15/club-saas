@@ -140,7 +140,12 @@ app.use(
 );
 
 app.get('/', (req, res) => {
-    res.send('🏟️ Backend funcionando y asegurado.');
+    res.status(200).send('🏟️ Backend funcionando y asegurado.');
+});
+
+/** Health check para Render (rápido, sin deps). */
+app.get('/health', (req, res) => {
+    res.status(200).json({ ok: true, service: 'club-backend' });
 });
 
 /** Backfill MP seller → club (todos los tenants). Header: x-internal-api-key */
@@ -190,7 +195,7 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`[Club-Backend] Servidor corriendo en puerto ${PORT}`);
     if (isProd) {
         console.log(`[Club-Backend] CORS origins: ${allowedOrigins.join(', ') || '(ninguno)'}`);

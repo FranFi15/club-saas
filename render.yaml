@@ -8,7 +8,10 @@ services:
     rootDir: super
     buildCommand: npm install
     startCommand: npm start
-    healthCheckPath: /
+    healthCheckPath: /health
+    buildFilter:
+      paths:
+        - super/**
     envVars:
       - key: NODE_ENV
         value: production
@@ -28,7 +31,10 @@ services:
     rootDir: backend
     buildCommand: npm install
     startCommand: npm start
-    healthCheckPath: /
+    healthCheckPath: /health
+    buildFilter:
+      paths:
+        - backend/**
     envVars:
       - key: NODE_ENV
         value: production
@@ -39,6 +45,13 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+        # https://app.hermesclubapp.com
+      - key: MP_WEBHOOK_SECRET
+        sync: false
+      - key: CLUB_ENTRY_TOKEN_SECRET
         sync: false
       - key: MERCADOPAGO_CLIENT_ID
         sync: false
@@ -62,9 +75,6 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
-      - key: FRONTEND_URL
-        sync: false
-        # https://app.hermesclubapp.com
       - key: ENABLE_SESSION_CRON
         value: "true"
       - key: SESSION_CRON_SCHEDULE

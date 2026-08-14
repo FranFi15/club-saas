@@ -20,11 +20,15 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/clubs', clubRoutes);
 
 app.get('/', (req, res) => {
-  res.send('⚙️ Servidor Super-Admin SaaS funcionando correctamente.');
+  res.status(200).send('⚙️ Servidor Super-Admin SaaS funcionando correctamente.');
+});
+
+app.get('/health', (req, res) => {
+  res.status(200).json({ ok: true, service: 'club-super' });
 });
 
 const PORT = process.env.PORT || 4000;
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`[Super-Admin] Servidor corriendo en puerto ${PORT}`);
 });
