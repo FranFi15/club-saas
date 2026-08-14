@@ -8,18 +8,22 @@ import { puedePagarComoAtleta, atletaCuotasEnApp } from '../utils/ageHelper.js';
 import { isClubMercadoPagoLinked } from '../services/mercadoPagoClub.service.js';
 import {
     resolveRentalMpCharge,
-    applyMercadoPagoToRental,
 } from '../utils/rentalPayments.js';
 import {
     verifyMercadoPagoWebhookSignature,
     getMercadoPagoWebhookSecret,
-    amountsMatch,
 } from '../utils/mpWebhookSignature.js';
 import {
     resolveMercadoPagoSellerId,
     syncMercadoPagoUserMapping,
 } from '../utils/mpSellerMapping.js';
 import { backfillClubMpSellerMapping } from '../services/backfillMpSellerMapping.service.js';
+import {
+    parseExternalRef,
+    applyApprovedMercadoPagoPayment,
+    searchApprovedMpPaymentByExternalRef,
+    reconcileClubMercadoPagoPayments,
+} from '../services/mercadoPagoApply.service.js';
 
 const MP_TOKEN_URL = 'https://api.mercadopago.com/oauth/token';
 const MP_AUTH_BASE = 'https://auth.mercadopago.com/authorization';
@@ -195,122 +199,10 @@ function mpClientFromToken(accessToken) {
     return new MercadoPagoConfig({ accessToken });
 }
 
-function parseExternalRef(externalRef) {
-    if (!externalRef || typeof externalRef !== 'string') return { tipo: null, dbId: null, extra: null };
-    const i = externalRef.indexOf('_');
-    if (i <= 0) return { tipo: null, dbId: null, extra: null };
-    const tipo = externalRef.slice(0, i);
-    const rest = externalRef.slice(i + 1);
-    if (tipo === 'alquiler') {
-        const j = rest.indexOf('_');
-        if (j > 0) {
-            return { tipo, dbId: rest.slice(0, j), extra: rest.slice(j + 1) };
-        }
-        return { tipo, dbId: rest, extra: null };
-    }
-    return { tipo, dbId: rest, extra: null };
-}
-
-/**
- * Aplica un pago aprobado de MP a cuotas/alquiler.
- * El pago debe venir de la API de MP con el token del club (no confiar solo en el body del webhook).
- */
-async function applyApprovedMercadoPagoPayment(models, paymentData) {
-    if (!paymentData || paymentData.status !== 'approved') {
-        return { applied: false, reason: 'not_approved' };
-    }
-
-    const paymentId = String(paymentData.id);
-    const externalRef = paymentData.external_reference;
-    const { tipo, dbId, extra } = parseExternalRef(externalRef);
-    const paidAmount = Number(paymentData.transaction_amount);
-    const { Payment, Rental } = models;
-
-    if (tipo === 'cuota' && dbId) {
-        const cuota = await Payment.findById(dbId);
-        if (!cuota) return { applied: false, reason: 'cuota_not_found' };
-        if (cuota.estado === 'pagado' && String(cuota.comprobante || '') === paymentId) {
-            return { applied: false, reason: 'already_applied' };
-        }
-        if (!['pendiente', 'vencido', 'en_revision'].includes(cuota.estado)) {
-            return { applied: false, reason: 'bad_state' };
-        }
-        if (!amountsMatch(cuota.montoFinal, paidAmount)) {
-            console.warn(
-                `[mp] monto no coincide cuota ${dbId}: esperado ${cuota.montoFinal}, pagado ${paidAmount} — se marca igual (pago MP autenticado)`,
-            );
-        }
-        cuota.estado = 'pagado';
-        cuota.metodoPago = 'mercado_pago';
-        cuota.fechaPago = Date.now();
-        cuota.comprobante = paymentId;
-        await cuota.save();
-        return { applied: true, tipo: 'cuota', ids: [String(cuota._id)] };
-    }
-
-    if (tipo === 'cuotas_bulk' && dbId) {
-        const bulkIds = dbId.split(',').filter(Boolean);
-        if (!bulkIds.length) return { applied: false, reason: 'empty_bulk' };
-        const cuotas = await Payment.find({
-            _id: { $in: bulkIds },
-            estado: { $in: ['pendiente', 'vencido', 'en_revision'] },
-        });
-        if (!cuotas.length) return { applied: false, reason: 'already_applied' };
-        const expected = cuotas.reduce((s, p) => s + (Number(p.montoFinal) || 0), 0);
-        if (!amountsMatch(expected, paidAmount)) {
-            console.warn(
-                `[mp] monto no coincide bulk: esperado ${expected}, pagado ${paidAmount} — se marca igual (pago MP autenticado)`,
-            );
-        }
-        await Payment.updateMany(
-            { _id: { $in: cuotas.map((c) => c._id) } },
-            {
-                $set: {
-                    estado: 'pagado',
-                    metodoPago: 'mercado_pago',
-                    fechaPago: Date.now(),
-                    comprobante: paymentId,
-                },
-            },
-        );
-        return { applied: true, tipo: 'cuotas_bulk', ids: cuotas.map((c) => String(c._id)) };
-    }
-
-    if (tipo === 'alquiler' && dbId) {
-        const rental = await Rental.findById(dbId);
-        if (!rental) return { applied: false, reason: 'rental_not_found' };
-        const result = applyMercadoPagoToRental(rental, {
-            paymentId,
-            transactionAmount: paymentData.transaction_amount,
-            conceptoKey: extra || 'total',
-        });
-        if (result.applied) {
-            await rental.save();
-            return { applied: true, tipo: 'alquiler', ids: [String(rental._id)] };
-        }
-        return { applied: false, reason: result.reason || 'rental_not_applied' };
-    }
-
-    return { applied: false, reason: 'unknown_ref' };
-}
-
 async function fetchMpPaymentById(accessToken, paymentId) {
     const client = mpClientFromToken(accessToken);
     const paymentClient = new MPPayment(client);
     return paymentClient.get({ id: paymentId });
-}
-
-async function searchApprovedMpPaymentByExternalRef(accessToken, externalReference) {
-    const { data } = await axios.get('https://api.mercadopago.com/v1/payments/search', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        params: {
-            sort: 'date_created',
-            criteria: 'desc',
-            external_reference: externalReference,
-        },
-    });
-    const results = data?.results || [];
-    return results.find((p) => p.status === 'approved') || null;
 }
 
 async function assertMemberOwnsCuotas(req, paymentDocs) {
@@ -1064,6 +956,35 @@ const syncMemberPayments = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * Admin: repara cuotas "pagadas en MP pero aún pendientes".
+ * @route POST /api/mercadopago/reconcile-payments
+ */
+const reconcilePayments = asyncHandler(async (req, res) => {
+    const accessToken = await resolveAccessToken(req.models, req.clubIdentifier);
+    if (!accessToken) {
+        res.status(503);
+        throw new Error('Mercado Pago no está configurado en este club.');
+    }
+
+    const days = req.body?.days != null ? Number(req.body.days) : 30;
+    const unpaidLimit = req.body?.unpaidLimit != null ? Number(req.body.unpaidLimit) : 80;
+
+    const result = await reconcileClubMercadoPagoPayments(req.models, accessToken, {
+        days,
+        unpaidLimit,
+    });
+
+    const n = result.updatedIds?.length || 0;
+    res.json({
+        ...result,
+        message:
+            n > 0
+                ? `Se actualizaron ${n} cuota(s) que ya estaban pagadas en Mercado Pago.`
+                : `No había cuotas pendientes con pago aprobado en los últimos ${result.days} días.`,
+    });
+});
+
 export {
     createPreference,
     createMemberPreference,
@@ -1071,6 +992,7 @@ export {
     createRentalPreference,
     webhookReceiver,
     syncMemberPayments,
+    reconcilePayments,
     getMpIntegration,
     backfillSellerMapping,
     updateMpIntegration,

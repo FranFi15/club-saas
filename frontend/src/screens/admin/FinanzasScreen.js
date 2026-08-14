@@ -95,6 +95,7 @@ const financeHeader = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-start',
+    flexWrap: 'wrap',
     gap: 8,
     marginTop: 10,
   },
@@ -848,6 +849,40 @@ export default function FinanzasScreen({ route }) {
     });
   };
 
+  const runReconcileMp = () => {
+    setAlertConfig({
+      visible: true,
+      title: 'Sincronizar Mercado Pago',
+      message:
+        'Buscamos pagos aprobados en Mercado Pago que todavía figuren como pendientes en el club y los marcamos como pagados.',
+      showCancel: true,
+      confirmText: 'Sincronizar',
+      onConfirm: async () => {
+        setAlertConfig((p) => ({ ...p, visible: false }));
+        setPeriodBusy(true);
+        try {
+          const h = await getHeaders();
+          const { data } = await clubApi.post(
+            '/mercadopago/reconcile-payments',
+            { days: 30 },
+            { headers: h },
+          );
+          showAlert('Listo', data?.message || 'Sincronización terminada.');
+          await fetchPayments();
+          refresh?.();
+        } catch (e) {
+          showAlert(
+            'Error',
+            e.response?.data?.message || 'No se pudo sincronizar con Mercado Pago.',
+          );
+        } finally {
+          setPeriodBusy(false);
+        }
+      },
+      onCancel: () => setAlertConfig((p) => ({ ...p, visible: false })),
+    });
+  };
+
   const paymentsToPay = bulkPayments.length > 0 ? bulkPayments : selectedPayment ? [selectedPayment] : [];
 
   const summaryLineLabel = (p) => {
@@ -1003,6 +1038,16 @@ export default function FinanzasScreen({ route }) {
                 <Ionicons name="alert-circle-outline" size={14} color="#fff" />
                 <Text style={financeHeader.periodActionTxt} numberOfLines={1}>
                   Chequear vencidos
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[financeHeader.periodActionBtn, periodBusy && { opacity: 0.6 }]}
+                onPress={runReconcileMp}
+                disabled={periodBusy}
+              >
+                <Ionicons name="sync-outline" size={14} color="#fff" />
+                <Text style={financeHeader.periodActionTxt} numberOfLines={1}>
+                  Sync MP
                 </Text>
               </TouchableOpacity>
             </View>

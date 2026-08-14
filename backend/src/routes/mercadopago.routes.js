@@ -6,6 +6,7 @@ import {
     createRentalPreference,
     webhookReceiver,
     syncMemberPayments,
+    reconcilePayments,
     getMpIntegration,
     backfillSellerMapping,
     updateMpIntegration,
@@ -35,6 +36,12 @@ router.post(
     createRentalPreference,
 );
 router.post('/sync-member-payments', protect, authorize('atleta', 'tutor'), syncMemberPayments);
+router.post(
+    '/reconcile-payments',
+    protect,
+    authorize('admin_club', 'administrativo'),
+    reconcilePayments,
+);
 
 router.post('/webhook', webhookReceiver);
 router.get('/webhook', webhookReceiver);

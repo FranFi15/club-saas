@@ -21,6 +21,7 @@ import { getEnrollmentRequestModel } from '../models/enrollmentRequest.model.js'
 import { getClubEntryModel } from '../models/clubEntry.model.js';
 import { getChatConversationModel } from '../models/chatConversation.model.js';
 import { getChatMessageModel } from '../models/chatMessage.model.js';
+import { getMpProcessedPaymentModel } from '../models/mpProcessedPayment.model.js';
 
 export const getTenantModels = (tenantDB) => {
     // Al llamar a todas estas funciones acá, Mongoose registra TODOS los esquemas 
@@ -54,5 +55,6 @@ export const getTenantModels = (tenantDB) => {
         ClubEntry: getClubEntryModel(tenantDB),
         ChatConversation: getChatConversationModel(tenantDB),
         ChatMessage: getChatMessageModel(tenantDB),
+        MpProcessedPayment: getMpProcessedPaymentModel(tenantDB),
     };
 };
