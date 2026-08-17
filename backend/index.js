@@ -61,7 +61,7 @@ if (isProd && !process.env.FRONTEND_URL) {
 console.log('[Club-Backend] boot', {
     node: process.version,
     cwd: process.cwd(),
-    port: process.env.PORT || '(default 5000)',
+    port: process.env.PORT || '(unset)',
     NODE_ENV: process.env.NODE_ENV || '',
     JWT_SECRET: process.env.JWT_SECRET ? 'set' : 'MISSING',
     JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET ? 'set' : 'MISSING',
@@ -209,7 +209,23 @@ app.use('/api/stats', resolveTenant, statsRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
-const PORT = Number(process.env.PORT || 5000);
+function resolveListenPort() {
+    const parsed = Number(String(process.env.PORT || '').trim());
+    const onRender = process.env.RENDER === 'true';
+    if (onRender) {
+        // Copiar PORT=5000 del .env local rompe el health check (Render sonda 10000).
+        if (parsed === 5000) {
+            console.warn('[Club-Backend] PORT=5000 en Render se ignora; usando 10000.');
+            return 10000;
+        }
+        if (Number.isFinite(parsed) && parsed > 0) return parsed;
+        return 10000;
+    }
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    return 5000;
+}
+
+const PORT = resolveListenPort();
 const HOST = '0.0.0.0';
 
 const server = app.listen(PORT, HOST, () => {

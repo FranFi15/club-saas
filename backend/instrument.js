@@ -22,7 +22,6 @@ const ENV_KEYS_TO_CLEAN = [
     'CLOUDINARY_API_KEY',
     'CLOUDINARY_API_SECRET',
     'SENTRY_DSN',
-    'PORT',
 ];
 
 for (const key of ENV_KEYS_TO_CLEAN) {
