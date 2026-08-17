@@ -209,10 +209,11 @@ app.use('/api/stats', resolveTenant, statsRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
+const PORT = Number(process.env.PORT || 5000);
+const HOST = '0.0.0.0';
 
-app.listen(PORT, () => {
-    console.log(`[Club-Backend] Servidor corriendo en puerto ${PORT}`);
+const server = app.listen(PORT, HOST, () => {
+    console.log(`[Club-Backend] Servidor corriendo en ${HOST}:${PORT}`, server.address());
     if (isProd) {
         console.log(`[Club-Backend] CORS origins: ${allowedOrigins.join(', ') || '(ninguno)'}`);
     }
