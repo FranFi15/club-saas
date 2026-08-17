@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
 import { ThemeContext } from '../context/ThemeContext';
 import { getToken, saveToken } from '../utils/storage';
+import { clearAuthSession } from '../utils/session';
 import { clubApi } from '../utils/api';
 import { resolveMainNavigator } from '../constants/appRoles';
 import {
@@ -26,7 +27,7 @@ import {
 import CustomAlert from '../components/CustomAlert';
 
 export default function TermsAcceptanceScreen({ navigation }) {
-  const { clubData } = useContext(ClubContext);
+  const { clubData, setClubData, setSessionActive, setMemberSessionRol } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
 
@@ -54,6 +55,14 @@ export default function TermsAcceptanceScreen({ navigation }) {
     } catch {
       showAlert('Enlace', 'No se pudo abrir el enlace.');
     }
+  };
+
+  const handleChangeClub = async () => {
+    await setClubData(null);
+    await clearAuthSession();
+    setMemberSessionRol(null);
+    setSessionActive(false);
+    navigation.replace('WorkspaceSearch');
   };
 
   const handleContinue = async () => {
@@ -94,9 +103,20 @@ export default function TermsAcceptanceScreen({ navigation }) {
       />
 
       <View style={[styles.hero, { backgroundColor: colorMarca }]}>
+        <TouchableOpacity
+          onPress={handleChangeClub}
+          style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Cambiar de club"
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="arrow-back" size={20} color="#fff" />
+        </TouchableOpacity>
         <Text style={styles.heroKicker}>Hermes Club App</Text>
         <Text style={styles.heroTitle}>Términos y condiciones</Text>
-        <Text style={styles.heroSub}>Versión {TERMS_VERSION} · Argentina</Text>
+        <Text style={styles.heroSub}>
+          {clubData?.nombre ? `${clubData.nombre} · ` : ''}Versión {TERMS_VERSION} · Argentina
+        </Text>
       </View>
 
       <ScrollView
@@ -172,8 +192,17 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   hero: {
     paddingHorizontal: 20,
-    paddingTop: 18,
+    paddingTop: 12,
     paddingBottom: 16,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
   },
   heroKicker: {
     color: 'rgba(255,255,255,0.85)',

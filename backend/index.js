@@ -58,15 +58,15 @@ if (isProd) {
     if (!process.env.JWT_SECRET) missing.push('JWT_SECRET');
     if (!process.env.JWT_REFRESH_SECRET) missing.push('JWT_REFRESH_SECRET');
     if (!process.env.FRONTEND_URL) missing.push('FRONTEND_URL');
-    if (!process.env.MP_WEBHOOK_SECRET?.trim() && !process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim()) {
-        missing.push('MP_WEBHOOK_SECRET');
-    }
-    if (!process.env.CLUB_ENTRY_TOKEN_SECRET?.trim()) {
-        missing.push('CLUB_ENTRY_TOKEN_SECRET');
-    }
     if (missing.length) {
         console.error(`[Club-Backend] Variables requeridas en producción: ${missing.join(', ')}`);
         process.exit(1);
+    }
+    if (!process.env.MP_WEBHOOK_SECRET?.trim() && !process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim()) {
+        console.warn('[Club-Backend] MP_WEBHOOK_SECRET no configurado — los webhooks de Mercado Pago se rechazarán.');
+    }
+    if (!process.env.CLUB_ENTRY_TOKEN_SECRET?.trim()) {
+        console.warn('[Club-Backend] CLUB_ENTRY_TOKEN_SECRET no configurado — el QR de ingreso fallará hasta setearlo.');
     }
 } else if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET) {
     console.warn('[Club-Backend] Faltan JWT_SECRET o JWT_REFRESH_SECRET en .env');
