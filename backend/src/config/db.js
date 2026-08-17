@@ -1,5 +1,7 @@
 import mongoose from 'mongoose';
 
+mongoose.set('sanitizeFilter', true);
+
 const connectionCache = {};
 
 export const getTenantDB = async (urlIdentifier, connectionString) => {

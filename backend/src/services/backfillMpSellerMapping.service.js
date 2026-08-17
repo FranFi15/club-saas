@@ -147,5 +147,5 @@ export function runMpSellerBackfillOnStart() {
         backfillAllClubsMpSellers().catch((e) =>
             console.error('[mp-seller-backfill] on start:', e.message),
         );
-    }, 2500);
+    }, 60_000);
 }
