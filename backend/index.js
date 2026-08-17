@@ -61,8 +61,10 @@ if (isProd && !process.env.FRONTEND_URL) {
 console.log('[Club-Backend] boot', {
     node: process.version,
     cwd: process.cwd(),
-    port: process.env.PORT || '(unset)',
+    portEnv: process.env.PORT || '(unset)',
     NODE_ENV: process.env.NODE_ENV || '',
+    RENDER: process.env.RENDER || '',
+    RENDER_SERVICE_ID: process.env.RENDER_SERVICE_ID ? 'set' : '',
     JWT_SECRET: process.env.JWT_SECRET ? 'set' : 'MISSING',
     JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET ? 'set' : 'MISSING',
     FRONTEND_URL: process.env.FRONTEND_URL ? 'set' : 'MISSING',
@@ -211,13 +213,19 @@ app.use(errorHandler);
 
 function resolveListenPort() {
     const parsed = Number(String(process.env.PORT || '').trim());
-    const onRender = process.env.RENDER === 'true';
+    const onRender = Boolean(
+        process.env.RENDER ||
+        process.env.RENDER_SERVICE_ID ||
+        process.env.RENDER_INSTANCE_ID,
+    );
+
+    // PORT=5000 from local .env must never win in production: Render then
+    // "detects a new primary port 5000", restarts the deploy, and times out.
+    if (isProd && parsed === 5000) {
+        console.warn('[Club-Backend] PORT=5000 ignorado en producción; escuchando en 10000.');
+        return 10000;
+    }
     if (onRender) {
-        // Copiar PORT=5000 del .env local rompe el health check (Render sonda 10000).
-        if (parsed === 5000) {
-            console.warn('[Club-Backend] PORT=5000 en Render se ignora; usando 10000.');
-            return 10000;
-        }
         if (Number.isFinite(parsed) && parsed > 0) return parsed;
         return 10000;
     }
