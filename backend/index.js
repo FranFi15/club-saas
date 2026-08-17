@@ -53,6 +53,21 @@ const isProd = process.env.NODE_ENV === 'production';
 
 app.set('trust proxy', 1);
 
+if (isProd && !process.env.FRONTEND_URL) {
+    process.env.FRONTEND_URL = 'https://app.hermesclubapp.com';
+    console.warn('[Club-Backend] FRONTEND_URL vacío — usando https://app.hermesclubapp.com');
+}
+
+console.log('[Club-Backend] boot', {
+    node: process.version,
+    cwd: process.cwd(),
+    port: process.env.PORT || '(default 5000)',
+    NODE_ENV: process.env.NODE_ENV || '',
+    JWT_SECRET: process.env.JWT_SECRET ? 'set' : 'MISSING',
+    JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET ? 'set' : 'MISSING',
+    FRONTEND_URL: process.env.FRONTEND_URL ? 'set' : 'MISSING',
+});
+
 if (isProd) {
     const missing = [];
     if (!process.env.JWT_SECRET) missing.push('JWT_SECRET');
@@ -60,12 +75,13 @@ if (isProd) {
     if (!process.env.FRONTEND_URL) missing.push('FRONTEND_URL');
     if (missing.length) {
         console.error(`[Club-Backend] Variables requeridas en producción: ${missing.join(', ')}`);
+        console.error('[Club-Backend] En Render → club-backend → Environment, esas keys tienen que tener valor (no solo existir). Guardá y hacé Manual Deploy.');
         process.exit(1);
     }
-    if (!process.env.MP_WEBHOOK_SECRET?.trim() && !process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim()) {
+    if (!process.env.MP_WEBHOOK_SECRET && !process.env.MERCADOPAGO_WEBHOOK_SECRET) {
         console.warn('[Club-Backend] MP_WEBHOOK_SECRET no configurado — los webhooks de Mercado Pago se rechazarán.');
     }
-    if (!process.env.CLUB_ENTRY_TOKEN_SECRET?.trim()) {
+    if (!process.env.CLUB_ENTRY_TOKEN_SECRET) {
         console.warn('[Club-Backend] CLUB_ENTRY_TOKEN_SECRET no configurado — el QR de ingreso fallará hasta setearlo.');
     }
 } else if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET) {
@@ -195,7 +211,7 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, () => {
     console.log(`[Club-Backend] Servidor corriendo en puerto ${PORT}`);
     if (isProd) {
         console.log(`[Club-Backend] CORS origins: ${allowedOrigins.join(', ') || '(ninguno)'}`);
