@@ -13,6 +13,10 @@ import {
   Pressable,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
+  Dimensions,
+  UIManager,
+  findNodeHandle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -179,7 +183,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
     });
     athletes.forEach((a) => {
       const id = a._id;
-      if (map[id] == null) map[id] = 'presente';
+      if (map[id] == null) map[id] = null;
     });
 
     const plan = sess.planEntrenamiento;
@@ -434,14 +438,32 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
   const saveAttendance = async ({ notify = true, nextMap, silent = false } = {}) => {
     if (!sessionId || completed) return;
     const map = nextMap || attendance;
+    const asistencia = roster
+      .filter((a) => map[a._id] != null)
+      .map((a) => ({
+        atleta: a._id,
+        estado: map[a._id],
+        observaciones: '',
+      }));
+
+    if (!asistencia.length) {
+      if (!silent) {
+        showAlert('Asistencia', 'Marcá al menos un atleta antes de guardar o avisar.');
+      }
+      return;
+    }
+
+    if (notify && asistencia.length < roster.length) {
+      showAlert(
+        'Faltan marcas',
+        `Marcaste ${asistencia.length} de ${roster.length}. Completá la lista antes de avisar a las familias, o guardá sin avisar.`,
+      );
+      return;
+    }
+
     setSaving(true);
     try {
       const h = await headers();
-      const asistencia = roster.map((a) => ({
-        atleta: a._id,
-        estado: map[a._id] || 'ausente',
-        observaciones: '',
-      }));
       await clubApi.put(
         `/sessions/${sessionId}/asistencia`,
         { asistencia, estado: session?.estado || 'programada', notify },
@@ -463,11 +485,88 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
     }
   };
 
+  const attendanceSaveTimerRef = useRef(null);
+  const entrenoScrollRef = useRef(null);
+  const entrenoScrollYRef = useRef(0);
+  const entrenoFocusedInputRef = useRef(null);
+
+  /**
+   * iOS: single-line inputs work with scrollResponderScrollNativeHandleToKeyboard;
+   * multiline (Objetivo) often fails because the nested UITextView fights the parent.
+   * Re-scroll after keyboardDidShow + measureInWindow fallback.
+   */
+  const scrollEntrenoFocusedAboveKeyboard = useCallback((keyboardHeight = 0) => {
+    if (Platform.OS !== 'ios') return;
+    const scroll = entrenoScrollRef.current;
+    const target = entrenoFocusedInputRef.current;
+    if (!scroll || target == null) return;
+
+    const responder =
+      typeof scroll.getScrollResponder === 'function' ? scroll.getScrollResponder() : scroll;
+    const extraOffset = 200;
+
+    try {
+      if (typeof responder?.scrollResponderScrollNativeHandleToKeyboard === 'function') {
+        responder.scrollResponderScrollNativeHandleToKeyboard(target, extraOffset, true);
+      }
+    } catch {
+      /* ignore */
+    }
+
+    const nativeTag = typeof target === 'number' ? target : findNodeHandle(target);
+    if (nativeTag == null || typeof UIManager.measureInWindow !== 'function') return;
+
+    try {
+      UIManager.measureInWindow(nativeTag, (_x, y, _w, h) => {
+        const winH = Dimensions.get('window').height;
+        const kb = keyboardHeight > 0 ? keyboardHeight : 300;
+        const visibleBottom = winH - kb - 24;
+        const fieldBottom = y + Math.max(h || 0, 40);
+        if (fieldBottom <= visibleBottom) return;
+        const nextY = entrenoScrollYRef.current + (fieldBottom - visibleBottom);
+        scroll.scrollTo({ y: Math.max(0, nextY), animated: true });
+      });
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const ensureEntrenoInputVisible = useCallback(
+    (e) => {
+      if (Platform.OS !== 'ios') return;
+      const target = e?.nativeEvent?.target ?? e?.target;
+      entrenoFocusedInputRef.current = target ?? null;
+      // Single-line often ready immediately; multiline needs keyboardDidShow (listener below).
+      setTimeout(() => scrollEntrenoFocusedAboveKeyboard(0), 80);
+    },
+    [scrollEntrenoFocusedAboveKeyboard],
+  );
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return undefined;
+    const showSub = Keyboard.addListener('keyboardDidShow', (ev) => {
+      const kbH = ev?.endCoordinates?.height ?? 0;
+      requestAnimationFrame(() => {
+        scrollEntrenoFocusedAboveKeyboard(kbH);
+      });
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      entrenoFocusedInputRef.current = null;
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [scrollEntrenoFocusedAboveKeyboard]);
+
   const setAthleteAttendance = (atletaId, estado) => {
     if (completed) return;
     const next = { ...attendance, [atletaId]: estado };
     setAttendance(next);
-    saveAttendance({ notify: false, nextMap: next, silent: true });
+    if (attendanceSaveTimerRef.current) clearTimeout(attendanceSaveTimerRef.current);
+    attendanceSaveTimerRef.current = setTimeout(() => {
+      saveAttendance({ notify: false, nextMap: next, silent: true });
+    }, 450);
   };
 
   const markAllPresent = () => {
@@ -1105,6 +1204,34 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
             <Ionicons name="ellipsis-horizontal" size={22} color="#fff" />
           </TouchableOpacity>
         }
+        footer={
+          <View style={styles.headerTabs}>
+            {[
+              { key: 'checkin', label: 'Check-in' },
+              { key: 'entreno', label: 'Entreno' },
+            ].map((t) => {
+              const active = detailTab === t.key;
+              return (
+                <TouchableOpacity
+                  key={t.key}
+                  style={[styles.headerTab, active && styles.headerTabActive]}
+                  onPress={() => setDetailTab(t.key)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text
+                    style={[
+                      styles.headerTabTxt,
+                      active ? { color: colorMarca } : styles.headerTabTxtIdle,
+                    ]}
+                  >
+                    {t.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        }
       />
 
       <Modal
@@ -1285,31 +1412,6 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
         </KeyboardAvoidingView>
       </Modal>
 
-      <View style={[styles.tabBar, { borderBottomColor: theme.border, backgroundColor: theme.surface }]}>
-        {[
-          { key: 'checkin', label: 'Check-in', icon: 'checkbox-outline' },
-          { key: 'entreno', label: 'Entreno', icon: 'football-outline' },
-        ].map((t) => (
-          <TouchableOpacity
-            key={t.key}
-            style={[styles.tabBtn, detailTab === t.key && { borderBottomColor: colorMarca }]}
-            onPress={() => setDetailTab(t.key)}
-          >
-            <Ionicons name={t.icon} size={18} color={detailTab === t.key ? colorMarca : theme.icon} />
-            <Text
-              style={{
-                color: detailTab === t.key ? colorMarca : theme.textMuted,
-                fontWeight: '800',
-                marginLeft: 8,
-                fontSize: 15,
-              }}
-            >
-              {t.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
       {detailTab === 'checkin' ? (
         <ScrollView contentContainerStyle={styles.scroll}>
           {needsRelocation ? (
@@ -1355,10 +1457,6 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
               </View>
             </View>
           ) : null}
-
-          <Text style={[styles.hint, { color: theme.textMuted }]}>
-            Tocá Presente / Tarde / Ausente: se guarda al instante. Avisá a las familias cuando termines.
-          </Text>
 
           <Text style={[styles.section, { color: theme.text }]}>Asistencia</Text>
           {!completed ? (
@@ -1443,7 +1541,18 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
           )}
         </ScrollView>
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            ref={entrenoScrollRef}
+            style={{ flex: 1 }}
+            contentContainerStyle={[styles.scroll, styles.entrenoScroll]}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+            automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+            onScroll={(e) => {
+              entrenoScrollYRef.current = e.nativeEvent.contentOffset.y;
+            }}
+            scrollEventThrottle={16}
+          >
           <View style={[styles.modeBar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             {[
               { key: 'planificar', label: 'Planificar', icon: 'create-outline' },
@@ -1517,16 +1626,20 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                     placeholder="Ej. Práctica pre-partido"
                     placeholderTextColor={theme.textMuted}
                     editable={!completed}
+                    onFocus={ensureEntrenoInputVisible}
                   />
                   <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Objetivo (opcional)</Text>
                   <TextInput
                     style={[inputStyle, { minHeight: 56 }]}
                     multiline
+                    scrollEnabled={false}
+                    textAlignVertical="top"
                     value={planObjetivo}
                     onChangeText={setPlanObjetivo}
                     placeholder="Ej. Priorizar salida limpia"
                     placeholderTextColor={theme.textMuted}
                     editable={!completed}
+                    onFocus={ensureEntrenoInputVisible}
                   />
 
                   {draftBlocks.map((d, i) => (
@@ -1542,6 +1655,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                           placeholder={`Bloque ${i + 1}`}
                           placeholderTextColor={theme.textMuted}
                           editable={!completed}
+                          onFocus={ensureEntrenoInputVisible}
                         />
                         <TextInput
                           style={[inputStyle, styles.compactMins, { marginBottom: 0 }]}
@@ -1551,6 +1665,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                           placeholder="min"
                           placeholderTextColor={theme.textMuted}
                           editable={!completed}
+                          onFocus={ensureEntrenoInputVisible}
                         />
                         <TouchableOpacity
                           style={styles.moreToggle}
@@ -1575,6 +1690,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                             placeholder="Ej. 5vs5, ruedas…"
                             placeholderTextColor={theme.textMuted}
                             editable={!completed}
+                            onFocus={ensureEntrenoInputVisible}
                           />
                           <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Enfoque</Text>
                           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
@@ -1607,11 +1723,14 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                           <TextInput
                             style={[inputStyle, { minHeight: 56, marginBottom: 0 }]}
                             multiline
+                            scrollEnabled={false}
+                            textAlignVertical="top"
                             value={d.descripcionDetallada}
                             onChangeText={(v) => updateDraft(i, 'descripcionDetallada', v)}
                             placeholder="Ej. A dos toques en campo propio"
                             placeholderTextColor={theme.textMuted}
                             editable={!completed}
+                            onFocus={ensureEntrenoInputVisible}
                           />
                         </View>
                       ) : null}
@@ -1784,6 +1903,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                             keyboardType="number-pad"
                             value={String(b.duracionRealMinutos ?? 0)}
                             onChangeText={(t) => setRealMinutesAt(i, t)}
+                            onFocus={ensureEntrenoInputVisible}
                           />
                         </View>
                       ) : (
@@ -1824,15 +1944,30 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  tabBar: { flexDirection: 'row', borderBottomWidth: 1 },
-  tabBtn: {
-    flex: 1,
+  headerTabs: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 8,
+    padding: 2,
+    maxHeight: 28,
+  },
+  headerTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+    borderRadius: 6,
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderBottomWidth: 3,
-    borderBottomColor: 'transparent',
+  },
+  headerTabActive: {
+    backgroundColor: '#fff',
+  },
+  headerTabTxt: {
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 16,
+  },
+  headerTabTxtIdle: {
+    color: 'rgba(255,255,255,0.88)',
   },
   reopenBanner: {
     flexDirection: 'row',
@@ -1860,6 +1995,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   scroll: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40 },
+  entrenoScroll: { paddingBottom: 140 },
   section: { fontSize: 18, fontWeight: '800', marginBottom: 10 },
   hint: { fontSize: 13, lineHeight: 19, marginBottom: 10 },
   fieldLabel: { fontSize: 12, fontWeight: '700', marginBottom: 6, textTransform: 'uppercase' },

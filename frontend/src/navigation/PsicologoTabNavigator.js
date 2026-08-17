@@ -30,7 +30,6 @@ import ChatNewScreen from '../screens/chat/ChatNewScreen';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
 import { tabBadgeLabel } from '../utils/tabBadgeLabel';
-import TabBarClubLogo from '../components/TabBarClubLogo';
 
 const Tab = createBottomTabNavigator();
 const PsiHomeStack = createNativeStackNavigator();
@@ -129,17 +128,8 @@ export default function PsicologoTabNavigator() {
         },
         tabBarLabelStyle: { fontSize: 10, marginBottom: 2 },
         tabBarIcon: ({ focused, color }) => {
-          if (route.name === 'PsiInicio') {
-            return (
-              <TabBarClubLogo
-                focused={focused}
-                color={color}
-                fallbackIcon="home-outline"
-                fallbackIconFocused="home"
-              />
-            );
-          }
           const map = {
+            PsiInicio: focused ? 'home' : 'home-outline',
             PsiSesiones: focused ? 'calendar' : 'calendar-outline',
             PsiEquipo: focused ? 'people' : 'people-outline',
             PsiComunicar: focused ? 'chatbubbles' : 'chatbubbles-outline',

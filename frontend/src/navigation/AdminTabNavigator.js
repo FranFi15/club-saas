@@ -37,7 +37,6 @@ import { useBadges } from '../context/BadgeContext';
 import { tabBadgeLabel } from '../utils/tabBadgeLabel';
 import { getToken } from '../utils/storage';
 import { isClubOwnerRole } from '../constants/appRoles';
-import TabBarClubLogo from '../components/TabBarClubLogo';
 
 const Tab = createBottomTabNavigator();
 const EstructuraStack = createNativeStackNavigator();
@@ -147,17 +146,8 @@ export default function AdminTabNavigator() {
         tabBarLabelStyle: { fontSize: 10, marginBottom: 2 },
         tabBarIcon: ({ focused, color }) => {
           const iconSize = 22;
-          if (route.name === 'Estructura') {
-            return (
-              <TabBarClubLogo
-                focused={focused}
-                color={color}
-                fallbackIcon="business-outline"
-                fallbackIconFocused="business"
-              />
-            );
-          }
           let iconName = 'ellipse-outline';
+          if (route.name === 'Estructura') iconName = focused ? 'business' : 'business-outline';
           if (route.name === 'Gestión') iconName = focused ? 'briefcase' : 'briefcase-outline';
           if (route.name === 'Finanzas') iconName = focused ? 'cash' : 'cash-outline';
           if (route.name === 'Perfil') iconName = focused ? 'person' : 'person-outline';

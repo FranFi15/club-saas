@@ -83,6 +83,7 @@ export default function CoachStyleDashboard({
     return new Date(n.getFullYear(), n.getMonth(), 1);
   });
   const [selectedYmd, setSelectedYmd] = useState(todayYmd());
+  const [plantelPendientes, setPlantelPendientes] = useState([]);
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
     title: '',
@@ -155,6 +156,21 @@ export default function CoachStyleDashboard({
     [clubData?.urlIdentifier, agendaCacheKey],
   );
 
+  const loadPlantelPendientes = useCallback(async () => {
+    if (!clubData?.urlIdentifier) return;
+    try {
+      const token = await getToken('userToken');
+      const h = {
+        'x-club-identifier': clubData.urlIdentifier,
+        Authorization: `Bearer ${token}`,
+      };
+      const { data } = await clubApi.get('/categories/plantel-pendientes', { headers: h });
+      setPlantelPendientes(Array.isArray(data) ? data : []);
+    } catch {
+      setPlantelPendientes([]);
+    }
+  }, [clubData?.urlIdentifier]);
+
   useFocusEffect(
     useCallback(() => {
       (async () => {
@@ -164,7 +180,9 @@ export default function CoachStyleDashboard({
       const month = currentMonthRef.current;
       const key = monthCacheKey(month);
       loadAgenda(month, { background: !!sessionsByMonthRef.current[key] });
-    }, [loadAgenda]),
+      loadPlantelPendientes();
+      badges?.refresh?.();
+    }, [loadAgenda, loadPlantelPendientes, badges]),
   );
 
   useEffect(() => {
@@ -254,6 +272,45 @@ export default function CoachStyleDashboard({
       />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {plantelPendientes.length > 0 ? (
+          <TouchableOpacity
+            style={[styles.plantelBanner, { backgroundColor: '#f59e0b18', borderColor: '#f59e0b' }]}
+            onPress={() => {
+              const first = plantelPendientes[0];
+              if (plantelPendientes.length === 1 && first?._id) {
+                tabNav()?.navigate(teamTab, {
+                  screen: 'CoachCategoryDetail',
+                  params: {
+                    categoriaId: first._id,
+                    nombre: first.nombre,
+                    openPlantel: true,
+                  },
+                });
+                return;
+              }
+              tabNav()?.navigate(teamTab, { screen: teamRosterScreen });
+            }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="shirt-outline" size={22} color="#f59e0b" />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={{ color: theme.text, fontWeight: '800' }}>
+                {plantelPendientes.length === 1
+                  ? 'Tenés 1 plantel para armar'
+                  : `Tenés ${plantelPendientes.length} planteles para armar`}
+              </Text>
+              <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 4, lineHeight: 17 }}>
+                El club te pidió actualizar el plantel
+                {plantelPendientes.length === 1 && plantelPendientes[0]?.nombre
+                  ? ` de ${plantelPendientes[0].nombre}`
+                  : ' de tus categorías'}
+                .
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#f59e0b" />
+          </TouchableOpacity>
+        ) : null}
+
         <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Próximas sesiones</Text>
 
         <CoachSessionCalendar
@@ -423,4 +480,12 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   badgePillTxt: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  plantelBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+  },
 });

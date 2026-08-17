@@ -124,7 +124,7 @@ export default function CoachCategoriesScreen({ navigation }) {
             plantelPendientes.length > 0 ? (
               <View style={[styles.pendienteBox, { backgroundColor: '#f59e0b18', borderColor: '#f59e0b' }]}>
                 <Text style={{ color: theme.text, fontWeight: '800', marginBottom: 8 }}>
-                  Plantel pendiente ({plantelPendientes.length})
+                  Plantel pendiente del club ({plantelPendientes.length})
                 </Text>
                 {plantelPendientes.map((p) => (
                   <TouchableOpacity
@@ -183,7 +183,7 @@ export default function CoachCategoriesScreen({ navigation }) {
                 ) : null}
                 {pendiente ? (
                   <Text style={{ color: '#f59e0b', fontSize: 11, fontWeight: '700', marginTop: 4 }}>
-                    Armar plantel próxima sesión
+                    Armar plantel de la categoría
                   </Text>
                 ) : null}
               </View>

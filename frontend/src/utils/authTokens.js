@@ -42,7 +42,11 @@ export async function performTokenRefresh(clubIdentifier, refreshTokenOverride) 
     refreshToken: data.refreshToken,
   });
 
-  return data.token;
+  if (data.acceptedTermsVersion != null) {
+    await saveToken('acceptedTermsVersion', String(data.acceptedTermsVersion || ''));
+  }
+
+  return data;
 }
 
 export async function ensureValidAccessToken(clubIdentifier) {
@@ -52,5 +56,7 @@ export async function ensureValidAccessToken(clubIdentifier) {
   const refreshToken = await getToken('userRefreshToken');
   if (!refreshToken || !clubIdentifier) return current;
 
-  return performTokenRefresh(clubIdentifier, refreshToken);
+  return performTokenRefresh(clubIdentifier, refreshToken).then((data) =>
+    typeof data === 'string' ? data : data?.token,
+  );
 }

@@ -73,6 +73,10 @@ const userSchema = new mongoose.Schema({
         },
     ],
 
+    /** Aceptación de Términos y condiciones (versión publicada en la app). */
+    acceptedTermsVersion: { type: String, default: '', trim: true },
+    acceptedTermsAt: { type: Date, default: null },
+
     // --- ESTADO DEPORTIVO / MÉDICO (Semáforo para el DT) ---
     disponibilidad: {
         type: String,

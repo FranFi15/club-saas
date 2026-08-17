@@ -1,14 +1,13 @@
 import React, { useContext, useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, StatusBar, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
-import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../utils/api';
 import { useBadges } from '../../context/BadgeContext';
 import HubMenuCard from '../../components/HubMenuCard';
-import NotificationBell from '../../components/NotificationBell';
+import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { isClubOwnerRole } from '../../constants/appRoles';
 
@@ -69,20 +68,13 @@ export default function EstructuraHubScreen({ navigation }) {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      <View style={[styles.headerWrap, { backgroundColor: theme.background }]}>
-        <View style={[styles.headerCard, { backgroundColor: colorMarca }]}>
-          <View style={styles.headerBell}>
-            <NotificationBell />
-          </View>
-          <Text style={styles.headerKicker}>{isClubOwner ? 'Estructura' : 'Operaciones'}</Text>
-          <Text style={styles.headerTitle}>
-            {isClubOwner ? 'Organización del club' : 'Gestión del día a día'}
-          </Text>
-          <Text style={styles.headerSub} numberOfLines={2}>
-            {clubData?.nombre || 'Tu club'}
-          </Text>
-        </View>
-      </View>
+      <AdminScreenHeader
+        colorMarca={colorMarca}
+        theme={theme}
+        kicker={isClubOwner ? 'Estructura' : 'Operaciones'}
+        title={isClubOwner ? 'Organización del club' : 'Gestión del día a día'}
+        subtitle={clubData?.nombre || 'Tu club'}
+      />
 
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         <View style={styles.statsRow}>
@@ -235,32 +227,6 @@ export default function EstructuraHubScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  headerWrap: { width: '100%', paddingTop: 8, paddingBottom: 4 },
-  headerCard: {
-    borderRadius: 0,
-    width: '100%',
-    paddingHorizontal: 16,
-    paddingRight: 52,
-    paddingTop: 18,
-    paddingBottom: 22,
-    position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  headerKicker: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    marginBottom: 6,
-  },
-  headerTitle: { color: '#fff', fontSize: 22, fontWeight: 'bold' },
-  headerSub: { color: '#e5e7eb', fontSize: 14, marginTop: 8, lineHeight: 20 },
-  headerBell: { position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center', zIndex: 2 },
   container: { flex: 1, backgroundColor: 'transparent' },
   scrollContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 30 },
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: 24, justifyContent: 'space-between' },
@@ -280,20 +246,4 @@ const styles = StyleSheet.create({
   },
   statNumber: { fontSize: 22, fontWeight: 'bold' },
   statLabel: { fontSize: 12, marginTop: 6, textAlign: 'center' },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    borderRadius: 5,
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  iconContainer: { padding: 12, borderRadius: 12, marginRight: 15 },
-  cardText: { flex: 1 },
-  cardTitle: { fontSize: 16, fontWeight: 'bold' },
-  cardSubtitle: { fontSize: 13, marginTop: 2 },
 });

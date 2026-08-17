@@ -10,6 +10,7 @@ import {
 } from '../utils/session';
 import { performTokenRefresh } from '../utils/authTokens';
 import { resolveMainNavigator } from '../constants/appRoles';
+import { needsTermsAcceptance } from '../constants/legal';
 import { navigationRef } from '../navigation/navigationRef';
 import { clearAllScreenCache } from '../hooks/useCachedFocusLoad';
 
@@ -91,14 +92,19 @@ export const ClubProvider = ({ children }) => {
 
               if (refreshToken) {
                 try {
-                  await performTokenRefresh(parsed.urlIdentifier, refreshToken);
+                  const refreshData = await performTokenRefresh(parsed.urlIdentifier, refreshToken);
                   if (!cancelled && getAuthGeneration() === bootGeneration) {
                     beginAuthSession();
                     setSessionActive(true);
                     if (rol === 'atleta' || rol === 'tutor') {
                       setMemberSessionRol(rol);
                     }
-                    nextBootRoute = resolveMainNavigator(rol);
+                    const acceptedVersion =
+                      refreshData?.acceptedTermsVersion ??
+                      (await getToken('acceptedTermsVersion'));
+                    nextBootRoute = needsTermsAcceptance(acceptedVersion)
+                      ? 'TermsAcceptance'
+                      : resolveMainNavigator(rol);
                   } else if (!cancelled) {
                     nextBootRoute = 'Login';
                   }

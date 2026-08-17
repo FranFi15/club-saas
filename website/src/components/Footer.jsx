@@ -12,7 +12,10 @@ export default function Footer() {
           <BrandLogo size="lg" showText={false} src="/icon.png" className="footer__logo" />
         </a>
         <p className="footer__copy">© {year} {APP_NAME}. Todos los derechos reservados.</p>
-        <a href="/privacidad/" className="footer__privacy">Política de privacidad</a>
+        <div className="footer__links">
+          <a href="/privacidad/" className="footer__privacy">Política de privacidad</a>
+          <a href="/terminos/" className="footer__privacy">Términos y condiciones</a>
+        </div>
       </div>
     </footer>
   );

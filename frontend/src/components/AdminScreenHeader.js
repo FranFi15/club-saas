@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COACH_HEADER_HEIGHT, CoachHeaderActions } from './CoachScreenHeader';
 import NotificationBell from './NotificationBell';
+import HeaderClubLogo, { HEADER_CLUB_LOGO_SIZE } from './HeaderClubLogo';
 
 const BACK_BTN_SIZE = 36;
 
@@ -18,6 +19,7 @@ export default function AdminScreenHeader({
   rightAccessory,
   bottomRightAccessory,
   showNotifications = true,
+  showClubLogo = true,
 }) {
   const toolbarLeft = onBack ? (
     <CoachHeaderActions>
@@ -58,21 +60,25 @@ export default function AdminScreenHeader({
           style={[
             styles.headerBody,
             styles.headerBodyCentered,
+            showClubLogo && styles.headerBodyWithLogo,
             showNotifications && styles.headerBodyWithBack,
             bottomRightAccessory && styles.headerBodyWithBottomRight,
           ]}
         >
-          <Text style={styles.headerKicker} numberOfLines={1}>
-            {kicker}
-          </Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {title}
-          </Text>
-          {subtitle ? (
-            <Text style={styles.headerSub} numberOfLines={1}>
-              {subtitle}
+          {showClubLogo ? <HeaderClubLogo size={HEADER_CLUB_LOGO_SIZE} /> : null}
+          <View style={styles.headerTextCol}>
+            <Text style={styles.headerKicker} numberOfLines={1}>
+              {kicker}
             </Text>
-          ) : null}
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {title}
+            </Text>
+            {subtitle ? (
+              <Text style={styles.headerSub} numberOfLines={1}>
+                {subtitle}
+              </Text>
+            ) : null}
+          </View>
         </View>
 
         {bottomRightAccessory ? (
@@ -162,6 +168,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'flex-start',
   },
+  headerBodyWithLogo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerTextCol: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
   headerBodyCentered: {
     paddingVertical: 4,
   },
@@ -180,6 +197,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: 2,
   },
-  headerTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', lineHeight: 24 },
+  headerTitle: { color: '#fff', fontSize: 17, fontWeight: 'bold', lineHeight: 21 },
   headerSub: { color: '#e5e7eb', fontSize: 13, marginTop: 2, lineHeight: 18 },
 });

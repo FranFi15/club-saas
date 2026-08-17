@@ -69,7 +69,10 @@ function isAuthRoute(config) {
 async function refreshAccessToken(clubIdentifier) {
   if (!refreshInFlight) {
     refreshInFlight = import('./authTokens')
-      .then(({ performTokenRefresh }) => performTokenRefresh(clubIdentifier))
+      .then(async ({ performTokenRefresh }) => {
+        const data = await performTokenRefresh(clubIdentifier);
+        return typeof data === 'string' ? data : data?.token;
+      })
       .finally(() => {
         refreshInFlight = null;
       });

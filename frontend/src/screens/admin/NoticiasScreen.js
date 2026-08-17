@@ -515,6 +515,7 @@ export default function NoticiasScreen({ navigation, route }) {
           kicker="Comunicaciones"
           title="Noticias"
           subtitle={clubData?.nombre || 'Club'}
+          onBack={() => navigation.goBack()}
         />
       ) : (
         <AdminScreenHeader
@@ -523,7 +524,7 @@ export default function NoticiasScreen({ navigation, route }) {
           kicker="Gestión"
           title="Comunicaciones"
           subtitle={embeddedStaff ? (clubData?.nombre || 'Club') : 'Comunicados del club'}
-          onBack={embeddedStaff ? undefined : () => navigation.goBack()}
+          onBack={() => navigation.goBack()}
         />
       )}
 

@@ -33,7 +33,6 @@ import ChatNewScreen from '../screens/chat/ChatNewScreen';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
 import { tabBadgeLabel } from '../utils/tabBadgeLabel';
-import TabBarClubLogo from '../components/TabBarClubLogo';
 
 const Tab = createBottomTabNavigator();
 const PrepHomeStack = createNativeStackNavigator();
@@ -136,17 +135,8 @@ export default function PreparadorTabNavigator() {
         },
         tabBarLabelStyle: { fontSize: 10, marginBottom: 2 },
         tabBarIcon: ({ focused, color }) => {
-          if (route.name === 'PrepInicio') {
-            return (
-              <TabBarClubLogo
-                focused={focused}
-                color={color}
-                fallbackIcon="home-outline"
-                fallbackIconFocused="home"
-              />
-            );
-          }
           const map = {
+            PrepInicio: focused ? 'home' : 'home-outline',
             PrepSesiones: focused ? 'fitness' : 'fitness-outline',
             PrepEquipo: focused ? 'people' : 'people-outline',
             PrepComunicar: focused ? 'chatbubbles' : 'chatbubbles-outline',

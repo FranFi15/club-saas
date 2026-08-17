@@ -32,7 +32,6 @@ import ChatNewScreen from '../screens/chat/ChatNewScreen';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
 import { tabBadgeLabel } from '../utils/tabBadgeLabel';
-import TabBarClubLogo from '../components/TabBarClubLogo';
 
 const Tab = createBottomTabNavigator();
 const CoachHomeStack = createNativeStackNavigator();
@@ -129,17 +128,8 @@ export default function CoachTabNavigator() {
         },
         tabBarLabelStyle: { fontSize: 10, marginBottom: 2 },
         tabBarIcon: ({ focused, color }) => {
-          if (route.name === 'CoachInicio') {
-            return (
-              <TabBarClubLogo
-                focused={focused}
-                color={color}
-                fallbackIcon="home-outline"
-                fallbackIconFocused="home"
-              />
-            );
-          }
           const map = {
+            CoachInicio: focused ? 'home' : 'home-outline',
             CoachSesiones: focused ? 'calendar' : 'calendar-outline',
             CoachEquipo: focused ? 'people' : 'people-outline',
             CoachComunicar: focused ? 'chatbubbles' : 'chatbubbles-outline',

@@ -29,13 +29,8 @@ import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
 
 import { tabBadgeLabel } from '../utils/tabBadgeLabel';
-import TabBarClubLogo from '../components/TabBarClubLogo';
-
-
 
 const Tab = createBottomTabNavigator();
-
-
 
 function AthleteTabs() {
 
@@ -97,30 +92,14 @@ function AthleteTabs() {
         tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
 
         tabBarIcon: ({ focused, color }) => {
-          if (route.name === 'AthleteAgenda') {
-            return (
-              <TabBarClubLogo
-                focused={focused}
-                color={color}
-                fallbackIcon="calendar-outline"
-                fallbackIconFocused="calendar"
-              />
-            );
-          }
-
           const map = {
+            AthleteAgenda: focused ? 'calendar' : 'calendar-outline',
             AthleteMetrics: focused ? 'analytics' : 'analytics-outline',
-
             AthleteWellness: focused ? 'fitness' : 'fitness-outline',
-
             AthleteComunicar: focused ? 'chatbubbles' : 'chatbubbles-outline',
-
             AthleteProfile: focused ? 'person' : 'person-outline',
-
           };
-
           return <Ionicons name={map[route.name] || 'ellipse'} size={22} color={color} />;
-
         },
 
       })}

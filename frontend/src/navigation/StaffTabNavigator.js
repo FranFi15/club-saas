@@ -16,7 +16,6 @@ import NutricionistaTabNavigator from './NutricionistaTabNavigator';
 import PsicologoTabNavigator from './PsicologoTabNavigator';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { getToken } from '../utils/storage';
-import TabBarClubLogo from '../components/TabBarClubLogo';
 
 const Tab = createBottomTabNavigator();
 const StaffHomeStackNavigator = createNativeStackNavigator();
@@ -67,14 +66,7 @@ function DefaultStaffTabs({ clubData, theme, isDarkMode }) {
         tabBarLabelStyle: { fontSize: 11, marginBottom: 2 },
         tabBarIcon: ({ focused, color }) => {
           if (route.name === 'StaffInicio') {
-            return (
-              <TabBarClubLogo
-                focused={focused}
-                color={color}
-                fallbackIcon="home-outline"
-                fallbackIconFocused="home"
-              />
-            );
+            return <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />;
           }
           return (
             <Ionicons

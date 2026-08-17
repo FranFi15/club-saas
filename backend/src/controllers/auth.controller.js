@@ -3,6 +3,8 @@ import jwt from 'jsonwebtoken';
 
 const ACCESS_TOKEN_TTL = '15m';
 const REFRESH_TOKEN_TTL = '30d';
+/** Debe coincidir con frontend/src/constants/legal.js → TERMS_VERSION */
+const CURRENT_TERMS_VERSION = '2026-08-15';
 
 const generateAccessToken = (id, club) => {
     const payload = { id };
@@ -72,6 +74,10 @@ const loginUser = asyncHandler(async (req, res) => {
             fotoPerfil: user.fotoPerfil || '',
             token: accessToken,
             refreshToken,
+            acceptedTermsVersion: user.acceptedTermsVersion || '',
+            acceptedTermsAt: user.acceptedTermsAt || null,
+            currentTermsVersion: CURRENT_TERMS_VERSION,
+            needsTermsAcceptance: (user.acceptedTermsVersion || '') !== CURRENT_TERMS_VERSION,
         });
     } else {
         res.status(401);
@@ -103,6 +109,10 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         res.json({
             token: accessToken,
             refreshToken: newRefreshToken,
+            acceptedTermsVersion: user.acceptedTermsVersion || '',
+            acceptedTermsAt: user.acceptedTermsAt || null,
+            currentTermsVersion: CURRENT_TERMS_VERSION,
+            needsTermsAcceptance: (user.acceptedTermsVersion || '') !== CURRENT_TERMS_VERSION,
         });
     } catch (error) {
         if (res.statusCode === 401) throw error;
@@ -120,4 +130,28 @@ const logoutUser = asyncHandler(async (req, res) => {
     res.json({ ok: true });
 });
 
-export { loginUser, refreshAccessToken, logoutUser };
+const acceptTerms = asyncHandler(async (req, res) => {
+    const version = String(req.body?.version || '').trim();
+    if (!version) {
+        res.status(400);
+        throw new Error('Falta la versión de los términos.');
+    }
+    if (version !== CURRENT_TERMS_VERSION) {
+        res.status(400);
+        throw new Error('La versión de términos no es la vigente. Actualizá la app e intentá de nuevo.');
+    }
+
+    const user = req.user;
+    user.acceptedTermsVersion = version;
+    user.acceptedTermsAt = new Date();
+    await user.save();
+
+    res.json({
+        ok: true,
+        acceptedTermsVersion: user.acceptedTermsVersion,
+        acceptedTermsAt: user.acceptedTermsAt,
+        currentTermsVersion: CURRENT_TERMS_VERSION,
+    });
+});
+
+export { loginUser, refreshAccessToken, logoutUser, acceptTerms };

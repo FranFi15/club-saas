@@ -15,7 +15,6 @@ import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
 import { useMember } from '../context/MemberContext';
 import { tabBadgeLabel } from '../utils/tabBadgeLabel';
-import TabBarClubLogo from '../components/TabBarClubLogo';
 
 const Tab = createBottomTabNavigator();
 
@@ -52,17 +51,8 @@ function TutorTabs() {
         },
         tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
         tabBarIcon: ({ focused, color }) => {
-          if (route.name === 'TutorInicio') {
-            return (
-              <TabBarClubLogo
-                focused={focused}
-                color={color}
-                fallbackIcon="home-outline"
-                fallbackIconFocused="home"
-              />
-            );
-          }
           const map = {
+            TutorInicio: focused ? 'home' : 'home-outline',
             TutorAgenda: focused ? 'calendar' : 'calendar-outline',
             TutorWellness: focused ? 'fitness' : 'fitness-outline',
             TutorComunicar: focused ? 'chatbubbles' : 'chatbubbles-outline',

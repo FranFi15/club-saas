@@ -18,6 +18,7 @@ import { beginAuthSession } from '../utils/session';
 import { persistAuthTokens } from '../utils/authTokens';
 import { clubApi } from '../utils/api';
 import { resolveMainNavigator } from '../constants/appRoles';
+import { needsTermsAcceptance } from '../constants/legal';
 import { registerPushTokenWithBackend } from '../services/pushNotifications';
 import CustomAlert from '../components/CustomAlert';
 import AuthFormLayout from '../components/AuthFormLayout';
@@ -99,9 +100,16 @@ export default function LoginScreen({ navigation }) {
 
   useEffect(() => {
     if (!sessionHydrated || !sessionActive) return;
-    getToken('userRol').then((storedRol) => {
-      if (storedRol) navigation.replace(resolveMainNavigator(storedRol));
-    });
+    (async () => {
+      const storedRol = await getToken('userRol');
+      if (!storedRol) return;
+      const acceptedVersion = await getToken('acceptedTermsVersion');
+      if (needsTermsAcceptance(acceptedVersion)) {
+        navigation.replace('TermsAcceptance');
+        return;
+      }
+      navigation.replace(resolveMainNavigator(storedRol));
+    })();
   }, [sessionHydrated, sessionActive, navigation]);
 
   useEffect(() => {
@@ -141,7 +149,17 @@ export default function LoginScreen({ navigation }) {
         { headers: { 'x-club-identifier': clubData.urlIdentifier } }
       );
 
-      const { token, refreshToken, rol, nombre, apellido, _id, fotoPerfil } = response.data;
+      const {
+        token,
+        refreshToken,
+        rol,
+        nombre,
+        apellido,
+        _id,
+        fotoPerfil,
+        acceptedTermsVersion,
+        needsTermsAcceptance: serverNeedsTerms,
+      } = response.data;
       if (!token || !refreshToken) {
         showAlert('Error', 'No pudimos iniciar la sesión. Probá de nuevo en un momento.');
         return;
@@ -155,6 +173,7 @@ export default function LoginScreen({ navigation }) {
       if (apellido != null) await saveToken('userApellido', String(apellido));
       if (_id != null) await saveToken('userId', String(_id));
       if (fotoPerfil != null) await saveToken('userFotoPerfil', String(fotoPerfil));
+      await saveToken('acceptedTermsVersion', String(acceptedTermsVersion || ''));
 
       setSessionActive(true);
       if (rol === 'atleta' || rol === 'tutor') {
@@ -165,7 +184,9 @@ export default function LoginScreen({ navigation }) {
       }
 
       registerPushTokenWithBackend(clubData.urlIdentifier);
-      navigation.replace(resolveMainNavigator(rol));
+      const mustAccept =
+        serverNeedsTerms === true || needsTermsAcceptance(acceptedTermsVersion);
+      navigation.replace(mustAccept ? 'TermsAcceptance' : resolveMainNavigator(rol));
     } catch (error) {
       console.log('Error de Axios:', error.message);
       console.log('Respuesta del servidor:', error.response?.data);

@@ -30,7 +30,6 @@ import ChatNewScreen from '../screens/chat/ChatNewScreen';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
 import { tabBadgeLabel } from '../utils/tabBadgeLabel';
-import TabBarClubLogo from '../components/TabBarClubLogo';
 import { NutritionSettingsProvider } from '../context/NutritionSettingsContext';
 
 const Tab = createBottomTabNavigator();
@@ -123,17 +122,8 @@ export default function NutricionistaTabNavigator() {
         },
         tabBarLabelStyle: { fontSize: 10, marginBottom: 2 },
         tabBarIcon: ({ focused, color }) => {
-          if (route.name === 'NutSesiones') {
-            return (
-              <TabBarClubLogo
-                focused={focused}
-                color={color}
-                fallbackIcon="restaurant-outline"
-                fallbackIconFocused="restaurant"
-              />
-            );
-          }
           const map = {
+            NutSesiones: focused ? 'restaurant' : 'restaurant-outline',
             NutEquipo: focused ? 'people' : 'people-outline',
             NutComunicar: focused ? 'chatbubbles' : 'chatbubbles-outline',
             NutPerfil: focused ? 'person' : 'person-outline',

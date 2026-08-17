@@ -756,7 +756,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
         >
           <Ionicons name="alert-circle-outline" size={22} color="#f59e0b" />
           <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={{ color: theme.text, fontWeight: '800' }}>Actualizá el plantel de la categoría</Text>
+            <Text style={{ color: theme.text, fontWeight: '800' }}>Armá el plantel de la categoría</Text>
             <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 4 }}>
               El administrador te pidió elegir quiénes integran esta categoría.
             </Text>

@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import NotificationBell from './NotificationBell';
+import HeaderClubLogo, { HEADER_CLUB_LOGO_SIZE } from './HeaderClubLogo';
 
 /** Altura fija del bloque de marca (todas las pantallas). */
 export const COACH_HEADER_HEIGHT = 152;
@@ -15,6 +16,7 @@ export const COACH_HEADER_HERO_RIGHT_SIZE = 100;
 
 /**
  * Bloque de marca unificado: textos centro-izquierda, volver centro-derecha.
+ * Por defecto muestra el escudo del club a la izquierda del título (salvo si hay heroRight).
  */
 export default function CoachScreenHeader({
   colorMarca,
@@ -28,6 +30,7 @@ export default function CoachScreenHeader({
   footer,
   reserveOverlaySpace = false,
   showNotifications = true,
+  showClubLogo = true,
 }) {
   const toolbarLeft = onBack ? (
     <CoachHeaderActions>
@@ -47,6 +50,7 @@ export default function CoachScreenHeader({
   ) : null;
   const showTopToolbar = onBack || !!rightAccessory;
   const heroRightInset = heroRight ? COACH_HEADER_HERO_RIGHT_SIZE + 12 : 0;
+  const displayClubLogo = showClubLogo && !heroRight;
 
   return (
     <View style={[styles.heroWrap, { backgroundColor: theme.background }]}>
@@ -70,6 +74,7 @@ export default function CoachScreenHeader({
           style={[
             styles.heroBody,
             styles.heroBodyCentered,
+            displayClubLogo && styles.heroBodyWithLogo,
             showNotifications && styles.heroBodyWithBack,
             heroRightInset > 0 && {
               paddingRight: Math.max(
@@ -81,21 +86,24 @@ export default function CoachScreenHeader({
             showNotifications && reserveOverlaySpace && styles.heroBodyWithBackAndFabs,
           ]}
         >
-          {kicker ? (
-            <Text style={styles.heroKicker} numberOfLines={1}>
-              {kicker}
+          {displayClubLogo ? <HeaderClubLogo size={HEADER_CLUB_LOGO_SIZE} /> : null}
+          <View style={styles.heroTextCol}>
+            {kicker ? (
+              <Text style={styles.heroKicker} numberOfLines={1}>
+                {kicker}
+              </Text>
+            ) : null}
+            <Text style={styles.heroTitle} numberOfLines={1}>
+              {title}
             </Text>
-          ) : null}
-          <Text style={styles.heroTitle} numberOfLines={1}>
-            {title}
-          </Text>
-          {subtitle ? (
-            <Text style={styles.heroSub} numberOfLines={1}>
-              {subtitle}
-            </Text>
-          ) : null}
-          <View style={[styles.footerSlot, !footer && styles.footerSlotEmpty]}>
-            {footer || null}
+            {subtitle ? (
+              <Text style={styles.heroSub} numberOfLines={1}>
+                {subtitle}
+              </Text>
+            ) : null}
+            <View style={[styles.footerSlot, !footer && styles.footerSlotEmpty]}>
+              {footer || null}
+            </View>
           </View>
         </View>
 
@@ -130,7 +138,7 @@ export function CoachHeaderOverlayFab({ colorMarca, onPress, icon = 'add', acces
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
     >
-      <Ionicons name={icon} size={26} color={colorMarca} />
+      <Ionicons name={icon} size={20} color={colorMarca} />
     </TouchableOpacity>
   );
 }
@@ -179,10 +187,10 @@ const styles = StyleSheet.create({
   headerFabOverlay: {
     position: 'absolute',
     right: 12,
-    bottom: 14,
+    bottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
     zIndex: 3,
   },
   hero: {
@@ -251,6 +259,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'flex-start',
   },
+  heroBodyWithLogo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  heroTextCol: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
   heroBodyCentered: {
     paddingVertical: 4,
   },
@@ -258,10 +277,10 @@ const styles = StyleSheet.create({
     paddingRight: BACK_BTN_SIZE + 10,
   },
   heroBodyWithBackAndFabs: {
-    paddingRight: Math.max(BACK_BTN_SIZE + 10, 116),
+    paddingRight: Math.max(BACK_BTN_SIZE + 10, 100),
   },
   heroBodyFabInset: {
-    paddingRight: 116,
+    paddingRight: 100,
   },
   heroKicker: {
     color: 'rgba(255,255,255,0.88)',
@@ -271,7 +290,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: 2,
   },
-  heroTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', lineHeight: 24 },
+  heroTitle: { color: '#fff', fontSize: 17, fontWeight: 'bold', lineHeight: 21 },
   heroSub: { color: '#e5e7eb', fontSize: 13, marginTop: 2, lineHeight: 18 },
   footerSlot: {
     height: FOOTER_SLOT_HEIGHT,
@@ -307,16 +326,16 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   fabOverlay: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.16,
+    shadowRadius: 4,
+    elevation: 4,
   },
 });

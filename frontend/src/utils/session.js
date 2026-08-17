@@ -10,6 +10,7 @@ const AUTH_KEYS = [
   'userNombre',
   'userApellido',
   'userFotoPerfil',
+  'acceptedTermsVersion',
 ];
 
 let authGeneration = 0;
