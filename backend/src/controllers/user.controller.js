@@ -1,6 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import { calcEdad, puedePagarComoAtleta, atletaCuotasEnApp } from '../utils/ageHelper.js';
-import { hijosDelTutorFilter } from '../utils/userQuery.js';
+import { atletasDeTutoresFilter, hijosDelTutorFilter } from '../utils/userQuery.js';
 import { syncFamilyDiscountForAthlete } from '../services/familyDiscount.service.js';
 import { countDocsPendientesAtleta, tutorAthleteHasAlerts } from '../services/badgeCounts.service.js';
 import { isAssignableUserRole, canAssignUserRole } from '../constants/userRoles.js';
@@ -342,7 +342,7 @@ const getUsers = asyncHandler(async (req, res) => {
         });
     }
 
-    if (req.query.rol && req.query.rol !== 'Todos') {
+    if (req.query.rol && req.query.rol !== 'Todos' && req.query.rol !== 'undefined') {
         filter.rol = req.query.rol;
     }
 
@@ -365,7 +365,7 @@ const getUsers = asyncHandler(async (req, res) => {
 
     const familiaresByTutor = {};
     if (tutorIds.length) {
-        const hijos = await User.find({ tutorPrincipal: { $in: tutorIds } })
+        const hijos = await User.find(atletasDeTutoresFilter(tutorIds))
             .select('nombre apellido rol fotoPerfil tutorPrincipal')
             .lean();
         for (const h of hijos) {

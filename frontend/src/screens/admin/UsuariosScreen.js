@@ -100,8 +100,8 @@ export default function UsuariosScreen({ navigation }) {
       params: {
         page: 1,
         limit: 15,
-        search: debouncedSearch,
-        rol: selectedRole === 'Todos' ? undefined : selectedRole,
+        ...(debouncedSearch?.trim() ? { search: debouncedSearch.trim() } : {}),
+        ...(selectedRole && selectedRole !== 'Todos' ? { rol: selectedRole } : {}),
       },
     });
     const { users: fetchedUsers, totalPages: fetchedTotal, page: fetchedPage } = response.data;
@@ -139,8 +139,8 @@ export default function UsuariosScreen({ navigation }) {
         params: {
           page: pageNumber,
           limit: 15,
-          search: debouncedSearch,
-          rol: selectedRole === 'Todos' ? undefined : selectedRole
+          ...(debouncedSearch?.trim() ? { search: debouncedSearch.trim() } : {}),
+          ...(selectedRole && selectedRole !== 'Todos' ? { rol: selectedRole } : {}),
         }
       });
       
