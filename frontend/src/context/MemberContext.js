@@ -130,36 +130,27 @@ export function MemberProvider({ mode, children: childNodes }) {
     refresh();
   }, [active, refresh, clubData?.urlIdentifier, isTutor]);
 
-  if (!active) {
-    return <MemberContext.Provider value={null}>{childNodes}</MemberContext.Provider>;
-  }
-
   const memberId = isTutor ? activeAtletaId : profile?._id;
   const cuotasEnApp = isTutor || (profile != null && profile.cuotasEnApp !== false);
   const puedePagar = isTutor || profile?.puedePagarEnApp === true;
-
   const activeHijo = isTutor ? hijos.find((x) => String(x._id) === String(activeAtletaId)) : null;
 
-  return (
-    <MemberContext.Provider
-      value={{
-        isTutor,
-        profile,
-        hijos,
-        activeAtletaId,
-        setActiveAtletaId: selectAtleta,
-        activeHijo,
-        memberId,
-        cuotasEnApp,
-        puedePagar,
-        loading,
-        loadError,
-        refresh,
-      }}
-    >
-      {childNodes}
-    </MemberContext.Provider>
-  );
+  const value = {
+    isTutor,
+    profile,
+    hijos,
+    activeAtletaId,
+    setActiveAtletaId: selectAtleta,
+    activeHijo,
+    memberId,
+    cuotasEnApp,
+    puedePagar,
+    loading,
+    loadError,
+    refresh,
+  };
+
+  return <MemberContext.Provider value={value}>{childNodes}</MemberContext.Provider>;
 }
 
 export function useMember() {

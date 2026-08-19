@@ -44,7 +44,6 @@ export const ClubProvider = ({ children }) => {
     await clearAuthSession();
     setMemberSessionRol(null);
     setSessionActive(false);
-    setBootRoute('Login');
 
     if (navigationRef.isReady()) {
       const savedClub = await getToken(CLUB_WORKSPACE_KEY);

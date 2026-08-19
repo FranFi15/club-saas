@@ -49,7 +49,6 @@ export default function AppNavigator() {
       <PushNotificationPrompt />
       <MercadoPagoDeepLinkHandler />
       <Stack.Navigator
-        key={initialRoute}
         initialRouteName={initialRoute}
         screenOptions={{ headerShown: false }}
       >
