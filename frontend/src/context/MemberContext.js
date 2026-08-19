@@ -16,6 +16,7 @@ export const MemberContext = createContext(null);
 
 export function MemberProvider({ mode, children: childNodes }) {
   const { clubData, clearSession } = useContext(ClubContext);
+  const active = mode === 'atleta' || mode === 'tutor';
   const isTutor = mode === 'tutor';
 
   const [profile, setProfile] = useState(() => {
@@ -108,21 +109,6 @@ export function MemberProvider({ mode, children: childNodes }) {
     }
   }, [clubData?.urlIdentifier, isTutor, clearSession]);
 
-  useEffect(() => {
-    const key = memberCacheKey(clubData?.urlIdentifier, isTutor);
-    if (key && readScreenCache(key)) {
-      refresh({ background: true });
-      return;
-    }
-    refresh();
-  }, [refresh, clubData?.urlIdentifier, isTutor]);
-
-  const memberId = isTutor ? activeAtletaId : profile?._id;
-  const cuotasEnApp = isTutor || (profile != null && profile.cuotasEnApp !== false);
-  const puedePagar = isTutor || profile?.puedePagarEnApp === true;
-
-  const activeHijo = isTutor ? hijos.find((x) => String(x._id) === String(activeAtletaId)) : null;
-
   const selectAtleta = useCallback(
     (id) => {
       setActiveAtletaId(id);
@@ -133,6 +119,26 @@ export function MemberProvider({ mode, children: childNodes }) {
     },
     [clubData?.urlIdentifier, isTutor],
   );
+
+  useEffect(() => {
+    if (!active) return;
+    const key = memberCacheKey(clubData?.urlIdentifier, isTutor);
+    if (key && readScreenCache(key)) {
+      refresh({ background: true });
+      return;
+    }
+    refresh();
+  }, [active, refresh, clubData?.urlIdentifier, isTutor]);
+
+  if (!active) {
+    return <MemberContext.Provider value={null}>{childNodes}</MemberContext.Provider>;
+  }
+
+  const memberId = isTutor ? activeAtletaId : profile?._id;
+  const cuotasEnApp = isTutor || (profile != null && profile.cuotasEnApp !== false);
+  const puedePagar = isTutor || profile?.puedePagarEnApp === true;
+
+  const activeHijo = isTutor ? hijos.find((x) => String(x._id) === String(activeAtletaId)) : null;
 
   return (
     <MemberContext.Provider

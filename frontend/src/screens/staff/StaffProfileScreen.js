@@ -22,6 +22,7 @@ import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScree
 import ProfileEditDataButton from '../../components/ProfileEditDataButton';
 import ProfileClubEntryButton from '../../components/ProfileClubEntryButton';
 import ProfileLogoutButton from '../../components/ProfileLogoutButton';
+import ProfileNotificationToggle from '../../components/ProfileNotificationToggle';
 import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import ProfileInfoRow, { profileCardStyles } from '../../components/ProfileInfoRow';
@@ -132,6 +133,8 @@ export default function StaffProfileScreen({ navigation }) {
         />
 
         <ProfileEditDataButton theme={theme} onPress={() => navigation.navigate('EditProfile')} />
+
+        <ProfileNotificationToggle />
 
         <ProfileLogoutButton onPress={logout} />
       </ScrollView>

@@ -6,6 +6,7 @@ import { useMemberOptional } from '../context/MemberContext';
 import { getToken } from '../utils/storage';
 import {
   registerPushTokenWithBackend,
+  isPushEnabledByUser,
 } from '../services/pushNotifications';
 import { navigateFromNotification } from '../utils/notificationNavigation';
 import { navigationRef } from '../navigation/navigationRef';
@@ -50,6 +51,7 @@ export default function PushNotificationHandler() {
     if (!clubData?.urlIdentifier || !sessionActive) return;
     const authToken = await getToken('userToken');
     if (!authToken) return;
+    if (!(await isPushEnabledByUser())) return;
 
     await registerPushTokenWithBackend(clubData.urlIdentifier);
     registeredRef.current = true;

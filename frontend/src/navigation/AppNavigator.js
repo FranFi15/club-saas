@@ -16,6 +16,7 @@ import AthleteTabNavigator from './AthleteTabNavigator';
 import TutorTabNavigator from './TutorTabNavigator';
 import { navigationRef } from './navigationRef';
 import PushNotificationHandler from '../components/PushNotificationHandler';
+import PushNotificationPrompt from '../components/PushNotificationPrompt';
 import MercadoPagoDeepLinkHandler from '../components/MercadoPagoDeepLinkHandler';
 import { ClubContext } from '../context/ClubContext';
 import { ThemeContext } from '../context/ThemeContext';
@@ -45,6 +46,7 @@ export default function AppNavigator() {
   return (
     <NavigationContainer ref={navigationRef} theme={navigationTheme}>
       <PushNotificationHandler />
+      <PushNotificationPrompt />
       <MercadoPagoDeepLinkHandler />
       <Stack.Navigator
         key={initialRoute}

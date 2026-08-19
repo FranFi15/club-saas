@@ -23,6 +23,7 @@ import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScree
 import ProfileEditDataButton from '../../components/ProfileEditDataButton';
 import ProfileClubEntryButton from '../../components/ProfileClubEntryButton';
 import ProfileLogoutButton from '../../components/ProfileLogoutButton';
+import ProfileNotificationToggle from '../../components/ProfileNotificationToggle';
 import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
 import ProfileLinkRow from '../../components/ProfileLinkRow';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
@@ -275,6 +276,8 @@ export default function TutorProfileScreen({ navigation }) {
           />
 
           <ProfileEditDataButton theme={theme} onPress={() => navigation.navigate('EditProfile')} />
+
+          <ProfileNotificationToggle />
 
           <ProfileLogoutButton onPress={logout} />
         </View>

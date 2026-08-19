@@ -8,12 +8,12 @@ export const TERMS_SECTIONS = [
   {
     title: '1. Identificación del servicio',
     body:
-      'Hermes Club App (“Hermes”, “nosotros”) es una plataforma digital de gestión para clubes deportivos. Estos términos regulan el uso de la aplicación móvil y los servicios asociados en la República Argentina. Contacto: hola@hermesclub.app.',
+      'Hermes Club App es una plataforma digital de gestión para clubes deportivos. Estos términos regulan el uso de la aplicación móvil y los servicios asociados en la República Argentina. Contacto: clubsync@outlook.com.',
   },
   {
     title: '2. Aceptación',
     body:
-      'Al crear una cuenta, iniciar sesión o usar la app, aceptás estos Términos y la Política de privacidad. La aceptación la realiza el titular de la cuenta (administración, staff, atleta o tutor). Si sos tutor/a, también aceptás el uso de la plataforma en relación con los menores a tu cargo vinculados en el club.',
+      'Al Iniciar sesión o usar la app, aceptás estos Términos y la Política de privacidad. La aceptación la realiza el titular de la cuenta (administración, staff, atleta o tutor). Si sos tutor/a, también aceptás el uso de la plataforma en relación con los menores a tu cargo vinculados en el club.',
   },
   {
     title: '3. Relación con el club',
@@ -33,7 +33,7 @@ export const TERMS_SECTIONS = [
   {
     title: '6. Contenido cargado por usuarios y clubes',
     body:
-      'Noticias, documentos, fotos, informes, mensajes de chat y demás archivos son responsabilidad de quien los carga y del club. Hermes puede retirar o restringir contenido que viole la ley o estos términos, sin que ello implique obligación de moderar todo el contenido de antemano.',
+      'Noticias, documentos, fotos, informes, mensajes de chat entre usuarios y demás archivos son responsabilidad de quien los carga y del club. Hermes puede retirar o restringir contenido que viole la ley o estos términos, sin que ello implique obligación de moderar todo el contenido de antemano.',
   },
   {
     title: '7. Pagos',
@@ -53,12 +53,12 @@ export const TERMS_SECTIONS = [
   {
     title: '10. Disponibilidad',
     body:
-      'Prestamos el servicio con diligencia razonable, pero pueden existir mantenimientos, interrupciones de hosting, fallas de red o errores. No garantizamos disponibilidad ininterrumpida ni ausencia total de defectos.',
+      'Prestamos el servicio con diligencia razonable, pero pueden existir mantenimientos (con previo aviso), interrupciones de hosting, fallas de red o errores. No garantizamos disponibilidad ininterrumpida ni ausencia total de defectos.',
   },
   {
     title: '11. Limitación de responsabilidad',
     body:
-      'En la medida permitida por la legislación argentina aplicable (incluida la normativa de defensa del consumidor cuando corresponda), Hermes no responde por decisiones deportivas o administrativas del club, lesiones en la práctica deportiva, conflictos entre el club y sus socios/usuarios, ni por errores en montos o estados de cuotas cargados por el club. Hermes responde por el funcionamiento de la plataforma conforme a estos términos y a la ley.',
+      'En la medida permitida por la legislación argentina aplicable (incluida la normativa de defensa del consumidor cuando corresponda), Hermes no responde por decisiones deportivas o administrativas del club, lesiones y decesos en la práctica deportiva, conflictos entre el club y sus socios/usuarios, ni por errores en montos o estados de cuotas cargados por el club. Hermes responde por el funcionamiento de la plataforma conforme a estos términos y a la ley.',
   },
   {
     title: '12. Propiedad intelectual',
@@ -68,12 +68,12 @@ export const TERMS_SECTIONS = [
   {
     title: '13. Cambios',
     body:
-      'Podemos actualizar estos términos. Cuando cambie la versión vigente, la app solicitará una nueva aceptación antes de continuar. La versión publicada en hermesclub.app/terminos y la mostrada en la app indican la vigencia.',
+      'Podemos actualizar estos términos. Cuando cambie la versión vigente, la app solicitará una nueva aceptación antes de continuar. La versión publicada en https://hermesclubapp.com/terminos/ y la mostrada en la app indican la vigencia.',
   },
   {
     title: '14. Ley aplicable y contacto',
     body:
-      'Estos términos se rigen por las leyes de la República Argentina. Consultas: hola@hermesclub.app.',
+      'Estos términos se rigen por las leyes de la República Argentina. Consultas: clubsync@outlook.com.',
   },
 ];
 

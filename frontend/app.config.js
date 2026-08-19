@@ -7,16 +7,22 @@ const PRIVACY_POLICY_URL = 'https://hermesclub.app/privacidad';
 const TERMS_OF_SERVICE_URL = 'https://hermesclub.app/terminos';
 const withMonorepoReactNative = require('./plugins/withMonorepoReactNative.cjs');
 
+// Native release builds try to upload Sentry source maps. Without SENTRY_ORG that
+// step fails the Xcode/Gradle job. Skip upload unless org+project are provided.
+if (!process.env.SENTRY_ORG || !process.env.SENTRY_PROJECT) {
+  process.env.SENTRY_DISABLE_AUTO_UPLOAD = 'true';
+}
+
 export default ({ config }) => ({
   ...config,
   name: 'Hermes Club App',
   slug: 'hermes-club-app',
   scheme: 'clubapp',
-  version: config.version || '1.0.1',
+  version: config.version || '1.0.2',
   ios: {
     ...config.ios,
     bundleIdentifier: IOS_BUNDLE_ID,
-    buildNumber: config.ios?.buildNumber || '2',
+    buildNumber: config.ios?.buildNumber || '4',
     associatedDomains: [`applinks:${APP_WEB_HOST}`],
     infoPlist: {
       ...config.ios?.infoPlist,
@@ -44,7 +50,7 @@ export default ({ config }) => ({
   android: {
     ...config.android,
     package: ANDROID_PACKAGE,
-    versionCode: config.android?.versionCode || 8,
+    versionCode: config.android?.versionCode || 10,
     intentFilters: [
       {
         action: 'VIEW',

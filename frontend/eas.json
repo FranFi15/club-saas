@@ -10,7 +10,8 @@
       "env": {
         "EXPO_PUBLIC_APP_URL": "https://app.hermesclubapp.com",
         "EXPO_PUBLIC_CLUB_API_URL": "https://club-backend-t1qz.onrender.com/api",
-        "EXPO_PUBLIC_SUPER_API_URL": "https://club-super.onrender.com/api"
+        "EXPO_PUBLIC_SUPER_API_URL": "https://club-super.onrender.com/api",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "preview": {
@@ -21,7 +22,8 @@
       "env": {
         "EXPO_PUBLIC_APP_URL": "https://app.hermesclubapp.com",
         "EXPO_PUBLIC_CLUB_API_URL": "https://club-backend-t1qz.onrender.com/api",
-        "EXPO_PUBLIC_SUPER_API_URL": "https://club-super.onrender.com/api"
+        "EXPO_PUBLIC_SUPER_API_URL": "https://club-super.onrender.com/api",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "production": {
@@ -32,7 +34,8 @@
       "env": {
         "EXPO_PUBLIC_APP_URL": "https://app.hermesclubapp.com",
         "EXPO_PUBLIC_CLUB_API_URL": "https://club-backend-t1qz.onrender.com/api",
-        "EXPO_PUBLIC_SUPER_API_URL": "https://club-super.onrender.com/api"
+        "EXPO_PUBLIC_SUPER_API_URL": "https://club-super.onrender.com/api",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     }
   },
@@ -40,13 +43,18 @@
     "internal": {
       "android": {
         "track": "internal",
-        "releaseStatus": "completed"
+        "releaseStatus": "completed",
+        "serviceAccountKeyPath": "./google-play-service-account.json"
       }
     },
     "production": {
+      "ios": {
+        "ascAppId": "6788793406"
+      },
       "android": {
         "track": "production",
-        "releaseStatus": "draft"
+        "releaseStatus": "draft",
+        "serviceAccountKeyPath": "./google-play-service-account.json"
       }
     }
   }

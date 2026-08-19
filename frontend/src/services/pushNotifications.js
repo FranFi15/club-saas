@@ -3,9 +3,13 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { clubApi } from '../utils/api';
-import { getToken } from '../utils/storage';
+import { getToken, saveToken, removeToken } from '../utils/storage';
 
 const IS_NATIVE = Platform.OS === 'ios' || Platform.OS === 'android';
+
+export const PUSH_ENABLED_KEY = 'pushNotificationsEnabled';
+export const PUSH_PROMPT_SHOWN_KEY = 'pushPermissionPromptShown';
+export const PUSH_DEVICE_TOKEN_KEY = 'pushDeviceToken';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -38,12 +42,48 @@ async function ensureAndroidChannel() {
   });
 }
 
-export async function getDevicePushToken() {
-  if (!IS_NATIVE || !Device.isDevice) return null;
+export function isPushSupportedOnDevice() {
+  return IS_NATIVE && Device.isDevice;
+}
+
+export async function isPushEnabledByUser() {
+  const value = await getToken(PUSH_ENABLED_KEY);
+  return value === 'true';
+}
+
+export async function setPushEnabledByUser(enabled) {
+  await saveToken(PUSH_ENABLED_KEY, enabled ? 'true' : 'false');
+}
+
+export async function wasPushPromptShown() {
+  return (await getToken(PUSH_PROMPT_SHOWN_KEY)) === 'true';
+}
+
+export async function markPushPromptShown() {
+  await saveToken(PUSH_PROMPT_SHOWN_KEY, 'true');
+}
+
+export async function getNotificationPermissionStatus() {
+  if (!isPushSupportedOnDevice()) return 'unavailable';
+  const { status } = await Notifications.getPermissionsAsync();
+  return status;
+}
+
+export async function requestNotificationPermission() {
+  if (!isPushSupportedOnDevice()) return 'unavailable';
+  const existing = await getNotificationPermissionStatus();
+  if (existing === 'granted') return 'granted';
+  const { status } = await Notifications.requestPermissionsAsync();
+  return status;
+}
+
+export async function getDevicePushToken({ requestPermission = false } = {}) {
+  if (!isPushSupportedOnDevice()) return null;
 
   const { status: existing } = await Notifications.getPermissionsAsync();
   let finalStatus = existing;
   if (existing !== 'granted') {
+    if (!requestPermission) return null;
     const { status } = await Notifications.requestPermissionsAsync();
     finalStatus = status;
   }
@@ -67,14 +107,17 @@ export async function getDevicePushToken() {
   }
 }
 
-export async function registerPushTokenWithBackend(clubIdentifier) {
+export async function registerPushTokenWithBackend(clubIdentifier, { requestPermission = false } = {}) {
   if (!clubIdentifier || !IS_NATIVE) return null;
 
   try {
+    const enabled = await isPushEnabledByUser();
+    if (!enabled) return null;
+
     const authToken = await getToken('userToken');
     if (!authToken) return null;
 
-    const pushToken = await getDevicePushToken();
+    const pushToken = await getDevicePushToken({ requestPermission });
     if (!pushToken) return null;
 
     await clubApi.post(
@@ -88,6 +131,7 @@ export async function registerPushTokenWithBackend(clubIdentifier) {
       },
     );
 
+    await saveToken(PUSH_DEVICE_TOKEN_KEY, pushToken);
     return pushToken;
   } catch (e) {
     if (__DEV__ && !isPushConfigError(e)) {
@@ -98,21 +142,33 @@ export async function registerPushTokenWithBackend(clubIdentifier) {
 }
 
 export async function unregisterPushTokenFromBackend(clubIdentifier, pushToken) {
-  if (!clubIdentifier || !pushToken) return;
+  const token = pushToken || (await getToken(PUSH_DEVICE_TOKEN_KEY));
+  if (!clubIdentifier || !token) return;
   try {
     const authToken = await getToken('userToken');
     if (!authToken) return;
 
     await clubApi.delete('/users/push-token', {
-      data: { token: pushToken },
+      data: { token },
       headers: {
         'x-club-identifier': clubIdentifier,
         Authorization: `Bearer ${authToken}`,
       },
     });
+    await removeToken(PUSH_DEVICE_TOKEN_KEY);
   } catch (e) {
     console.log('[push] unregister', e.response?.data?.message || e.message);
   }
+}
+
+export async function enablePushNotifications(clubIdentifier) {
+  await setPushEnabledByUser(true);
+  return registerPushTokenWithBackend(clubIdentifier, { requestPermission: true });
+}
+
+export async function disablePushNotifications(clubIdentifier) {
+  await setPushEnabledByUser(false);
+  await unregisterPushTokenFromBackend(clubIdentifier);
 }
 
 export function buildNotificationItemFromPushData(data) {

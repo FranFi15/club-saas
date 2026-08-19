@@ -19,7 +19,6 @@ import { persistAuthTokens } from '../utils/authTokens';
 import { clubApi } from '../utils/api';
 import { resolveMainNavigator } from '../constants/appRoles';
 import { needsTermsAcceptance } from '../constants/legal';
-import { registerPushTokenWithBackend } from '../services/pushNotifications';
 import CustomAlert from '../components/CustomAlert';
 import AuthFormLayout from '../components/AuthFormLayout';
 import { platformCardShadow } from '../utils/platformShadow';
@@ -178,12 +177,10 @@ export default function LoginScreen({ navigation }) {
       setSessionActive(true);
       if (rol === 'atleta' || rol === 'tutor') {
         setMemberSessionRol(rol);
-        await new Promise((resolve) => setTimeout(resolve, 50));
       } else {
         setMemberSessionRol(null);
       }
 
-      registerPushTokenWithBackend(clubData.urlIdentifier);
       const mustAccept =
         serverNeedsTerms === true || needsTermsAcceptance(acceptedTermsVersion);
       navigation.replace(mustAccept ? 'TermsAcceptance' : resolveMainNavigator(rol));

@@ -22,6 +22,7 @@ import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScree
 import ProfileEditDataButton from '../../components/ProfileEditDataButton';
 import ProfileClubEntryButton from '../../components/ProfileClubEntryButton';
 import ProfileLogoutButton from '../../components/ProfileLogoutButton';
+import ProfileNotificationToggle from '../../components/ProfileNotificationToggle';
 import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
 import ProfileInfoRow, { profileCardStyles } from '../../components/ProfileInfoRow';
 import ProfileLinkRow from '../../components/ProfileLinkRow';
@@ -199,6 +200,8 @@ export default function AthleteProfileScreen({ navigation }) {
         />
 
         <ProfileEditDataButton theme={theme} onPress={() => navigation.navigate('EditProfile')} />
+
+        <ProfileNotificationToggle />
 
         <ProfileLogoutButton onPress={logout} />
       </ScrollView>
