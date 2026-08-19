@@ -365,13 +365,17 @@ const getUsers = asyncHandler(async (req, res) => {
 
     const familiaresByTutor = {};
     if (tutorIds.length) {
-        const hijos = await User.find(atletasDeTutoresFilter(tutorIds))
-            .select('nombre apellido rol fotoPerfil tutorPrincipal')
-            .lean();
-        for (const h of hijos) {
-            const tid = String(h.tutorPrincipal);
-            if (!familiaresByTutor[tid]) familiaresByTutor[tid] = [];
-            familiaresByTutor[tid].push(h);
+        try {
+            const hijos = await User.find(atletasDeTutoresFilter(tutorIds))
+                .select('nombre apellido rol fotoPerfil tutorPrincipal')
+                .lean();
+            for (const h of hijos) {
+                const tid = String(h.tutorPrincipal);
+                if (!familiaresByTutor[tid]) familiaresByTutor[tid] = [];
+                familiaresByTutor[tid].push(h);
+            }
+        } catch (e) {
+            console.error('[users] familiaresACargo:', e.message);
         }
     }
 

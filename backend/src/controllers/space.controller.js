@@ -25,8 +25,12 @@ const createSpace = asyncHandler(async (req, res) => {
 // @route   GET /api/spaces
 const getSpaces = asyncHandler(async (req, res) => {
     const { Space } = req.models;
-    await expireExpiredSpaceRestrictions(Space);
-    const spaces = await Space.find({});
+    try {
+        await expireExpiredSpaceRestrictions(Space);
+    } catch (e) {
+        console.error('[spaces] expireExpiredSpaceRestrictions:', e.message);
+    }
+    const spaces = await Space.find({}).sort({ nombre: 1 });
     res.json(spaces);
 });
 

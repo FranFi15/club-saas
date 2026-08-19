@@ -210,6 +210,14 @@ export default function EstructuraHubScreen({ navigation }) {
               onPress={() => navigation.navigate('Espacios')}
             />
             <HubMenuCard
+              title="Grilla de entrenamientos"
+              subtitle="Horarios fijos por categoría"
+              icon="calendar"
+              theme={theme}
+              colorMarca={colorMarca}
+              onPress={() => navigation.navigate('Grilla')}
+            />
+            <HubMenuCard
               title="Alquiler de cancha"
               subtitle="Reservas externas y disponibilidad"
               icon="time"

@@ -1,6 +1,10 @@
 import mongoose from 'mongoose';
 
-mongoose.set('sanitizeFilter', true);
+/**
+ * Do not enable mongoose `sanitizeFilter`. It wraps legitimate `$in` / `$lt` / `$gte`
+ * in `$eq`, so list endpoints 500 or return nobody (users+family, spaces expire, dates).
+ * HTTP payloads are sanitized in index.js with express-mongo-sanitize.
+ */
 
 const connectionCache = {};
 

@@ -90,7 +90,8 @@ export default function EspaciosFisicosScreen({ navigation }) {
 
   const fetchSpacesData = useCallback(async () => {
     const response = await clubApi.get('/spaces', { headers: await getHeaders() });
-    return { list: response.data };
+    const list = Array.isArray(response.data) ? response.data : [];
+    return { list };
   }, [clubData?.urlIdentifier]);
 
   const applySpaces = useCallback((data) => {

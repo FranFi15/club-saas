@@ -135,10 +135,10 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
       clubApi.get('/disciplines', { headers }),
     ]);
     return {
-      schedules: schedRes.data,
-      categories: sortByNombre(catRes.data),
-      spaces: sortByNombre(spaceRes.data),
-      disciplines: sortByNombre(discRes.data),
+      schedules: Array.isArray(schedRes.data) ? schedRes.data : [],
+      categories: sortByNombre(Array.isArray(catRes.data) ? catRes.data : []),
+      spaces: sortByNombre(Array.isArray(spaceRes.data) ? spaceRes.data : []),
+      disciplines: sortByNombre(Array.isArray(discRes.data) ? discRes.data : []),
     };
   }, [clubData?.urlIdentifier]);
 

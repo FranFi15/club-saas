@@ -163,6 +163,11 @@ app.use((req, _res, next) => {
     const opts = { replaceWith: '_', allowDots: true };
     if (req.body && typeof req.body === 'object') mongoSanitize.sanitize(req.body, opts);
     if (req.params && typeof req.params === 'object') mongoSanitize.sanitize(req.params, opts);
+    try {
+        if (req.query && typeof req.query === 'object') mongoSanitize.sanitize(req.query, opts);
+    } catch {
+        // Express 5: req.query can be a getter; skip rather than crash the request.
+    }
     next();
 });
 
