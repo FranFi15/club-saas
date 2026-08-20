@@ -56,11 +56,10 @@ export const PRICING = {
   /** Monto mínimo mensual (0 = sin mínimo). */
   minimumMonthly: 0,
   tiers: [
-    { upTo: 500, rate: 500, label: 'Hasta 500 atletas' },
-    { upTo: 1000, rate: 450, label: 'De 501 a 1.000' },
-    { upTo: 2000, rate: 400, label: 'De 1.001 a 2.000' },
-    { upTo: 3000, rate: 350, label: 'De 2.001 a 3.000' },
-    { upTo: Infinity, rate: 300, label: 'Más de 3.000' },
+    { upTo: 500, rate: 450, label: 'Hasta 500 atletas' },
+    { upTo: 1000, rate: 400, label: 'De 501 a 1.000' },
+    { upTo: 2000, rate: 350, label: 'De 1.001 a 2.000' },
+    { upTo: Infinity, rate: 300, label: 'Más de 2.000' },
   ],
 };
 
