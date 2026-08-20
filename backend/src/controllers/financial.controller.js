@@ -1,5 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 import { generateMonthlyPaymentsForTenant } from '../services/generateMonthlyPayments.service.js';
 import { markOverduePayments, clampRecargoPct } from '../services/overduePayments.service.js';
 import {
@@ -13,6 +14,19 @@ import { isClubMercadoPagoLinked } from '../services/mercadoPagoClub.service.js'
 import { getTransferBankData, setTransferBankData } from '../services/transferBank.service.js';
 import { parsePageLimit, paginationMeta, buildAthleteSearchFilter, buildUserSearchFilter } from '../utils/pagination.js';
 import { sendCuotaReminders } from '../services/cuotaReminders.service.js';
+
+/** Aggregation $match does not cast string ids to ObjectId. */
+function toObjectIds(ids) {
+    return [...ids]
+        .map((id) => {
+            try {
+                return new mongoose.Types.ObjectId(String(id));
+            } catch {
+                return null;
+            }
+        })
+        .filter(Boolean);
+}
 
 // @desc    Crear un nuevo Plan/Cuota
 // @route   POST /api/financial/plans
