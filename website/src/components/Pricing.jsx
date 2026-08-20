@@ -28,20 +28,27 @@ export default function Pricing() {
         <p className="section__eyebrow">Precios</p>
         <h2 className="section__title">Calculá el abono de tu club</h2>
         <p className="section__lead">
-          Tarifa por atleta activo, con descuento por volumen. Ingresá cuántos atletas tenés y
-          ves el total mensual al instante.
+          Elegí el tramo según la cantidad de atletas: todos se cobran a esa tarifa. Ingresá cuántos
+          tenés y ves el total mensual al instante.
         </p>
 
         <div className="pricing__rates" role="list" aria-label="Tarifas por tramo">
-          {PRICING.tiers.map((tier, index) => (
-            <div key={tier.label} className="pricing__rate" role="listitem">
-              <p className="pricing__rate-range">{tierRangeLabel(tier, index, PRICING.tiers)}</p>
-              <p className="pricing__rate-value">
-                {formatArs(tier.rate)}
-                <span> / atleta</span>
-              </p>
-            </div>
-          ))}
+          {PRICING.tiers.map((tier, index) => {
+            const active = quote.tier?.upTo === tier.upTo;
+            return (
+              <div
+                key={tier.label}
+                className={`pricing__rate${active ? ' pricing__rate--active' : ''}`}
+                role="listitem"
+              >
+                <p className="pricing__rate-range">{tierRangeLabel(tier, index, PRICING.tiers)}</p>
+                <p className="pricing__rate-value">
+                  {formatArs(tier.rate)}
+                  <span> / atleta</span>
+                </p>
+              </div>
+            );
+          })}
         </div>
 
         <div className="pricing__calc">
@@ -83,7 +90,7 @@ export default function Pricing() {
               <p className="pricing__total">{formatArs(quote.total)}</p>
               {quote.athletes > 0 ? (
                 <p className="pricing__avg">
-                  Promedio {formatArs(quote.avgPerAthlete)} por atleta
+                  {quote.athletes.toLocaleString('es-AR')} atletas × {formatArs(quote.rate)}
                   {quote.appliedMinimum ? ' · se aplica el mínimo' : ''}
                 </p>
               ) : (
@@ -94,13 +101,10 @@ export default function Pricing() {
             {quote.breakdown.length > 0 ? (
               <ul className="pricing__breakdown">
                 {quote.breakdown.map((row) => (
-                  <li key={`${row.from}-${row.to}`}>
+                  <li key={row.label}>
                     <span>
                       {row.count.toLocaleString('es-AR')} atletas × {formatArs(row.rate)}
-                      <em>
-                        {' '}
-                        ({row.from.toLocaleString('es-AR')}–{row.to.toLocaleString('es-AR')})
-                      </em>
+                      <em> · {row.label}</em>
                     </span>
                     <strong>{formatArs(row.amount)}</strong>
                   </li>

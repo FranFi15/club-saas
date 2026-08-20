@@ -50,7 +50,7 @@ export const ROLES = [
   { label: 'Staff especializado', detail: 'Nutrición, psicología, wellness y seguimiento individual.' },
 ];
 
-/** Precio por atleta activo (ARS). Tramos marginales: cada rango se cobra a su tarifa. */
+/** Precio por atleta activo (ARS). Toda la cantidad se cobra a la tarifa del tramo alcanzado. */
 export const PRICING = {
   currency: 'ARS',
   /** Monto mínimo mensual (0 = sin mínimo). */
@@ -65,50 +65,40 @@ export const PRICING = {
 };
 
 /**
- * Calcula el abono mensual con tarifas marginales.
+ * Calcula el abono mensual: atletas × tarifa del tramo correspondiente.
  * @param {number} athletes
  */
 export function calculateMonthlyPrice(athletes) {
   const n = Math.max(0, Math.floor(Number(athletes) || 0));
   const { tiers, minimumMonthly, currency } = PRICING;
-  const breakdown = [];
-  let remaining = n;
-  let prevCap = 0;
-  let subtotal = 0;
 
-  for (const tier of tiers) {
-    if (remaining <= 0) break;
-    const span = tier.upTo === Infinity ? remaining : Math.max(0, tier.upTo - prevCap);
-    const count = Math.min(remaining, span);
-    if (count > 0) {
-      const amount = count * tier.rate;
-      breakdown.push({
-        from: prevCap + 1,
-        to: prevCap + count,
-        count,
-        rate: tier.rate,
-        amount,
-        label: tier.label,
-      });
-      subtotal += amount;
-      remaining -= count;
-    }
-    prevCap = tier.upTo === Infinity ? prevCap + count : tier.upTo;
-  }
-
+  const tier = n === 0 ? null : tiers.find((t) => n <= t.upTo) || tiers[tiers.length - 1];
+  const rate = tier?.rate ?? 0;
+  const subtotal = n * rate;
   const appliedMinimum = Boolean(minimumMonthly && subtotal > 0 && subtotal < minimumMonthly);
   const total = n === 0 ? 0 : appliedMinimum ? minimumMonthly : subtotal;
-  const avgPerAthlete = n > 0 ? Math.round(total / n) : 0;
 
   return {
     athletes: n,
     currency,
-    breakdown,
+    tier,
+    rate,
+    breakdown:
+      n > 0 && tier
+        ? [
+            {
+              count: n,
+              rate,
+              amount: subtotal,
+              label: tier.label,
+            },
+          ]
+        : [],
     subtotal,
     minimumMonthly,
     appliedMinimum,
     total,
-    avgPerAthlete,
+    avgPerAthlete: rate,
   };
 }
 
