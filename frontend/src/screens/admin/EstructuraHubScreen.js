@@ -133,6 +133,14 @@ export default function EstructuraHubScreen({ navigation }) {
               onPress={() => navigation.navigate('Usuarios')}
             />
             <HubMenuCard
+              title="Invitar familia"
+              subtitle="Generá un enlace para que el tutor se registre"
+              icon="link"
+              theme={theme}
+              colorMarca={colorMarca}
+              onPress={() => navigation.navigate('InvitarFamilia')}
+            />
+            <HubMenuCard
               title="Estructura deportiva"
               subtitle="Disciplinas y categorías"
               icon="trophy"
@@ -191,6 +199,14 @@ export default function EstructuraHubScreen({ navigation }) {
               theme={theme}
               colorMarca={colorMarca}
               onPress={() => navigation.navigate('Usuarios')}
+            />
+            <HubMenuCard
+              title="Invitar familia"
+              subtitle="Enlace para alta de tutor y atletas"
+              icon="link"
+              theme={theme}
+              colorMarca={colorMarca}
+              onPress={() => navigation.navigate('InvitarFamilia')}
             />
             <HubMenuCard
               title="Solicitudes de inscripción"

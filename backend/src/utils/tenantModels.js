@@ -18,6 +18,7 @@ import {getNotificationModel} from '../models/notification.model.js';
 import { getClubSettingsModel } from '../models/clubSettings.model.js';
 import { getSwapRequestModel } from '../models/swapRequest.model.js';
 import { getEnrollmentRequestModel } from '../models/enrollmentRequest.model.js';
+import { getFamilyInviteModel } from '../models/familyInvite.model.js';
 import { getClubEntryModel } from '../models/clubEntry.model.js';
 import { getChatConversationModel } from '../models/chatConversation.model.js';
 import { getChatMessageModel } from '../models/chatMessage.model.js';
@@ -52,6 +53,7 @@ export const getTenantModels = (tenantDB) => {
         ClubSettings: getClubSettingsModel(tenantDB),
         SwapRequest: getSwapRequestModel(tenantDB),
         EnrollmentRequest: getEnrollmentRequestModel(tenantDB),
+        FamilyInvite: getFamilyInviteModel(tenantDB),
         ClubEntry: getClubEntryModel(tenantDB),
         ChatConversation: getChatConversationModel(tenantDB),
         ChatMessage: getChatMessageModel(tenantDB),

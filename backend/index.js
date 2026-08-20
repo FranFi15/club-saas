@@ -34,6 +34,7 @@ import notificationRoutes from './src/routes/notification.routes.js';
 import badgeRoutes from './src/routes/badge.routes.js';
 import swapRequestRoutes from './src/routes/swapRequest.routes.js';
 import enrollmentRequestRoutes from './src/routes/enrollmentRequest.routes.js';
+import familyInviteRoutes from './src/routes/familyInvite.routes.js';
 import clubEntryRoutes from './src/routes/clubEntry.routes.js';
 import chatRoutes from './src/routes/chat.routes.js';
 import inboxRoutes from './src/routes/inbox.routes.js';
@@ -105,7 +106,24 @@ function parseFrontendOrigins() {
         .filter(Boolean);
 }
 
-const allowedOrigins = isProd ? parseFrontendOrigins() : null;
+/** Marketing site used for family signup links — always allowed in production CORS. */
+function marketingOrigins() {
+    const base = String(process.env.MARKETING_SITE_URL || 'https://hermesclub.app')
+        .trim()
+        .replace(/\/$/, '');
+    if (!base) return [];
+    try {
+        const u = new URL(base);
+        const host = u.host.replace(/^www\./, '');
+        return [`${u.protocol}//${host}`, `${u.protocol}//www.${host}`];
+    } catch {
+        return [base];
+    }
+}
+
+const allowedOrigins = isProd
+    ? [...new Set([...parseFrontendOrigins(), ...marketingOrigins()])]
+    : null;
 
 app.use(cors({
     origin: isProd
@@ -208,6 +226,7 @@ app.use('/api/notifications', resolveTenant, notificationRoutes);
 app.use('/api/badges', resolveTenant, badgeRoutes);
 app.use('/api/session-swaps', resolveTenant, swapRequestRoutes);
 app.use('/api/enrollment-requests', resolveTenant, enrollmentRequestRoutes);
+app.use('/api/family-invites', resolveTenant, familyInviteRoutes);
 app.use('/api/club-entry', resolveTenant, clubEntryRoutes);
 app.use('/api/chat', resolveTenant, chatRoutes);
 app.use('/api/inbox', resolveTenant, inboxRoutes);

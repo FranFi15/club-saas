@@ -390,6 +390,13 @@ export default function UsuariosScreen({ navigation }) {
         )}
       </View>
 
+      <TouchableOpacity
+        style={[styles.fabSecondary, { backgroundColor: theme.surface, borderColor: colorMarca }]}
+        onPress={() => navigation.navigate('InvitarFamilia')}
+      >
+        <Ionicons name="link-outline" size={24} color={colorMarca} />
+      </TouchableOpacity>
+
       <TouchableOpacity style={[styles.fab, { backgroundColor: colorMarca }]} onPress={openCreateModal}>
         <Ionicons name="add" size={30} color="#ffffff" />
       </TouchableOpacity>
@@ -444,5 +451,21 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', marginTop: 60 },
   emptyText: { fontSize: 18, fontWeight: 'bold', marginTop: 15 },
   emptySubText: { fontSize: 14, marginTop: 5, textAlign: 'center' },
-  fab: { position: 'absolute', bottom: 20, right: 20, width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 5 }
+  fab: { position: 'absolute', bottom: 20, right: 20, width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 5 },
+  fabSecondary: {
+    position: 'absolute',
+    bottom: 20,
+    right: 92,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
 });
