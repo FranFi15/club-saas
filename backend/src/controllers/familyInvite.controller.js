@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import asyncHandler from 'express-async-handler';
-import { syncFamilyDiscountForAthlete, applyFamilyDiscountToEnrollment } from '../services/familyDiscount.service.js';
+import { syncFamilyDiscountForTutor, applyFamilyDiscountToEnrollment } from '../services/familyDiscount.service.js';
 import { ensureCurrentMonthPaymentForEnrollment } from '../services/generateMonthlyPayments.service.js';
 import { syncCategoryGroupChatSafe } from '../services/categoryGroupChat.service.js';
 import { syncAthleteCountToSuper } from '../services/athleteQuota.service.js';
@@ -358,31 +358,41 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
 
             await applyCategorySexoToAthlete(atleta, category);
 
-            if (createdTutor) {
-                try {
-                    await syncFamilyDiscountForAthlete(req.models, atleta._id);
-                } catch (e) {
-                    console.warn('[family-invite] descuento:', e.message);
-                }
-            }
-
             const planAuto = category.planDefault || category.disciplina?.planDefault || undefined;
-            let enrollment = await Enrollment.create({
+            const enrollment = await Enrollment.create({
                 atleta: atleta._id,
                 categoria: category._id,
                 aptoMedico: false,
                 plan: planAuto,
             });
-            enrollment = await applyFamilyDiscountToEnrollment(req.models, atleta._id, enrollment);
+            await syncCategoryGroupChatSafe(req.models, category._id);
+
+            createdAthletes.push(atleta);
+            enrollments.push(enrollment);
+        }
+
+        // Descuento familiar solo con 2+ atletas; aplicar después de crear a todos.
+        if (createdTutor) {
+            try {
+                await syncFamilyDiscountForTutor(req.models, createdTutor._id);
+                for (let i = 0; i < enrollments.length; i += 1) {
+                    enrollments[i] = await applyFamilyDiscountToEnrollment(
+                        req.models,
+                        createdAthletes[i]._id,
+                        enrollments[i],
+                    );
+                }
+            } catch (e) {
+                console.warn('[family-invite] descuento:', e.message);
+            }
+        }
+
+        for (const enrollment of enrollments) {
             try {
                 await ensureCurrentMonthPaymentForEnrollment(req.models, enrollment);
             } catch (e) {
                 console.warn('[family-invite] cuota:', e.message);
             }
-            await syncCategoryGroupChatSafe(req.models, category._id);
-
-            createdAthletes.push(atleta);
-            enrollments.push(enrollment);
         }
     } catch (e) {
         const toDelete = [...createdAthletes.map((u) => u._id)];

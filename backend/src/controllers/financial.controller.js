@@ -481,6 +481,10 @@ const applySiblingDiscount = asyncHandler(async (req, res) => {
         res.status(400);
         throw new Error('No hay atletas vinculados a esta familia.');
     }
+    if (hijos.length < 2) {
+        res.status(400);
+        throw new Error('El descuento familiar solo aplica a familias con 2 o más atletas.');
+    }
 
     const pct = parseInt(porcentaje, 10);
     if (Number.isNaN(pct) || pct < 0 || pct > 100) {
