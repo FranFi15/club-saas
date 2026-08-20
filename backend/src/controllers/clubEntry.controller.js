@@ -1,6 +1,14 @@
 import asyncHandler from 'express-async-handler';
 import { hijosDelTutorFilter } from '../utils/userQuery.js';
 import { buildClubEntryToken, parseClubEntryToken } from '../services/clubEntryToken.service.js';
+import { markOverduePayments } from '../services/overduePayments.service.js';
+
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+function formatCuotaPeriodo(p) {
+    const mes = MESES[(Number(p.mes) || 1) - 1] || p.mes;
+    return `${mes} ${p.anio}`;
+}
 
 const MEMBER_QR_ROLES = [
     'atleta',
@@ -71,7 +79,7 @@ const getMyClubEntryQr = asyncHandler(async (req, res) => {
 // @route POST /api/club-entry/scan
 const scanClubEntryQr = asyncHandler(async (req, res) => {
     const { token } = req.body || {};
-    const { User, ClubEntry } = req.models;
+    const { User, ClubEntry, Payment } = req.models;
 
     const parsed = parseClubEntryToken(token, req.clubIdentifier);
     const member = await User.findById(parsed.userId).select('-password');
@@ -86,7 +94,37 @@ const scanClubEntryQr = asyncHandler(async (req, res) => {
         throw new Error('El usuario está inactivo y no puede ingresar.');
     }
     if (member.estado === 'moroso') {
-        warnings.push('El usuario figura como moroso.');
+        warnings.push('El usuario figura como moroso. Decidí si puede ingresar.');
+    }
+
+    // Actualizar cuotas vencidas de este socio y avisar (no bloquea el ingreso).
+    let cuotasVencidasCount = 0;
+    let periodosSample = [];
+    try {
+        await markOverduePayments(req.models, { atleta: member._id });
+        cuotasVencidasCount = await Payment.countDocuments({ atleta: member._id, estado: 'vencido' });
+        if (cuotasVencidasCount > 0) {
+            const sample = await Payment.find({ atleta: member._id, estado: 'vencido' })
+                .select('mes anio')
+                .sort({ anio: -1, mes: -1 })
+                .limit(4)
+                .lean();
+            periodosSample = sample.map(formatCuotaPeriodo);
+        }
+    } catch (e) {
+        console.warn('[club-entry] cuotas vencidas:', e.message);
+    }
+
+    if (cuotasVencidasCount > 0) {
+        let periodos = periodosSample.join(', ');
+        if (cuotasVencidasCount > periodosSample.length) {
+            periodos += '…';
+        }
+        warnings.push(
+            cuotasVencidasCount === 1
+                ? `Tiene 1 cuota vencida (${periodos}). Decidí si puede ingresar.`
+                : `Tiene ${cuotasVencidasCount} cuotas vencidas (${periodos}). Decidí si puede ingresar.`,
+        );
     }
 
     const alreadyUsed = await ClubEntry.findOne({ tokenNonce: parsed.nonce }).select('_id').lean();
@@ -129,6 +167,8 @@ const scanClubEntryQr = asyncHandler(async (req, res) => {
             ? Math.max(1, Math.round((Date.now() - new Date(recent.scannedAt).getTime()) / 60000))
             : null,
         warnings,
+        hasCuotasVencidas: cuotasVencidasCount > 0,
+        cuotasVencidasCount,
         scannedAt: entry.scannedAt,
         member: entryUserPayload(member),
         scannedBy: {
