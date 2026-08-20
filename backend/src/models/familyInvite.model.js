@@ -19,8 +19,8 @@ const familyInviteSchema = new mongoose.Schema(
             index: true,
         },
         expiresAt: { type: Date, required: true, index: true },
-        /** Always 1 for MVP — reserved for multi-tutor later. */
-        tutorCount: { type: Number, default: 1, min: 1, max: 2 },
+        /** 0 = solo atletas (mayores / sin tutor); 1 = familia con tutor. */
+        tutorCount: { type: Number, default: 1, min: 0, max: 2 },
         athleteSlots: {
             type: [athleteSlotSchema],
             validate: {

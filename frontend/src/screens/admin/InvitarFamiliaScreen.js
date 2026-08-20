@@ -34,6 +34,7 @@ export default function InvitarFamiliaScreen({ navigation }) {
   const [disciplines, setDisciplines] = useState([]);
   const [categories, setCategories] = useState([]);
   const [slots, setSlots] = useState([emptySlot(), emptySlot()]);
+  const [includeTutor, setIncludeTutor] = useState(true);
   const [loadingMeta, setLoadingMeta] = useState(true);
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState(null);
@@ -129,6 +130,7 @@ export default function InvitarFamiliaScreen({ navigation }) {
       const { data } = await clubApi.post(
         '/family-invites',
         {
+          includeTutor,
           athleteSlots: slots.map((s) => ({ categoria: s.categoria })),
         },
         { headers: h },
@@ -143,9 +145,10 @@ export default function InvitarFamiliaScreen({ navigation }) {
   };
 
   const shareUrl = async (url) => {
+    const who = includeTutor || created?.tutorCount > 0 ? 'familia' : 'alta';
     try {
       await Share.share({
-        message: `Hola! Completá el alta de tu familia en ${clubData?.nombre || 'el club'}:\n${url}`,
+        message: `Hola! Completá el ${who} en ${clubData?.nombre || 'el club'}:\n${url}`,
         url: Platform.OS === 'ios' ? url : undefined,
       });
     } catch {
@@ -166,7 +169,7 @@ export default function InvitarFamiliaScreen({ navigation }) {
         colorMarca={colorMarca}
         kicker="Usuarios"
         title="Invitar familia"
-        subtitle="El tutor completa los datos desde un enlace"
+        subtitle="Enlace para tutor + atletas, o solo atleta"
         onBack={() => navigation.goBack()}
       />
 
@@ -178,7 +181,7 @@ export default function InvitarFamiliaScreen({ navigation }) {
             <View style={[styles.resultCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <Text style={[styles.resultTitle, { color: theme.text }]}>Enlace listo</Text>
               <Text style={[styles.resultHint, { color: theme.textMuted }]}>
-                Enviáselo al tutor. Vence el{' '}
+                Enviáselo al {(created.tutorCount ?? 1) > 0 ? 'tutor' : 'atleta'}. Vence el{' '}
                 {created.expiresAt
                   ? new Date(created.expiresAt).toLocaleString('es-AR', {
                       day: '2-digit',
@@ -212,6 +215,7 @@ export default function InvitarFamiliaScreen({ navigation }) {
               <TouchableOpacity
                 onPress={() => {
                   setCreated(null);
+                  setIncludeTutor(true);
                   setSlots([emptySlot(), emptySlot()]);
                 }}
                 style={{ marginTop: 12 }}
@@ -223,9 +227,51 @@ export default function InvitarFamiliaScreen({ navigation }) {
             </View>
           ) : (
             <>
-              <Text style={[styles.sectionLabel, { color: theme.text }]}>Atletas a registrar</Text>
+              <Text style={[styles.sectionLabel, { color: theme.text }]}>Tipo de alta</Text>
+              <View style={styles.modeRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.modeChip,
+                    {
+                      backgroundColor: includeTutor ? colorMarca : theme.surface,
+                      borderColor: includeTutor ? colorMarca : theme.border,
+                    },
+                  ]}
+                  onPress={() => {
+                    setIncludeTutor(true);
+                    if (slots.length < 2) setSlots([emptySlot(), emptySlot()]);
+                  }}
+                >
+                  <Text style={[styles.modeChipText, { color: includeTutor ? '#fff' : theme.text }]}>
+                    Familia (con tutor)
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.modeChip,
+                    {
+                      backgroundColor: !includeTutor ? colorMarca : theme.surface,
+                      borderColor: !includeTutor ? colorMarca : theme.border,
+                    },
+                  ]}
+                  onPress={() => {
+                    setIncludeTutor(false);
+                    setSlots([emptySlot()]);
+                  }}
+                >
+                  <Text style={[styles.modeChipText, { color: !includeTutor ? '#fff' : theme.text }]}>
+                    Solo atleta
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={[styles.sectionLabel, { color: theme.text }]}>
+                {includeTutor ? 'Atletas a registrar' : 'Atleta a registrar'}
+              </Text>
               <Text style={[styles.sectionHint, { color: theme.textMuted }]}>
-                Elegí disciplina y categoría de cada hijo. El tutor solo completa nombres y datos de contacto.
+                {includeTutor
+                  ? 'Elegí disciplina y categoría de cada hijo. El tutor completa nombres y datos de contacto.'
+                  : 'Para mayores sin tutor: el atleta completa su propio alta e inicia sesión con su email.'}
               </Text>
 
               {slots.map((slot, index) => (
@@ -296,7 +342,8 @@ export default function InvitarFamiliaScreen({ navigation }) {
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.recentTitle, { color: theme.text }]}>
-                      {inv.athleteCount} atleta{inv.athleteCount === 1 ? '' : 's'} · {inv.estado}
+                      {inv.requiereTutor === false ? 'Solo atleta' : 'Familia'} · {inv.athleteCount}{' '}
+                      atleta{inv.athleteCount === 1 ? '' : 's'} · {inv.estado}
                       {inv.expired ? ' (vencida)' : ''}
                     </Text>
                     <Text style={{ color: theme.textMuted, fontSize: 12 }} numberOfLines={2}>
@@ -331,6 +378,16 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 20, paddingBottom: 40, paddingTop: 12 },
   sectionLabel: { fontSize: 17, fontWeight: '700', marginBottom: 6 },
   sectionHint: { fontSize: 14, marginBottom: 14, lineHeight: 20 },
+  modeRow: { flexDirection: 'row', gap: 10, marginBottom: 18 },
+  modeChip: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 5,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+  },
+  modeChipText: { fontSize: 13, fontWeight: '700', textAlign: 'center' },
   slotCard: {
     borderWidth: 1,
     borderRadius: 5,

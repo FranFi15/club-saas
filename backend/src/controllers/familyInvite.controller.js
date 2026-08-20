@@ -55,12 +55,14 @@ function invitePublicUrl(clubIdentifier, token) {
 }
 
 function serializeInvitePreview(invite, clubNombre) {
+    const tutorCount = Number(invite.tutorCount) || 0;
     return {
         estado: invite.estado,
         expiresAt: invite.expiresAt,
         expired: invite.expiresAt < new Date() || invite.estado !== 'pendiente',
         clubNombre: clubNombre || '',
-        tutorCount: invite.tutorCount || 1,
+        tutorCount,
+        requiereTutor: tutorCount > 0,
         athleteSlots: (invite.athleteSlots || []).map((slot, i) => ({
             index: i,
             slotId: String(slot._id),
@@ -119,11 +121,18 @@ async function loadInviteOrThrow(FamilyInvite, token, { forRedeem = false } = {}
 // @route   POST /api/family-invites
 const createFamilyInvite = asyncHandler(async (req, res) => {
     const { FamilyInvite, Category } = req.models;
-    const { athleteSlots, notas, expiresInHours } = req.body;
+    const { athleteSlots, notas, expiresInHours, includeTutor, tutorCount: tutorCountRaw } = req.body;
 
     if (!Array.isArray(athleteSlots) || athleteSlots.length < 1 || athleteSlots.length > 10) {
         res.status(400);
         throw new Error('Indicá entre 1 y 10 atletas con disciplina y categoría.');
+    }
+
+    let tutorCount = 1;
+    if (typeof includeTutor === 'boolean') {
+        tutorCount = includeTutor ? 1 : 0;
+    } else if (tutorCountRaw !== undefined && tutorCountRaw !== null && tutorCountRaw !== '') {
+        tutorCount = Number(tutorCountRaw) > 0 ? 1 : 0;
     }
 
     const normalized = [];
@@ -151,7 +160,7 @@ const createFamilyInvite = asyncHandler(async (req, res) => {
         token,
         creadoPor: req.user._id,
         expiresAt: new Date(Date.now() + hours * 60 * 60 * 1000),
-        tutorCount: 1,
+        tutorCount,
         athleteSlots: normalized,
         notas: typeof notas === 'string' ? notas.trim().slice(0, 300) : '',
     });
@@ -165,6 +174,7 @@ const createFamilyInvite = asyncHandler(async (req, res) => {
         token: invite.token,
         url: invitePublicUrl(req.clubIdentifier, invite.token),
         expiresAt: invite.expiresAt,
+        tutorCount,
         preview: serializeInvitePreview(populated, req.clubIdentifier),
     });
 });
@@ -188,6 +198,8 @@ const listFamilyInvites = asyncHandler(async (req, res) => {
             expiresAt: inv.expiresAt,
             expired: inv.expiresAt < new Date() && inv.estado === 'pendiente',
             athleteCount: inv.athleteSlots?.length || 0,
+            tutorCount: Number(inv.tutorCount) || 0,
+            requiereTutor: (Number(inv.tutorCount) || 0) > 0,
             slots: (inv.athleteSlots || []).map((s) => ({
                 disciplina: s.disciplina?.nombre,
                 categoria: s.categoria?.nombre,
@@ -232,32 +244,36 @@ const getPublicFamilyInvite = asyncHandler(async (req, res) => {
 const redeemFamilyInvite = asyncHandler(async (req, res) => {
     const { FamilyInvite, User, Enrollment, Category } = req.models;
     const invite = await loadInviteOrThrow(FamilyInvite, req.params.token, { forRedeem: true });
+    const requiereTutor = (Number(invite.tutorCount) || 0) > 0;
 
     const { tutor, atletas, acceptTerms } = req.body || {};
     if (!acceptTerms) {
         res.status(400);
         throw new Error('Tenés que aceptar los Términos y la Política de privacidad.');
     }
-    if (!tutor?.email || !tutor?.password || !tutor?.nombre || !tutor?.apellido) {
-        res.status(400);
-        throw new Error('Completá los datos del tutor (nombre, apellido, email y contraseña).');
-    }
     if (!Array.isArray(atletas) || atletas.length !== invite.athleteSlots.length) {
         res.status(400);
         throw new Error(`Debés cargar exactamente ${invite.athleteSlots.length} atleta(s).`);
     }
-    if (String(tutor.password).length < 6) {
-        res.status(400);
-        throw new Error('La contraseña del tutor debe tener al menos 6 caracteres.');
+
+    let tutorEmail = null;
+    if (requiereTutor) {
+        if (!tutor?.email || !tutor?.password || !tutor?.nombre || !tutor?.apellido) {
+            res.status(400);
+            throw new Error('Completá los datos del tutor (nombre, apellido, email y contraseña).');
+        }
+        if (String(tutor.password).length < 6) {
+            res.status(400);
+            throw new Error('La contraseña del tutor debe tener al menos 6 caracteres.');
+        }
+        tutorEmail = String(tutor.email).trim().toLowerCase();
+        if (await User.findOne({ email: tutorEmail })) {
+            res.status(400);
+            throw new Error('Ese email del tutor ya está registrado en el club.');
+        }
     }
 
-    const tutorEmail = String(tutor.email).trim().toLowerCase();
-    if (await User.findOne({ email: tutorEmail })) {
-        res.status(400);
-        throw new Error('Ese email del tutor ya está registrado en el club.');
-    }
-
-    const athleteEmails = new Set([tutorEmail]);
+    const athleteEmails = new Set(tutorEmail ? [tutorEmail] : []);
     for (let i = 0; i < atletas.length; i += 1) {
         const a = atletas[i];
         if (!a?.nombre || !a?.apellido || !a?.email || !a?.password || !a?.fechaNacimiento) {
@@ -297,17 +313,20 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
     }
 
     const termsAt = new Date();
-    const createdTutor = await User.create({
-        nombre: String(tutor.nombre).trim(),
-        apellido: String(tutor.apellido).trim(),
-        email: tutorEmail,
-        password: tutor.password,
-        telefono: tutor.telefono ? String(tutor.telefono).trim() : undefined,
-        dni: tutor.dni ? String(tutor.dni).trim() : undefined,
-        rol: 'tutor',
-        acceptedTermsVersion: CURRENT_TERMS_VERSION,
-        acceptedTermsAt: termsAt,
-    });
+    let createdTutor = null;
+    if (requiereTutor) {
+        createdTutor = await User.create({
+            nombre: String(tutor.nombre).trim(),
+            apellido: String(tutor.apellido).trim(),
+            email: tutorEmail,
+            password: tutor.password,
+            telefono: tutor.telefono ? String(tutor.telefono).trim() : undefined,
+            dni: tutor.dni ? String(tutor.dni).trim() : undefined,
+            rol: 'tutor',
+            acceptedTermsVersion: CURRENT_TERMS_VERSION,
+            acceptedTermsAt: termsAt,
+        });
+    }
 
     const createdAthletes = [];
     const enrollments = [];
@@ -331,7 +350,7 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
                 sexo: a.sexo === 'M' || a.sexo === 'F' ? a.sexo : '',
                 telefono: a.telefono ? String(a.telefono).trim() : undefined,
                 rol: 'atleta',
-                tutorPrincipal: createdTutor._id,
+                tutorPrincipal: createdTutor?._id || undefined,
                 cuotasEnApp: true,
                 acceptedTermsVersion: CURRENT_TERMS_VERSION,
                 acceptedTermsAt: termsAt,
@@ -339,10 +358,12 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
 
             await applyCategorySexoToAthlete(atleta, category);
 
-            try {
-                await syncFamilyDiscountForAthlete(req.models, atleta._id);
-            } catch (e) {
-                console.warn('[family-invite] descuento:', e.message);
+            if (createdTutor) {
+                try {
+                    await syncFamilyDiscountForAthlete(req.models, atleta._id);
+                } catch (e) {
+                    console.warn('[family-invite] descuento:', e.message);
+                }
             }
 
             const planAuto = category.planDefault || category.disciplina?.planDefault || undefined;
@@ -364,16 +385,16 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
             enrollments.push(enrollment);
         }
     } catch (e) {
-        await User.deleteMany({
-            _id: { $in: [createdTutor._id, ...createdAthletes.map((u) => u._id)] },
-        });
+        const toDelete = [...createdAthletes.map((u) => u._id)];
+        if (createdTutor) toDelete.push(createdTutor._id);
+        await User.deleteMany({ _id: { $in: toDelete } });
         await Enrollment.deleteMany({ atleta: { $in: createdAthletes.map((u) => u._id) } });
         throw e;
     }
 
     invite.estado = 'completada';
     invite.completedAt = new Date();
-    invite.tutorCreado = createdTutor._id;
+    invite.tutorCreado = createdTutor?._id;
     invite.atletasCreados = createdAthletes.map((u) => u._id);
     await invite.save();
 
@@ -381,13 +402,18 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
 
     res.status(201).json({
         success: true,
-        message: 'Familia registrada. Ya pueden ingresar a la app con el código del club.',
-        tutor: {
-            _id: createdTutor._id,
-            email: createdTutor.email,
-            nombre: createdTutor.nombre,
-            apellido: createdTutor.apellido,
-        },
+        message: requiereTutor
+            ? 'Familia registrada. Ya pueden ingresar a la app con el código del club.'
+            : 'Registro listo. Ya podés ingresar a la app con el código del club.',
+        requiereTutor,
+        tutor: createdTutor
+            ? {
+                  _id: createdTutor._id,
+                  email: createdTutor.email,
+                  nombre: createdTutor.nombre,
+                  apellido: createdTutor.apellido,
+              }
+            : null,
         atletas: createdAthletes.map((u) => ({
             _id: u._id,
             email: u.email,

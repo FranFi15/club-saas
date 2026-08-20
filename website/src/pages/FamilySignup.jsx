@@ -107,6 +107,8 @@ export default function FamilySignup() {
     setAtletas((prev) => prev.map((a, i) => (i === index ? { ...a, [field]: value } : a)));
   };
 
+  const requiereTutor = invite?.requiereTutor !== false;
+
   const onSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -119,11 +121,15 @@ export default function FamilySignup() {
       const data = await clubFetch(`/family-invites/public/${encodeURIComponent(token)}/redeem`, {
         club,
         method: 'POST',
-        body: { tutor, atletas, acceptTerms: true },
+        body: {
+          ...(requiereTutor ? { tutor } : {}),
+          atletas,
+          acceptTerms: true,
+        },
       });
       setDone(data);
     } catch (err) {
-      setError(err.message || 'No se pudo registrar la familia.');
+      setError(err.message || 'No se pudo completar el registro.');
     } finally {
       setSubmitting(false);
     }
@@ -140,19 +146,22 @@ export default function FamilySignup() {
   }
 
   if (done) {
+    const withTutor = Boolean(done.tutor);
     return (
       <div className="fs-page">
         <div className="fs-card">
           <p className="fs-eyebrow">Listo</p>
-          <h1 className="fs-title">Familia registrada</h1>
+          <h1 className="fs-title">{withTutor ? 'Familia registrada' : 'Registro listo'}</h1>
           <p className="fs-lead">
-            Ya pueden entrar a la app con el código <strong>{club}</strong> y el email/contraseña que
-            cargaron.
+            Ya {withTutor ? 'pueden' : 'podés'} entrar a la app con el código <strong>{club}</strong> y
+            el email/contraseña que cargaron.
           </p>
           <ul className="fs-summary">
-            <li>
-              Tutor: {done.tutor?.nombre} {done.tutor?.apellido} ({done.tutor?.email})
-            </li>
+            {done.tutor ? (
+              <li>
+                Tutor: {done.tutor.nombre} {done.tutor.apellido} ({done.tutor.email})
+              </li>
+            ) : null}
             {(done.atletas || []).map((a) => (
               <li key={a._id}>
                 Atleta: {a.nombre} {a.apellido} ({a.email})
@@ -178,65 +187,75 @@ export default function FamilySignup() {
     );
   }
 
+  const athleteCount = invite?.athleteSlots?.length || 0;
+
   return (
     <div className="fs-page">
       <form className="fs-card" onSubmit={onSubmit}>
-        <p className="fs-eyebrow">Alta de familia</p>
+        <p className="fs-eyebrow">{requiereTutor ? 'Alta de familia' : 'Alta de atleta'}</p>
         <h1 className="fs-title">{clubNombre || club}</h1>
         <p className="fs-lead">
-          Completá tus datos y los de {invite?.athleteSlots?.length || 0} atleta
-          {(invite?.athleteSlots?.length || 0) === 1 ? '' : 's'}. Las categorías ya las eligió el
-          club.
+          {requiereTutor
+            ? `Completá tus datos y los de ${athleteCount} atleta${athleteCount === 1 ? '' : 's'}. Las categorías ya las eligió el club.`
+            : `Completá tus datos para registrarte. La categoría ya la eligió el club.`}
         </p>
 
         {error ? <p className="fs-error">{error}</p> : null}
 
-        <section className="fs-section">
-          <h2 className="fs-section-title">Tutor / responsable</h2>
-          <div className="fs-grid">
-            <label className="fs-field">
-              <span>Nombre</span>
-              <input required value={tutor.nombre} onChange={(e) => updateTutor('nombre', e.target.value)} />
-            </label>
-            <label className="fs-field">
-              <span>Apellido</span>
-              <input required value={tutor.apellido} onChange={(e) => updateTutor('apellido', e.target.value)} />
-            </label>
-            <label className="fs-field">
-              <span>Email</span>
-              <input
-                required
-                type="email"
-                autoComplete="email"
-                value={tutor.email}
-                onChange={(e) => updateTutor('email', e.target.value)}
-              />
-            </label>
-            <label className="fs-field">
-              <span>Contraseña</span>
-              <input
-                required
-                type="password"
-                minLength={6}
-                autoComplete="new-password"
-                value={tutor.password}
-                onChange={(e) => updateTutor('password', e.target.value)}
-              />
-            </label>
-            <label className="fs-field">
-              <span>Teléfono (opcional)</span>
-              <input value={tutor.telefono} onChange={(e) => updateTutor('telefono', e.target.value)} />
-            </label>
-            <label className="fs-field">
-              <span>DNI (opcional)</span>
-              <input value={tutor.dni} onChange={(e) => updateTutor('dni', e.target.value)} />
-            </label>
-          </div>
-        </section>
+        {requiereTutor ? (
+          <section className="fs-section">
+            <h2 className="fs-section-title">Tutor / responsable</h2>
+            <div className="fs-grid">
+              <label className="fs-field">
+                <span>Nombre</span>
+                <input required value={tutor.nombre} onChange={(e) => updateTutor('nombre', e.target.value)} />
+              </label>
+              <label className="fs-field">
+                <span>Apellido</span>
+                <input required value={tutor.apellido} onChange={(e) => updateTutor('apellido', e.target.value)} />
+              </label>
+              <label className="fs-field">
+                <span>Email</span>
+                <input
+                  required
+                  type="email"
+                  autoComplete="email"
+                  value={tutor.email}
+                  onChange={(e) => updateTutor('email', e.target.value)}
+                />
+              </label>
+              <label className="fs-field">
+                <span>Contraseña</span>
+                <input
+                  required
+                  type="password"
+                  minLength={6}
+                  autoComplete="new-password"
+                  value={tutor.password}
+                  onChange={(e) => updateTutor('password', e.target.value)}
+                />
+              </label>
+              <label className="fs-field">
+                <span>Teléfono (opcional)</span>
+                <input value={tutor.telefono} onChange={(e) => updateTutor('telefono', e.target.value)} />
+              </label>
+              <label className="fs-field">
+                <span>DNI (opcional)</span>
+                <input value={tutor.dni} onChange={(e) => updateTutor('dni', e.target.value)} />
+              </label>
+            </div>
+          </section>
+        ) : null}
 
         {(invite?.athleteSlots || []).map((slot, index) => (
           <section className="fs-section" key={slot.slotId || index}>
-            <h2 className="fs-section-title">Atleta {index + 1}</h2>
+            <h2 className="fs-section-title">
+              {requiereTutor
+                ? `Atleta ${index + 1}`
+                : athleteCount > 1
+                  ? `Atleta ${index + 1}`
+                  : 'Tus datos'}
+            </h2>
             <p className="fs-slot-meta">
               {slot.disciplina?.nombre || 'Disciplina'} · {slot.categoria?.nombre || 'Categoría'}
               {slot.categoria?.edadMinima || slot.categoria?.edadMaxima
@@ -327,7 +346,7 @@ export default function FamilySignup() {
         </label>
 
         <button className="fs-btn" type="submit" disabled={submitting || invite?.expired}>
-          {submitting ? 'Registrando…' : 'Registrar familia'}
+          {submitting ? 'Registrando…' : requiereTutor ? 'Registrar familia' : 'Completar registro'}
         </button>
       </form>
     </div>
