@@ -3,8 +3,8 @@ const APP_WEB_HOST = 'app.hermesclubapp.com';
 const IOS_BUNDLE_ID = 'com.hermesclubapp.app';
 const ANDROID_PACKAGE = 'com.hermesclubapp.app';
 const EAS_PROJECT_ID = '1f64eb80-036b-47f1-8f80-83ba3351500e';
-const PRIVACY_POLICY_URL = 'https://hermesclub.app/privacidad';
-const TERMS_OF_SERVICE_URL = 'https://hermesclub.app/terminos';
+const PRIVACY_POLICY_URL = 'https://hermesclubapp.com/privacidad';
+const TERMS_OF_SERVICE_URL = 'https://hermesclubapp.com/terminos';
 const withMonorepoReactNative = require('./plugins/withMonorepoReactNative.cjs');
 
 // Native release builds try to upload Sentry source maps. Without SENTRY_ORG that

@@ -2,7 +2,7 @@
 
 EAS project: [@franfi15/hermes-club-app](https://expo.dev/accounts/franfi15/projects/hermes-club-app)  
 Package: `com.hermesclubapp.app`  
-Privacy policy: https://hermesclub.app/privacidad/
+Privacy policy: https://hermesclubapp.com/privacidad/
 
 ---
 
@@ -12,7 +12,7 @@ Privacy policy: https://hermesclub.app/privacidad/
 |-------------|-------|--------|
 | Developer account | [Apple Developer](https://developer.apple.com) ($99/año) | [Google Play Console](https://play.google.com/console) ($25 única vez) |
 | App listing | App Store Connect | Play Console → Crear app |
-| Privacy policy URL | ✅ `https://hermesclub.app/privacidad/` | ✅ misma URL |
+| Privacy policy URL | ✅ `https://hermesclubapp.com/privacidad/` | ✅ misma URL |
 
 ---
 
@@ -60,7 +60,7 @@ Builds appear at: https://expo.dev/accounts/franfi15/projects/hermes-club-app/bu
 3. En Play Console, dar permiso **Release manager** a la service account
 4. **Completar en Play Console** (obligatorio antes del primer upload):
    - Ficha de la tienda (descripción, capturas, ícono)
-   - Política de privacidad: `https://hermesclub.app/privacidad/`
+   - Política de privacidad: `https://hermesclubapp.com/privacidad/`
    - Clasificación de contenido
    - Público objetivo
    - Formularios de **App content** (permisos de fotos/video si aplica)
@@ -140,7 +140,7 @@ Tip: en esa misma pantalla Play suele mostrar un bloque **Digital Asset Links JS
 2. Name: **Hermes Club App**
 3. Bundle ID: `com.hermesclubapp.app` (register in Apple Developer → Identifiers if needed)
 4. SKU: `hermes-club-app`
-5. Privacy policy URL: `https://hermesclub.app/privacidad/`
+5. Privacy policy URL: `https://hermesclubapp.com/privacidad/`
 
 ### B. Submit with EAS
 

@@ -8,7 +8,7 @@ import { categorySexoError, applyCategorySexoToAthlete } from '../utils/atletaSe
 
 const CURRENT_TERMS_VERSION = '2026-08-15';
 const INVITE_TTL_MS = 72 * 60 * 60 * 1000;
-const MARKETING_SITE = (process.env.MARKETING_SITE_URL || 'https://hermesclub.app').replace(/\/$/, '');
+const MARKETING_SITE = (process.env.MARKETING_SITE_URL || 'https://hermesclubapp.com').replace(/\/$/, '');
 
 function calcAge(fechaNacimiento) {
     if (!fechaNacimiento) return null;

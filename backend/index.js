@@ -108,7 +108,7 @@ function parseFrontendOrigins() {
 
 /** Marketing site used for family signup links — always allowed in production CORS. */
 function marketingOrigins() {
-    const base = String(process.env.MARKETING_SITE_URL || 'https://hermesclub.app')
+    const base = String(process.env.MARKETING_SITE_URL || 'https://hermesclubapp.com')
         .trim()
         .replace(/\/$/, '');
     if (!base) return [];

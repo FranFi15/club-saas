@@ -7,5 +7,5 @@ export const SUPER_API_URL = (
   import.meta.env.VITE_SUPER_API_URL || 'https://club-super.onrender.com/api'
 ).replace(/\/$/, '');
 
-export const TERMS_URL = 'https://hermesclub.app/terminos/';
-export const PRIVACY_URL = 'https://hermesclub.app/privacidad/';
+export const TERMS_URL = 'https://hermesclubapp.com/terminos/';
+export const PRIVACY_URL = 'https://hermesclubapp.com/privacidad/';

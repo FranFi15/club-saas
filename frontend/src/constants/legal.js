@@ -1,8 +1,8 @@
 /** Versión vigente de los Términos — subir este valor fuerza nueva aceptación en la app. */
 export const TERMS_VERSION = '2026-08-15';
 
-export const TERMS_URL = 'https://hermesclub.app/terminos/';
-export const PRIVACY_URL = 'https://hermesclub.app/privacidad/';
+export const TERMS_URL = 'https://hermesclubapp.com/terminos/';
+export const PRIVACY_URL = 'https://hermesclubapp.com/privacidad/';
 
 export const TERMS_SECTIONS = [
   {
