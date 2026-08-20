@@ -325,7 +325,8 @@ const getSiblings = asyncHandler(async (req, res) => {
                 ...paginationMeta(page, limit, 0),
             });
         }
-        athleteMatch.tutorPrincipal = { $in: [...tutorIds] };
+        // Aggregation $match does not cast string ids — must use ObjectId.
+        athleteMatch.tutorPrincipal = { $in: toObjectIds(tutorIds) };
     }
 
     const tutorPagePipeline = [
