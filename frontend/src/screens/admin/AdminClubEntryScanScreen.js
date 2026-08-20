@@ -80,13 +80,16 @@ function ResultCard({ result, onDismiss, theme }) {
     );
   }
 
+  const hasWarnings = (result.warnings || []).length > 0;
+  const tone = result.duplicate || hasWarnings ? 'warn' : 'ok';
+
   return (
     <View
       style={[
         styles.resultCard,
         {
-          backgroundColor: result.duplicate ? '#fef3c7' : '#ecfdf5',
-          borderColor: result.duplicate ? '#f59e0b' : '#10b981',
+          backgroundColor: tone === 'warn' ? '#fef3c7' : '#ecfdf5',
+          borderColor: tone === 'warn' ? '#f59e0b' : '#10b981',
         },
       ]}
     >
@@ -97,7 +100,11 @@ function ResultCard({ result, onDismiss, theme }) {
         <UserAvatar user={result.member} size={56} />
         <View style={{ flex: 1 }}>
           <Text style={styles.resultTitle}>
-            {result.duplicate ? 'Ingreso duplicado' : 'Ingreso registrado'}
+            {result.duplicate
+              ? 'Ingreso duplicado'
+              : hasWarnings
+                ? 'Ingreso con alerta'
+                : 'Ingreso registrado'}
           </Text>
           <Text style={styles.resultName}>
             {result.member?.nombre} {result.member?.apellido}
@@ -210,6 +217,12 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
       setLastResult(data);
       setTab('scan');
       reload({ background: true });
+      if ((data.warnings || []).length > 0) {
+        showAlert(
+          'Atención — decidí el ingreso',
+          data.warnings.join('\n\n'),
+        );
+      }
     } catch (e) {
       showAlert('No se pudo registrar', e.response?.data?.message || 'Código inválido o expirado.');
     } finally {
