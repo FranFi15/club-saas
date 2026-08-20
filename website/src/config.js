@@ -49,3 +49,73 @@ export const ROLES = [
   { label: 'Atletas y tutores', detail: 'Agenda, cuotas, documentos y novedades en el celular.' },
   { label: 'Staff especializado', detail: 'Nutrición, psicología, wellness y seguimiento individual.' },
 ];
+
+/** Precio por atleta activo (ARS). Tramos marginales: cada rango se cobra a su tarifa. */
+export const PRICING = {
+  currency: 'ARS',
+  /** Monto mínimo mensual (0 = sin mínimo). */
+  minimumMonthly: 0,
+  tiers: [
+    { upTo: 500, rate: 550, label: 'Hasta 500 atletas' },
+    { upTo: 1000, rate: 450, label: 'De 501 a 1.000' },
+    { upTo: 2000, rate: 400, label: 'De 1.001 a 2.000' },
+    { upTo: 3000, rate: 350, label: 'De 2.001 a 3.000' },
+    { upTo: Infinity, rate: 300, label: 'Más de 3.000' },
+  ],
+};
+
+/**
+ * Calcula el abono mensual con tarifas marginales.
+ * @param {number} athletes
+ */
+export function calculateMonthlyPrice(athletes) {
+  const n = Math.max(0, Math.floor(Number(athletes) || 0));
+  const { tiers, minimumMonthly, currency } = PRICING;
+  const breakdown = [];
+  let remaining = n;
+  let prevCap = 0;
+  let subtotal = 0;
+
+  for (const tier of tiers) {
+    if (remaining <= 0) break;
+    const span = tier.upTo === Infinity ? remaining : Math.max(0, tier.upTo - prevCap);
+    const count = Math.min(remaining, span);
+    if (count > 0) {
+      const amount = count * tier.rate;
+      breakdown.push({
+        from: prevCap + 1,
+        to: prevCap + count,
+        count,
+        rate: tier.rate,
+        amount,
+        label: tier.label,
+      });
+      subtotal += amount;
+      remaining -= count;
+    }
+    prevCap = tier.upTo === Infinity ? prevCap + count : tier.upTo;
+  }
+
+  const appliedMinimum = Boolean(minimumMonthly && subtotal > 0 && subtotal < minimumMonthly);
+  const total = n === 0 ? 0 : appliedMinimum ? minimumMonthly : subtotal;
+  const avgPerAthlete = n > 0 ? Math.round(total / n) : 0;
+
+  return {
+    athletes: n,
+    currency,
+    breakdown,
+    subtotal,
+    minimumMonthly,
+    appliedMinimum,
+    total,
+    avgPerAthlete,
+  };
+}
+
+export function formatArs(amount) {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0,
+  }).format(amount || 0);
+}

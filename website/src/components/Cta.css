@@ -7,7 +7,7 @@
   position: relative;
   overflow: hidden;
   border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, #0f2744 0%, var(--brand-navy) 55%, #2a5a8a 100%);
+  background: linear-gradient(135deg, #0d2f5c 0%, var(--brand-navy) 55%, #2d6fb5 100%);
   color: #fff;
   padding: clamp(2rem, 5vw, 3.5rem);
   text-align: center;

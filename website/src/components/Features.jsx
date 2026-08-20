@@ -3,7 +3,7 @@ import { FEATURES, APP_NAME } from '../config';
 import FeatureIcon from './FeatureIcon';
 import './Features.css';
 
-const ACCENT_COLORS = ['#1a3a5c', '#2a5a8a', '#3d6f9e', '#254b73', '#0f2744', '#1e4a6f'];
+const ACCENT_COLORS = ['#18549a', '#2d6fb5', '#3d7ec4', '#134178', '#0d2f5c', '#2160ad'];
 
 export default function Features() {
   const [activeIndex, setActiveIndex] = useState(0);

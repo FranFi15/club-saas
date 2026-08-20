@@ -2,6 +2,7 @@ import Header from './components/Header';
 import Hero from './components/Hero';
 import Features from './components/Features';
 import Roles from './components/Roles';
+import Pricing from './components/Pricing';
 import Cta from './components/Cta';
 import Footer from './components/Footer';
 import FamilySignup from './pages/FamilySignup';
@@ -23,6 +24,7 @@ export default function App() {
         <Hero />
         <Features />
         <Roles />
+        <Pricing />
         <Cta />
       </main>
       <Footer />
