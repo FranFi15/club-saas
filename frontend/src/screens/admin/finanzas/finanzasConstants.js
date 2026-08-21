@@ -6,6 +6,8 @@ export const TABS = [
   { key: 'atletas', label: 'Atletas', icon: 'people-outline' },
   { key: 'familias', label: 'Familias', icon: 'home-outline' },
   { key: 'revision', label: 'Revisión', icon: 'document-attach-outline' },
+  { key: 'nomina', label: 'Nómina', icon: 'wallet-outline' },
+  { key: 'gastos', label: 'Gastos', icon: 'receipt-outline' },
   { key: 'planes', label: 'Planes', icon: 'document-text-outline' },
 ];
 

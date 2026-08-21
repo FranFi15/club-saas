@@ -26,6 +26,8 @@ import AtletasPagosTab from './finanzas/AtletasPagosTab';
 import FamiliasTab from './finanzas/FamiliasTab';
 import PlanesTab from './finanzas/PlanesTab';
 import ComprobantesReviewTab from './finanzas/ComprobantesReviewTab';
+import NominaTab from './finanzas/NominaTab';
+import GastosTab from './finanzas/GastosTab';
 import PaymentHistoryModal from './finanzas/PaymentHistoryModal';
 import SelectPaymentsModal from '../../components/SelectPaymentsModal';
 import PaymentPaySummary from '../../components/PaymentPaySummary';
@@ -1111,11 +1113,20 @@ export default function FinanzasScreen({ route }) {
         </View>
       </View>
 
-      <View style={[s.tabs, { borderBottomColor: theme.border }]}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ borderBottomWidth: 1, borderBottomColor: theme.border, flexGrow: 0 }}
+        contentContainerStyle={{ paddingHorizontal: 8 }}
+      >
         {visibleTabs.map((t) => (
           <TouchableOpacity
             key={t.key}
-            style={[s.tab, tab === t.key && { borderBottomColor: cc, borderBottomWidth: 2 }]}
+            style={[
+              s.tab,
+              { flex: 0, paddingHorizontal: 14, minWidth: 88 },
+              tab === t.key && { borderBottomColor: cc, borderBottomWidth: 2 },
+            ]}
             onPress={() => setTab(t.key)}
           >
             <Ionicons name={t.icon} size={18} color={tab === t.key ? cc : theme.textMuted} />
@@ -1130,7 +1141,7 @@ export default function FinanzasScreen({ route }) {
             <BadgeDot count={finanzasTabBadge(t.key)} style={{ marginLeft: 4 }} />
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       {tab === 'atletas' && (
         <AtletasPagosTab
@@ -1197,6 +1208,26 @@ export default function FinanzasScreen({ route }) {
 
       {tab === 'revision' && (
         <ComprobantesReviewTab
+          clubData={clubData}
+          theme={theme}
+          primaryColor={cc}
+          getHeaders={getHeaders}
+          showAlert={showAlert}
+        />
+      )}
+
+      {tab === 'nomina' && (
+        <NominaTab
+          clubData={clubData}
+          theme={theme}
+          primaryColor={cc}
+          getHeaders={getHeaders}
+          showAlert={showAlert}
+        />
+      )}
+
+      {tab === 'gastos' && (
+        <GastosTab
           clubData={clubData}
           theme={theme}
           primaryColor={cc}

@@ -23,6 +23,8 @@ import { getClubEntryModel } from '../models/clubEntry.model.js';
 import { getChatConversationModel } from '../models/chatConversation.model.js';
 import { getChatMessageModel } from '../models/chatMessage.model.js';
 import { getMpProcessedPaymentModel } from '../models/mpProcessedPayment.model.js';
+import { getPayrollEntryModel } from '../models/payroll.model.js';
+import { getBillModel } from '../models/bill.model.js';
 
 export const getTenantModels = (tenantDB) => {
     // Al llamar a todas estas funciones acá, Mongoose registra TODOS los esquemas 
@@ -58,5 +60,7 @@ export const getTenantModels = (tenantDB) => {
         ChatConversation: getChatConversationModel(tenantDB),
         ChatMessage: getChatMessageModel(tenantDB),
         MpProcessedPayment: getMpProcessedPaymentModel(tenantDB),
+        PayrollEntry: getPayrollEntryModel(tenantDB),
+        Bill: getBillModel(tenantDB),
     };
 };
