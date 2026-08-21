@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { amountsMatch } from '../utils/mpWebhookSignature.js';
 import { applyMercadoPagoToRental } from '../utils/rentalPayments.js';
+import { queuePaymentReceipt } from './paymentReceipt.service.js';
 
 export function parseExternalRef(externalRef) {
     if (!externalRef || typeof externalRef !== 'string') return { tipo: null, dbId: null, extra: null };
@@ -101,6 +102,7 @@ export async function applyApprovedMercadoPagoPayment(models, paymentData) {
                 appliedIds: ids,
                 status: 'applied',
             });
+            queuePaymentReceipt(models, updated._id);
             return { applied: true, tipo: 'cuota', ids };
         }
 
@@ -183,6 +185,9 @@ export async function applyApprovedMercadoPagoPayment(models, paymentData) {
             appliedIds: ids,
             status: 'applied',
         });
+        for (const id of ids) {
+            queuePaymentReceipt(models, id);
+        }
         return { applied: true, tipo: 'cuotas_bulk', ids };
     }
 

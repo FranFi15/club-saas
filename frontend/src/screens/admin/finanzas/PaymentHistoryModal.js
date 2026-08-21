@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   Platform,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
@@ -36,6 +37,7 @@ export default function PaymentHistoryModal({
   const [stats, setStats] = useState({});
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
 
   const fetchPage = useCallback(
     async (pageNum, { append = false } = {}) => {
@@ -76,13 +78,39 @@ export default function PaymentHistoryModal({
     fetchPage(page + 1, { append: true });
   };
 
+  const downloadRecibo = async (payment) => {
+    if (!payment?._id || downloadingId) return;
+    setDownloadingId(payment._id);
+    try {
+      const h = await getHeaders();
+      let url = payment.reciboUrl;
+      if (!url) {
+        const { data } = await clubApi.get(`/financial/payments/${payment._id}/recibo`, { headers: h });
+        url = data.url || data.reciboUrl;
+        if (url) {
+          setPayments((prev) =>
+            prev.map((p) => (String(p._id) === String(payment._id) ? { ...p, reciboUrl: url } : p)),
+          );
+        }
+      }
+      if (!url) throw new Error('Sin URL de comprobante');
+      await Linking.openURL(url);
+    } catch (e) {
+      console.warn('recibo', e?.response?.data || e.message);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   const nombre = atleta ? `${atleta.nombre || ''} ${atleta.apellido || ''}`.trim() : '';
 
   const renderPayment = ({ item: p }) => {
     const ec = EST_COLOR[p.estado] || '#999';
     const showPay = canPayPayment(p) && onPay;
+    const showRecibo = p.estado === 'pagado';
     const metodoLabel = metodoPagoLabel(p.metodoPago);
     const showMetodo = metodoLabel && (p.estado === 'pagado' || p.estado === 'en_revision');
+    const busyRecibo = downloadingId === p._id;
 
     return (
       <View style={[styles.row, { backgroundColor: theme.background, borderColor: theme.border }]}>
@@ -118,26 +146,47 @@ export default function PaymentHistoryModal({
             </View>
           </View>
         </View>
-        {showPay ? (
-          <TouchableOpacity
-            style={styles.payBtn}
-            onPress={() => {
-              if (Platform.OS === 'ios') {
-                onClose();
-                setTimeout(() => onPay(p), 380);
-              } else {
-                onPay(p);
-              }
-            }}
-            activeOpacity={0.75}
-            hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
-            accessibilityRole="button"
-            accessibilityLabel="Pagar cuota"
-          >
-            <Ionicons name="cash-outline" size={16} color="#fff" />
-            <Text style={styles.payBtnTxt}>Pagar</Text>
-          </TouchableOpacity>
-        ) : null}
+        {(showPay || showRecibo) && (
+          <View style={styles.actionsRow}>
+            {showRecibo ? (
+              <TouchableOpacity
+                style={[styles.reciboBtn, { borderColor: primaryColor }]}
+                onPress={() => downloadRecibo(p)}
+                disabled={busyRecibo}
+                accessibilityRole="button"
+                accessibilityLabel="Descargar comprobante"
+              >
+                {busyRecibo ? (
+                  <ActivityIndicator color={primaryColor} size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="download-outline" size={16} color={primaryColor} />
+                    <Text style={[styles.reciboBtnTxt, { color: primaryColor }]}>Comprobante</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            ) : null}
+            {showPay ? (
+              <TouchableOpacity
+                style={styles.payBtn}
+                onPress={() => {
+                  if (Platform.OS === 'ios') {
+                    onClose();
+                    setTimeout(() => onPay(p), 380);
+                  } else {
+                    onPay(p);
+                  }
+                }}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Pagar cuota"
+              >
+                <Ionicons name="cash-outline" size={16} color="#fff" />
+                <Text style={styles.payBtnTxt}>Pagar</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        )}
       </View>
     );
   };
@@ -222,12 +271,25 @@ const styles = StyleSheet.create({
   rowMain: { flexDirection: 'row', alignItems: 'center' },
   metodoRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5, marginTop: 4 },
-  payBtn: {
+  actionsRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  reciboBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    marginTop: 10,
+    paddingVertical: 10,
+    borderRadius: 5,
+    borderWidth: 1,
+    backgroundColor: 'transparent',
+  },
+  reciboBtnTxt: { fontWeight: '700', fontSize: 13 },
+  payBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     paddingVertical: 10,
     borderRadius: 5,
     backgroundColor: '#10b981',

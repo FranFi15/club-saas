@@ -14,6 +14,7 @@ import { isClubMercadoPagoLinked } from '../services/mercadoPagoClub.service.js'
 import { getTransferBankData, setTransferBankData } from '../services/transferBank.service.js';
 import { parsePageLimit, paginationMeta, buildAthleteSearchFilter, buildUserSearchFilter } from '../utils/pagination.js';
 import { sendCuotaReminders } from '../services/cuotaReminders.service.js';
+import { ensurePaymentReceipt, queuePaymentReceipt } from '../services/paymentReceipt.service.js';
 
 /** Aggregation $match does not cast string ids to ObjectId. */
 function toObjectIds(ids) {
@@ -785,6 +786,7 @@ const approveTransferReviewBatch = asyncHandler(async (req, res) => {
         payment.motivoRechazo = '';
         await payment.save();
         await notifyPaymentRegistered(req, payment);
+        queuePaymentReceipt(req.models, payment._id, req.clubIdentifier);
         updated.push(payment);
     }
 
@@ -937,7 +939,8 @@ const registerManualPayment = asyncHandler(async (req, res) => {
     await updatedPayment.populate('plan', 'nombre');
 
     await notifyPaymentRegistered(req, updatedPayment);
-    
+    queuePaymentReceipt(req.models, updatedPayment._id, req.clubIdentifier);
+
     res.json(updatedPayment);
 });
 
@@ -977,6 +980,7 @@ const registerBulkManualPayment = asyncHandler(async (req, res) => {
         if (notasAdmin) payment.notasAdmin = notasAdmin;
         await payment.save();
         total += payment.montoFinal || 0;
+        queuePaymentReceipt(req.models, payment._id, req.clubIdentifier);
 
         try {
             const atleta = await User.findById(payment.atleta);
@@ -1063,36 +1067,36 @@ async function assertMemberCanViewAtletaPayments(req, atletaId) {
     const { User } = req.models;
     const target = String(atletaId);
     const rol = req.user.rol;
+    const deny = (code, msg) => {
+        const err = new Error(msg);
+        err.statusCode = code;
+        throw err;
+    };
 
     if (rol === 'atleta') {
         if (target !== String(req.user._id)) {
-            res.status(403);
-            throw new Error('Solo podés ver tus propios pagos.');
+            deny(403, 'Solo podés ver tus propios pagos.');
         }
         const me = await User.findById(req.user._id).select('cuotasEnApp rol').lean();
         if (me && me.cuotasEnApp === false) {
-            res.status(403);
-            throw new Error('Las cuotas en la app no están habilitadas para tu cuenta. Consultá en administración.');
+            deny(403, 'Las cuotas en la app no están habilitadas para tu cuenta. Consultá en administración.');
         }
         return;
     }
     if (rol === 'tutor') {
         const hijo = await User.findById(target).select('tutorPrincipal rol').lean();
         if (!hijo || hijo.rol !== 'atleta') {
-            res.status(400);
-            throw new Error('Atleta no válido.');
+            deny(400, 'Atleta no válido.');
         }
         if (!hijo.tutorPrincipal || String(hijo.tutorPrincipal) !== String(req.user._id)) {
-            res.status(403);
-            throw new Error('No tenés permiso para ver los pagos de este atleta.');
+            deny(403, 'No tenés permiso para ver los pagos de este atleta.');
         }
         return;
     }
     if (['admin_club', 'administrativo'].includes(rol)) {
         return;
     }
-    res.status(403);
-    throw new Error('No autorizado.');
+    deny(403, 'No autorizado.');
 }
 
 // @desc    Obtener estado de cuenta de un Atleta (Historial de pagos)
@@ -1197,15 +1201,51 @@ const getMorosidad = asyncHandler(async (req, res) => {
     });
 });
 
-// @desc    Enviar recordatorios de cuotas próximas a vencer / vencidas
+// @desc    Enviar recordatorios / avisar morosos
 // @route   POST /api/financial/notifications/send-reminders
 const sendReminders = asyncHandler(async (req, res) => {
-    const { enviados, daysBefore } = await sendCuotaReminders(req.models);
+    const force = Boolean(req.body?.force);
+    const onlyVencidas = Boolean(req.body?.onlyVencidas ?? req.body?.morosos);
+    const mes = req.body?.mes != null ? Number(req.body.mes) : undefined;
+    const anio = req.body?.anio != null ? Number(req.body.anio) : undefined;
+
+    const { enviados, daysBefore } = await sendCuotaReminders(req.models, {
+        force,
+        onlyVencidas,
+        mes,
+        anio,
+    });
+
+    const label = onlyVencidas ? 'aviso(s) a morosos' : 'recordatorio(s)';
     res.json({
-        message: `Se enviaron ${enviados} recordatorio(s).`,
+        message: enviados
+            ? `Se enviaron ${enviados} ${label}.`
+            : onlyVencidas
+              ? 'No hay cuotas vencidas para avisar (o ya estaban avisadas).'
+              : 'No hay recordatorios nuevos para enviar.',
         enviados,
         daysBefore,
+        force,
+        onlyVencidas,
     });
+});
+
+// @desc    Obtener / generar PDF de comprobante de una cuota pagada
+// @route   GET /api/financial/payments/:id/recibo
+const getPaymentReceipt = asyncHandler(async (req, res) => {
+    const { Payment } = req.models;
+    const payment = await Payment.findById(req.params.id).select('atleta estado reciboUrl').lean();
+    if (!payment) {
+        res.status(404);
+        throw new Error('Cuota no encontrada.');
+    }
+    await assertMemberCanViewAtletaPayments(req, payment.atleta);
+
+    const { url, created } = await ensurePaymentReceipt(req.models, req.params.id, {
+        clubNombre: req.clubIdentifier || 'Club',
+    });
+
+    res.json({ url, created, reciboUrl: url });
 });
 
 // @desc    Editar un plan (Ideal para actualizar precios)
@@ -1247,6 +1287,7 @@ export {
     rejectTransferReviewBatch,
     getTutorFamilyPayments,
     getAtletaPayments,
+    getPaymentReceipt,
     updatePlan,
     deletePlan,
     reactivatePlan,

@@ -12,6 +12,7 @@ import {
   SectionList,
   AppState,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { runAfterIosModalDismiss } from '../../utils/iosModalChain';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -74,6 +75,7 @@ export default function MemberPaymentsScreen({ navigation }) {
   const [cuotasFilterId, setCuotasFilterId] = useState('all');
   const [payingId, setPayingId] = useState(null);
   const [payingSelected, setPayingSelected] = useState(false);
+  const [downloadingReciboId, setDownloadingReciboId] = useState(null);
   const [selectModalOpen, setSelectModalOpen] = useState(false);
   const [payFlowOpen, setPayFlowOpen] = useState(false);
   const [pendingPayPayments, setPendingPayPayments] = useState([]);
@@ -303,11 +305,40 @@ export default function MemberPaymentsScreen({ navigation }) {
     });
   };
 
+  const downloadRecibo = async (payment) => {
+    if (!payment?._id || downloadingReciboId) return;
+    setDownloadingReciboId(payment._id);
+    try {
+      const h = await clubHeaders(clubData);
+      let url = payment.reciboUrl;
+      if (!url) {
+        const { data } = await clubApi.get(`/financial/payments/${payment._id}/recibo`, { headers: h });
+        url = data.url || data.reciboUrl;
+        if (url) {
+          const patch = (rows) =>
+            (rows || []).map((p) =>
+              String(p._id) === String(payment._id) ? { ...p, reciboUrl: url } : p,
+            );
+          setList((prev) => patch(prev));
+          setFamilyData((prev) => (prev ? { ...prev, payments: patch(prev.payments) } : prev));
+        }
+      }
+      if (!url) throw new Error('Sin comprobante');
+      await Linking.openURL(url);
+    } catch (e) {
+      showAlert('Error', e.response?.data?.message || 'No se pudo abrir el comprobante.');
+    } finally {
+      setDownloadingReciboId(null);
+    }
+  };
+
   const renderPaymentRow = (item, atletaNombre) => {
     const ec = EC[item.estado] || '#999';
     const canPay =
       (isTutor || (cuotasEnApp && puedePagar)) && ['pendiente', 'vencido'].includes(item.estado);
+    const canDownloadRecibo = item.estado === 'pagado';
     const busy = payingId === item._id;
+    const busyRecibo = downloadingReciboId === item._id;
     const inReview = item.estado === 'en_revision';
 
     return (
@@ -341,22 +372,40 @@ export default function MemberPaymentsScreen({ navigation }) {
           <View style={[styles.badge, { backgroundColor: ec + '22' }]}>
             <Text style={[styles.badgeTxt, { color: ec }]}>{ESTADO_LABEL[item.estado] || item.estado}</Text>
           </View>
-          {canPay ? (
-            <TouchableOpacity
-              style={[styles.payBtn, { backgroundColor: colorMarca, opacity: busy ? 0.7 : 1 }]}
-              onPress={() => openPayFlow([item])}
-              disabled={busy || payingSelected}
-            >
-              {busy ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <>
-                  <Ionicons name="wallet-outline" size={16} color="#fff" />
-                  <Text style={styles.payBtnTxt}>Pagar</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          ) : null}
+          <View style={styles.footerActions}>
+            {canDownloadRecibo ? (
+              <TouchableOpacity
+                style={[styles.reciboBtn, { borderColor: colorMarca }]}
+                onPress={() => downloadRecibo(item)}
+                disabled={busyRecibo}
+              >
+                {busyRecibo ? (
+                  <ActivityIndicator color={colorMarca} size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="download-outline" size={16} color={colorMarca} />
+                    <Text style={[styles.reciboBtnTxt, { color: colorMarca }]}>Comprobante</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            ) : null}
+            {canPay ? (
+              <TouchableOpacity
+                style={[styles.payBtn, { backgroundColor: colorMarca, opacity: busy ? 0.7 : 1 }]}
+                onPress={() => openPayFlow([item])}
+                disabled={busy || payingSelected}
+              >
+                {busy ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="wallet-outline" size={16} color="#fff" />
+                    <Text style={styles.payBtnTxt}>Pagar</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
       </View>
     );
@@ -703,9 +752,20 @@ const styles = StyleSheet.create({
   sub: { fontSize: 13, marginTop: 6 },
   rejectNote: { fontSize: 12, lineHeight: 17, marginTop: 8 },
   reviewNote: { fontSize: 12, lineHeight: 17, marginTop: 8 },
-  cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, gap: 8 },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 5 },
   badgeTxt: { fontSize: 12, fontWeight: '700' },
+  footerActions: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
+  reciboBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 5,
+    borderWidth: 1,
+  },
+  reciboBtnTxt: { fontWeight: '700', fontSize: 13 },
   payBtn: {
     flexDirection: 'row',
     alignItems: 'center',

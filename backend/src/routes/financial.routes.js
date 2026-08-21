@@ -12,6 +12,7 @@ import {
     registerBulkManualPayment,
     getTutorFamilyPayments,
     getAtletaPayments,
+    getPaymentReceipt,
     getSiblings,
     applySiblingDiscount,
     getGlobalFamilyDiscount,
@@ -58,6 +59,7 @@ router.patch('/payments/:id/pay', protect, authorize('admin_club', 'administrati
 router.patch('/payments/:id/adjust', protect, authorize('admin_club', 'administrativo'), adjustPayment);
 router.get('/payments/tutor-family', protect, authorize('tutor'), getTutorFamilyPayments);
 router.get('/payments/atleta/:atletaId', protect, getAtletaPayments);
+router.get('/payments/:id/recibo', protect, getPaymentReceipt);
 
 // Hermanos y descuentos
 router.get('/family-discount/global', protect, authorize('admin_club', 'administrativo'), getGlobalFamilyDiscount);

@@ -36,7 +36,9 @@ const paymentSchema = new mongoose.Schema({
         default: 'pendiente' 
     },
     fechaPago: { type: Date },
-    comprobante: { type: String }, 
+    comprobante: { type: String },
+    /** URL del PDF de recibo oficial (cuota pagada). */
+    reciboUrl: { type: String, trim: true, default: '' },
     notasAdmin: { type: String },
     fechaEnvioComprobante: { type: Date },
     motivoRechazo: { type: String },

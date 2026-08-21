@@ -849,6 +849,35 @@ export default function FinanzasScreen({ route }) {
     });
   };
 
+  const runAvisarMorosos = () => {
+    setAlertConfig({
+      visible: true,
+      title: 'Avisar morosos',
+      message:
+        'Se enviará un aviso (app + push) a tutores/atletas con cuotas vencidas. Se reenvía aunque ya hayan recibido uno antes.',
+      showCancel: true,
+      confirmText: 'Avisar',
+      onConfirm: async () => {
+        setAlertConfig((p) => ({ ...p, visible: false }));
+        setPeriodBusy(true);
+        try {
+          const h = await getHeaders();
+          const { data } = await clubApi.post(
+            '/financial/notifications/send-reminders',
+            { force: true, onlyVencidas: true, morosos: true },
+            { headers: h },
+          );
+          showAlert('Listo', data?.message || 'Avisos enviados.');
+        } catch (e) {
+          showAlert('Error', e.response?.data?.message || 'No se pudieron enviar los avisos.');
+        } finally {
+          setPeriodBusy(false);
+        }
+      },
+      onCancel: () => setAlertConfig((p) => ({ ...p, visible: false })),
+    });
+  };
+
   const runReconcileMp = () => {
     setAlertConfig({
       visible: true,
@@ -1042,12 +1071,35 @@ export default function FinanzasScreen({ route }) {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[financeHeader.periodActionBtn, periodBusy && { opacity: 0.6 }]}
+                onPress={runAvisarMorosos}
+                disabled={periodBusy}
+              >
+                <Ionicons name="notifications-outline" size={14} color="#fff" />
+                <Text style={financeHeader.periodActionTxt} numberOfLines={1}>
+                  Avisar morosos
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[financeHeader.periodActionBtn, periodBusy && { opacity: 0.6 }]}
                 onPress={runReconcileMp}
                 disabled={periodBusy}
               >
                 <Ionicons name="sync-outline" size={14} color="#fff" />
                 <Text style={financeHeader.periodActionTxt} numberOfLines={1}>
                   Sync MP
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : showVencidosHeader && canRunPeriodActions ? (
+            <View style={financeHeader.periodActions}>
+              <TouchableOpacity
+                style={[financeHeader.periodActionBtn, periodBusy && { opacity: 0.6 }]}
+                onPress={runAvisarMorosos}
+                disabled={periodBusy}
+              >
+                <Ionicons name="notifications-outline" size={14} color="#fff" />
+                <Text style={financeHeader.periodActionTxt} numberOfLines={1}>
+                  Avisar morosos
                 </Text>
               </TouchableOpacity>
             </View>

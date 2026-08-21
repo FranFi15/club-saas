@@ -49,12 +49,18 @@ async function alreadyNotified(Notification, { tipo, referencia }) {
 }
 
 /**
- * Envía recordatorios in-app + push:
- * - cuota_proxima: pendiente que vence entre hoy y hoy+daysBefore (1 vez por cuota)
- * - cuota_vencida: estado vencido (1 vez por cuota)
+ * Envía recordatorios in-app + push.
+ * @param {object} [options]
+ * @param {boolean} [options.force] reenviar aunque ya se notificó
+ * @param {boolean} [options.onlyVencidas] solo cuotas vencidas (avisar morosos)
+ * @param {number} [options.mes]
+ * @param {number} [options.anio]
+ * @param {string} [options.atletaId]
  */
 export async function sendCuotaReminders(models, options = {}) {
     const { Payment, Notification } = models;
+    const force = Boolean(options.force);
+    const onlyVencidas = Boolean(options.onlyVencidas);
     const daysBefore =
         options.daysBefore != null
             ? clampReminderDaysBefore(options.daysBefore)
@@ -63,15 +69,30 @@ export async function sendCuotaReminders(models, options = {}) {
     const hoyInicio = startOfLocalDay();
     const ventanaFin = endOfLocalDay(addDays(hoyInicio, daysBefore));
 
-    const proximas = await Payment.find({
-        estado: 'pendiente',
-        fechaVencimiento: { $gte: hoyInicio, $lte: ventanaFin },
-    })
-        .populate('plan', 'nombre')
-        .populate('atleta', 'nombre apellido tutorPrincipal rol cuotasEnApp')
-        .lean();
+    const periodFilter = {};
+    const mes = options.mes != null ? Number(options.mes) : null;
+    const anio = options.anio != null ? Number(options.anio) : null;
+    if (mes >= 1 && mes <= 12 && anio > 2000) {
+        periodFilter.mes = mes;
+        periodFilter.anio = anio;
+    }
+    if (options.atletaId) {
+        periodFilter.atleta = options.atletaId;
+    }
 
-    const vencidas = await Payment.find({ estado: 'vencido' })
+    let proximas = [];
+    if (!onlyVencidas) {
+        proximas = await Payment.find({
+            estado: 'pendiente',
+            fechaVencimiento: { $gte: hoyInicio, $lte: ventanaFin },
+            ...periodFilter,
+        })
+            .populate('plan', 'nombre')
+            .populate('atleta', 'nombre apellido tutorPrincipal rol cuotasEnApp')
+            .lean();
+    }
+
+    const vencidas = await Payment.find({ estado: 'vencido', ...periodFilter })
         .populate('plan', 'nombre')
         .populate('atleta', 'nombre apellido tutorPrincipal rol cuotasEnApp')
         .lean();
@@ -80,7 +101,7 @@ export async function sendCuotaReminders(models, options = {}) {
 
     for (const cuota of proximas) {
         if (!cuota.atleta) continue;
-        if (await alreadyNotified(Notification, { tipo: 'cuota_proxima', referencia: cuota._id })) {
+        if (!force && (await alreadyNotified(Notification, { tipo: 'cuota_proxima', referencia: cuota._id }))) {
             continue;
         }
         const destinatario = resolveDestinatario(cuota.atleta);
@@ -99,7 +120,7 @@ export async function sendCuotaReminders(models, options = {}) {
 
     for (const cuota of vencidas) {
         if (!cuota.atleta) continue;
-        if (await alreadyNotified(Notification, { tipo: 'cuota_vencida', referencia: cuota._id })) {
+        if (!force && (await alreadyNotified(Notification, { tipo: 'cuota_vencida', referencia: cuota._id }))) {
             continue;
         }
         const destinatario = resolveDestinatario(cuota.atleta);
@@ -116,5 +137,5 @@ export async function sendCuotaReminders(models, options = {}) {
         enviados += 1;
     }
 
-    return { enviados, daysBefore };
+    return { enviados, daysBefore, force, onlyVencidas };
 }
