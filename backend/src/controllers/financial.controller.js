@@ -1242,12 +1242,11 @@ const getPaymentReceipt = asyncHandler(async (req, res) => {
     await assertMemberCanViewAtletaPayments(req, payment.atleta);
 
     const { base64, filename, mimeType } = await buildPaymentReceiptPdf(req.models, req.params.id, {
+        clubIdentifier: req.clubIdentifier,
         clubNombre: req.clubIdentifier || 'Club',
     });
 
-    if (!payment.reciboUrl) {
-        queuePaymentReceipt(req.models, req.params.id, req.clubIdentifier);
-    }
+    queuePaymentReceipt(req.models, req.params.id, req.clubIdentifier);
 
     res.json({
         filename,
