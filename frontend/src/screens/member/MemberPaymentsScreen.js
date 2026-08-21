@@ -12,7 +12,6 @@ import {
   SectionList,
   AppState,
   ScrollView,
-  Linking,
 } from 'react-native';
 import { runAfterIosModalDismiss } from '../../utils/iosModalChain';
 import { SafeAreaView } from 'react-native-safe-area-context';
