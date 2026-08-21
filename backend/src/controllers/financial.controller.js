@@ -14,7 +14,7 @@ import { isClubMercadoPagoLinked } from '../services/mercadoPagoClub.service.js'
 import { getTransferBankData, setTransferBankData } from '../services/transferBank.service.js';
 import { parsePageLimit, paginationMeta, buildAthleteSearchFilter, buildUserSearchFilter } from '../utils/pagination.js';
 import { sendCuotaReminders } from '../services/cuotaReminders.service.js';
-import { ensurePaymentReceipt, queuePaymentReceipt } from '../services/paymentReceipt.service.js';
+import { ensurePaymentReceipt, queuePaymentReceipt, buildPaymentReceiptPdf } from '../services/paymentReceipt.service.js';
 
 /** Aggregation $match does not cast string ids to ObjectId. */
 function toObjectIds(ids) {
@@ -1230,7 +1230,7 @@ const sendReminders = asyncHandler(async (req, res) => {
     });
 });
 
-// @desc    Obtener / generar PDF de comprobante de una cuota pagada
+// @desc    Descargar PDF de comprobante (base64 autenticado; no depende de Cloudinary público)
 // @route   GET /api/financial/payments/:id/recibo
 const getPaymentReceipt = asyncHandler(async (req, res) => {
     const { Payment } = req.models;
@@ -1241,11 +1241,19 @@ const getPaymentReceipt = asyncHandler(async (req, res) => {
     }
     await assertMemberCanViewAtletaPayments(req, payment.atleta);
 
-    const { url, created } = await ensurePaymentReceipt(req.models, req.params.id, {
+    const { base64, filename, mimeType } = await buildPaymentReceiptPdf(req.models, req.params.id, {
         clubNombre: req.clubIdentifier || 'Club',
     });
 
-    res.json({ url, created, reciboUrl: url });
+    if (!payment.reciboUrl) {
+        queuePaymentReceipt(req.models, req.params.id, req.clubIdentifier);
+    }
+
+    res.json({
+        filename,
+        mimeType,
+        base64,
+    });
 });
 
 // @desc    Editar un plan (Ideal para actualizar precios)

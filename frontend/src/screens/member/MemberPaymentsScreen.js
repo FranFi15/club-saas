@@ -20,6 +20,7 @@ import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import { useMember } from '../../context/MemberContext';
 import { clubApi } from '../../utils/api';
+import { downloadPaymentReceipt } from '../../utils/paymentReceipt';
 import { clubHeaders } from '../athlete/athleteApi';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import CustomAlert from '../../components/CustomAlert';
@@ -309,23 +310,9 @@ export default function MemberPaymentsScreen({ navigation }) {
     setDownloadingReciboId(payment._id);
     try {
       const h = await clubHeaders(clubData);
-      let url = payment.reciboUrl;
-      if (!url) {
-        const { data } = await clubApi.get(`/financial/payments/${payment._id}/recibo`, { headers: h });
-        url = data.url || data.reciboUrl;
-        if (url) {
-          const patch = (rows) =>
-            (rows || []).map((p) =>
-              String(p._id) === String(payment._id) ? { ...p, reciboUrl: url } : p,
-            );
-          setList((prev) => patch(prev));
-          setFamilyData((prev) => (prev ? { ...prev, payments: patch(prev.payments) } : prev));
-        }
-      }
-      if (!url) throw new Error('Sin comprobante');
-      await Linking.openURL(url);
+      await downloadPaymentReceipt({ paymentId: payment._id, headers: h });
     } catch (e) {
-      showAlert('Error', e.response?.data?.message || 'No se pudo abrir el comprobante.');
+      showAlert('Error', e.response?.data?.message || e.message || 'No se pudo abrir el comprobante.');
     } finally {
       setDownloadingReciboId(null);
     }

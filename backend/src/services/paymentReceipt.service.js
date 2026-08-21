@@ -73,6 +73,8 @@ async function uploadPdfBuffer(buffer, publicId) {
                 public_id: publicId,
                 format: 'pdf',
                 overwrite: true,
+                type: 'upload',
+                access_mode: 'public',
             },
             (err, result) => {
                 if (err) reject(err);
@@ -83,11 +85,7 @@ async function uploadPdfBuffer(buffer, publicId) {
     });
 }
 
-/**
- * Genera (o reutiliza) el PDF de recibo para una cuota pagada.
- * @returns {{ url: string, created: boolean }}
- */
-export async function ensurePaymentReceipt(models, paymentId, { clubNombre } = {}) {
+async function loadPaidPayment(models, paymentId) {
     const { Payment } = models;
     const payment = await Payment.findById(paymentId)
         .populate('plan', 'nombre')
@@ -104,6 +102,36 @@ export async function ensurePaymentReceipt(models, paymentId, { clubNombre } = {
         err.statusCode = 400;
         throw err;
     }
+    return payment;
+}
+
+function receiptFilename(payment) {
+    const mes = String(payment.mes || 1).padStart(2, '0');
+    return `comprobante-${payment.anio}-${mes}-${String(payment._id).slice(-6)}.pdf`;
+}
+
+/** Genera el PDF en memoria (fuente de verdad para descarga autenticada). */
+export async function buildPaymentReceiptPdf(models, paymentId, { clubNombre } = {}) {
+    const payment = await loadPaidPayment(models, paymentId);
+    const buffer = await buildPdfBuffer({
+        clubNombre,
+        payment,
+        atleta: payment.atleta,
+    });
+    return {
+        buffer,
+        payment,
+        filename: receiptFilename(payment),
+        mimeType: 'application/pdf',
+        base64: buffer.toString('base64'),
+    };
+}
+
+/**
+ * Intenta cachear el PDF en Cloudinary (opcional; la descarga no depende de esto).
+ */
+export async function ensurePaymentReceipt(models, paymentId, { clubNombre } = {}) {
+    const payment = await loadPaidPayment(models, paymentId);
 
     if (payment.reciboUrl) {
         return { url: payment.reciboUrl, created: false, payment };
@@ -115,13 +143,16 @@ export async function ensurePaymentReceipt(models, paymentId, { clubNombre } = {
         atleta: payment.atleta,
     });
     const publicId = `recibo_${String(payment._id)}`;
-    const uploaded = await uploadPdfBuffer(buffer, publicId);
-    const url = uploaded.secure_url || uploaded.url;
-
-    payment.reciboUrl = url;
-    await payment.save();
-
-    return { url, created: true, payment };
+    try {
+        const uploaded = await uploadPdfBuffer(buffer, publicId);
+        const url = uploaded.secure_url || uploaded.url;
+        payment.reciboUrl = url;
+        await payment.save();
+        return { url, created: true, payment };
+    } catch (e) {
+        console.warn('[recibo] Cloudinary upload falló:', e.message);
+        return { url: '', created: false, payment, error: e.message };
+    }
 }
 
 /** Fire-and-forget tras marcar pagado (no bloquea la respuesta HTTP). */

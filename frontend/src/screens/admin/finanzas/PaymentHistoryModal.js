@@ -8,10 +8,10 @@ import {
   ActivityIndicator,
   StyleSheet,
   Platform,
-  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
+import { downloadPaymentReceipt } from '../../../utils/paymentReceipt';
 import { MN, EST_COLOR, fmtMoney, metodoPagoLabel, metodoPagoIcon } from './finanzasConstants';
 
 const HISTORY_PAGE_SIZE = 30;
@@ -83,18 +83,7 @@ export default function PaymentHistoryModal({
     setDownloadingId(payment._id);
     try {
       const h = await getHeaders();
-      let url = payment.reciboUrl;
-      if (!url) {
-        const { data } = await clubApi.get(`/financial/payments/${payment._id}/recibo`, { headers: h });
-        url = data.url || data.reciboUrl;
-        if (url) {
-          setPayments((prev) =>
-            prev.map((p) => (String(p._id) === String(payment._id) ? { ...p, reciboUrl: url } : p)),
-          );
-        }
-      }
-      if (!url) throw new Error('Sin URL de comprobante');
-      await Linking.openURL(url);
+      await downloadPaymentReceipt({ paymentId: payment._id, headers: h });
     } catch (e) {
       console.warn('recibo', e?.response?.data || e.message);
     } finally {
