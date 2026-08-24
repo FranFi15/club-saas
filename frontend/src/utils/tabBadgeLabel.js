@@ -5,7 +5,7 @@ import { View, Text, StyleSheet } from 'react-native';
 export function tabBadgeText(count) {
   const n = Number(count) || 0;
   if (n <= 0) return undefined;
-  return n > 99 ? '99+' : String(n);
+  return n > 10 ? '+' : String(n);
 }
 
 /**

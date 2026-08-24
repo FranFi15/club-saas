@@ -246,7 +246,7 @@ export default function CoachStyleDashboard({
       </View>
       {badge > 0 ? (
         <View style={styles.badgePill}>
-          <Text style={styles.badgePillTxt}>{badge > 99 ? '99+' : String(badge)}</Text>
+          <Text style={styles.badgePillTxt}>{badge > 10 ? '+' : String(badge)}</Text>
         </View>
       ) : null}
       <Ionicons name="chevron-forward" size={22} color={theme.icon} />

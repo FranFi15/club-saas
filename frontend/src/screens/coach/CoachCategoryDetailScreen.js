@@ -796,7 +796,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
             <Ionicons name="document-attach-outline" size={22} color={colorMarca} />
             {docPendingCount > 0 ? (
               <View style={styles.tileBadge}>
-                <Text style={styles.tileBadgeTxt}>{docPendingCount > 9 ? '9+' : docPendingCount}</Text>
+                <Text style={styles.tileBadgeTxt}>{docPendingCount > 10 ? '+' : docPendingCount}</Text>
               </View>
             ) : null}
           </View>

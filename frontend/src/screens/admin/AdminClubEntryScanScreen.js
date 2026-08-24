@@ -22,6 +22,7 @@ import { clubApi } from '../../utils/api';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import UserAvatar from '../../components/UserAvatar';
 import CustomAlert from '../../components/CustomAlert';
+import VisitorEntryModal from '../../components/VisitorEntryModal';
 import { formatRolStaff } from '../staff/staffUtils';
 import { USER_ROL_LABELS } from '../../constants/userRoles';
 import { useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
@@ -35,8 +36,26 @@ const CAMERA_HEIGHT = Math.min(360, Math.round(Dimensions.get('window').width * 
 
 function entryRoleLabel(rol) {
   if (!rol) return 'Socio';
+  if (rol === 'visitante') return 'Visitante';
   if (rol === 'atleta' || rol === 'tutor') return USER_ROL_LABELS[rol] || rol;
   return formatRolStaff(rol);
+}
+
+/** Persona a mostrar: socio o visitante. */
+function entryPerson(itemOrResult) {
+  if (!itemOrResult) return null;
+  if (itemOrResult.entryType === 'visitor' || itemOrResult.visitor) {
+    const v = itemOrResult.visitor || {};
+    return {
+      nombre: v.nombre || '',
+      apellido: v.apellido || '',
+      dni: v.dni || '',
+      fotoPerfil: v.foto || '',
+      rol: 'visitante',
+      nota: v.nota || '',
+    };
+  }
+  return itemOrResult.member || null;
 }
 
 function extractEntryToken(raw) {
@@ -53,14 +72,16 @@ function formatTime(iso) {
   return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
 }
 
-function entrySearchBlob(member) {
-  if (!member) return '';
+function entrySearchBlob(item) {
+  const person = entryPerson(item);
+  if (!person) return '';
   return [
-    member.nombre,
-    member.apellido,
-    member.dni,
-    member.rol,
-    entryRoleLabel(member.rol),
+    person.nombre,
+    person.apellido,
+    person.dni,
+    person.rol,
+    person.nota,
+    entryRoleLabel(person.rol),
   ]
     .filter(Boolean)
     .join(' ')
@@ -74,14 +95,16 @@ function ResultCard({ result, onDismiss, theme }) {
         <Ionicons name="person-outline" size={40} color={theme.icon} />
         <Text style={[styles.emptyResultTitle, { color: theme.text }]}>Sin ingresos recientes</Text>
         <Text style={[styles.emptyResultSub, { color: theme.textMuted }]}>
-          El socio que escanees aparecerá acá con su nombre y rol.
+          Escaneá un QR o registrá un visitante para verlo acá.
         </Text>
       </View>
     );
   }
 
+  const person = entryPerson(result);
   const hasWarnings = (result.warnings || []).length > 0;
   const tone = result.duplicate || hasWarnings ? 'warn' : 'ok';
+  const isVisitor = result.entryType === 'visitor' || !!result.visitor;
 
   return (
     <View
@@ -97,22 +120,25 @@ function ResultCard({ result, onDismiss, theme }) {
         <Ionicons name="close" size={20} color="#374151" />
       </TouchableOpacity>
       <View style={styles.resultRow}>
-        <UserAvatar user={result.member} size={56} />
+        <UserAvatar user={person} size={56} />
         <View style={{ flex: 1 }}>
           <Text style={styles.resultTitle}>
             {result.duplicate
               ? 'Ingreso duplicado'
               : hasWarnings
                 ? 'Ingreso con alerta'
-                : 'Ingreso registrado'}
+                : isVisitor
+                  ? 'Visitante registrado'
+                  : 'Ingreso registrado'}
           </Text>
           <Text style={styles.resultName}>
-            {result.member?.nombre} {result.member?.apellido}
+            {person?.nombre} {person?.apellido}
           </Text>
           <Text style={styles.resultMeta}>
-            {entryRoleLabel(result.member?.rol)}
-            {result.member?.dni ? ` · DNI ${result.member.dni}` : ''}
+            {entryRoleLabel(person?.rol)}
+            {person?.dni ? ` · DNI ${person.dni}` : ''}
           </Text>
+          {person?.nota ? <Text style={styles.resultNote}>{person.nota}</Text> : null}
           {result.duplicate && result.duplicateMinutesAgo ? (
             <Text style={styles.resultWarn}>Ya ingresó hace {result.duplicateMinutesAgo} min</Text>
           ) : null}
@@ -139,6 +165,8 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
   const [lastResult, setLastResult] = useState(null);
   const [todayEntries, setTodayEntries] = useState([]);
   const [historySearch, setHistorySearch] = useState('');
+  const [visitorOpen, setVisitorOpen] = useState(false);
+  const [savingVisitor, setSavingVisitor] = useState(false);
   const lastScanRef = useRef({ token: '', at: 0 });
   const cooldownRef = useRef(null);
 
@@ -234,6 +262,22 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
 
   const dismissResult = () => setLastResult(null);
 
+  const handleRegisterVisitor = async (payload) => {
+    setSavingVisitor(true);
+    try {
+      const h = await getHeaders();
+      const { data } = await clubApi.post('/club-entry/visitor', payload, { headers: h });
+      setVisitorOpen(false);
+      setLastResult(data);
+      setTab('scan');
+      reload({ background: true });
+    } catch (e) {
+      showAlert('No se pudo registrar', e.response?.data?.message || 'Revisá los datos e intentá de nuevo.');
+    } finally {
+      setSavingVisitor(false);
+    }
+  };
+
   const handleLogout = async () => {
     await clearSession();
   };
@@ -241,11 +285,11 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
   const filteredEntries = useMemo(() => {
     const q = historySearch.trim().toLowerCase();
     if (!q) return todayEntries;
-    return todayEntries.filter((item) => entrySearchBlob(item.member).includes(q));
+    return todayEntries.filter((item) => entrySearchBlob(item).includes(q));
   }, [todayEntries, historySearch]);
 
   const renderEntry = ({ item }) => {
-    const m = item.member;
+    const m = entryPerson(item);
     const name = m ? `${m.nombre || ''} ${m.apellido || ''}`.trim() : '—';
     return (
       <View style={[styles.logRow, { borderColor: theme.border, backgroundColor: theme.surface }]}>
@@ -256,8 +300,14 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
           </Text>
           <Text style={{ color: theme.textMuted, fontSize: 12 }}>
             {entryRoleLabel(m?.rol)}
+            {m?.dni ? ` · DNI ${m.dni}` : ''}
             {item.duplicate ? ' · duplicado' : ''}
           </Text>
+          {m?.nota ? (
+            <Text style={{ color: theme.textMuted, fontSize: 12 }} numberOfLines={2}>
+              {m.nota}
+            </Text>
+          ) : null}
           <Text style={{ color: theme.textMuted, fontSize: 12 }}>{formatTime(item.scannedAt)}</Text>
         </View>
         {item.duplicate ? (
@@ -334,6 +384,16 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
         </View>
       )}
 
+      <TouchableOpacity
+        style={[styles.visitorBtn, { backgroundColor: colorMarca }]}
+        onPress={() => setVisitorOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel="Registrar visitante"
+      >
+        <Ionicons name="person-add-outline" size={18} color="#fff" />
+        <Text style={styles.visitorBtnTxt}>Registrar visitante</Text>
+      </TouchableOpacity>
+
       <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Último ingreso</Text>
       <ResultCard result={lastResult} onDismiss={dismissResult} theme={theme} />
     </ScrollView>
@@ -404,7 +464,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
               </Text>
               <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>
                 {todayEntries.length === 0
-                  ? 'Los socios que escanees aparecerán en esta lista.'
+                  ? 'Los socios y visitantes que registres aparecerán en esta lista.'
                   : 'Probá con otro nombre, DNI o rol.'}
               </Text>
             </View>
@@ -461,7 +521,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
               </Text>
               {count > 0 ? (
                 <View style={[styles.tabBadge, { backgroundColor: colorMarca }]}>
-                  <Text style={styles.tabBadgeTxt}>{count > 99 ? '99+' : count}</Text>
+                  <Text style={styles.tabBadgeTxt}>{count > 10 ? '+' : count}</Text>
                 </View>
               ) : null}
             </TouchableOpacity>
@@ -470,6 +530,15 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
       </View>
 
       <View style={styles.body}>{tab === 'scan' ? renderScanTab() : renderHistoryTab()}</View>
+
+      <VisitorEntryModal
+        visible={visitorOpen}
+        onClose={() => !savingVisitor && setVisitorOpen(false)}
+        onSubmit={handleRegisterVisitor}
+        theme={theme}
+        colorMarca={colorMarca}
+        saving={savingVisitor}
+      />
 
       <CustomAlert
         visible={alertConfig.visible}
@@ -523,6 +592,16 @@ const styles = StyleSheet.create({
   historyListContent: { paddingBottom: 24 },
   historyListEmpty: { flexGrow: 1, paddingBottom: 24 },
   sectionLabel: { fontSize: 13, fontWeight: '600', marginTop: 16, marginBottom: 8, marginLeft: 2 },
+  visitorBtn: {
+    marginTop: 14,
+    borderRadius: 12,
+    paddingVertical: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  visitorBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
   permissionBox: {
     borderRadius: 12,
     borderWidth: 1,
@@ -589,6 +668,7 @@ const styles = StyleSheet.create({
   resultTitle: { fontWeight: '800', fontSize: 13, color: '#374151', textTransform: 'uppercase' },
   resultName: { fontSize: 20, fontWeight: '800', color: '#111827', marginTop: 2 },
   resultMeta: { fontSize: 13, color: '#4b5563', marginTop: 2 },
+  resultNote: { fontSize: 12, color: '#4b5563', marginTop: 4, fontStyle: 'italic' },
   resultWarn: { fontSize: 12, color: '#b45309', marginTop: 4, fontWeight: '600' },
   logHeader: {
     flexDirection: 'row',

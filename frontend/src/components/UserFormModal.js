@@ -39,6 +39,7 @@ export default function UserFormModal({ visible, onClose, onSave, initialData, i
     { label: 'Psicólogo', value: 'psicologo' },
     { label: 'Tutor', value: 'tutor' },
     { label: 'Colaborador', value: 'colaborador' },
+    { label: 'Control de ingreso', value: 'control_ingreso' },
     { label: 'Administrativo', value: 'administrativo' },
     { label: 'Administrador del club', value: 'admin_club' },
   ].filter((r) => isClubOwnerRole(viewerRol) || r.value !== 'admin_club');
@@ -251,7 +252,7 @@ export default function UserFormModal({ visible, onClose, onSave, initialData, i
                   onPress={() => setShowRoleSelect(!showRoleSelect)}
                 >
                   <Text style={[styles.roleSelectText, { color: theme.text }]}>
-                    {roles.find((r) => r.value === (formData.rol === 'control_ingreso' ? 'administrativo' : formData.rol))?.label || 'Seleccionar Rol'}
+                    {roles.find((r) => r.value === formData.rol)?.label || 'Seleccionar Rol'}
                   </Text>
                   <Ionicons name={showRoleSelect ? "chevron-up" : "chevron-down"} size={20} color={theme.icon} />
                 </TouchableOpacity>
@@ -263,12 +264,12 @@ export default function UserFormModal({ visible, onClose, onSave, initialData, i
                         <TouchableOpacity key={r.value} 
                           style={[styles.dropdownItem, { 
                             borderBottomColor: theme.border,
-                            backgroundColor: (formData.rol === r.value || (formData.rol === 'control_ingreso' && r.value === 'administrativo')) ? colorMarca + '15' : 'transparent' 
+                            backgroundColor: formData.rol === r.value ? colorMarca + '15' : 'transparent' 
                           }]}
                           onPress={() => { handleChange('rol', r.value); setShowRoleSelect(false); }}>
                           <Text style={{ 
-                            color: (formData.rol === r.value || (formData.rol === 'control_ingreso' && r.value === 'administrativo')) ? colorMarca : theme.text,
-                            fontWeight: (formData.rol === r.value || (formData.rol === 'control_ingreso' && r.value === 'administrativo')) ? 'bold' : 'normal'
+                            color: formData.rol === r.value ? colorMarca : theme.text,
+                            fontWeight: formData.rol === r.value ? 'bold' : 'normal'
                           }}>
                             {r.label}
                           </Text>
@@ -278,23 +279,6 @@ export default function UserFormModal({ visible, onClose, onSave, initialData, i
                   </View>
                 )}
               </View>
-
-              {(formData.rol === 'administrativo' || formData.rol === 'control_ingreso') && (
-                <View style={[styles.switchRow, { borderColor: theme.border, backgroundColor: theme.background }]}>
-                  <View style={{ flex: 1, paddingRight: 12 }}>
-                    <Text style={[styles.switchTitle, { color: theme.text }]}>Solo escáner QR</Text>
-                    <Text style={[styles.switchHint, { color: theme.textMuted }]}>
-                      Si está activo, el usuario solo verá la cámara de control de ingreso al abrir la app.
-                    </Text>
-                  </View>
-                  <Switch
-                    value={formData.rol === 'control_ingreso'}
-                    onValueChange={(v) => handleChange('rol', v ? 'control_ingreso' : 'administrativo')}
-                    trackColor={{ false: theme.border, true: colorMarca + '88' }}
-                    thumbColor={formData.rol === 'control_ingreso' ? colorMarca : theme.textMuted}
-                  />
-                </View>
-              )}
 
               {/* BÚSQUEDA DE TUTOR INTEELIGENTE */}
               {formData.rol === 'atleta' && (

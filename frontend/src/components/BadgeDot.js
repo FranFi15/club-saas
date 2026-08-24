@@ -16,7 +16,7 @@ export default function BadgeDot({ count = 0, dot = false, style }) {
 
   return (
     <View style={[styles.pill, style]}>
-      <Text style={styles.pillTxt}>{n > 99 ? '99+' : String(n)}</Text>
+      <Text style={styles.pillTxt}>{n > 10 ? '+' : String(n)}</Text>
     </View>
   );
 }

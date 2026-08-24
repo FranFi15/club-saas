@@ -148,6 +148,7 @@ const scanClubEntryQr = asyncHandler(async (req, res) => {
     let entry;
     try {
         entry = await ClubEntry.create({
+            entryType: 'member',
             user: member._id,
             scannedBy: req.user._id,
             tokenNonce: parsed.nonce,
@@ -163,6 +164,7 @@ const scanClubEntryQr = asyncHandler(async (req, res) => {
 
     res.json({
         ok: true,
+        entryType: 'member',
         duplicate,
         duplicateMinutesAgo: duplicate
             ? Math.max(1, Math.round((Date.now() - new Date(recent.scannedAt).getTime()) / 60000))
@@ -172,6 +174,59 @@ const scanClubEntryQr = asyncHandler(async (req, res) => {
         cuotasVencidasCount,
         scannedAt: entry.scannedAt,
         member: entryUserPayload(member),
+        visitor: null,
+        scannedBy: {
+            _id: req.user._id,
+            nombre: req.user.nombre,
+            apellido: req.user.apellido,
+        },
+    });
+});
+
+function visitorPayload(entry) {
+    return {
+        nombre: entry.visitorNombre || '',
+        apellido: entry.visitorApellido || '',
+        dni: entry.visitorDni || '',
+        foto: entry.visitorFoto || '',
+        nota: entry.visitorNota || '',
+    };
+}
+
+// @route POST /api/club-entry/visitor
+const registerVisitorEntry = asyncHandler(async (req, res) => {
+    const { ClubEntry } = req.models;
+    const nombre = String(req.body?.nombre || '').trim();
+    const apellido = String(req.body?.apellido || '').trim();
+    const dni = String(req.body?.dni || '').trim();
+    const nota = String(req.body?.nota || '').trim();
+    const foto = String(req.body?.foto || req.body?.fotoUrl || '').trim();
+
+    if (!nombre || !apellido || !dni) {
+        res.status(400);
+        throw new Error('Nombre, apellido y DNI son obligatorios.');
+    }
+
+    const entry = await ClubEntry.create({
+        entryType: 'visitor',
+        scannedBy: req.user._id,
+        visitorNombre: nombre,
+        visitorApellido: apellido,
+        visitorDni: dni,
+        visitorNota: nota,
+        visitorFoto: foto,
+        duplicate: false,
+        tokenNonce: '',
+    });
+
+    res.status(201).json({
+        ok: true,
+        entryType: 'visitor',
+        duplicate: false,
+        warnings: [],
+        scannedAt: entry.scannedAt,
+        member: null,
+        visitor: visitorPayload(entry),
         scannedBy: {
             _id: req.user._id,
             nombre: req.user.nombre,
@@ -193,26 +248,39 @@ const getTodayClubEntries = asyncHandler(async (req, res) => {
         .lean();
 
     res.json(
-        entries.map((e) => ({
-            _id: e._id,
-            scannedAt: e.scannedAt,
-            duplicate: e.duplicate,
-            member: e.user
-                ? {
-                      _id: e.user._id,
-                      nombre: e.user.nombre,
-                      apellido: e.user.apellido,
-                      rol: e.user.rol,
-                      fotoPerfil: e.user.fotoPerfil || '',
-                      dni: e.user.dni || '',
-                      estado: e.user.estado,
-                  }
-                : null,
-            scannedBy: e.scannedBy
-                ? { nombre: e.scannedBy.nombre, apellido: e.scannedBy.apellido }
-                : null,
-        })),
+        entries.map((e) => {
+            const entryType = e.entryType || (e.user ? 'member' : 'visitor');
+            return {
+                _id: e._id,
+                entryType,
+                scannedAt: e.scannedAt,
+                duplicate: !!e.duplicate,
+                member:
+                    entryType === 'member' && e.user
+                        ? {
+                              _id: e.user._id,
+                              nombre: e.user.nombre,
+                              apellido: e.user.apellido,
+                              rol: e.user.rol,
+                              fotoPerfil: e.user.fotoPerfil || '',
+                              dni: e.user.dni || '',
+                              estado: e.user.estado,
+                          }
+                        : null,
+                visitor: entryType === 'visitor' ? visitorPayload(e) : null,
+                scannedBy: e.scannedBy
+                    ? { nombre: e.scannedBy.nombre, apellido: e.scannedBy.apellido }
+                    : null,
+            };
+        }),
     );
 });
 
-export { getMyClubEntryQr, scanClubEntryQr, getTodayClubEntries, MEMBER_QR_ROLES, SCANNER_ROLES };
+export {
+    getMyClubEntryQr,
+    scanClubEntryQr,
+    registerVisitorEntry,
+    getTodayClubEntries,
+    MEMBER_QR_ROLES,
+    SCANNER_ROLES,
+};

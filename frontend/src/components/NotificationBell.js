@@ -27,7 +27,7 @@ export default function NotificationBell({ size = 22 }) {
         <Ionicons name="notifications-outline" size={size} color="#fff" />
         {unread > 0 ? (
           <View style={styles.badge}>
-            <Text style={styles.badgeTxt}>{unread > 9 ? '9+' : unread}</Text>
+            <Text style={styles.badgeTxt}>{unread > 10 ? '+' : unread}</Text>
           </View>
         ) : null}
       </TouchableOpacity>

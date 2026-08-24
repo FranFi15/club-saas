@@ -2,17 +2,55 @@ import mongoose from 'mongoose';
 
 const clubEntrySchema = new mongoose.Schema(
     {
-        user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+        entryType: {
+            type: String,
+            enum: ['member', 'visitor'],
+            default: 'member',
+            index: true,
+        },
+        /** Socio del club (solo ingresos por QR). */
+        user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false, index: true },
         scannedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
         scannedAt: { type: Date, default: Date.now, index: true },
-        tokenNonce: { type: String, required: true },
+        /** Nonce del QR — solo ingresos de socio. */
+        tokenNonce: { type: String, required: false, default: '' },
         duplicate: { type: Boolean, default: false },
+
+        /** Visitante externo (sin cuenta en el club). */
+        visitorNombre: { type: String, trim: true, default: '' },
+        visitorApellido: { type: String, trim: true, default: '' },
+        visitorDni: { type: String, trim: true, default: '' },
+        visitorFoto: { type: String, trim: true, default: '' },
+        visitorNota: { type: String, trim: true, default: '' },
     },
     { timestamps: true },
 );
 
+clubEntrySchema.pre('validate', function (next) {
+    const type = this.entryType || 'member';
+    if (type === 'member') {
+        if (!this.user) {
+            this.invalidate('user', 'El ingreso de socio requiere un usuario.');
+        }
+        if (!this.tokenNonce) {
+            this.invalidate('tokenNonce', 'El ingreso de socio requiere un nonce de QR.');
+        }
+    } else if (type === 'visitor') {
+        if (!String(this.visitorNombre || '').trim()) {
+            this.invalidate('visitorNombre', 'El nombre del visitante es obligatorio.');
+        }
+        if (!String(this.visitorApellido || '').trim()) {
+            this.invalidate('visitorApellido', 'El apellido del visitante es obligatorio.');
+        }
+        if (!String(this.visitorDni || '').trim()) {
+            this.invalidate('visitorDni', 'El DNI del visitante es obligatorio.');
+        }
+    }
+    next();
+});
+
 clubEntrySchema.index({ scannedAt: -1 });
-/** Un QR (nonce) solo puede usarse una vez (ignora docs legacy sin nonce). */
+/** Un QR (nonce) solo puede usarse una vez (ignora docs sin nonce / visitantes). */
 clubEntrySchema.index(
     { tokenNonce: 1 },
     {
