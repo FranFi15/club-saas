@@ -42,6 +42,55 @@ function startOfToday() {
     return d;
 }
 
+function startOfDay(date) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+
+function endOfDay(date) {
+    const d = new Date(date);
+    d.setHours(23, 59, 59, 999);
+    return d;
+}
+
+/** @param {string | undefined} raw YYYY-MM-DD */
+function parseHistoryDate(raw) {
+    if (!raw) return null;
+    const m = String(raw).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (Number.isNaN(d.getTime())) return null;
+    if (d.getFullYear() !== Number(m[1]) || d.getMonth() !== Number(m[2]) - 1 || d.getDate() !== Number(m[3])) {
+        return null;
+    }
+    return startOfDay(d);
+}
+
+function mapClubEntryRow(e) {
+    const entryType = e.entryType || (e.user ? 'member' : 'visitor');
+    return {
+        _id: e._id,
+        entryType,
+        scannedAt: e.scannedAt,
+        duplicate: !!e.duplicate,
+        member:
+            entryType === 'member' && e.user
+                ? {
+                      _id: e.user._id,
+                      nombre: e.user.nombre,
+                      apellido: e.user.apellido,
+                      rol: e.user.rol,
+                      fotoPerfil: e.user.fotoPerfil || '',
+                      dni: e.user.dni || '',
+                      estado: e.user.estado,
+                  }
+                : null,
+        visitor: entryType === 'visitor' ? visitorPayload(e) : null,
+        scannedBy: e.scannedBy ? { nombre: e.scannedBy.nombre, apellido: e.scannedBy.apellido } : null,
+    };
+}
+
 // @route GET /api/club-entry/my-qr?forUserId=
 const getMyClubEntryQr = asyncHandler(async (req, res) => {
     const { User } = req.models;
@@ -236,45 +285,32 @@ const registerVisitorEntry = asyncHandler(async (req, res) => {
     });
 });
 
-// @route GET /api/club-entry/today
+// @route GET /api/club-entry/today?date=YYYY-MM-DD
 const getTodayClubEntries = asyncHandler(async (req, res) => {
     const { ClubEntry } = req.models;
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 40, 1), 100);
 
-    const entries = await ClubEntry.find({ scannedAt: { $gte: startOfToday() } })
+    let dayStart = startOfToday();
+    if (req.query.date) {
+        const parsed = parseHistoryDate(req.query.date);
+        if (!parsed) {
+            res.status(400);
+            throw new Error('Fecha inválida. Usá el formato YYYY-MM-DD.');
+        }
+        dayStart = parsed;
+    }
+    const dayEnd = endOfDay(dayStart);
+
+    const entries = await ClubEntry.find({
+        scannedAt: { $gte: dayStart, $lte: dayEnd },
+    })
         .sort({ scannedAt: -1 })
         .limit(limit)
         .populate('user', 'nombre apellido rol fotoPerfil dni estado')
         .populate('scannedBy', 'nombre apellido')
         .lean();
 
-    res.json(
-        entries.map((e) => {
-            const entryType = e.entryType || (e.user ? 'member' : 'visitor');
-            return {
-                _id: e._id,
-                entryType,
-                scannedAt: e.scannedAt,
-                duplicate: !!e.duplicate,
-                member:
-                    entryType === 'member' && e.user
-                        ? {
-                              _id: e.user._id,
-                              nombre: e.user.nombre,
-                              apellido: e.user.apellido,
-                              rol: e.user.rol,
-                              fotoPerfil: e.user.fotoPerfil || '',
-                              dni: e.user.dni || '',
-                              estado: e.user.estado,
-                          }
-                        : null,
-                visitor: entryType === 'visitor' ? visitorPayload(e) : null,
-                scannedBy: e.scannedBy
-                    ? { nombre: e.scannedBy.nombre, apellido: e.scannedBy.apellido }
-                    : null,
-            };
-        }),
-    );
+    res.json(entries.map(mapClubEntryRow));
 });
 
 export {

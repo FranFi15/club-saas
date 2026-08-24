@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
-import ProfilePhotoField from './ProfilePhotoField';
+import VisitorIdCaptureField from './VisitorIdCaptureField';
 
 /**
  * Alta manual de visitante en control de ingreso.
@@ -33,6 +33,7 @@ export default function VisitorEntryModal({
   const [dni, setDni] = useState('');
   const [nota, setNota] = useState('');
   const [foto, setFoto] = useState('');
+  const [fotoTipo, setFotoTipo] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -42,8 +43,14 @@ export default function VisitorEntryModal({
     setDni('');
     setNota('');
     setFoto('');
+    setFotoTipo('');
     setError('');
   }, [visible]);
+
+  const handlePhotoChange = (url, kind) => {
+    setFoto(url || '');
+    setFotoTipo(kind || '');
+  };
 
   const handleSave = () => {
     if (saving) return;
@@ -102,16 +109,14 @@ export default function VisitorEntryModal({
             contentContainerStyle={styles.form}
             nestedScrollEnabled
           >
-            <ProfilePhotoField
+            <VisitorIdCaptureField
               value={foto}
-              onChange={setFoto}
+              captureKind={fotoTipo}
+              onChange={handlePhotoChange}
               clubData={clubData}
               colorMarca={colorMarca}
               theme={theme}
-              nombre={nombre}
-              apellido={apellido}
-              size={72}
-              label="Foto (opcional)"
+              disabled={saving}
             />
 
             <Text style={[styles.label, { color: theme.textMuted }]}>Nombre *</Text>

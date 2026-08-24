@@ -23,9 +23,10 @@ import AdminScreenHeader from '../../components/AdminScreenHeader';
 import UserAvatar from '../../components/UserAvatar';
 import CustomAlert from '../../components/CustomAlert';
 import VisitorEntryModal from '../../components/VisitorEntryModal';
+import HistoryDayPickerModal from '../../components/HistoryDayPickerModal';
 import { formatRolStaff } from '../staff/staffUtils';
 import { USER_ROL_LABELS } from '../../constants/userRoles';
-import { useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { useCachedFocusLoad, clearScreenCache } from '../../hooks/useCachedFocusLoad';
 
 const ENTRY_TABS = [
   { key: 'scan', label: 'Escanear', icon: 'qr-code-outline' },
@@ -70,6 +71,37 @@ function formatTime(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function startOfDay(d = new Date()) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function toIsoDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function isSameCalendarDay(a, b) {
+  return startOfDay(a).getTime() === startOfDay(b).getTime();
+}
+
+function formatHistoryDayLabel(d) {
+  const today = startOfDay();
+  if (isSameCalendarDay(d, today)) return 'Hoy';
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (isSameCalendarDay(d, yesterday)) return 'Ayer';
+  return d.toLocaleDateString('es-AR', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: d.getFullYear() !== today.getFullYear() ? 'numeric' : undefined,
+  });
 }
 
 function entrySearchBlob(item) {
@@ -163,8 +195,10 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
   const [scanning, setScanning] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [lastResult, setLastResult] = useState(null);
-  const [todayEntries, setTodayEntries] = useState([]);
+  const [historyEntries, setHistoryEntries] = useState([]);
+  const [historyDay, setHistoryDay] = useState(() => startOfDay());
   const [historySearch, setHistorySearch] = useState('');
+  const [historyPickerOpen, setHistoryPickerOpen] = useState(false);
   const [visitorOpen, setVisitorOpen] = useState(false);
   const [savingVisitor, setSavingVisitor] = useState(false);
   const lastScanRef = useRef({ token: '', at: 0 });
@@ -192,22 +226,52 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
     };
   }, [clubData?.urlIdentifier]);
 
-  const fetchToday = useCallback(async () => {
+  const fetchHistory = useCallback(async () => {
     const h = await getHeaders();
-    const { data } = await clubApi.get('/club-entry/today', { headers: h, params: { limit: 30 } });
+    const date = toIsoDate(historyDay);
+    const { data } = await clubApi.get('/club-entry/today', {
+      headers: h,
+      params: { limit: 50, date },
+    });
     return { list: data || [] };
-  }, [getHeaders]);
+  }, [getHeaders, historyDay]);
 
-  const applyToday = useCallback((data) => {
-    setTodayEntries(data.list || []);
+  const applyHistory = useCallback((data) => {
+    setHistoryEntries(data.list || []);
   }, []);
 
-  const { loading: loadingToday, onRefresh, reload } = useCachedFocusLoad({
-    cacheKey: clubData?.urlIdentifier ? `club-entry-today:${clubData.urlIdentifier}` : '',
+  const historyCacheKey = clubData?.urlIdentifier
+    ? `club-entry-history:${clubData.urlIdentifier}:${toIsoDate(historyDay)}`
+    : '';
+
+  const { loading: loadingHistory, onRefresh, reload } = useCachedFocusLoad({
+    cacheKey: historyCacheKey,
     enabled: !!clubData?.urlIdentifier,
-    fetchData: fetchToday,
-    onFetched: applyToday,
+    fetchData: fetchHistory,
+    onFetched: applyHistory,
   });
+
+  const isHistoryToday = isSameCalendarDay(historyDay, new Date());
+
+  const shiftHistoryDay = (delta) => {
+    setHistoryDay((prev) => {
+      const d = new Date(prev);
+      d.setDate(d.getDate() + delta);
+      d.setHours(0, 0, 0, 0);
+      const today = startOfDay();
+      if (d > today) return prev;
+      return d;
+    });
+  };
+
+  const refreshHistoryAfterEntry = useCallback(() => {
+    reload({ background: true });
+    if (clubData?.urlIdentifier && !isHistoryToday) {
+      clearScreenCache(`club-entry-history:${clubData.urlIdentifier}:${toIsoDate(new Date())}`);
+    }
+  }, [clubData?.urlIdentifier, isHistoryToday, reload]);
+
+  const goToHistoryToday = () => setHistoryDay(startOfDay());
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
@@ -244,7 +308,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
       const { data } = await clubApi.post('/club-entry/scan', { token }, { headers: h });
       setLastResult(data);
       setTab('scan');
-      reload({ background: true });
+      refreshHistoryAfterEntry();
       if ((data.warnings || []).length > 0) {
         showAlert(
           'Atención — decidí el ingreso',
@@ -272,7 +336,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
       const { data } = await clubApi.post('/club-entry/visitor', payload, { headers: h });
       setLastResult(data);
       setTab('scan');
-      reload({ background: true });
+      refreshHistoryAfterEntry();
     } catch (e) {
       const msg =
         e.response?.data?.message ||
@@ -294,9 +358,9 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
 
   const filteredEntries = useMemo(() => {
     const q = historySearch.trim().toLowerCase();
-    if (!q) return todayEntries;
-    return todayEntries.filter((item) => entrySearchBlob(item).includes(q));
-  }, [todayEntries, historySearch]);
+    if (!q) return historyEntries;
+    return historyEntries.filter((item) => entrySearchBlob(item).includes(q));
+  }, [historyEntries, historySearch]);
 
   const renderEntry = ({ item }) => {
     const m = entryPerson(item);
@@ -429,16 +493,60 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
   const renderHistoryTab = () => (
     <View style={styles.historyTab}>
       <View style={styles.logHeader}>
-        <View>
-          <Text style={[styles.logTitle, { color: theme.text }]}>Ingresos de hoy</Text>
+        <View style={{ flex: 1, marginRight: 8 }}>
+          <Text style={[styles.logTitle, { color: theme.text }]}>
+            Ingresos — {formatHistoryDayLabel(historyDay)}
+          </Text>
           <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
             {historySearch.trim()
-              ? `${filteredEntries.length} de ${todayEntries.length}`
-              : `${todayEntries.length} registro${todayEntries.length === 1 ? '' : 's'}`}
+              ? `${filteredEntries.length} de ${historyEntries.length}`
+              : `${historyEntries.length} registro${historyEntries.length === 1 ? '' : 's'}`}
           </Text>
         </View>
         <TouchableOpacity onPress={onRefresh} hitSlop={8} accessibilityLabel="Actualizar historial">
           <Ionicons name="refresh" size={22} color={colorMarca} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.dayNavRow}>
+        <TouchableOpacity
+          style={[styles.dayNavBtn, { borderColor: theme.border }]}
+          onPress={() => shiftHistoryDay(-1)}
+          accessibilityLabel="Día anterior"
+          hitSlop={8}
+        >
+          <Ionicons name="chevron-back" size={20} color={colorMarca} />
+        </TouchableOpacity>
+        <View style={styles.dayNavCenter}>
+          <TouchableOpacity
+            style={styles.dayNavLabelRow}
+            onPress={() => setHistoryPickerOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Elegir fecha del historial"
+            hitSlop={8}
+          >
+            <Ionicons name="calendar-outline" size={16} color={colorMarca} />
+            <Text style={[styles.dayNavLabel, { color: theme.text }]} numberOfLines={1}>
+              {formatHistoryDayLabel(historyDay)}
+            </Text>
+          </TouchableOpacity>
+          {!isHistoryToday ? (
+            <TouchableOpacity onPress={goToHistoryToday} hitSlop={8} accessibilityLabel="Ir a hoy">
+              <Text style={[styles.dayNavTodayLink, { color: colorMarca }]}>Ir a hoy</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        <TouchableOpacity
+          style={[
+            styles.dayNavBtn,
+            { borderColor: theme.border, opacity: isHistoryToday ? 0.35 : 1 },
+          ]}
+          onPress={() => shiftHistoryDay(1)}
+          disabled={isHistoryToday}
+          accessibilityLabel="Día siguiente"
+          hitSlop={8}
+        >
+          <Ionicons name="chevron-forward" size={20} color={colorMarca} />
         </TouchableOpacity>
       </View>
 
@@ -465,7 +573,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
         ) : null}
       </View>
 
-      {loadingToday && !todayEntries.length ? (
+      {loadingHistory && !historyEntries.length ? (
         <ActivityIndicator color={colorMarca} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
@@ -482,16 +590,22 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
           ListEmptyComponent={
             <View style={styles.historyEmpty}>
               <Ionicons
-                name={todayEntries.length === 0 ? 'calendar-outline' : 'search-outline'}
+                name={historyEntries.length === 0 ? 'calendar-outline' : 'search-outline'}
                 size={44}
                 color={theme.icon}
               />
               <Text style={{ color: theme.text, fontWeight: '700', marginTop: 12 }}>
-                {todayEntries.length === 0 ? 'Sin ingresos hoy' : 'Sin resultados'}
+                {historyEntries.length === 0
+                  ? isHistoryToday
+                    ? 'Sin ingresos hoy'
+                    : 'Sin ingresos este día'
+                  : 'Sin resultados'}
               </Text>
               <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>
-                {todayEntries.length === 0
-                  ? 'Los socios y visitantes que registres aparecerán en esta lista.'
+                {historyEntries.length === 0
+                  ? isHistoryToday
+                    ? 'Los socios y visitantes que registres aparecerán en esta lista.'
+                    : 'No hubo registros en esta fecha. Probá otro día con las flechas de arriba.'
                   : 'Probá con otro nombre, DNI o rol.'}
               </Text>
             </View>
@@ -530,7 +644,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
       <View style={[styles.tabs, { borderBottomColor: theme.border }]}>
         {ENTRY_TABS.map((t) => {
           const active = tab === t.key;
-          const count = t.key === 'history' ? todayEntries.length : 0;
+          const count = t.key === 'history' && isHistoryToday ? historyEntries.length : 0;
           return (
             <TouchableOpacity
               key={t.key}
@@ -557,6 +671,15 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
       </View>
 
       <View style={styles.body}>{tab === 'scan' ? renderScanTab() : renderHistoryTab()}</View>
+
+      <HistoryDayPickerModal
+        visible={historyPickerOpen}
+        value={historyDay}
+        onClose={() => setHistoryPickerOpen(false)}
+        onSelect={setHistoryDay}
+        theme={theme}
+        colorMarca={colorMarca}
+      />
 
       <VisitorEntryModal
         visible={visitorOpen}
@@ -711,6 +834,24 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   logTitle: { fontSize: 16, fontWeight: '800' },
+  dayNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 8,
+  },
+  dayNavBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayNavCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 40 },
+  dayNavLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dayNavLabel: { fontSize: 14, fontWeight: '700', textTransform: 'capitalize' },
+  dayNavTodayLink: { fontSize: 12, fontWeight: '700', marginTop: 2 },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
