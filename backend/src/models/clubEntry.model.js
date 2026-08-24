@@ -26,7 +26,7 @@ const clubEntrySchema = new mongoose.Schema(
     { timestamps: true },
 );
 
-clubEntrySchema.pre('validate', function (next) {
+clubEntrySchema.pre('validate', function () {
     const type = this.entryType || 'member';
     if (type === 'visitor') {
         if (!String(this.visitorNombre || '').trim()) {
@@ -40,15 +40,15 @@ clubEntrySchema.pre('validate', function (next) {
         }
         // Visitantes no llevan socio vinculado.
         this.user = undefined;
-    } else {
-        if (!this.user) {
-            this.invalidate('user', 'El ingreso de socio requiere un usuario.');
-        }
-        if (!this.tokenNonce) {
-            this.invalidate('tokenNonce', 'El ingreso de socio requiere un nonce de QR.');
-        }
+        return;
     }
-    next();
+
+    if (!this.user) {
+        this.invalidate('user', 'El ingreso de socio requiere un usuario.');
+    }
+    if (!this.tokenNonce) {
+        this.invalidate('tokenNonce', 'El ingreso de socio requiere un nonce de QR.');
+    }
 });
 
 clubEntrySchema.index({ scannedAt: -1 });
