@@ -218,6 +218,14 @@ const listBills = asyncHandler(async (req, res) => {
         filter.concepto = { $regex: escapeRegex(search), $options: 'i' };
     }
 
+    const mes = Number(req.query.mes);
+    const anio = Number(req.query.anio);
+    if (Number.isInteger(mes) && mes >= 1 && mes <= 12 && Number.isInteger(anio) && anio >= 2000) {
+        const from = new Date(anio, mes - 1, 1, 0, 0, 0, 0);
+        const to = new Date(anio, mes, 1, 0, 0, 0, 0);
+        filter.fecha = { $gte: from, $lt: to };
+    }
+
     const [rows, total] = await Promise.all([
         Bill.find(filter)
             .populate('registradoPor', 'nombre apellido')

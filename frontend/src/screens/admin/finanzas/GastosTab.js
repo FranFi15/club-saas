@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
 import { readScreenCache, useCachedFocusLoad } from '../../../hooks/useCachedFocusLoad';
 import { finanzasStyles as s } from './finanzasStyles';
-import { METODOS, fmtMoney, metodoPagoLabel, EST_COLOR } from './finanzasConstants';
+import { METODOS, MN, fmtMoney, metodoPagoLabel, EST_COLOR } from './finanzasConstants';
 import { pickAndUploadAttachment, openAttachmentUrl } from './finanzasUpload';
 import CustomAlert from '../../../components/CustomAlert';
 
@@ -35,7 +35,7 @@ function formatDate(value) {
   }
 }
 
-export default function GastosTab({ clubData, theme, primaryColor, getHeaders, showAlert }) {
+export default function GastosTab({ clubData, theme, primaryColor, getHeaders, showAlert, mes, anio }) {
   const cc = primaryColor;
   const cacheKey = clubData?.urlIdentifier ? `finanzas-gastos:${clubData.urlIdentifier}` : '';
 
@@ -76,15 +76,15 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
 
   const fetchData = useCallback(async () => {
     const h = await getHeaders();
-    const params = { page: 1, limit: 60 };
+    const params = { page: 1, limit: 60, mes, anio };
     if (filtroEstado !== 'todos') params.estado = filtroEstado;
     if (debouncedSearch) params.search = debouncedSearch;
     const { data } = await clubApi.get('/financial/bills', { headers: h, params });
     return { bills: data.bills || [] };
-  }, [getHeaders, filtroEstado, debouncedSearch]);
+  }, [getHeaders, filtroEstado, debouncedSearch, mes, anio]);
 
   const { loading, refreshing, onRefresh, reload } = useCachedFocusLoad({
-    cacheKey: `${cacheKey}:${filtroEstado}:${debouncedSearch}`,
+    cacheKey: `${cacheKey}:${mes}-${anio}:${filtroEstado}:${debouncedSearch}`,
     enabled: !!cacheKey,
     fetchData,
     onFetched: (data) => setBills(data.bills),
@@ -120,7 +120,7 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
       const h = await getHeaders();
       const { data } = await clubApi.get('/financial/bills', {
         headers: h,
-        params: { estado: 'pendiente', page: 1, limit: 100 },
+        params: { estado: 'pendiente', page: 1, limit: 100, mes, anio },
       });
       setSelectRows(data.bills || []);
     } catch {
@@ -181,6 +181,7 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
       const body = {
         concepto: conceptoTrim,
         monto: amount,
+        fecha: new Date(anio, (mes || 1) - 1, Math.min(new Date().getDate(), 28)).toISOString(),
         facturaUrl: facturaUrl || undefined,
         notas: notas.trim() || undefined,
       };
@@ -275,7 +276,7 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
     const color = EST_COLOR[item.estado] || theme.textMuted;
     const busy = String(deletingId) === String(item._id);
     return (
-      <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}>
+      <View style={[s.card, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }]}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <Text style={[s.planName, { color: theme.text, flexShrink: 1 }]} numberOfLines={2}>
@@ -338,12 +339,12 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
       <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 }}>
         <Text style={[s.sectionTitle, { color: theme.text }]}>Gastos</Text>
         <Text style={[s.sectionSub, { color: theme.textMuted }]}>
-          Creá facturas nuevas o seleccioná una pendiente para registrar el pago.
+          Facturas · {MN[(mes || 1) - 1]} {anio}. Creá una nueva o seleccioná una pendiente para pagar.
         </Text>
         <TextInput
           style={[
             s.input,
-            { borderColor: theme.border, color: theme.text, backgroundColor: theme.card, marginBottom: 10 },
+            { borderColor: theme.border, color: theme.text, backgroundColor: theme.surface, marginBottom: 10 },
           ]}
           placeholder="Buscar por concepto…"
           placeholderTextColor={theme.textMuted}
@@ -361,7 +362,7 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
                   s.filterChip,
                   {
                     borderColor: active ? cc : theme.border,
-                    backgroundColor: active ? `${cc}18` : theme.card,
+                    backgroundColor: active ? `${cc}18` : theme.surface,
                   },
                 ]}
               >
@@ -400,7 +401,7 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
       {/* Choose flow */}
       <Modal visible={modeModal} animationType="fade" transparent onRequestClose={() => setModeModal(false)}>
         <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setModeModal(false)}>
-          <View style={[s.modalContent, { backgroundColor: theme.card }]} onStartShouldSetResponder={() => true}>
+          <View style={[s.modalContent, { backgroundColor: theme.surface }]} onStartShouldSetResponder={() => true}>
             <Text style={[s.modalTitle, { color: theme.text, marginBottom: 8 }]}>Gastos</Text>
             <Text style={{ color: theme.textMuted, marginBottom: 16, fontSize: 13 }}>
               ¿Qué querés hacer?
@@ -436,7 +437,7 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
           style={s.modalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={[s.modalContent, { backgroundColor: theme.card, maxHeight: '92%' }]}>
+          <View style={[s.modalContent, { backgroundColor: theme.surface, maxHeight: '92%' }]}>
             <View style={s.modalHeader}>
               <Text style={[s.modalTitle, { color: theme.text }]}>Nueva factura</Text>
               <TouchableOpacity onPress={() => setCreateOpen(false)}>
@@ -549,7 +550,7 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
       {/* Select existing pending */}
       <Modal visible={selectOpen} animationType="slide" transparent onRequestClose={() => setSelectOpen(false)}>
         <View style={s.modalOverlay}>
-          <View style={[s.modalContent, { backgroundColor: theme.card, maxHeight: '80%' }]}>
+          <View style={[s.modalContent, { backgroundColor: theme.surface, maxHeight: '80%' }]}>
             <View style={s.modalHeader}>
               <Text style={[s.modalTitle, { color: theme.text }]}>Seleccionar factura</Text>
               <TouchableOpacity onPress={() => setSelectOpen(false)}>
@@ -591,7 +592,7 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
           style={s.modalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={[s.modalContent, { backgroundColor: theme.card, maxHeight: '90%' }]}>
+          <View style={[s.modalContent, { backgroundColor: theme.surface, maxHeight: '90%' }]}>
             <View style={s.modalHeader}>
               <Text style={[s.modalTitle, { color: theme.text }]}>Registrar pago</Text>
               <TouchableOpacity onPress={() => setPayOpen(false)}>

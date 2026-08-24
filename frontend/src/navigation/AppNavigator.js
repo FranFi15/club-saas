@@ -10,6 +10,7 @@ import TermsAcceptanceScreen from '../screens/TermsAcceptanceScreen';
 import MemberPlaceholderScreen from '../screens/staff/MemberPlaceholderScreen';
 import AdminTabNavigator from './AdminTabNavigator';
 import ControlIngresoNavigator from './ControlIngresoNavigator';
+import ColaboradorTabNavigator from './ColaboradorTabNavigator';
 import StaffTabNavigator from './StaffTabNavigator';
 import CoachTabNavigator from './CoachTabNavigator';
 import AthleteTabNavigator from './AthleteTabNavigator';
@@ -57,6 +58,7 @@ export default function AppNavigator() {
         <Stack.Screen name="TermsAcceptance" component={TermsAcceptanceScreen} />
         <Stack.Screen name="AdminHome" component={AdminTabNavigator} />
         <Stack.Screen name="ControlIngresoHome" component={ControlIngresoNavigator} />
+        <Stack.Screen name="ColaboradorHome" component={ColaboradorTabNavigator} />
         <Stack.Screen name="StaffHome" component={StaffTabNavigator} />
         <Stack.Screen name="CoachHome" component={CoachTabNavigator} />
         <Stack.Screen name="AthleteHome" component={AthleteTabNavigator} />

@@ -16,7 +16,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { finanzasStyles as s } from './finanzasStyles';
 import { MN, ESTADO_FILTROS, EST_COLOR, fmtMoney } from './finanzasConstants';
 import UserAvatar from '../../../components/UserAvatar';
-import SearchableDropdown from '../../../components/SearchableDropdown';
 
 function AthleteActionsMenu({
   visible,
@@ -144,6 +143,7 @@ export default function AtletasPagosTab({
   const [menuItem, setMenuItem] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showResumen, setShowResumen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
   const stats = paymentStats || {};
 
   const openMenu = useCallback((item) => {
@@ -226,15 +226,24 @@ export default function AtletasPagosTab({
       <View style={styles.headerBlock}>
         <View style={styles.resumenToggleRow}>
           <Text style={[s.sectionTitle, { color: theme.text, marginBottom: 0 }]}>Resumen</Text>
-          <TouchableOpacity
-            style={[styles.resumenToggleBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
-            onPress={() => setShowResumen((v) => !v)}
-          >
-            <Ionicons name={showResumen ? 'eye-off-outline' : 'eye-outline'} size={16} color={cc} />
-            <Text style={{ color: theme.text, fontSize: 12, fontWeight: '600', marginLeft: 6 }}>
-              {showResumen ? 'Ocultar' : 'Mostrar'}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.headerBtns}>
+            <TouchableOpacity
+              style={[styles.resumenToggleBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
+              onPress={() => setFilterOpen(true)}
+            >
+              <Ionicons name="funnel-outline" size={16} color={cc} />
+              <Text style={{ color: theme.text, fontSize: 12, fontWeight: '600', marginLeft: 6 }}>Filtrar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.resumenToggleBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
+              onPress={() => setShowResumen((v) => !v)}
+            >
+              <Ionicons name={showResumen ? 'eye-off-outline' : 'eye-outline'} size={16} color={cc} />
+              <Text style={{ color: theme.text, fontSize: 12, fontWeight: '600', marginLeft: 6 }}>
+                {showResumen ? 'Ocultar' : 'Mostrar'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {showResumen ? (
@@ -307,24 +316,6 @@ export default function AtletasPagosTab({
             <ActivityIndicator size="small" color={cc} />
           ) : null}
         </View>
-
-        <View style={styles.filterDropdown}>
-          <SearchableDropdown
-            data={ESTADO_FILTROS}
-            value={filtroEstado}
-            onChange={setFiltroEstado}
-            placeholder="Estado de cuota"
-            theme={theme}
-            colorMarca={cc}
-            compact
-            searchable={false}
-            borderRadius={5}
-            inputHeight={48}
-          />
-          {isRefreshingPayments ? (
-            <ActivityIndicator size="small" color={cc} style={styles.filterRefreshing} />
-          ) : null}
-        </View>
       </View>
 
       <FlatList
@@ -349,6 +340,35 @@ export default function AtletasPagosTab({
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cc} colors={[cc]} />
         }
       />
+
+      <Modal visible={filterOpen} transparent animationType="fade" onRequestClose={() => setFilterOpen(false)}>
+        <View style={styles.menuOverlay}>
+          <Pressable style={styles.menuBackdrop} onPress={() => setFilterOpen(false)} />
+          <View style={[styles.menuSheet, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.menuTitle, { color: theme.text }]}>Estado de cuota</Text>
+            {ESTADO_FILTROS.map((opt) => {
+              const active = filtroEstado === opt.value;
+              return (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[styles.menuItem, active && { backgroundColor: `${cc}14` }]}
+                  onPress={() => {
+                    setFiltroEstado(opt.value);
+                    setFilterOpen(false);
+                  }}
+                >
+                  <Ionicons
+                    name={active ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={20}
+                    color={active ? cc : theme.textMuted}
+                  />
+                  <Text style={[styles.menuItemText, { color: active ? cc : theme.text }]}>{opt.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
 
       <AthleteActionsMenu
         visible={menuOpen}
@@ -379,14 +399,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   searchInput: { flex: 1, fontSize: 15 },
-  filterDropdown: { marginBottom: 12, position: 'relative' },
-  filterRefreshing: { position: 'absolute', right: 44, top: 14 },
   resumenToggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 8,
+    gap: 8,
   },
+  headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
   resumenToggleBtn: {
     flexDirection: 'row',
     alignItems: 'center',

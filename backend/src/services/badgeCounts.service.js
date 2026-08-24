@@ -195,6 +195,26 @@ async function coachBadgeSummary(user, models) {
     };
 }
 
+/** Control de ingreso / colaborador: chat (+ noticias para colaborador). */
+async function opsBadgeSummary(user, models) {
+    const chatUnread = await countUnreadChatForUser(models, user._id);
+    const newsUnread = user.rol === 'colaborador' ? await countUnreadNews(user, models) : 0;
+    const chat = chatUnread > 0 ? Math.min(99, chatUnread) : 0;
+    const noticias = newsUnread > 0 ? Math.min(99, newsUnread) : 0;
+
+    return {
+        tabs: {
+            chat,
+            noticias,
+            comunicar: chat,
+        },
+        hubs: {
+            chat,
+            noticias,
+        },
+    };
+}
+
 async function countPendingConsultConfirmations(user, models) {
     const { Session, User } = models;
     const consultTypes = ['consulta_nutricion', 'consulta_psicologia'];
@@ -329,6 +349,8 @@ export async function buildBadgeSummary(req) {
         rolePart = await coachBadgeSummary(req.user, req.models);
     } else if (rol === 'atleta' || rol === 'tutor') {
         rolePart = await memberBadgeSummary(user, req.models);
+    } else if (rol === 'control_ingreso' || rol === 'colaborador') {
+        rolePart = await opsBadgeSummary(user, req.models);
     }
 
     return {

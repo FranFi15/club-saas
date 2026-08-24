@@ -8,6 +8,7 @@ export const USER_ROL_LABELS = {
   psicologo: 'Psicólogo',
   administrativo: 'Administrativo',
   control_ingreso: 'Control de ingreso',
+  colaborador: 'Colaborador',
   admin_club: 'Admin club',
 };
 
@@ -21,6 +22,7 @@ export const USER_FILTER_ROLES = [
   'psicologo',
   'administrativo',
   'control_ingreso',
+  'colaborador',
 ];
 
 export function userRoleFilterLabel(rol) {

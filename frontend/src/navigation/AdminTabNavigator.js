@@ -1,7 +1,6 @@
 import React, { useContext, useCallback, useState, useEffect } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Platform } from 'react-native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,8 +37,9 @@ import { useBadges } from '../context/BadgeContext';
 import { tabBadgeLabel } from '../utils/tabBadgeLabel';
 import { getToken } from '../utils/storage';
 import { isClubOwnerRole } from '../constants/appRoles';
+import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
 
-const Tab = createBottomTabNavigator();
+const Tab = createSwipeBottomTabNavigator();
 const EstructuraStack = createNativeStackNavigator();
 const GestionStack = createNativeStackNavigator();
 const FinanzasStack = createNativeStackNavigator();
@@ -129,31 +129,20 @@ export default function AdminTabNavigator() {
   return (
     <Tab.Navigator
       key={isDarkMode ? 'dark' : 'light'}
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarActiveTintColor: colorMarca,
-        tabBarInactiveTintColor: theme.icon,
-        tabBarStyle: {
-          backgroundColor: theme.surface,
-          borderTopColor: theme.border,
-          borderTopWidth: 1,
-          elevation: 12,
-          height: tabBarHeight,
-          paddingHorizontal: 4,
-          paddingTop: 10,
-          paddingBottom: tabBottomPad,
-          minHeight: tabBarHeight,
-        },
-        tabBarItemStyle: { paddingVertical: 4 },
-        tabBarLabelStyle: { fontSize: 10, marginBottom: 2 },
-        tabBarIcon: ({ focused, color }) => {
-          const iconSize = 22;
+      tabBarPosition="bottom"
+      screenOptions={buildSwipeBottomTabOptions({
+        colorMarca,
+        theme,
+        tabBarHeight,
+        tabBottomPad,
+        paddingHorizontal: 4,
+        getIcon: (name, focused, color) => {
           let iconName = 'ellipse-outline';
-          if (route.name === 'Estructura') iconName = focused ? 'business' : 'business-outline';
-          if (route.name === 'Gestión') iconName = focused ? 'briefcase' : 'briefcase-outline';
-          if (route.name === 'Finanzas') iconName = focused ? 'cash' : 'cash-outline';
-          if (route.name === 'Perfil') iconName = focused ? 'person' : 'person-outline';
-          return <Ionicons name={iconName} size={iconSize} color={color} />;
+          if (name === 'Estructura') iconName = focused ? 'business' : 'business-outline';
+          if (name === 'Gestión') iconName = focused ? 'briefcase' : 'briefcase-outline';
+          if (name === 'Finanzas') iconName = focused ? 'cash' : 'cash-outline';
+          if (name === 'Perfil') iconName = focused ? 'person' : 'person-outline';
+          return <Ionicons name={iconName} size={22} color={color} />;
         },
       })}
     >

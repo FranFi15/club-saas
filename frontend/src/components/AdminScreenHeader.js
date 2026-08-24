@@ -21,22 +21,12 @@ export default function AdminScreenHeader({
   showNotifications = true,
   showClubLogo = true,
 }) {
-  const toolbarLeft = onBack ? (
-    <CoachHeaderActions>
-      <TouchableOpacity
-        onPress={onBack}
-        style={styles.toolbarBtn}
-        accessibilityRole="button"
-        accessibilityLabel={backAccessibilityLabel}
-      >
-        <Ionicons name="arrow-back" size={20} color="#ffffff" />
-      </TouchableOpacity>
-    </CoachHeaderActions>
-  ) : null;
-  const toolbarRight = rightAccessory ? (
-    <CoachHeaderActions>{rightAccessory}</CoachHeaderActions>
-  ) : null;
-  const showTopToolbar = onBack || !!rightAccessory;
+  // Toolbar solo con volver: en hubs (sin back) logo/título quedan centrados más arriba.
+  const showTopToolbar = !!onBack;
+  const midRightAccessory = !onBack ? rightAccessory : null;
+  const toolbarRightAccessory = onBack ? rightAccessory : null;
+  const showMidRight = showNotifications || !!midRightAccessory;
+  const midRightWide = showNotifications && !!midRightAccessory;
 
   return (
     <View style={[styles.headerWrap, { backgroundColor: theme.background }]}>
@@ -51,8 +41,23 @@ export default function AdminScreenHeader({
       >
         {showTopToolbar ? (
           <View style={styles.toolbar}>
-            <View style={styles.toolbarLeft}>{toolbarLeft}</View>
-            <View style={styles.toolbarRight}>{toolbarRight}</View>
+            <View style={styles.toolbarLeft}>
+              <CoachHeaderActions>
+                <TouchableOpacity
+                  onPress={onBack}
+                  style={styles.toolbarBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={backAccessibilityLabel}
+                >
+                  <Ionicons name="arrow-back" size={20} color="#ffffff" />
+                </TouchableOpacity>
+              </CoachHeaderActions>
+            </View>
+            <View style={styles.toolbarRight}>
+              {toolbarRightAccessory ? (
+                <CoachHeaderActions>{toolbarRightAccessory}</CoachHeaderActions>
+              ) : null}
+            </View>
           </View>
         ) : null}
 
@@ -61,7 +66,7 @@ export default function AdminScreenHeader({
             styles.headerBody,
             styles.headerBodyCentered,
             showClubLogo && styles.headerBodyWithLogo,
-            showNotifications && styles.headerBodyWithBack,
+            showMidRight && (midRightWide ? styles.headerBodyWithMidRightWide : styles.headerBodyWithMidRight),
             bottomRightAccessory && styles.headerBodyWithBottomRight,
           ]}
         >
@@ -87,13 +92,14 @@ export default function AdminScreenHeader({
           </View>
         ) : null}
 
-        {showNotifications ? (
+        {showMidRight ? (
           <View
             style={[styles.actionMidRight, bottomRightAccessory && styles.actionTopRight]}
             pointerEvents="box-none"
           >
             <CoachHeaderActions>
-              <NotificationBell />
+              {midRightAccessory}
+              {showNotifications ? <NotificationBell /> : null}
             </CoachHeaderActions>
           </View>
         ) : null}
@@ -182,12 +188,14 @@ const styles = StyleSheet.create({
   headerBodyCentered: {
     paddingVertical: 4,
   },
-  headerBodyWithBack: {
+  headerBodyWithMidRight: {
     paddingRight: BACK_BTN_SIZE + 10,
+  },
+  headerBodyWithMidRightWide: {
+    paddingRight: BACK_BTN_SIZE * 2 + 16,
   },
   headerBodyWithBottomRight: {
     paddingBottom: 4,
-    paddingRight: 8,
   },
   headerKicker: {
     color: 'rgba(255,255,255,0.85)',

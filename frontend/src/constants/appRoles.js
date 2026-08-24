@@ -4,6 +4,9 @@ export const ADMIN_APP_ROLES = ['admin_club', 'administrativo'];
 /** Solo escáner QR de ingreso (sin menús de gestión) */
 export const CLUB_SCANNER_ONLY_ROLES = ['control_ingreso'];
 
+/** Personal general del club (mantenimiento, etc.): chat + noticias + perfil */
+export const COLABORADOR_APP_ROLES = ['colaborador'];
+
 /** Dueño del club: personalización, estructura y finanzas avanzadas */
 export const CLUB_OWNER_ROLES = ['admin_club'];
 
@@ -23,6 +26,10 @@ export function isClubOpsRole(rol) {
 
 export function isScannerOnlyAdminRole(rol) {
   return CLUB_SCANNER_ONLY_ROLES.includes(rol);
+}
+
+export function isColaboradorRole(rol) {
+  return COLABORADOR_APP_ROLES.includes(rol);
 }
 
 /** Cuerpo técnico / salud (no finanzas ni estructura global) */
@@ -46,6 +53,7 @@ export const TUTOR_APP_ROLES = ['tutor'];
 export const CLUB_ENTRY_QR_ROLES = [
   'atleta',
   'tutor',
+  'colaborador',
   ...STAFF_APP_ROLES,
   ...ADMIN_APP_ROLES,
 ];
@@ -53,6 +61,7 @@ export const CLUB_ENTRY_QR_ROLES = [
 export function resolveMainNavigator(rol) {
   if (!rol) return 'MemberPlaceholder';
   if (isScannerOnlyAdminRole(rol)) return 'ControlIngresoHome';
+  if (isColaboradorRole(rol)) return 'ColaboradorHome';
   if (ADMIN_APP_ROLES.includes(rol)) return 'AdminHome';
   if (rol === 'profe') return 'CoachHome';
   if (STAFF_APP_ROLES.includes(rol)) return 'StaffHome';

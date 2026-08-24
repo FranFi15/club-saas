@@ -7,6 +7,7 @@ export function formatRolStaff(rol) {
     admin_club: 'Administración',
     administrativo: 'Administración',
     control_ingreso: 'Control de ingreso',
+    colaborador: 'Colaborador',
     medico: 'Médico/a',
     kinesiologo: 'Kinesiología',
   };
@@ -21,6 +22,8 @@ export const STAFF_ROL_FILTER_ORDER = [
   'psicologo',
   'admin_club',
   'administrativo',
+  'control_ingreso',
+  'colaborador',
   'medico',
   'kinesiologo',
 ];

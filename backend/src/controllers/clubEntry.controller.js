@@ -13,6 +13,7 @@ function formatCuotaPeriodo(p) {
 const MEMBER_QR_ROLES = [
     'atleta',
     'tutor',
+    'colaborador',
     'profe',
     'preparador_fisico',
     'nutricionista',

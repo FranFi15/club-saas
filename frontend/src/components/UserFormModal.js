@@ -38,6 +38,7 @@ export default function UserFormModal({ visible, onClose, onSave, initialData, i
     { label: 'Nutricionista', value: 'nutricionista' },
     { label: 'Psicólogo', value: 'psicologo' },
     { label: 'Tutor', value: 'tutor' },
+    { label: 'Colaborador', value: 'colaborador' },
     { label: 'Administrativo', value: 'administrativo' },
     { label: 'Administrador del club', value: 'admin_club' },
   ].filter((r) => isClubOwnerRole(viewerRol) || r.value !== 'admin_club');

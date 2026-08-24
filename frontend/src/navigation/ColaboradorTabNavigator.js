@@ -6,10 +6,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
 import { ThemeContext } from '../context/ThemeContext';
-import AdminClubEntryScanScreen from '../screens/admin/AdminClubEntryScanScreen';
+import NoticiasScreen from '../screens/admin/NoticiasScreen';
+import StaffProfileScreen from '../screens/staff/StaffProfileScreen';
 import ChatInboxScreen from '../screens/chat/ChatInboxScreen';
 import ChatThreadScreen from '../screens/chat/ChatThreadScreen';
 import ChatNewScreen from '../screens/chat/ChatNewScreen';
+import { createProfileStack } from './createProfileStack';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
 import { tabBadgeLabel } from '../utils/tabBadgeLabel';
@@ -17,8 +19,9 @@ import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swi
 
 const Tab = createSwipeBottomTabNavigator();
 const ChatStack = createNativeStackNavigator();
+const ColaboradorProfileStack = createProfileStack(StaffProfileScreen);
 
-function ControlChatStackNav() {
+function ColaboradorChatStackNav() {
   return (
     <ChatStack.Navigator screenOptions={{ headerShown: false }}>
       <ChatStack.Screen name="ChatInbox" component={ChatInboxScreen} />
@@ -28,7 +31,20 @@ function ControlChatStackNav() {
   );
 }
 
-export default function ControlIngresoNavigator() {
+function ColaboradorNewsScreen({ navigation, route }) {
+  return (
+    <NoticiasScreen
+      navigation={navigation}
+      route={{
+        ...route,
+        params: { ...(route?.params || {}), tabRoot: true, embeddedStaff: true },
+      }}
+    />
+  );
+}
+
+/** App mínima para personal general del club: noticias, chat y perfil. */
+export default function ColaboradorTabNavigator() {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const { tab, refresh } = useBadges();
@@ -52,32 +68,36 @@ export default function ControlIngresoNavigator() {
         theme,
         tabBarHeight,
         tabBottomPad,
-        paddingHorizontal: 12,
+        paddingHorizontal: 10,
         labelFontSize: 11,
         getIcon: (name, focused, color) => {
           const map = {
-            ControlIngresoScan: focused ? 'qr-code' : 'qr-code-outline',
-            ControlIngresoChat: focused ? 'chatbubbles' : 'chatbubbles-outline',
+            ColabNoticias: focused ? 'newspaper' : 'newspaper-outline',
+            ColabChat: focused ? 'chatbubbles' : 'chatbubbles-outline',
+            ColabPerfil: focused ? 'person' : 'person-outline',
           };
           return <Ionicons name={map[name] || 'ellipse-outline'} size={24} color={color} />;
         },
       })}
     >
       <Tab.Screen
-        name="ControlIngresoScan"
-        component={AdminClubEntryScanScreen}
-        initialParams={{ standalone: true }}
-        options={{ tabBarLabel: 'Ingreso' }}
+        name="ColabNoticias"
+        component={ColaboradorNewsScreen}
+        options={{
+          tabBarLabel: 'Noticias',
+          tabBarBadge: tabBadgeLabel(tab('noticias')),
+        }}
       />
       <Tab.Screen
-        name="ControlIngresoChat"
-        component={ControlChatStackNav}
+        name="ColabChat"
+        component={ColaboradorChatStackNav}
         options={{
           tabBarLabel: 'Chat',
           tabBarBadge: tabBadgeLabel(tab('chat')),
         }}
-        listeners={tabPressResetToRoot('ControlIngresoChat', 'ChatInbox')}
+        listeners={tabPressResetToRoot('ColabChat', 'ChatInbox')}
       />
+      <Tab.Screen name="ColabPerfil" component={ColaboradorProfileStack} options={{ tabBarLabel: 'Perfil' }} />
     </Tab.Navigator>
   );
 }

@@ -2,6 +2,10 @@ import { hijosDelTutorFilter } from '../utils/userQuery.js';
 
 export const ADMIN_ROLES = new Set(['admin_club', 'administrativo']);
 export const STAFF_ROLES = new Set(['profe', 'preparador_fisico', 'nutricionista', 'psicologo']);
+/** Personal operativo (no atleta/tutor): chat entre sí y con cuerpo técnico. */
+export const OPS_CHAT_ROLES = new Set(['control_ingreso', 'colaborador']);
+
+const OPS_NETWORK_ROLES = new Set([...OPS_CHAT_ROLES, ...STAFF_ROLES]);
 
 const USER_SELECT = 'nombre apellido email rol fotoPerfil estado';
 
@@ -115,6 +119,10 @@ export async function canChat(models, userA, userB) {
 
     if (ADMIN_ROLES.has(rolA) || ADMIN_ROLES.has(rolB)) return true;
 
+    // Control ingreso / colaborador ↔ entre sí y con cuerpo técnico (no abre staff↔staff)
+    if (OPS_CHAT_ROLES.has(rolA) && OPS_NETWORK_ROLES.has(rolB)) return true;
+    if (OPS_CHAT_ROLES.has(rolB) && OPS_NETWORK_ROLES.has(rolA)) return true;
+
     // Tutor <-> staff vinculado a sus atletas (siempre; no depende del switch)
     if (rolA === 'tutor' && STAFF_ROLES.has(rolB)) {
         const staff = await staffIdsForTutor(models, userA._id);
@@ -145,6 +153,26 @@ function userLabel(u) {
         rol: u.rol,
         fotoPerfil: u.fotoPerfil,
     };
+}
+
+async function listOpsNetworkPeers(User, user) {
+    return User.find({
+        estado: 'activo',
+        _id: { $ne: user._id },
+        rol: { $in: [...OPS_NETWORK_ROLES] },
+    })
+        .select(USER_SELECT)
+        .lean();
+}
+
+async function listOpsOnlyPeers(User, user) {
+    return User.find({
+        estado: 'activo',
+        _id: { $ne: user._id },
+        rol: { $in: [...OPS_CHAT_ROLES] },
+    })
+        .select(USER_SELECT)
+        .lean();
 }
 
 /** Destinatarios con los que el usuario puede iniciar un chat. */
@@ -179,6 +207,8 @@ export async function listEligibleRecipients(models, user) {
                 $in: [
                     'admin_club',
                     'administrativo',
+                    'control_ingreso',
+                    'colaborador',
                     'profe',
                     'preparador_fisico',
                     'nutricionista',
@@ -191,6 +221,11 @@ export async function listEligibleRecipients(models, user) {
             .select(USER_SELECT)
             .lean();
         addMany(everyone);
+        return [...out.values()].sort(sortByName);
+    }
+
+    if (OPS_CHAT_ROLES.has(user.rol)) {
+        addMany(await listOpsNetworkPeers(User, user));
         return [...out.values()].sort(sortByName);
     }
 
@@ -209,6 +244,9 @@ export async function listEligibleRecipients(models, user) {
     }
 
     if (STAFF_ROLES.has(user.rol)) {
+        // Control de ingreso / colaboradores
+        addMany(await listOpsOnlyPeers(User, user));
+
         // Tutores de atletas del staff (todas sus categorías)
         const athleteIds = await athleteIdsForStaff(models, user);
         if (athleteIds.length) {

@@ -28,7 +28,7 @@ import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
 import ProfileLinkRow from '../../components/ProfileLinkRow';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { useBadges } from '../../context/BadgeContext';
-import { tabBadgeLabel } from '../../utils/tabBadgeLabel';
+import { tabBadgeText } from '../../utils/tabBadgeLabel';
 
 export default function TutorProfileScreen({ navigation }) {
   const { clubData, setClubData, clearSession } = useContext(ClubContext);
@@ -171,7 +171,7 @@ export default function TutorProfileScreen({ navigation }) {
               subtitle="Pagá las cuotas de tus atletas"
               onPress={() => navigation.navigate('TutorPayments')}
               theme={theme}
-              badge={tabBadgeLabel(tab('cuotas'))}
+              badge={tabBadgeText(tab('cuotas'))}
               isLast
             />
           </View>

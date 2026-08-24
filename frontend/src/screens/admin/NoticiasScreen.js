@@ -18,6 +18,8 @@ import NewsMultiSelectList from '../../components/NewsMultiSelectList';
 import { formatJsDateToDisplay } from '../../utils/dateDisplay';
 import { uploadFileToClub } from '../../utils/uploadMedia';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { useBadgesOptional } from '../../context/BadgeContext';
+import { useFocusEffect } from '@react-navigation/native';
 
 const ADMIN_ALCANCE_OPTIONS = [
   { value: 'global', label: 'Todo el club', icon: 'globe-outline' },
@@ -40,8 +42,10 @@ const ADMIN_ROLES = ['admin_club', 'administrativo'];
 export default function NoticiasScreen({ navigation, route }) {
   const embeddedStaff = route?.params?.embeddedStaff === true;
   const coachBrandedHeader = route?.params?.coachBrandedHeader === true;
+  const tabRoot = route?.params?.tabRoot === true;
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
+  const badges = useBadgesOptional();
   const cc = clubData?.primaryColor || '#3b82f6';
 
   const [viewerRol, setViewerRol] = useState('');
@@ -72,6 +76,17 @@ export default function NoticiasScreen({ navigation, route }) {
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [alertConfig, setAlertConfig] = useState({ visible:false, title:'', message:'', showCancel:false, isDanger:false, onConfirm:()=>{}, onCancel:()=>{} });
   const showAlert = (t,m) => setAlertConfig({ visible:true, title:t, message:m, onConfirm:()=>setAlertConfig(p=>({...p,visible:false})), onCancel:()=>setAlertConfig(p=>({...p,visible:false})) });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!tabRoot) return undefined;
+      (async () => {
+        await badges?.markSeen?.({ news: true });
+        badges?.refresh?.();
+      })();
+      return undefined;
+    }, [tabRoot, badges]),
+  );
 
   const isCoachComposer = viewerRol === 'profe';
   const isAdminComposer = ADMIN_ROLES.includes(viewerRol);
@@ -516,6 +531,14 @@ export default function NoticiasScreen({ navigation, route }) {
           title="Noticias"
           subtitle={clubData?.nombre || 'Club'}
           onBack={() => navigation.goBack()}
+        />
+      ) : tabRoot ? (
+        <CoachScreenHeader
+          colorMarca={cc}
+          theme={theme}
+          kicker="Club"
+          title="Noticias"
+          subtitle={clubData?.nombre || 'Tu club'}
         />
       ) : (
         <AdminScreenHeader

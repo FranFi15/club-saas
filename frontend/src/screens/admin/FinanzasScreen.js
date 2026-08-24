@@ -12,8 +12,10 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import PagerView from 'react-native-pager-view';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../utils/api';
 import { ClubContext } from '../../context/ClubContext';
@@ -32,86 +34,50 @@ import PaymentHistoryModal from './finanzas/PaymentHistoryModal';
 import SelectPaymentsModal from '../../components/SelectPaymentsModal';
 import PaymentPaySummary from '../../components/PaymentPaySummary';
 import { useBadges } from '../../context/BadgeContext';
-import NotificationBell from '../../components/NotificationBell';
 import BadgeDot from '../../components/BadgeDot';
+import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { isClubOwnerRole, ADMIN_APP_ROLES } from '../../constants/appRoles';
 
 const financeHeader = StyleSheet.create({
-  headerWrap: { width: '100%', paddingTop: 8, paddingBottom: 4 },
-  headerCard: {
-    borderRadius: 0,
-    width: '100%',
-    paddingHorizontal: 16,
-    paddingRight: 52,
-    paddingTop: 14,
-    paddingBottom: 14,
-    position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 5,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  headerKicker: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    marginBottom: 4,
-  },
-  titleRow: {
+  monthRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 10,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
   },
-  headerTitle: { color: '#fff', fontSize: 22, fontWeight: 'bold', flexShrink: 0 },
-  headerSub: { color: '#e5e7eb', fontSize: 14, marginTop: 6, lineHeight: 20 },
-  headerBell: { position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center', zIndex: 2 },
-  monthNav: {
+  monthNavBtn: { padding: 4 },
+  monthNavText: { color: '#fff', fontSize: 13, fontWeight: '700', minWidth: 108, textAlign: 'center' },
+  menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  menuSheet: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingHorizontal: 8,
+    paddingTop: 10,
+    paddingBottom: 28,
+  },
+  menuHandle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: '#d1d5db', marginBottom: 10 },
+  menuTitle: { fontSize: 16, fontWeight: '700', paddingHorizontal: 12, marginBottom: 6 },
+  menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    flex: 1,
-    gap: 4,
-    minWidth: 0,
+    paddingVertical: 13,
+    paddingHorizontal: 12,
+    gap: 12,
   },
-  monthNavBtn: { padding: 2 },
-  monthNavText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-    textAlign: 'center',
-    flexShrink: 1,
-  },
-  monthNavHint: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 13,
-    fontWeight: '600',
-    flex: 1,
-    textAlign: 'right',
-  },
-  periodActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 10,
-  },
-  periodActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 8,
-    gap: 5,
-    flexShrink: 1,
-  },
-  periodActionTxt: { color: '#fff', fontSize: 12, fontWeight: '700', flexShrink: 1 },
+  menuItemTxt: { flex: 1, fontSize: 15, fontWeight: '600' },
+  menuDivider: { height: StyleSheet.hairlineWidth, marginHorizontal: 12, marginVertical: 4 },
 });
 
 export default function FinanzasScreen({ route }) {
@@ -128,16 +94,43 @@ export default function FinanzasScreen({ route }) {
 
   const finanzasTabBadge = (key) => {
     if (key === 'atletas') return hub('finanzasAtletas');
-    if (key === 'revision') return hub('finanzasRevision');
     return 0;
   };
+  const revisionBadge = hub('finanzasRevision');
 
   const [tab, setTab] = useState(() => route?.params?.initialTab || 'atletas');
+  const pagerRef = useRef(null);
+  const openRevision = () => setTab('revision');
+  const leaveRevision = () => selectMainTab('atletas');
+  const openPlanes = () => setTab('planes');
+  const leavePlanes = () => selectMainTab('atletas');
   const [viewerRol, setViewerRol] = useState('');
   const canManageClubFinances = isClubOwnerRole(viewerRol);
   const canRunPeriodActions = ADMIN_APP_ROLES.includes(viewerRol);
-  const visibleTabs = canManageClubFinances ? TABS : TABS.filter((t) => t.key !== 'planes');
+  const visibleTabs = canManageClubFinances
+    ? TABS
+    : TABS.filter((t) => t.key === 'atletas' || t.key === 'familias');
+  const mainTabIndex = Math.max(
+    0,
+    visibleTabs.findIndex((t) => t.key === tab),
+  );
+
+  const selectMainTab = useCallback(
+    (key) => {
+      setTab(key);
+      const idx = visibleTabs.findIndex((t) => t.key === key);
+      if (idx >= 0) {
+        try {
+          pagerRef.current?.setPage(idx);
+        } catch {
+          /* pager not ready */
+        }
+      }
+    },
+    [visibleTabs],
+  );
   const [periodBusy, setPeriodBusy] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   useEffect(() => {
     getToken('userRol').then((r) => setViewerRol(r || ''));
@@ -149,12 +142,14 @@ export default function FinanzasScreen({ route }) {
   }, [route?.params?.initialTab]);
 
   useEffect(() => {
-    if (!canManageClubFinances && tab === 'planes') setTab('atletas');
-  }, [canManageClubFinances, tab]);
+    if (canManageClubFinances) return;
+    if (tab === 'planes' || tab === 'nomina' || tab === 'gastos') selectMainTab('atletas');
+  }, [canManageClubFinances, tab, selectMainTab]);
+
   const now = new Date();
   const [mes, setMes] = useState(now.getMonth() + 1);
   const [anio, setAnio] = useState(now.getFullYear());
-  const [filtroEstado, setFiltroEstado] = useState('pendiente');
+  const [filtroEstado, setFiltroEstado] = useState('todos');
   const [filtroBusqueda, setFiltroBusqueda] = useState('');
   const [debouncedBusqueda, setDebouncedBusqueda] = useState('');
 
@@ -164,6 +159,18 @@ export default function FinanzasScreen({ route }) {
         ? `finanzas-atletas:${clubData.urlIdentifier}:vencidos:${debouncedBusqueda}`
         : `finanzas-atletas:${clubData.urlIdentifier}:${mes}:${anio}:${filtroEstado}:${debouncedBusqueda}`
       : '';
+
+  const showMonthNav =
+    (tab === 'atletas' && filtroEstado !== 'vencido') ||
+    tab === 'familias' ||
+    tab === 'nomina' ||
+    tab === 'gastos';
+  const showVencidosHeader = tab === 'atletas' && filtroEstado === 'vencido';
+  const showCuotaPeriodActions =
+    showMonthNav && canRunPeriodActions && tab !== 'nomina' && tab !== 'gastos';
+  const showRevisionHeader = tab === 'revision';
+  const showPlanesHeader = tab === 'planes';
+  const hideMainTabs = showRevisionHeader || showPlanesHeader;
 
   const [athletes, setAthletes] = useState(() => readScreenCache(paymentsCacheKey)?.athletes ?? []);
   const PAYMENTS_PAGE_SIZE = 50;
@@ -1002,232 +1009,321 @@ export default function FinanzasScreen({ route }) {
     </>
   );
 
-  const showMonthNav =
-    (tab === 'atletas' && filtroEstado !== 'vencido') || tab === 'familias';
-  const showVencidosHeader = tab === 'atletas' && filtroEstado === 'vencido';
-
   return (
     <SafeAreaView style={[s.container, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <View style={[financeHeader.headerWrap, { backgroundColor: theme.background }]}>
-        <View style={[financeHeader.headerCard, { backgroundColor: cc }]}>
-          <View style={financeHeader.headerBell}>
-            <NotificationBell />
-          </View>
-          <Text style={financeHeader.headerKicker}>Finanzas</Text>
-          <View style={financeHeader.titleRow}>
-            <Text style={financeHeader.headerTitle}>Pagos</Text>
-            {showMonthNav ? (
-              <View style={financeHeader.monthNav}>
-                <TouchableOpacity
-                  style={financeHeader.monthNavBtn}
-                  onPress={() => chgMonth(-1)}
-                  accessibilityLabel="Mes anterior"
-                  hitSlop={8}
-                >
-                  <Ionicons name="chevron-back" size={20} color="#fff" />
-                </TouchableOpacity>
-                <Text style={financeHeader.monthNavText} numberOfLines={1}>
-                  {MN[mes - 1]} {anio}
-                </Text>
-                <TouchableOpacity
-                  style={financeHeader.monthNavBtn}
-                  onPress={() => chgMonth(1)}
-                  accessibilityLabel="Mes siguiente"
-                  hitSlop={8}
-                >
-                  <Ionicons name="chevron-forward" size={20} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            ) : showVencidosHeader ? (
-              <Text style={financeHeader.monthNavHint} numberOfLines={1}>
-                Todas las cuotas vencidas
-              </Text>
-            ) : null}
-          </View>
-          {showMonthNav && canRunPeriodActions ? (
-            <View style={financeHeader.periodActions}>
-              <TouchableOpacity
-                style={[financeHeader.periodActionBtn, periodBusy && { opacity: 0.6 }]}
-                onPress={runGenerateMonth}
-                disabled={periodBusy}
-              >
-                {periodBusy ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Ionicons name="flash-outline" size={14} color="#fff" />
-                )}
-                <Text style={financeHeader.periodActionTxt} numberOfLines={1}>
-                  Generar cuotas
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[financeHeader.periodActionBtn, periodBusy && { opacity: 0.6 }]}
-                onPress={runCheckOverdue}
-                disabled={periodBusy}
-              >
-                <Ionicons name="alert-circle-outline" size={14} color="#fff" />
-                <Text style={financeHeader.periodActionTxt} numberOfLines={1}>
-                  Chequear vencidos
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[financeHeader.periodActionBtn, periodBusy && { opacity: 0.6 }]}
-                onPress={runAvisarMorosos}
-                disabled={periodBusy}
-              >
-                <Ionicons name="notifications-outline" size={14} color="#fff" />
-                <Text style={financeHeader.periodActionTxt} numberOfLines={1}>
-                  Avisar morosos
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[financeHeader.periodActionBtn, periodBusy && { opacity: 0.6 }]}
-                onPress={runReconcileMp}
-                disabled={periodBusy}
-              >
-                <Ionicons name="sync-outline" size={14} color="#fff" />
-                <Text style={financeHeader.periodActionTxt} numberOfLines={1}>
-                  Sync MP
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ) : showVencidosHeader && canRunPeriodActions ? (
-            <View style={financeHeader.periodActions}>
-              <TouchableOpacity
-                style={[financeHeader.periodActionBtn, periodBusy && { opacity: 0.6 }]}
-                onPress={runAvisarMorosos}
-                disabled={periodBusy}
-              >
-                <Ionicons name="notifications-outline" size={14} color="#fff" />
-                <Text style={financeHeader.periodActionTxt} numberOfLines={1}>
-                  Avisar morosos
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ) : !showMonthNav && !showVencidosHeader ? (
-            <Text style={financeHeader.headerSub} numberOfLines={2}>
-              {clubData?.nombre || 'Tu club'}
-            </Text>
-          ) : null}
-        </View>
-      </View>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ borderBottomWidth: 1, borderBottomColor: theme.border, flexGrow: 0 }}
-        contentContainerStyle={{ paddingHorizontal: 8 }}
-      >
-        {visibleTabs.map((t) => (
+      <AdminScreenHeader
+        theme={theme}
+        colorMarca={cc}
+        kicker="Finanzas"
+        title={showRevisionHeader ? 'Revisión' : showPlanesHeader ? 'Planes' : 'Pagos'}
+        subtitle={
+          showRevisionHeader
+            ? 'Comprobantes pendientes'
+            : showPlanesHeader
+              ? 'Planes de cuota'
+              : showVencidosHeader
+                ? 'Todas las cuotas vencidas'
+                : undefined
+        }
+        onBack={
+          showRevisionHeader || showPlanesHeader
+            ? showPlanesHeader
+              ? leavePlanes
+              : leaveRevision
+            : undefined
+        }
+        rightAccessory={
           <TouchableOpacity
-            key={t.key}
-            style={[
-              s.tab,
-              { flex: 0, paddingHorizontal: 14, minWidth: 88 },
-              tab === t.key && { borderBottomColor: cc, borderBottomWidth: 2 },
-            ]}
-            onPress={() => setTab(t.key)}
+            style={financeHeader.iconBtn}
+            onPress={() => setMoreOpen(true)}
+            accessibilityLabel="Más acciones"
           >
-            <Ionicons name={t.icon} size={18} color={tab === t.key ? cc : theme.textMuted} />
-            <Text
-              style={[
-                s.tabLabel,
-                { color: tab === t.key ? cc : theme.textMuted, fontWeight: tab === t.key ? 'bold' : 'normal' },
-              ]}
-            >
-              {t.label}
-            </Text>
-            <BadgeDot count={finanzasTabBadge(t.key)} style={{ marginLeft: 4 }} />
+            <Ionicons name="ellipsis-horizontal" size={20} color="#fff" />
+            {revisionBadge > 0 && !showRevisionHeader ? (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 4,
+                  right: 4,
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: '#ef4444',
+                  borderWidth: 1,
+                  borderColor: '#fff',
+                }}
+              />
+            ) : null}
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+        }
+        bottomRightAccessory={
+          showMonthNav ? (
+            <View style={financeHeader.monthRow}>
+              <TouchableOpacity
+                style={financeHeader.monthNavBtn}
+                onPress={() => chgMonth(-1)}
+                accessibilityLabel="Mes anterior"
+                hitSlop={8}
+              >
+                <Ionicons name="chevron-back" size={18} color="#fff" />
+              </TouchableOpacity>
+              <Text style={financeHeader.monthNavText} numberOfLines={1}>
+                {MN[mes - 1]} {anio}
+              </Text>
+              <TouchableOpacity
+                style={financeHeader.monthNavBtn}
+                onPress={() => chgMonth(1)}
+                accessibilityLabel="Mes siguiente"
+                hitSlop={8}
+              >
+                <Ionicons name="chevron-forward" size={18} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          ) : undefined
+        }
+      />
 
-      {tab === 'atletas' && (
-        <AtletasPagosTab
-          theme={theme}
-          primaryColor={cc}
-          mes={mes}
-          anio={anio}
-          athletes={athletes}
-          isLoadingPay={showPaymentsLoading}
-          isRefreshingPayments={isRefreshingPayments}
-          filtroBusqueda={filtroBusqueda}
-          setFiltroBusqueda={setFiltroBusqueda}
-          filtroEstado={filtroEstado}
-          setFiltroEstado={setFiltroEstado}
-          isSearchPending={isSearchPending}
-          refreshing={tabRefreshing}
-          onRefresh={onRefresh}
-          onPay={openPayModal}
-          onSelectPayments={(cuotas, subtitle, hijos) =>
-            openSelectPayments(cuotas, subtitle, hijos || [])
-          }
-          onHistory={openHistory}
-          hasMorePayments={paymentsHasMore}
-          loadingMorePayments={loadingMorePayments}
-          onLoadMorePayments={loadMorePayments}
-          paymentStats={paymentStats}
-          isLoadingStats={isLoadingStats}
-        />
-      )}
+      <Modal visible={moreOpen} transparent animationType="fade" onRequestClose={() => setMoreOpen(false)}>
+        <Pressable style={financeHeader.menuOverlay} onPress={() => setMoreOpen(false)}>
+          <Pressable style={[financeHeader.menuSheet, { backgroundColor: theme.surface }]} onPress={(e) => e.stopPropagation()}>
+            <View style={financeHeader.menuHandle} />
+            <Text style={[financeHeader.menuTitle, { color: theme.text }]}>Acciones</Text>
+            {!showRevisionHeader ? (
+              <TouchableOpacity
+                style={financeHeader.menuItem}
+                onPress={() => {
+                  setMoreOpen(false);
+                  openRevision();
+                }}
+              >
+                <Ionicons name="document-attach-outline" size={20} color={cc} />
+                <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Revisión de comprobantes</Text>
+                <BadgeDot count={revisionBadge} />
+              </TouchableOpacity>
+            ) : null}
+            {canManageClubFinances && !showPlanesHeader ? (
+              <TouchableOpacity
+                style={financeHeader.menuItem}
+                onPress={() => {
+                  setMoreOpen(false);
+                  openPlanes();
+                }}
+              >
+                <Ionicons name="document-text-outline" size={20} color={cc} />
+                <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Planes de cuota</Text>
+              </TouchableOpacity>
+            ) : null}
+            {canRunPeriodActions && (showCuotaPeriodActions || showVencidosHeader) ? (
+              <View style={[financeHeader.menuDivider, { backgroundColor: theme.border }]} />
+            ) : null}
+            {canRunPeriodActions && showCuotaPeriodActions ? (
+              <>
+                <TouchableOpacity
+                  style={financeHeader.menuItem}
+                  disabled={periodBusy}
+                  onPress={() => {
+                    setMoreOpen(false);
+                    runGenerateMonth();
+                  }}
+                >
+                  <Ionicons name="flash-outline" size={20} color={cc} />
+                  <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Generar cuotas del mes</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={financeHeader.menuItem}
+                  disabled={periodBusy}
+                  onPress={() => {
+                    setMoreOpen(false);
+                    runCheckOverdue();
+                  }}
+                >
+                  <Ionicons name="alert-circle-outline" size={20} color={cc} />
+                  <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Chequear vencidos</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={financeHeader.menuItem}
+                  disabled={periodBusy}
+                  onPress={() => {
+                    setMoreOpen(false);
+                    runAvisarMorosos();
+                  }}
+                >
+                  <Ionicons name="notifications-outline" size={20} color={cc} />
+                  <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Avisar morosos</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={financeHeader.menuItem}
+                  disabled={periodBusy}
+                  onPress={() => {
+                    setMoreOpen(false);
+                    runReconcileMp();
+                  }}
+                >
+                  <Ionicons name="sync-outline" size={20} color={cc} />
+                  <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Sincronizar Mercado Pago</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
+            {canRunPeriodActions && showVencidosHeader && !showCuotaPeriodActions ? (
+              <TouchableOpacity
+                style={financeHeader.menuItem}
+                disabled={periodBusy}
+                onPress={() => {
+                  setMoreOpen(false);
+                  runAvisarMorosos();
+                }}
+              >
+                <Ionicons name="notifications-outline" size={20} color={cc} />
+                <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Avisar morosos</Text>
+              </TouchableOpacity>
+            ) : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
-      {tab === 'familias' && (
-        <FamiliasTab
-          theme={theme}
-          primaryColor={cc}
-          mes={mes}
-          anio={anio}
-          siblings={siblings}
-          isLoading={isLoadingSiblings && siblings.length === 0}
-          isRefreshing={isLoadingSiblings && siblings.length > 0}
-          filtroBusqueda={familiasBusqueda}
-          setFiltroBusqueda={setFamiliasBusqueda}
-          isSearchPending={isFamiliasSearchPending}
-          refreshing={tabRefreshing}
-          onRefresh={onRefresh}
-          hasMoreFamilias={siblingsHasMore}
-          loadingMoreFamilias={loadingMoreSiblings}
-          onLoadMoreFamilias={loadMoreSiblings}
-          globalDiscount={globalFamilyDiscount}
-          globalDiscountInput={globalDiscountInput}
-          onGlobalDiscountChange={setGlobalDiscountInput}
-          onSaveGlobalDiscount={saveGlobalFamilyDiscount}
-          isSavingGlobalDiscount={isSavingGlobalDiscount}
-          discountInput={discountInput}
-          onDiscountChange={(tutorId, v) => setDiscountInput({ ...discountInput, [tutorId]: v })}
-          onApplyDiscount={applyDiscount}
-          onPayCuota={(p, h) => openPayModal(p, h)}
-          onSelectPayments={(cuotas, subtitle, hijos) =>
-            openSelectPayments(cuotas, subtitle, hijos || [])
-          }
-          onHistoryAtleta={openHistory}
-          canManageDiscounts={canManageClubFinances}
-        />
-      )}
+      {!hideMainTabs ? (
+        <>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ borderBottomWidth: 1, borderBottomColor: theme.border, flexGrow: 0 }}
+            contentContainerStyle={{
+              paddingHorizontal: 8,
+              flexGrow: 1,
+              justifyContent: visibleTabs.length <= 2 ? 'center' : 'flex-start',
+            }}
+          >
+            {visibleTabs.map((t) => (
+              <TouchableOpacity
+                key={t.key}
+                style={[
+                  s.tab,
+                  { flex: 0, paddingHorizontal: 14, minWidth: 88 },
+                  tab === t.key && { borderBottomColor: cc, borderBottomWidth: 2 },
+                ]}
+                onPress={() => selectMainTab(t.key)}
+              >
+                <Ionicons name={t.icon} size={18} color={tab === t.key ? cc : theme.textMuted} />
+                <Text
+                  style={[
+                    s.tabLabel,
+                    {
+                      color: tab === t.key ? cc : theme.textMuted,
+                      fontWeight: tab === t.key ? 'bold' : 'normal',
+                    },
+                  ]}
+                >
+                  {t.label}
+                </Text>
+                <BadgeDot count={finanzasTabBadge(t.key)} style={{ marginLeft: 4 }} />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          <PagerView
+            key={visibleTabs.map((t) => t.key).join('-')}
+            ref={pagerRef}
+            style={{ flex: 1 }}
+            initialPage={mainTabIndex}
+            onPageSelected={(e) => {
+              const next = visibleTabs[e.nativeEvent.position];
+              if (next?.key && next.key !== tab) setTab(next.key);
+            }}
+          >
+            {visibleTabs.map((t) => (
+              <View key={t.key} style={{ flex: 1 }} collapsable={false}>
+                {t.key === 'atletas' ? (
+                  <AtletasPagosTab
+                    theme={theme}
+                    primaryColor={cc}
+                    mes={mes}
+                    anio={anio}
+                    athletes={athletes}
+                    isLoadingPay={showPaymentsLoading}
+                    isRefreshingPayments={isRefreshingPayments}
+                    filtroBusqueda={filtroBusqueda}
+                    setFiltroBusqueda={setFiltroBusqueda}
+                    filtroEstado={filtroEstado}
+                    setFiltroEstado={setFiltroEstado}
+                    isSearchPending={isSearchPending}
+                    refreshing={tabRefreshing}
+                    onRefresh={onRefresh}
+                    onPay={openPayModal}
+                    onSelectPayments={(cuotas, subtitle, hijos) =>
+                      openSelectPayments(cuotas, subtitle, hijos || [])
+                    }
+                    onHistory={openHistory}
+                    hasMorePayments={paymentsHasMore}
+                    loadingMorePayments={loadingMorePayments}
+                    onLoadMorePayments={loadMorePayments}
+                    paymentStats={paymentStats}
+                    isLoadingStats={isLoadingStats}
+                  />
+                ) : null}
+                {t.key === 'familias' ? (
+                  <FamiliasTab
+                    theme={theme}
+                    primaryColor={cc}
+                    mes={mes}
+                    anio={anio}
+                    siblings={siblings}
+                    isLoading={isLoadingSiblings && siblings.length === 0}
+                    isRefreshing={isLoadingSiblings && siblings.length > 0}
+                    filtroBusqueda={familiasBusqueda}
+                    setFiltroBusqueda={setFamiliasBusqueda}
+                    isSearchPending={isFamiliasSearchPending}
+                    refreshing={tabRefreshing}
+                    onRefresh={onRefresh}
+                    hasMoreFamilias={siblingsHasMore}
+                    loadingMoreFamilias={loadingMoreSiblings}
+                    onLoadMoreFamilias={loadMoreSiblings}
+                    globalDiscount={globalFamilyDiscount}
+                    globalDiscountInput={globalDiscountInput}
+                    onGlobalDiscountChange={setGlobalDiscountInput}
+                    onSaveGlobalDiscount={saveGlobalFamilyDiscount}
+                    isSavingGlobalDiscount={isSavingGlobalDiscount}
+                    discountInput={discountInput}
+                    onDiscountChange={(tutorId, v) => setDiscountInput({ ...discountInput, [tutorId]: v })}
+                    onApplyDiscount={applyDiscount}
+                    onPayCuota={(p, h) => openPayModal(p, h)}
+                    onSelectPayments={(cuotas, subtitle, hijos) =>
+                      openSelectPayments(cuotas, subtitle, hijos || [])
+                    }
+                    onHistoryAtleta={openHistory}
+                    canManageDiscounts={canManageClubFinances}
+                  />
+                ) : null}
+                {t.key === 'nomina' ? (
+                  <NominaTab
+                    clubData={clubData}
+                    theme={theme}
+                    primaryColor={cc}
+                    getHeaders={getHeaders}
+                    showAlert={showAlert}
+                    mes={mes}
+                    anio={anio}
+                  />
+                ) : null}
+                {t.key === 'gastos' ? (
+                  <GastosTab
+                    clubData={clubData}
+                    theme={theme}
+                    primaryColor={cc}
+                    getHeaders={getHeaders}
+                    showAlert={showAlert}
+                    mes={mes}
+                    anio={anio}
+                  />
+                ) : null}
+              </View>
+            ))}
+          </PagerView>
+        </>
+      ) : null}
 
       {tab === 'revision' && (
         <ComprobantesReviewTab
-          clubData={clubData}
-          theme={theme}
-          primaryColor={cc}
-          getHeaders={getHeaders}
-          showAlert={showAlert}
-        />
-      )}
-
-      {tab === 'nomina' && (
-        <NominaTab
-          clubData={clubData}
-          theme={theme}
-          primaryColor={cc}
-          getHeaders={getHeaders}
-          showAlert={showAlert}
-        />
-      )}
-
-      {tab === 'gastos' && (
-        <GastosTab
           clubData={clubData}
           theme={theme}
           primaryColor={cc}

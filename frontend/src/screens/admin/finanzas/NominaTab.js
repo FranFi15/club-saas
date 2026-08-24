@@ -24,6 +24,7 @@ const ROL_LABEL = {
   admin_club: 'Admin',
   administrativo: 'Administrativo',
   control_ingreso: 'Control ingreso',
+  colaborador: 'Colaborador',
   profe: 'Profe',
   preparador_fisico: 'Prep. físico',
   nutricionista: 'Nutricionista',
@@ -36,29 +37,35 @@ function staffLabel(u) {
   return name || u.email || '—';
 }
 
-export default function NominaTab({ clubData, theme, primaryColor, getHeaders, showAlert }) {
+export default function NominaTab({
+  clubData,
+  theme,
+  primaryColor,
+  getHeaders,
+  showAlert,
+  mes,
+  anio,
+}) {
   const cc = primaryColor;
-  const now = new Date();
+  const panelBg = theme.surface || '#ffffff';
   const cacheKey = clubData?.urlIdentifier ? `finanzas-nomina:${clubData.urlIdentifier}` : '';
 
   const [entries, setEntries] = useState(() => readScreenCache(cacheKey)?.entries ?? []);
   const [staffList, setStaffList] = useState(() => readScreenCache(cacheKey)?.staff ?? []);
-  const [filterStaff, setFilterStaff] = useState('');
-  const [filterMes, setFilterMes] = useState(now.getMonth() + 1);
-  const [filterAnio, setFilterAnio] = useState(now.getFullYear());
-  const [usePeriodFilter, setUsePeriodFilter] = useState(true);
+  const [nameFilter, setNameFilter] = useState('');
 
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [formStaffId, setFormStaffId] = useState('');
   const [formMonto, setFormMonto] = useState('');
-  const [formMes, setFormMes] = useState(now.getMonth() + 1);
-  const [formAnio, setFormAnio] = useState(now.getFullYear());
+  const [formMes, setFormMes] = useState(mes);
+  const [formAnio, setFormAnio] = useState(anio);
   const [formMetodo, setFormMetodo] = useState('transferencia');
   const [formComprobante, setFormComprobante] = useState('');
   const [formNotas, setFormNotas] = useState('');
-  const [staffPickerOpen, setStaffPickerOpen] = useState(false);
+  const [pickingStaff, setPickingStaff] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
   const [deletingId, setDeletingId] = useState(null);
   const [confirmCfg, setConfirmCfg] = useState({
     visible: false,
@@ -69,12 +76,7 @@ export default function NominaTab({ clubData, theme, primaryColor, getHeaders, s
 
   const fetchData = useCallback(async () => {
     const h = await getHeaders();
-    const params = { page: 1, limit: 60 };
-    if (filterStaff) params.staff = filterStaff;
-    if (usePeriodFilter) {
-      params.mes = filterMes;
-      params.anio = filterAnio;
-    }
+    const params = { page: 1, limit: 100, mes, anio };
     const [payrollRes, staffRes] = await Promise.all([
       clubApi.get('/financial/payroll', { headers: h, params }),
       clubApi.get('/financial/payroll/staff', { headers: h }),
@@ -83,10 +85,10 @@ export default function NominaTab({ clubData, theme, primaryColor, getHeaders, s
       entries: payrollRes.data.entries || [],
       staff: staffRes.data.staff || [],
     };
-  }, [getHeaders, filterStaff, filterMes, filterAnio, usePeriodFilter]);
+  }, [getHeaders, mes, anio]);
 
   const { loading, refreshing, onRefresh, reload } = useCachedFocusLoad({
-    cacheKey: `${cacheKey}:${filterStaff}:${usePeriodFilter ? `${filterMes}-${filterAnio}` : 'all'}`,
+    cacheKey: `${cacheKey}:${mes}-${anio}`,
     enabled: !!cacheKey,
     fetchData,
     onFetched: (data) => {
@@ -96,19 +98,42 @@ export default function NominaTab({ clubData, theme, primaryColor, getHeaders, s
     onFetchError: () => showAlert('Error', 'No se pudo cargar la nómina.'),
   });
 
+  const filteredEntries = useMemo(() => {
+    const q = nameFilter.trim().toLowerCase();
+    if (!q) return entries;
+    return entries.filter((item) => {
+      const name = staffLabel(item.staff).toLowerCase();
+      const email = (item.staff?.email || '').toLowerCase();
+      const rol = (ROL_LABEL[item.staff?.rol] || item.staff?.rol || '').toLowerCase();
+      return name.includes(q) || email.includes(q) || rol.includes(q);
+    });
+  }, [entries, nameFilter]);
+
+  const filteredStaffForPicker = useMemo(() => {
+    const q = pickerSearch.trim().toLowerCase();
+    if (!q) return staffList;
+    return staffList.filter((u) => {
+      const name = staffLabel(u).toLowerCase();
+      const email = (u.email || '').toLowerCase();
+      return name.includes(q) || email.includes(q);
+    });
+  }, [staffList, pickerSearch]);
+
   const selectedStaff = useMemo(
     () => staffList.find((u) => String(u._id) === String(formStaffId)),
     [staffList, formStaffId],
   );
 
   const openCreate = () => {
-    setFormStaffId(filterStaff || '');
+    setFormStaffId('');
     setFormMonto('');
-    setFormMes(filterMes);
-    setFormAnio(filterAnio);
+    setFormMes(mes);
+    setFormAnio(anio);
     setFormMetodo('transferencia');
     setFormComprobante('');
     setFormNotas('');
+    setPickerSearch('');
+    setPickingStaff(false);
     setModalOpen(true);
   };
 
@@ -129,8 +154,8 @@ export default function NominaTab({ clubData, theme, primaryColor, getHeaders, s
       showAlert('Personal', 'Elegí a quién se le paga.');
       return;
     }
-    const monto = Number(String(formMonto).replace(',', '.'));
-    if (!Number.isFinite(monto) || monto < 0) {
+    const montoNum = Number(String(formMonto).replace(',', '.'));
+    if (!Number.isFinite(montoNum) || montoNum < 0) {
       showAlert('Monto', 'Ingresá un monto válido.');
       return;
     }
@@ -141,7 +166,7 @@ export default function NominaTab({ clubData, theme, primaryColor, getHeaders, s
         '/financial/payroll',
         {
           staffId: formStaffId,
-          monto,
+          monto: montoNum,
           mes: formMes,
           anio: formAnio,
           metodoPago: formMetodo,
@@ -181,25 +206,10 @@ export default function NominaTab({ clubData, theme, primaryColor, getHeaders, s
     });
   };
 
-  const chgFilterMonth = (delta) => {
-    let m = filterMes + delta;
-    let a = filterAnio;
-    if (m < 1) {
-      m = 12;
-      a -= 1;
-    } else if (m > 12) {
-      m = 1;
-      a += 1;
-    }
-    setFilterMes(m);
-    setFilterAnio(a);
-    setUsePeriodFilter(true);
-  };
-
   const renderItem = ({ item }) => {
     const busy = String(deletingId) === String(item._id);
     return (
-      <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}>
+      <View style={[s.card, { backgroundColor: panelBg, borderColor: theme.border, borderWidth: 1 }]}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[s.planName, { color: theme.text }]} numberOfLines={1}>
             {staffLabel(item.staff)}
@@ -245,73 +255,47 @@ export default function NominaTab({ clubData, theme, primaryColor, getHeaders, s
   return (
     <View style={{ flex: 1 }}>
       <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <Text style={[s.sectionTitle, { color: theme.text, marginBottom: 0 }]}>Nómina</Text>
-          <TouchableOpacity
-            onPress={() => setUsePeriodFilter((v) => !v)}
-            style={[s.filterChip, { borderColor: theme.border, backgroundColor: theme.card }]}
-          >
-            <Text style={{ color: theme.text, fontSize: 12, fontWeight: '600' }}>
-              {usePeriodFilter ? 'Filtrar período' : 'Todos los períodos'}
-            </Text>
-          </TouchableOpacity>
+        <Text style={[s.sectionTitle, { color: theme.text }]}>Nómina</Text>
+        <Text style={[s.sectionSub, { color: theme.textMuted }]}>
+          Pagos del personal · {MN[(mes || 1) - 1]} {anio}
+        </Text>
+
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            borderWidth: 1,
+            borderColor: theme.border,
+            borderRadius: 5,
+            paddingHorizontal: 12,
+            height: 48,
+            backgroundColor: panelBg,
+            marginBottom: 4,
+          }}
+        >
+          <Ionicons name="search" size={18} color={theme.icon || theme.textMuted} style={{ marginRight: 8 }} />
+          <TextInput
+            style={{ flex: 1, color: theme.text, fontSize: 15 }}
+            placeholder="Buscar por nombre…"
+            placeholderTextColor={theme.textMuted}
+            value={nameFilter}
+            onChangeText={setNameFilter}
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+          {nameFilter ? (
+            <TouchableOpacity onPress={() => setNameFilter('')} hitSlop={8}>
+              <Ionicons name="close-circle" size={20} color={theme.icon || theme.textMuted} />
+            </TouchableOpacity>
+          ) : null}
         </View>
-
-        {usePeriodFilter && (
-          <View style={[s.monthRow, { backgroundColor: theme.card, marginTop: 0 }]}>
-            <TouchableOpacity onPress={() => chgFilterMonth(-1)} hitSlop={8}>
-              <Ionicons name="chevron-back" size={22} color={theme.text} />
-            </TouchableOpacity>
-            <Text style={{ color: theme.text, fontWeight: '700' }}>
-              {MN[filterMes - 1]} {filterAnio}
-            </Text>
-            <TouchableOpacity onPress={() => chgFilterMonth(1)} hitSlop={8}>
-              <Ionicons name="chevron-forward" size={22} color={theme.text} />
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4, marginBottom: 4 }}>
-          <TouchableOpacity
-            onPress={() => setFilterStaff('')}
-            style={[
-              s.filterChip,
-              {
-                borderColor: !filterStaff ? cc : theme.border,
-                backgroundColor: !filterStaff ? `${cc}18` : theme.card,
-              },
-            ]}
-          >
-            <Text style={{ color: !filterStaff ? cc : theme.text, fontSize: 12, fontWeight: '600' }}>Todo el personal</Text>
-          </TouchableOpacity>
-          {staffList.map((u) => {
-            const active = String(filterStaff) === String(u._id);
-            return (
-              <TouchableOpacity
-                key={u._id}
-                onPress={() => setFilterStaff(u._id)}
-                style={[
-                  s.filterChip,
-                  {
-                    borderColor: active ? cc : theme.border,
-                    backgroundColor: active ? `${cc}18` : theme.card,
-                  },
-                ]}
-              >
-                <Text style={{ color: active ? cc : theme.text, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
-                  {staffLabel(u)}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
       </View>
 
       {loading && entries.length === 0 ? (
         <ActivityIndicator color={cc} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
-          data={entries}
+          data={filteredEntries}
           keyExtractor={(item) => String(item._id)}
           renderItem={renderItem}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100 }}
@@ -319,9 +303,13 @@ export default function NominaTab({ clubData, theme, primaryColor, getHeaders, s
           ListEmptyComponent={
             <View style={s.empty}>
               <Ionicons name="wallet-outline" size={40} color={theme.textMuted} />
-              <Text style={[s.emptyTxt, { color: theme.text }]}>Sin pagos registrados</Text>
+              <Text style={[s.emptyTxt, { color: theme.text }]}>
+                {nameFilter.trim() ? 'Sin resultados' : 'Sin pagos registrados'}
+              </Text>
               <Text style={[s.emptySub, { color: theme.textMuted }]}>
-                Registrá un pago de nómina con el botón +.
+                {nameFilter.trim()
+                  ? 'Probá con otro nombre.'
+                  : 'Registrá un pago de nómina con el botón +.'}
               </Text>
             </View>
           }
@@ -337,7 +325,7 @@ export default function NominaTab({ clubData, theme, primaryColor, getHeaders, s
           style={s.modalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={[s.modalContent, { backgroundColor: theme.card, maxHeight: '92%' }]}>
+          <View style={[s.modalContent, { backgroundColor: panelBg, maxHeight: '92%' }]}>
             <View style={s.modalHeader}>
               <Text style={[s.modalTitle, { color: theme.text }]}>Registrar pago</Text>
               <TouchableOpacity onPress={() => setModalOpen(false)}>
@@ -346,14 +334,91 @@ export default function NominaTab({ clubData, theme, primaryColor, getHeaders, s
             </View>
             <ScrollView keyboardShouldPersistTaps="handled">
               <Text style={[s.label, { color: theme.textMuted }]}>Personal</Text>
-              <TouchableOpacity
-                style={[s.input, { borderColor: theme.border, justifyContent: 'center', backgroundColor: theme.background }]}
-                onPress={() => setStaffPickerOpen(true)}
-              >
-                <Text style={{ color: selectedStaff ? theme.text : theme.textMuted }}>
-                  {selectedStaff ? staffLabel(selectedStaff) : 'Elegir persona…'}
-                </Text>
-              </TouchableOpacity>
+              {!pickingStaff ? (
+                <TouchableOpacity
+                  style={[s.input, { borderColor: theme.border, justifyContent: 'center', backgroundColor: theme.background }]}
+                  onPress={() => {
+                    setPickerSearch('');
+                    setPickingStaff(true);
+                  }}
+                >
+                  <Text style={{ color: selectedStaff ? theme.text : theme.textMuted }}>
+                    {selectedStaff ? staffLabel(selectedStaff) : 'Elegir persona…'}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <View
+                  style={{
+                    borderWidth: 1,
+                    borderColor: theme.border,
+                    borderRadius: 5,
+                    backgroundColor: theme.background,
+                    marginBottom: 15,
+                    maxHeight: 260,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingHorizontal: 12,
+                      borderBottomWidth: 1,
+                      borderBottomColor: theme.border,
+                      height: 48,
+                    }}
+                  >
+                    <Ionicons name="search" size={16} color={theme.textMuted} style={{ marginRight: 8 }} />
+                    <TextInput
+                      style={{ flex: 1, color: theme.text, fontSize: 15, paddingVertical: 8 }}
+                      placeholder="Escribí el nombre…"
+                      placeholderTextColor={theme.textMuted}
+                      value={pickerSearch}
+                      onChangeText={setPickerSearch}
+                      autoCorrect={false}
+                      autoFocus
+                      returnKeyType="search"
+                    />
+                    <TouchableOpacity
+                      onPress={() => {
+                        setPickingStaff(false);
+                        setPickerSearch('');
+                      }}
+                      hitSlop={8}
+                    >
+                      <Text style={{ color: cc, fontWeight: '700', fontSize: 13 }}>Cerrar</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <ScrollView
+                    keyboardShouldPersistTaps="handled"
+                    nestedScrollEnabled
+                    style={{ maxHeight: 200 }}
+                  >
+                    {filteredStaffForPicker.length === 0 ? (
+                      <Text style={{ color: theme.textMuted, textAlign: 'center', marginVertical: 16, paddingHorizontal: 12 }}>
+                        {pickerSearch.trim() ? 'Sin coincidencias.' : 'No hay personal cargado.'}
+                      </Text>
+                    ) : (
+                      filteredStaffForPicker.map((item) => (
+                        <TouchableOpacity
+                          key={String(item._id)}
+                          onPress={() => {
+                            setFormStaffId(item._id);
+                            setPickingStaff(false);
+                            setPickerSearch('');
+                          }}
+                          style={{ paddingVertical: 12, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: theme.border }}
+                        >
+                          <Text style={{ color: theme.text, fontWeight: '600' }}>{staffLabel(item)}</Text>
+                          <Text style={{ color: theme.textMuted, fontSize: 12 }}>
+                            {ROL_LABEL[item.rol] || item.rol}
+                          </Text>
+                        </TouchableOpacity>
+                      ))
+                    )}
+                  </ScrollView>
+                </View>
+              )}
 
               <Text style={[s.label, { color: theme.textMuted }]}>Monto</Text>
               <TextInput
@@ -474,37 +539,6 @@ export default function NominaTab({ clubData, theme, primaryColor, getHeaders, s
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
-      </Modal>
-
-      <Modal visible={staffPickerOpen} animationType="fade" transparent onRequestClose={() => setStaffPickerOpen(false)}>
-        <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setStaffPickerOpen(false)}>
-          <View style={[s.modalContent, { backgroundColor: theme.card, maxHeight: '70%' }]}>
-            <Text style={[s.modalTitle, { color: theme.text, marginBottom: 12 }]}>Elegir personal</Text>
-            <FlatList
-              data={staffList}
-              keyExtractor={(item) => String(item._id)}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  onPress={() => {
-                    setFormStaffId(item._id);
-                    setStaffPickerOpen(false);
-                  }}
-                  style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.border }}
-                >
-                  <Text style={{ color: theme.text, fontWeight: '600' }}>{staffLabel(item)}</Text>
-                  <Text style={{ color: theme.textMuted, fontSize: 12 }}>
-                    {ROL_LABEL[item.rol] || item.rol}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 20 }}>
-                  No hay personal cargado.
-                </Text>
-              }
-            />
-          </View>
-        </TouchableOpacity>
       </Modal>
 
       <CustomAlert

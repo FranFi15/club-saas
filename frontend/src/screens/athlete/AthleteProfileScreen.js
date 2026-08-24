@@ -28,7 +28,7 @@ import ProfileInfoRow, { profileCardStyles } from '../../components/ProfileInfoR
 import ProfileLinkRow from '../../components/ProfileLinkRow';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { useBadges } from '../../context/BadgeContext';
-import { tabBadgeLabel } from '../../utils/tabBadgeLabel';
+import { tabBadgeText } from '../../utils/tabBadgeLabel';
 
 export default function AthleteProfileScreen({ navigation }) {
   const { clubData, setClubData, clearSession } = useContext(ClubContext);
@@ -187,7 +187,7 @@ export default function AthleteProfileScreen({ navigation }) {
               subtitle={pagosHint || 'Ver y pagar tus cuotas'}
               onPress={() => navigation.navigate('AthletePayments')}
               theme={theme}
-              badge={tabBadgeLabel(tab('cuotas'))}
+              badge={tabBadgeText(tab('cuotas'))}
               isLast
             />
           </View>

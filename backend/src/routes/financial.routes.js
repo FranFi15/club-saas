@@ -88,17 +88,17 @@ router.get('/stats/morosidad', protect, authorize('admin_club', 'administrativo'
 router.post('/notifications/send-reminders', protect, authorize('admin_club', 'administrativo'), sendReminders);
 
 // Nómina
-router.get('/payroll/staff', protect, authorize('admin_club', 'administrativo'), listPayrollStaff);
-router.get('/payroll', protect, authorize('admin_club', 'administrativo'), listPayrollEntries);
-router.post('/payroll', protect, authorize('admin_club', 'administrativo'), createPayrollEntry);
-router.patch('/payroll/:id', protect, authorize('admin_club', 'administrativo'), updatePayrollEntry);
-router.delete('/payroll/:id', protect, authorize('admin_club', 'administrativo'), deletePayrollEntry);
+router.get('/payroll/staff', protect, authorize('admin_club'), listPayrollStaff);
+router.get('/payroll', protect, authorize('admin_club'), listPayrollEntries);
+router.post('/payroll', protect, authorize('admin_club'), createPayrollEntry);
+router.patch('/payroll/:id', protect, authorize('admin_club'), updatePayrollEntry);
+router.delete('/payroll/:id', protect, authorize('admin_club'), deletePayrollEntry);
 
 // Gastos / facturas
-router.get('/bills', protect, authorize('admin_club', 'administrativo'), listBills);
-router.post('/bills', protect, authorize('admin_club', 'administrativo'), createBill);
-router.patch('/bills/:id/pay', protect, authorize('admin_club', 'administrativo'), payBill);
-router.patch('/bills/:id', protect, authorize('admin_club', 'administrativo'), updateBill);
-router.delete('/bills/:id', protect, authorize('admin_club', 'administrativo'), deleteBill);
+router.get('/bills', protect, authorize('admin_club'), listBills);
+router.post('/bills', protect, authorize('admin_club'), createBill);
+router.patch('/bills/:id/pay', protect, authorize('admin_club'), payBill);
+router.patch('/bills/:id', protect, authorize('admin_club'), updateBill);
+router.delete('/bills/:id', protect, authorize('admin_club'), deleteBill);
 
 export default router;

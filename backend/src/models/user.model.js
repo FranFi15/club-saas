@@ -34,7 +34,8 @@ const userSchema = new mongoose.Schema({
         enum: [
             'admin_club', 
             'administrativo',
-            'control_ingreso', 
+            'control_ingreso',
+            'colaborador',
             'profe', 
             'preparador_fisico', 
             'nutricionista',

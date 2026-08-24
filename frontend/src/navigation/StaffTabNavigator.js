@@ -1,6 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { Platform, View, ActivityIndicator } from 'react-native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,8 +15,9 @@ import NutricionistaTabNavigator from './NutricionistaTabNavigator';
 import PsicologoTabNavigator from './PsicologoTabNavigator';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { getToken } from '../utils/storage';
+import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
 
-const Tab = createBottomTabNavigator();
+const Tab = createSwipeBottomTabNavigator();
 const StaffHomeStackNavigator = createNativeStackNavigator();
 const StaffProfileStackNav = createProfileStack(StaffProfileScreen);
 
@@ -48,33 +48,19 @@ function DefaultStaffTabs({ clubData, theme, isDarkMode }) {
   return (
     <Tab.Navigator
       key={isDarkMode ? 'dark' : 'light'}
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarActiveTintColor: colorMarca,
-        tabBarInactiveTintColor: theme.icon,
-        tabBarStyle: {
-          backgroundColor: theme.surface,
-          borderTopColor: theme.border,
-          borderTopWidth: 1,
-          elevation: 12,
-          height: tabBarHeight,
-          paddingHorizontal: 12,
-          paddingTop: 10,
-          paddingBottom: tabBottomPad,
-          minHeight: tabBarHeight,
-        },
-        tabBarLabelStyle: { fontSize: 11, marginBottom: 2 },
-        tabBarIcon: ({ focused, color }) => {
-          if (route.name === 'StaffInicio') {
+      tabBarPosition="bottom"
+      screenOptions={buildSwipeBottomTabOptions({
+        colorMarca,
+        theme,
+        tabBarHeight,
+        tabBottomPad,
+        paddingHorizontal: 12,
+        labelFontSize: 11,
+        getIcon: (name, focused, color) => {
+          if (name === 'StaffInicio') {
             return <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />;
           }
-          return (
-            <Ionicons
-              name={focused ? 'person' : 'person-outline'}
-              size={24}
-              color={color}
-            />
-          );
+          return <Ionicons name={focused ? 'person' : 'person-outline'} size={24} color={color} />;
         },
       })}
     >

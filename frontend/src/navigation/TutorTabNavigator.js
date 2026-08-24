@@ -1,7 +1,6 @@
 import React, { useContext, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Platform } from 'react-native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
@@ -15,8 +14,9 @@ import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
 import { useMember } from '../context/MemberContext';
 import { tabBadgeLabel } from '../utils/tabBadgeLabel';
+import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
 
-const Tab = createBottomTabNavigator();
+const Tab = createSwipeBottomTabNavigator();
 
 function TutorTabs() {
   const { clubData } = useContext(ClubContext);
@@ -38,19 +38,14 @@ function TutorTabs() {
   return (
     <Tab.Navigator
       key={isDarkMode ? 'dark' : 'light'}
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarActiveTintColor: colorMarca,
-        tabBarInactiveTintColor: theme.icon,
-        tabBarStyle: {
-          backgroundColor: theme.surface,
-          borderTopColor: theme.border,
-          height: tabBarHeight,
-          paddingBottom: tabBottomPad,
-          paddingTop: 6,
-        },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
-        tabBarIcon: ({ focused, color }) => {
+      tabBarPosition="bottom"
+      screenOptions={buildSwipeBottomTabOptions({
+        colorMarca,
+        theme,
+        tabBarHeight,
+        tabBottomPad,
+        paddingTop: 6,
+        getIcon: (name, focused, color) => {
           const map = {
             TutorInicio: focused ? 'home' : 'home-outline',
             TutorAgenda: focused ? 'calendar' : 'calendar-outline',
@@ -58,7 +53,7 @@ function TutorTabs() {
             TutorComunicar: focused ? 'chatbubbles' : 'chatbubbles-outline',
             TutorProfile: focused ? 'person' : 'person-outline',
           };
-          return <Ionicons name={map[route.name] || 'ellipse'} size={22} color={color} />;
+          return <Ionicons name={map[name] || 'ellipse'} size={22} color={color} />;
         },
       })}
     >

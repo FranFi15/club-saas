@@ -3,6 +3,7 @@ export const ASSIGNABLE_USER_ROLES = [
     'admin_club',
     'administrativo',
     'control_ingreso',
+    'colaborador',
     'profe',
     'preparador_fisico',
     'nutricionista',

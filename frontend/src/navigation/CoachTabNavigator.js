@@ -1,7 +1,6 @@
 import React, { useContext, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Platform } from 'react-native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,8 +31,9 @@ import ChatNewScreen from '../screens/chat/ChatNewScreen';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
 import { tabBadgeLabel } from '../utils/tabBadgeLabel';
+import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
 
-const Tab = createBottomTabNavigator();
+const Tab = createSwipeBottomTabNavigator();
 const CoachHomeStack = createNativeStackNavigator();
 const CoachSessionsStack = createNativeStackNavigator();
 const CoachTeamStack = createNativeStackNavigator();
@@ -111,23 +111,13 @@ export default function CoachTabNavigator() {
   return (
     <Tab.Navigator
       key={isDarkMode ? 'dark' : 'light'}
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarActiveTintColor: colorMarca,
-        tabBarInactiveTintColor: theme.icon,
-        tabBarStyle: {
-          backgroundColor: theme.surface,
-          borderTopColor: theme.border,
-          borderTopWidth: 1,
-          elevation: 12,
-          height: tabBarHeight,
-          paddingHorizontal: 8,
-          paddingTop: 10,
-          paddingBottom: tabBottomPad,
-          minHeight: tabBarHeight,
-        },
-        tabBarLabelStyle: { fontSize: 10, marginBottom: 2 },
-        tabBarIcon: ({ focused, color }) => {
+      tabBarPosition="bottom"
+      screenOptions={buildSwipeBottomTabOptions({
+        colorMarca,
+        theme,
+        tabBarHeight,
+        tabBottomPad,
+        getIcon: (name, focused, color) => {
           const map = {
             CoachInicio: focused ? 'home' : 'home-outline',
             CoachSesiones: focused ? 'calendar' : 'calendar-outline',
@@ -135,7 +125,7 @@ export default function CoachTabNavigator() {
             CoachComunicar: focused ? 'chatbubbles' : 'chatbubbles-outline',
             CoachPerfil: focused ? 'person' : 'person-outline',
           };
-          return <Ionicons name={map[route.name] || 'ellipse'} size={22} color={color} />;
+          return <Ionicons name={map[name] || 'ellipse'} size={22} color={color} />;
         },
       })}
     >

@@ -4,6 +4,8 @@ import { getToken } from '../../utils/storage';
 export const ROL_LABELS = {
   admin_club: 'Administración',
   administrativo: 'Administración',
+  control_ingreso: 'Control de ingreso',
+  colaborador: 'Colaborador',
   profe: 'Entrenador',
   preparador_fisico: 'Prep. físico',
   nutricionista: 'Nutricionista',
