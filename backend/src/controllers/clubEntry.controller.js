@@ -216,7 +216,8 @@ const registerVisitorEntry = asyncHandler(async (req, res) => {
         visitorNota: nota,
         visitorFoto: foto,
         duplicate: false,
-        tokenNonce: '',
+        // Unique even with legacy unique indexes on tokenNonce (empty string collided / failed).
+        tokenNonce: `visitor:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`,
     });
 
     res.status(201).json({

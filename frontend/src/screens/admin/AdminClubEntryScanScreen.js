@@ -263,16 +263,26 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
   const dismissResult = () => setLastResult(null);
 
   const handleRegisterVisitor = async (payload) => {
+    if (savingVisitor) return;
     setSavingVisitor(true);
+    // Close form before the request — stacked Modals (form + CustomAlert) freeze RN.
+    setVisitorOpen(false);
     try {
       const h = await getHeaders();
       const { data } = await clubApi.post('/club-entry/visitor', payload, { headers: h });
-      setVisitorOpen(false);
       setLastResult(data);
       setTab('scan');
       reload({ background: true });
     } catch (e) {
-      showAlert('No se pudo registrar', e.response?.data?.message || 'Revisá los datos e intentá de nuevo.');
+      const msg =
+        e.response?.data?.message ||
+        (e.code === 'ECONNABORTED'
+          ? 'La solicitud tardó demasiado. Revisá la conexión.'
+          : e.message || 'Revisá los datos e intentá de nuevo.');
+      // Wait for the visitor modal to finish unmounting before showing another Modal.
+      setTimeout(() => {
+        showAlert('No se pudo registrar', msg);
+      }, 350);
     } finally {
       setSavingVisitor(false);
     }
@@ -366,12 +376,22 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
           ]}
           collapsable={false}
         >
-          <CameraView
-            style={StyleSheet.absoluteFillObject}
-            facing="back"
-            barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-            onBarcodeScanned={scanning ? ({ data }) => handleScan(data) : undefined}
-          />
+          {/* Unmount camera while visitor modal is open — Modal + CameraView freezes on some devices. */}
+          {visitorOpen ? (
+            <View style={[StyleSheet.absoluteFillObject, styles.cameraPaused]}>
+              <Ionicons name="camera-outline" size={36} color="rgba(255,255,255,0.5)" />
+              <Text style={styles.cameraPausedTxt}>Cámara en pausa</Text>
+            </View>
+          ) : (
+            <CameraView
+              style={StyleSheet.absoluteFillObject}
+              facing="back"
+              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+              onBarcodeScanned={
+                scanning && !processing ? ({ data }) => handleScan(data) : undefined
+              }
+            />
+          )}
           <View style={styles.cameraOverlay} pointerEvents="none">
             <View style={styles.scanFrame} />
             {processing ? (
@@ -385,13 +405,20 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
       )}
 
       <TouchableOpacity
-        style={[styles.visitorBtn, { backgroundColor: colorMarca }]}
+        style={[styles.visitorBtn, { backgroundColor: colorMarca, opacity: savingVisitor ? 0.7 : 1 }]}
         onPress={() => setVisitorOpen(true)}
+        disabled={savingVisitor}
         accessibilityRole="button"
         accessibilityLabel="Registrar visitante"
       >
-        <Ionicons name="person-add-outline" size={18} color="#fff" />
-        <Text style={styles.visitorBtnTxt}>Registrar visitante</Text>
+        {savingVisitor ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <>
+            <Ionicons name="person-add-outline" size={18} color="#fff" />
+            <Text style={styles.visitorBtnTxt}>Registrar visitante</Text>
+          </>
+        )}
       </TouchableOpacity>
 
       <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Último ingreso</Text>
@@ -621,6 +648,13 @@ const styles = StyleSheet.create({
     position: 'relative',
     flexShrink: 0,
   },
+  cameraPaused: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#111',
+    gap: 8,
+  },
+  cameraPausedTxt: { color: 'rgba(255,255,255,0.55)', fontWeight: '600', fontSize: 13 },
   cameraWrapWeb: {
     overflow: 'hidden',
   },

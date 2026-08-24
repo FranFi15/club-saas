@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
@@ -45,6 +46,7 @@ export default function VisitorEntryModal({
   }, [visible]);
 
   const handleSave = () => {
+    if (saving) return;
     const n = nombre.trim();
     const a = apellido.trim();
     const d = dni.trim();
@@ -62,18 +64,31 @@ export default function VisitorEntryModal({
     });
   };
 
+  const dismiss = () => {
+    if (saving) return;
+    onClose?.();
+  };
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={dismiss}
+      statusBarTranslucent
+    >
       <KeyboardAvoidingView
         style={styles.overlay}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <PressableClose onPress={onClose} />
-        <View style={[styles.sheet, { backgroundColor: theme.surface }]}>
+        {/* Backdrop only above the sheet — avoids absoluteFill stealing touches / freezing. */}
+        <Pressable style={styles.backdropFlex} onPress={dismiss} accessibilityRole="button" />
+
+        <View style={[styles.sheet, { backgroundColor: theme.surface }]} pointerEvents="box-none">
           <View style={styles.handle} />
           <View style={styles.header}>
             <Text style={[styles.title, { color: theme.text }]}>Registrar visitante</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={10} accessibilityLabel="Cerrar">
+            <TouchableOpacity onPress={dismiss} hitSlop={10} accessibilityLabel="Cerrar" disabled={saving}>
               <Ionicons name="close" size={24} color={theme.icon} />
             </TouchableOpacity>
           </View>
@@ -85,6 +100,7 @@ export default function VisitorEntryModal({
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.form}
+            nestedScrollEnabled
           >
             <ProfilePhotoField
               value={foto}
@@ -106,6 +122,7 @@ export default function VisitorEntryModal({
               placeholder="Nombre"
               placeholderTextColor={theme.textMuted}
               autoCapitalize="words"
+              editable={!saving}
             />
 
             <Text style={[styles.label, { color: theme.textMuted }]}>Apellido *</Text>
@@ -116,6 +133,7 @@ export default function VisitorEntryModal({
               placeholder="Apellido"
               placeholderTextColor={theme.textMuted}
               autoCapitalize="words"
+              editable={!saving}
             />
 
             <Text style={[styles.label, { color: theme.textMuted }]}>DNI *</Text>
@@ -126,6 +144,7 @@ export default function VisitorEntryModal({
               placeholder="Documento"
               placeholderTextColor={theme.textMuted}
               keyboardType="number-pad"
+              editable={!saving}
             />
 
             <Text style={[styles.label, { color: theme.textMuted }]}>Motivo / nota (opcional)</Text>
@@ -141,6 +160,7 @@ export default function VisitorEntryModal({
               placeholderTextColor={theme.textMuted}
               multiline
               textAlignVertical="top"
+              editable={!saving}
             />
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -168,20 +188,15 @@ export default function VisitorEntryModal({
   );
 }
 
-function PressableClose({ onPress }) {
-  return <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onPress} />;
-}
-
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
-  backdrop: { ...StyleSheet.absoluteFillObject },
+  backdropFlex: { flex: 1 },
   sheet: {
     maxHeight: '92%',
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     paddingHorizontal: 16,
     paddingBottom: 28,
-    zIndex: 2,
   },
   handle: {
     alignSelf: 'center',
