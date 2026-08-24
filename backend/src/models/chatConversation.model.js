@@ -6,7 +6,6 @@ const chatConversationSchema = new mongoose.Schema(
             type: String,
             enum: ['direct', 'category_group', 'staff_group'],
             default: 'direct',
-            index: true,
         },
         /** Solo para `category_group`: una conversación por categoría. */
         category: {
