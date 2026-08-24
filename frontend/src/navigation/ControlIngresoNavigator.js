@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
 import { ThemeContext } from '../context/ThemeContext';
+import NoticiasScreen from '../screens/admin/NoticiasScreen';
 import AdminClubEntryScanScreen from '../screens/admin/AdminClubEntryScanScreen';
 import ChatInboxScreen from '../screens/chat/ChatInboxScreen';
 import ChatThreadScreen from '../screens/chat/ChatThreadScreen';
@@ -25,6 +26,18 @@ function ControlChatStackNav() {
       <ChatStack.Screen name="ChatThread" component={ChatThreadScreen} />
       <ChatStack.Screen name="ChatNew" component={ChatNewScreen} />
     </ChatStack.Navigator>
+  );
+}
+
+function ControlNewsScreen({ navigation, route }) {
+  return (
+    <NoticiasScreen
+      navigation={navigation}
+      route={{
+        ...route,
+        params: { ...(route?.params || {}), tabRoot: true, embeddedStaff: true },
+      }}
+    />
   );
 }
 
@@ -56,6 +69,7 @@ export default function ControlIngresoNavigator() {
         labelFontSize: 11,
         getIcon: (name, focused, color) => {
           const map = {
+            ControlIngresoNoticias: focused ? 'newspaper' : 'newspaper-outline',
             ControlIngresoScan: focused ? 'qr-code' : 'qr-code-outline',
             ControlIngresoChat: focused ? 'chatbubbles' : 'chatbubbles-outline',
           };
@@ -63,6 +77,14 @@ export default function ControlIngresoNavigator() {
         },
       })}
     >
+      <Tab.Screen
+        name="ControlIngresoNoticias"
+        component={ControlNewsScreen}
+        options={{
+          tabBarLabel: 'Noticias',
+          tabBarBadge: tabBadgeLabel(tab('noticias')),
+        }}
+      />
       <Tab.Screen
         name="ControlIngresoScan"
         component={AdminClubEntryScanScreen}

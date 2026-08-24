@@ -26,7 +26,10 @@ import {
   displayName,
   formatChatTime,
   getDeliveryPresentation,
+  groupChatDefaultTitle,
+  groupChatSubtitle,
   isAdminChatRole,
+  isGroupChatKind,
   navigateChatDeliveryAction,
   rolLabel,
   CHAT_POLL_MS,
@@ -58,7 +61,7 @@ export default function ChatThreadScreen({ navigation, route }) {
   const pollRef = useRef(null);
   const lastMsgIdRef = useRef(null);
 
-  const isGroup = kind === 'category_group';
+  const isGroup = isGroupChatKind(kind);
   const canCompose = !isGroup || groupActive;
 
   const markRead = useCallback(async () => {
@@ -80,9 +83,9 @@ export default function ChatThreadScreen({ navigation, route }) {
       const { data } = await clubApi.get('/chat/conversations', { headers: h });
       const row = (Array.isArray(data) ? data : []).find((c) => String(c._id) === String(conversationId));
       if (!row) return;
-      if (row.kind === 'category_group') {
-        setKind('category_group');
-        setGroupTitle(row.title || 'Chat de categoría');
+      if (isGroupChatKind(row.kind)) {
+        setKind(row.kind);
+        setGroupTitle(groupChatDefaultTitle(row.kind, row.title));
         setGroupActive(row.active !== false);
       } else if (row.otherUser) {
         setKind('direct');
@@ -218,17 +221,11 @@ export default function ChatThreadScreen({ navigation, route }) {
     );
   };
 
-  const headerKicker = isGroup
-    ? 'Grupo'
-    : isAdminChatRole(otherUser?.rol)
+  const headerKicker = isGroup ? (kind === 'staff_group' ? 'Personal' : 'Grupo') : isAdminChatRole(otherUser?.rol)
       ? 'Club'
       : rolLabel(otherUser?.rol);
-  const headerTitle = isGroup ? groupTitle || 'Chat de categoría' : displayName(otherUser);
-  const headerSubtitle = isGroup
-    ? groupActive
-      ? 'Chat de categoría'
-      : 'Desactivado — solo lectura'
-    : 'Chat';
+  const headerTitle = isGroup ? groupChatDefaultTitle(kind, groupTitle) : displayName(otherUser);
+  const headerSubtitle = isGroup ? groupChatSubtitle(kind, groupActive) : 'Chat';
 
   const headerAvatar = isGroup ? (
     <View
@@ -243,7 +240,7 @@ export default function ChatThreadScreen({ navigation, route }) {
         justifyContent: 'center',
       }}
     >
-      <Ionicons name="people" size={40} color="#fff" />
+      <Ionicons name={kind === 'staff_group' ? 'briefcase' : 'people'} size={40} color="#fff" />
     </View>
   ) : otherUser ? (
     <ProfileHeaderAvatar user={otherUser} />
@@ -285,7 +282,9 @@ export default function ChatThreadScreen({ navigation, route }) {
         {!canCompose ? (
           <View style={[styles.readonlyBanner, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
             <Text style={{ color: theme.textMuted, fontSize: 13, textAlign: 'center' }}>
-              El chat grupal de esta categoría está desactivado.
+              {kind === 'staff_group'
+                ? 'El chat grupal del personal está desactivado.'
+                : 'El chat grupal de esta categoría está desactivado.'}
             </Text>
           </View>
         ) : (

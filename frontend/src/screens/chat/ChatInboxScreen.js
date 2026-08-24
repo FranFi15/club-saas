@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   RefreshControl,
   TextInput,
   StatusBar,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -20,13 +21,28 @@ import CoachScreenHeader from '../../components/CoachScreenHeader';
 import BadgeDot from '../../components/BadgeDot';
 import UserAvatar from '../../components/UserAvatar';
 import { clubApi } from '../../utils/api';
-import { chatHeaders, displayName, formatChatTime, isAdminChatRole, rolLabel } from './chatHelpers';
+import { getToken } from '../../utils/storage';
+import {
+  chatHeaders,
+  displayName,
+  formatChatTime,
+  groupChatDefaultTitle,
+  isAdminChatRole,
+  isGroupChatKind,
+  rolLabel,
+} from './chatHelpers';
 
 function conversationSearchText(item) {
-  const isGroup = item.kind === 'category_group';
+  const isGroup = isGroupChatKind(item.kind);
   const other = item.otherUser;
-  const name = isGroup ? item.title || 'Chat de categoría' : displayName(other);
-  const role = isGroup ? 'grupo' : isAdminChatRole(other?.rol) ? 'administración' : rolLabel(other?.rol);
+  const name = isGroup ? groupChatDefaultTitle(item.kind, item.title) : displayName(other);
+  const role = isGroup
+    ? item.kind === 'staff_group'
+      ? 'personal del club'
+      : 'grupo'
+    : isAdminChatRole(other?.rol)
+      ? 'administración'
+      : rolLabel(other?.rol);
   return `${name} ${role} ${item.lastMessagePreview || ''}`.toLowerCase();
 }
 
@@ -39,6 +55,35 @@ export default function ChatInboxScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState('');
+  const [myRol, setMyRol] = useState('');
+  const [staffGroupEnabled, setStaffGroupEnabled] = useState(false);
+  const [staffGroupSaving, setStaffGroupSaving] = useState(false);
+  const [staffGroupLoaded, setStaffGroupLoaded] = useState(false);
+
+  const isAdmin = isAdminChatRole(myRol);
+
+  useEffect(() => {
+    getToken('userRol').then((r) => setMyRol(r || ''));
+  }, []);
+
+  const loadStaffGroupSettings = useCallback(async () => {
+    if (!clubData?.urlIdentifier) return;
+    const rol = (await getToken('userRol')) || '';
+    setMyRol(rol);
+    if (!isAdminChatRole(rol)) {
+      setStaffGroupLoaded(true);
+      return;
+    }
+    try {
+      const h = await chatHeaders(clubData.urlIdentifier);
+      const { data } = await clubApi.get('/chat/staff-group/settings', { headers: h });
+      setStaffGroupEnabled(Boolean(data?.chatGrupalStaffEnabled));
+    } catch {
+      /* ignore */
+    } finally {
+      setStaffGroupLoaded(true);
+    }
+  }, [clubData?.urlIdentifier]);
 
   const load = useCallback(async () => {
     if (!clubData?.urlIdentifier) return;
@@ -54,12 +99,32 @@ export default function ChatInboxScreen({ navigation }) {
     }
   }, [clubData?.urlIdentifier]);
 
+  const reloadAll = useCallback(async () => {
+    await Promise.all([load(), loadStaffGroupSettings()]);
+  }, [load, loadStaffGroupSettings]);
+
   useFocusEffect(
     useCallback(() => {
-      load();
+      reloadAll();
       refresh?.();
-    }, [load, refresh]),
+    }, [reloadAll, refresh]),
   );
+
+  const toggleStaffGroup = async (value) => {
+    if (!clubData?.urlIdentifier || staffGroupSaving) return;
+    const prev = staffGroupEnabled;
+    setStaffGroupEnabled(value);
+    setStaffGroupSaving(true);
+    try {
+      const h = await chatHeaders(clubData.urlIdentifier);
+      await clubApi.patch('/chat/staff-group/settings', { chatGrupalStaffEnabled: value }, { headers: h });
+      await load();
+    } catch {
+      setStaffGroupEnabled(prev);
+    } finally {
+      setStaffGroupSaving(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -79,17 +144,21 @@ export default function ChatInboxScreen({ navigation }) {
   };
 
   const renderItem = ({ item }) => {
-    const isGroup = item.kind === 'category_group';
+    const isGroup = isGroupChatKind(item.kind);
     const other = item.otherUser;
     const unread = item.unread || 0;
-    const name = isGroup ? item.title || 'Chat de categoría' : displayName(other);
+    const name = isGroup ? groupChatDefaultTitle(item.kind, item.title) : displayName(other);
     const subtitle = isGroup
       ? item.active === false
         ? 'Grupo desactivado'
-        : `${item.participantCount || 0} integrantes`
+        : item.kind === 'staff_group'
+          ? `${item.participantCount || 0} del personal`
+          : `${item.participantCount || 0} integrantes`
       : isAdminChatRole(other?.rol)
         ? null
         : rolLabel(other?.rol);
+
+    const groupIcon = item.kind === 'staff_group' ? 'briefcase-outline' : 'people';
 
     return (
       <TouchableOpacity
@@ -99,7 +168,7 @@ export default function ChatInboxScreen({ navigation }) {
       >
         {isGroup ? (
           <View style={[styles.avatar, { backgroundColor: colorMarca + '22' }]}>
-            <Ionicons name="people" size={22} color={colorMarca} />
+            <Ionicons name={groupIcon} size={22} color={colorMarca} />
           </View>
         ) : (
           <UserAvatar user={other} size={44} colorMarca={colorMarca} />
@@ -155,6 +224,26 @@ export default function ChatInboxScreen({ navigation }) {
           </TouchableOpacity>
         }
       />
+      {isAdmin && staffGroupLoaded ? (
+        <View style={[styles.staffGroupCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={{ flex: 1, marginRight: 10 }}>
+            <Text style={[styles.staffGroupTitle, { color: theme.text }]}>Chat grupal del personal</Text>
+            <Text style={[styles.staffGroupSub, { color: theme.textMuted }]}>
+              Incluye administración, control de ingreso, colaboradores y cuerpo técnico.
+            </Text>
+          </View>
+          {staffGroupSaving ? (
+            <ActivityIndicator color={colorMarca} />
+          ) : (
+            <Switch
+              value={staffGroupEnabled}
+              onValueChange={toggleStaffGroup}
+              trackColor={{ false: theme.border, true: colorMarca + '88' }}
+              thumbColor={staffGroupEnabled ? colorMarca : '#f4f3f4'}
+            />
+          )}
+        </View>
+      ) : null}
       <View style={styles.searchWrap}>
         <View
           style={[
@@ -198,7 +287,7 @@ export default function ChatInboxScreen({ navigation }) {
               refreshing={refreshing}
               onRefresh={() => {
                 setRefreshing(true);
-                load();
+                reloadAll();
               }}
               tintColor={colorMarca}
             />
@@ -228,6 +317,18 @@ export default function ChatInboxScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  staffGroupCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  staffGroupTitle: { fontSize: 14, fontWeight: '800' },
+  staffGroupSub: { fontSize: 12, marginTop: 4, lineHeight: 17 },
   searchWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
   searchBox: {
     flexDirection: 'row',

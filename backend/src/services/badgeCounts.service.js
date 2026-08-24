@@ -195,10 +195,12 @@ async function coachBadgeSummary(user, models) {
     };
 }
 
-/** Control de ingreso / colaborador: chat (+ noticias para colaborador). */
+/** Control de ingreso / colaborador: chat + noticias. */
 async function opsBadgeSummary(user, models) {
     const chatUnread = await countUnreadChatForUser(models, user._id);
-    const newsUnread = user.rol === 'colaborador' ? await countUnreadNews(user, models) : 0;
+    const newsUnread = ['colaborador', 'control_ingreso'].includes(user.rol)
+        ? await countUnreadNews(user, models)
+        : 0;
     const chat = chatUnread > 0 ? Math.min(99, chatUnread) : 0;
     const noticias = newsUnread > 0 ? Math.min(99, newsUnread) : 0;
 

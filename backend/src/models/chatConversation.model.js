@@ -4,7 +4,7 @@ const chatConversationSchema = new mongoose.Schema(
     {
         kind: {
             type: String,
-            enum: ['direct', 'category_group'],
+            enum: ['direct', 'category_group', 'staff_group'],
             default: 'direct',
             index: true,
         },
@@ -28,7 +28,7 @@ const chatConversationSchema = new mongoose.Schema(
             validate: {
                 validator(v) {
                     if (!Array.isArray(v) || v.length < 1) return false;
-                    if (this.kind === 'category_group') return true;
+                    if (this.kind === 'category_group' || this.kind === 'staff_group') return true;
                     return v.length === 2;
                 },
                 message: 'Participantes inválidos para este tipo de conversación.',
@@ -56,6 +56,13 @@ chatConversationSchema.index(
         unique: true,
         sparse: true,
         partialFilterExpression: { kind: 'category_group', category: { $type: 'objectId' } },
+    }
+);
+chatConversationSchema.index(
+    { kind: 1 },
+    {
+        unique: true,
+        partialFilterExpression: { kind: 'staff_group' },
     }
 );
 

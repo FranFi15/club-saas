@@ -7,6 +7,18 @@ import {
     markConversationRead,
     listEligibleRecipients,
 } from '../services/chat.service.js';
+import {
+    getStaffGroupChatSettings,
+    setStaffGroupChatEnabled,
+} from '../services/staffGroupChat.service.js';
+
+function assertAdminChatSettings(req) {
+    if (!['admin_club', 'administrativo'].includes(req.user?.rol)) {
+        const err = new Error('Solo administración puede configurar el chat grupal del personal.');
+        err.statusCode = 403;
+        throw err;
+    }
+}
 
 export const getConversations = asyncHandler(async (req, res) => {
     res.json(await listConversations(req.models, req.user));
@@ -41,4 +53,17 @@ export const postMessage = asyncHandler(async (req, res) => {
 
 export const postRead = asyncHandler(async (req, res) => {
     res.json(await markConversationRead(req.models, req.user, req.params.id));
+});
+
+export const getStaffGroupSettings = asyncHandler(async (req, res) => {
+    assertAdminChatSettings(req);
+    res.json(await getStaffGroupChatSettings(req.models));
+});
+
+export const patchStaffGroupSettings = asyncHandler(async (req, res) => {
+    assertAdminChatSettings(req);
+    const enabled =
+        req.body?.chatGrupalStaffEnabled === true || req.body?.chatGrupalStaffEnabled === 'true';
+    await setStaffGroupChatEnabled(req.models, enabled);
+    res.json({ chatGrupalStaffEnabled: enabled });
 });

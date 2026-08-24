@@ -6,6 +6,8 @@ import { countDocsPendientesAtleta, tutorAthleteHasAlerts } from '../services/ba
 import { isAssignableUserRole, canAssignUserRole } from '../constants/userRoles.js';
 import { syncAthleteCountToSuper } from '../services/athleteQuota.service.js';
 import { registerUserPushToken, unregisterUserPushToken } from '../services/pushNotification.service.js';
+import { syncStaffGroupChatSafe } from '../services/staffGroupChat.service.js';
+import { PAYROLL_STAFF_ROLES } from '../models/payroll.model.js';
 import { userNameCollation, userNameMongoSort } from '../utils/listSort.js';
 import { parsePageLimit } from '../utils/pagination.js';
 
@@ -66,6 +68,10 @@ const registerUser = asyncHandler(async (req, res) => {
 
         if (user.rol === 'atleta') {
             await syncAthleteCountToSuper(req.models, req.clubIdentifier);
+        }
+
+        if (PAYROLL_STAFF_ROLES.includes(user.rol)) {
+            await syncStaffGroupChatSafe(req.models);
         }
     } else {
         res.status(400);
@@ -243,6 +249,14 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
 
     if (rolAnterior === 'atleta' || updatedUser.rol === 'atleta') {
         await syncAthleteCountToSuper(req.models, req.clubIdentifier);
+    }
+
+    if (
+        PAYROLL_STAFF_ROLES.includes(rolAnterior) ||
+        PAYROLL_STAFF_ROLES.includes(updatedUser.rol) ||
+        (req.body.activo !== undefined || req.body.estado)
+    ) {
+        await syncStaffGroupChatSafe(req.models);
     }
 });
 

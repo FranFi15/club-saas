@@ -7,9 +7,14 @@ import {
     getMessages,
     postMessage,
     postRead,
+    getStaffGroupSettings,
+    patchStaffGroupSettings,
 } from '../controllers/chat.controller.js';
 
 const router = express.Router();
+
+router.get('/staff-group/settings', protect, getStaffGroupSettings);
+router.patch('/staff-group/settings', protect, patchStaffGroupSettings);
 
 router.get('/conversations', protect, getConversations);
 router.post('/conversations', protect, postConversation);

@@ -28,6 +28,19 @@ function isCategoryGroup(conv) {
     return conv?.kind === 'category_group';
 }
 
+function isStaffGroup(conv) {
+    return conv?.kind === 'staff_group';
+}
+
+function isGroupChat(conv) {
+    return isCategoryGroup(conv) || isStaffGroup(conv);
+}
+
+function defaultGroupTitle(conv) {
+    if (isStaffGroup(conv)) return 'Personal del club';
+    return conv.title || 'Chat de categoría';
+}
+
 function serializeConversation(c, userId) {
     const base = {
         _id: c._id,
@@ -39,10 +52,10 @@ function serializeConversation(c, userId) {
         active: c.active !== false,
     };
 
-    if (isCategoryGroup(c)) {
+    if (isGroupChat(c)) {
         return {
             ...base,
-            title: c.title || 'Chat de categoría',
+            title: defaultGroupTitle(c),
             categoryId: c.category || null,
             participantCount: (c.participants || []).length,
             otherUser: null,
@@ -85,7 +98,7 @@ export async function getOrCreateConversation(models, user, otherUserId) {
     }
 
     const pairKey = makePairKey(user._id, other._id);
-    let conv = await ChatConversation.findOne({ pairKey, kind: { $ne: 'category_group' } }).populate(
+    let conv = await ChatConversation.findOne({ pairKey, kind: 'direct' }).populate(
         'participants',
         USER_SELECT,
     );
@@ -172,7 +185,7 @@ export async function sendMessage(models, user, conversationId, bodyRaw, meta = 
     const conv = await assertParticipant(models, conversationId, user._id);
     const otherIds = (conv.participants || []).filter((p) => String(p) !== String(user._id));
 
-    if (isCategoryGroup(conv)) {
+    if (isGroupChat(conv)) {
         if (conv.active === false) {
             const err = new Error('Este chat grupal está desactivado.');
             err.statusCode = 403;
@@ -220,10 +233,8 @@ export async function sendMessage(models, user, conversationId, bodyRaw, meta = 
             ? 'Administración'
             : `${user.nombre || ''} ${user.apellido || ''}`.trim() || 'Mensaje nuevo';
 
-    const pushTitle = isCategoryGroup(conv)
-        ? conv.title || 'Chat de categoría'
-        : senderName;
-    const pushBody = isCategoryGroup(conv) ? `${senderName}: ${preview}` : preview;
+    const pushTitle = isGroupChat(conv) ? defaultGroupTitle(conv) : senderName;
+    const pushBody = isGroupChat(conv) ? `${senderName}: ${preview}` : preview;
 
     try {
         if (otherIds.length) {
@@ -233,7 +244,7 @@ export async function sendMessage(models, user, conversationId, bodyRaw, meta = 
                 data: {
                     tipo: 'chat',
                     conversationId: String(conv._id),
-                    kind: isCategoryGroup(conv) ? 'category_group' : 'direct',
+                    kind: isGroupChat(conv) ? conv.kind : 'direct',
                     title: pushTitle,
                     body: pushBody,
                 },

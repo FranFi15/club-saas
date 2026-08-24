@@ -18,6 +18,23 @@ export function isAdminChatRole(rol) {
   return rol === 'admin_club' || rol === 'administrativo';
 }
 
+export function isGroupChatKind(kind) {
+  return kind === 'category_group' || kind === 'staff_group';
+}
+
+export function groupChatDefaultTitle(kind, title) {
+  if (kind === 'staff_group') return title || 'Personal del club';
+  if (kind === 'category_group') return title || 'Chat de categoría';
+  return title || 'Grupo';
+}
+
+export function groupChatSubtitle(kind, active) {
+  if (kind === 'staff_group') {
+    return active !== false ? 'Todo el personal del club' : 'Desactivado — solo lectura';
+  }
+  return active !== false ? 'Chat de categoría' : 'Desactivado — solo lectura';
+}
+
 export function displayName(user) {
   if (!user) return 'Usuario';
   if (isAdminChatRole(user.rol)) return 'Administración';

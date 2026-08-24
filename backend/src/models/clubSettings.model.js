@@ -31,6 +31,12 @@ const clubSettingsSchema = new mongoose.Schema(
 
         /** Días de anticipación para aviso de cuota próxima (cron + botón Morosidad). */
         cuotaReminderDaysBefore: { type: Number, default: 3, min: 1, max: 14 },
+
+        /**
+         * Si true, se crea/sincroniza un chat grupal con todo el personal del club
+         * (administración, control de ingreso, colaboradores y cuerpo técnico).
+         */
+        chatGrupalStaffEnabled: { type: Boolean, default: false },
     },
     { timestamps: true }
 );
