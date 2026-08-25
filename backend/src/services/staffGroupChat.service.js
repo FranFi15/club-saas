@@ -5,6 +5,7 @@
 
 import { getOrCreateClubSettings } from './familyDiscount.service.js';
 import { PAYROLL_STAFF_ROLES } from '../models/payroll.model.js';
+import { ensureChatConversationPairKeyIndex } from '../models/chatConversation.model.js';
 
 const STAFF_GROUP_TITLE = 'Personal del club';
 
@@ -34,6 +35,8 @@ export async function syncStaffGroupChat(models, { forceEnabled } = {}) {
     const { ChatConversation } = models;
     if (!ChatConversation) return null;
 
+    await ensureChatConversationPairKeyIndex(ChatConversation);
+
     const enabled =
         forceEnabled !== undefined ? !!forceEnabled : await isStaffGroupEnabled(models);
 
@@ -57,15 +60,21 @@ export async function syncStaffGroupChat(models, { forceEnabled } = {}) {
             lastMessagePreview: '',
             unreadBy: {},
         });
+        await ChatConversation.updateOne(
+            { _id: conv._id },
+            { $unset: { pairKey: 1, category: 1 } },
+        );
         return conv;
     }
 
     conv.participants = participants;
     conv.title = STAFF_GROUP_TITLE;
     conv.active = true;
-    if (conv.pairKey) conv.pairKey = undefined;
-    if (conv.category) conv.category = undefined;
     await conv.save();
+    await ChatConversation.updateOne(
+        { _id: conv._id },
+        { $unset: { pairKey: 1, category: 1 } },
+    );
     return conv;
 }
 

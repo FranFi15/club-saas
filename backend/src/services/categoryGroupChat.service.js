@@ -3,6 +3,8 @@
  * Se crea/sincroniza cuando `chatGrupalCategoriaEnabled` está activo.
  */
 
+import { ensureChatConversationPairKeyIndex } from '../models/chatConversation.model.js';
+
 function idStr(v) {
     return String(v?._id || v);
 }
@@ -40,6 +42,8 @@ export async function syncCategoryGroupChat(models, categoryId) {
     const { Category, ChatConversation } = models;
     if (!Category || !ChatConversation || !categoryId) return null;
 
+    await ensureChatConversationPairKeyIndex(ChatConversation);
+
     const category = await Category.findById(categoryId)
         .select(
             'nombre profesores preparadoresFisicos nutricionistas psicologos chatGrupalCategoriaEnabled',
@@ -75,14 +79,15 @@ export async function syncCategoryGroupChat(models, categoryId) {
             lastMessagePreview: '',
             unreadBy: {},
         });
+        await ChatConversation.updateOne({ _id: conv._id }, { $unset: { pairKey: 1 } });
         return conv;
     }
 
     conv.participants = participants;
     conv.title = title;
     conv.active = true;
-    if (conv.pairKey) conv.pairKey = undefined;
     await conv.save();
+    await ChatConversation.updateOne({ _id: conv._id }, { $unset: { pairKey: 1 } });
     return conv;
 }
 

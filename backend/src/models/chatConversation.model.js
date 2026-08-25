@@ -48,7 +48,15 @@ const chatConversationSchema = new mongoose.Schema(
 );
 
 chatConversationSchema.index({ participants: 1, lastMessageAt: -1 });
-chatConversationSchema.index({ pairKey: 1 }, { unique: true, sparse: true });
+/** Solo DMs con pairKey string — sparse + null colisionaba entre chats grupales. */
+chatConversationSchema.index(
+    { pairKey: 1 },
+    {
+        unique: true,
+        name: 'pairKey_direct_unique',
+        partialFilterExpression: { kind: 'direct', pairKey: { $type: 'string' } },
+    }
+);
 chatConversationSchema.index(
     { category: 1 },
     {
@@ -64,6 +72,56 @@ chatConversationSchema.index(
         partialFilterExpression: { kind: 'staff_group' },
     }
 );
+
+const pairKeyIndexEnsured = new WeakSet();
+
+/**
+ * Migra el índice legacy `pairKey_1` (sparse unique) que indexaba `pairKey: null`
+ * y chocaba al crear más de un chat grupal.
+ */
+export async function ensureChatConversationPairKeyIndex(ChatConversation) {
+    if (!ChatConversation?.collection || pairKeyIndexEnsured.has(ChatConversation.collection)) {
+        return;
+    }
+    pairKeyIndexEnsured.add(ChatConversation.collection);
+
+    try {
+        await ChatConversation.updateMany(
+            { kind: { $in: ['category_group', 'staff_group'] } },
+            { $unset: { pairKey: 1 } },
+        );
+    } catch (e) {
+        console.warn('[chat] unset group pairKey:', e.message);
+    }
+
+    try {
+        const indexes = await ChatConversation.collection.indexes();
+        const legacy = indexes.find((idx) => idx.name === 'pairKey_1');
+        if (legacy) {
+            await ChatConversation.collection.dropIndex('pairKey_1');
+        }
+    } catch (e) {
+        if (e?.codeName !== 'IndexNotFound' && e?.code !== 27) {
+            console.warn('[chat] drop legacy pairKey_1:', e.message);
+        }
+    }
+
+    try {
+        await ChatConversation.collection.createIndex(
+            { pairKey: 1 },
+            {
+                unique: true,
+                name: 'pairKey_direct_unique',
+                partialFilterExpression: { kind: 'direct', pairKey: { $type: 'string' } },
+            },
+        );
+    } catch (e) {
+        // Index already exists with same options, or race — safe to ignore.
+        if (e?.code !== 85 && e?.code !== 86) {
+            console.warn('[chat] ensure pairKey index:', e.message);
+        }
+    }
+}
 
 export const getChatConversationModel = (tenantDB) => {
     return (
