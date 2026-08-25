@@ -118,7 +118,7 @@ export default function ChatInboxScreen({ navigation }) {
     try {
       const h = await chatHeaders(clubData.urlIdentifier);
       await clubApi.patch('/chat/staff-group/settings', { chatGrupalStaffEnabled: value }, { headers: h });
-      await load();
+      await reloadAll();
     } catch {
       setStaffGroupEnabled(prev);
     } finally {

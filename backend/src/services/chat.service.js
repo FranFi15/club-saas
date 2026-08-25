@@ -4,6 +4,7 @@ import {
     listEligibleRecipients,
     makePairKey,
 } from './chatAccess.service.js';
+import { syncStaffGroupChatSafe } from './staffGroupChat.service.js';
 
 const USER_SELECT = 'nombre apellido email rol fotoPerfil estado';
 
@@ -73,6 +74,7 @@ function serializeConversation(c, userId) {
 
 export async function listConversations(models, user) {
     const { ChatConversation } = models;
+    await syncStaffGroupChatSafe(models);
     const rows = await ChatConversation.find({ participants: user._id })
         .sort({ lastMessageAt: -1 })
         .populate('participants', USER_SELECT)

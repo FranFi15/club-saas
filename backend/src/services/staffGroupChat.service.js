@@ -12,7 +12,7 @@ async function resolveStaffMemberIds(models) {
     const { User } = models;
     const active = await User.find({
         rol: { $in: PAYROLL_STAFF_ROLES },
-        estado: 'activo',
+        estado: { $ne: 'inactivo' },
     })
         .select('_id')
         .lean();
@@ -30,11 +30,12 @@ async function isStaffGroupEnabled(models) {
  * Crea o actualiza el grupo de personal.
  * Si el switch está off, desactiva el grupo (historial intacto).
  */
-export async function syncStaffGroupChat(models) {
+export async function syncStaffGroupChat(models, { forceEnabled } = {}) {
     const { ChatConversation } = models;
     if (!ChatConversation) return null;
 
-    const enabled = await isStaffGroupEnabled(models);
+    const enabled =
+        forceEnabled !== undefined ? !!forceEnabled : await isStaffGroupEnabled(models);
 
     if (!enabled) {
         await ChatConversation.updateOne({ kind: 'staff_group' }, { $set: { active: false } });
@@ -78,9 +79,10 @@ export async function syncStaffGroupChatSafe(models) {
 
 export async function setStaffGroupChatEnabled(models, enabled) {
     const { ClubSettings } = models;
+    const on = !!enabled;
     await getOrCreateClubSettings(ClubSettings);
-    await ClubSettings.findOneAndUpdate({}, { chatGrupalStaffEnabled: !!enabled }, { upsert: true });
-    return syncStaffGroupChat(models);
+    await ClubSettings.findOneAndUpdate({}, { chatGrupalStaffEnabled: on }, { upsert: true });
+    return syncStaffGroupChat(models, { forceEnabled: on });
 }
 
 export async function getStaffGroupChatSettings(models) {
