@@ -32,7 +32,7 @@ export async function downloadPaymentReceipt({ paymentId, headers, onError }) {
     return { filename };
   }
 
-  const FileSystem = await import('expo-file-system');
+  const FileSystem = await import('expo-file-system/legacy');
   const Sharing = await import('expo-sharing');
   const path = `${FileSystem.cacheDirectory || FileSystem.documentDirectory}${filename}`;
   await FileSystem.writeAsStringAsync(path, base64, {

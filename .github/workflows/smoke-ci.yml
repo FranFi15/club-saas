@@ -1,0 +1,127 @@
+# Smoke CI — install workspaces + health checks for super & backend
+name: Smoke CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: smoke-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Install + health
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: development
+      # Super
+      MONGO_URI: mongodb://127.0.0.1:27017/club_super_ci
+      MONGO_DB_HOST: mongodb://127.0.0.1:27017
+      INTERNAL_ADMIN_API_KEY: ci-internal-admin-key-not-for-prod
+      JWT_SECRET: ci-jwt-secret-at-least-32-characters-long
+      # Backend
+      JWT_REFRESH_SECRET: ci-jwt-refresh-secret-at-least-32-chars
+      FRONTEND_URL: http://localhost:8081
+      SUPER_ADMIN_URL: http://127.0.0.1:4000
+      CLUB_ENTRY_TOKEN_SECRET: ci-club-entry-token-secret-32chars
+      ENABLE_SESSION_CRON: 'false'
+      ENABLE_PAYMENT_CRON: 'false'
+      ENABLE_OVERDUE_CRON: 'false'
+      ENABLE_PAYMENT_REMINDER_CRON: 'false'
+      PORT_SUPER: '4000'
+      PORT_BACKEND: '5000'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install backend + super
+        run: npm install --workspace=backend --workspace=super
+
+      - name: Start Super Admin
+        working-directory: super
+        env:
+          PORT: ${{ env.PORT_SUPER }}
+        run: |
+          node index.js > /tmp/super.log 2>&1 &
+          echo $! > /tmp/super.pid
+
+      - name: Wait for Super /health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf "http://127.0.0.1:${PORT_SUPER}/health" >/dev/null; then
+              echo "Super healthy"
+              exit 0
+            fi
+            echo "waiting for super... ($i)"
+            sleep 1
+          done
+          echo "=== super.log ==="
+          cat /tmp/super.log || true
+          exit 1
+
+      - name: Start Club Backend
+        working-directory: backend
+        env:
+          PORT: ${{ env.PORT_BACKEND }}
+        run: |
+          node index.js > /tmp/backend.log 2>&1 &
+          echo $! > /tmp/backend.pid
+
+      - name: Wait for Backend /health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf "http://127.0.0.1:${PORT_BACKEND}/health" >/dev/null; then
+              echo "Backend healthy"
+              exit 0
+            fi
+            echo "waiting for backend... ($i)"
+            sleep 1
+          done
+          echo "=== backend.log ==="
+          cat /tmp/backend.log || true
+          exit 1
+
+      - name: Smoke assertions
+        run: |
+          set -e
+          SUPER_BODY=$(curl -sf "http://127.0.0.1:${PORT_SUPER}/health")
+          echo "Super: $SUPER_BODY"
+          echo "$SUPER_BODY" | grep -q '"ok":true'
+
+          BACKEND_BODY=$(curl -sf "http://127.0.0.1:${PORT_BACKEND}/health")
+          echo "Backend: $BACKEND_BODY"
+          test "$BACKEND_BODY" = "ok"
+
+          curl -sf "http://127.0.0.1:${PORT_BACKEND}/" | grep -q ok
+          echo "Smoke CI passed"
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          echo "=== super.log ==="
+          cat /tmp/super.log || true
+          echo "=== backend.log ==="
+          cat /tmp/backend.log || true

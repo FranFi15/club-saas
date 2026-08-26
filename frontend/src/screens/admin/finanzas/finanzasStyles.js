@@ -41,4 +41,83 @@ export const finanzasStyles = StyleSheet.create({
   saveBtnTxt: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   actionBtn: { width: 60, justifyContent: 'center', alignItems: 'center', height: '100%' },
   payInfo: { padding: 15, borderRadius: 5, marginBottom: 15, alignItems: 'center' },
+
+  /** List cards for Nómina / Gastos (aligned with Atletas card hierarchy). */
+  financeListCard: {
+    borderRadius: 5,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 10,
+  },
+  financeCardTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  financeCardLeading: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  financeCardBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  financeCardTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  financeCardMeta: {
+    fontSize: 12,
+    marginTop: 3,
+    lineHeight: 16,
+  },
+  financeCardNotes: {
+    fontSize: 12,
+    marginTop: 6,
+    lineHeight: 16,
+    fontStyle: 'italic',
+  },
+  financeCardAmountCol: {
+    alignItems: 'flex-end',
+    marginLeft: 8,
+    maxWidth: 110,
+  },
+  financeCardAmount: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  financeCardBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 5,
+    marginTop: 4,
+  },
+  financeCardBadgeTxt: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  financeCardActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  financeCardActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 5,
+    borderWidth: 1,
+  },
+  financeCardActionTxt: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
 });

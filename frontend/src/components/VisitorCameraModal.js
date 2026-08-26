@@ -8,6 +8,7 @@ import {
   Image,
   ActivityIndicator,
   Platform,
+  StatusBar,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
@@ -90,10 +91,13 @@ export default function VisitorCameraModal({
   if (!visible) return null;
 
   const granted = !!permission?.granted;
+  // Modal + statusBarTranslucent often reports insets.top = 0 on Android.
+  const statusBarH = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
+  const topPad = Math.max(insets.top, statusBarH) + (Platform.OS === 'android' ? 10 : 4);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onCancel} statusBarTranslucent>
-      <View style={[styles.root, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 12) }]}>
+      <View style={[styles.root, { paddingTop: topPad, paddingBottom: Math.max(insets.bottom, 12) }]}>
         <View style={styles.topBar}>
           <TouchableOpacity onPress={onCancel} style={styles.topBtn} accessibilityLabel="Cancelar">
             <Ionicons name="close" size={26} color="#fff" />
@@ -184,8 +188,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 10,
+    paddingTop: 6,
+    paddingBottom: 12,
     gap: 8,
   },
   topBtn: { alignItems: 'center', minWidth: 64, gap: 2 },

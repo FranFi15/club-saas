@@ -15,8 +15,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
 import { readScreenCache, useCachedFocusLoad } from '../../../hooks/useCachedFocusLoad';
+import UserAvatar from '../../../components/UserAvatar';
 import { finanzasStyles as s } from './finanzasStyles';
-import { MN, METODOS, fmtMoney, metodoPagoLabel } from './finanzasConstants';
+import { MN, METODOS, fmtMoney, metodoPagoLabel, metodoPagoIcon } from './finanzasConstants';
 import { pickAndUploadAttachment, openAttachmentUrl } from './finanzasUpload';
 import CustomAlert from '../../../components/CustomAlert';
 
@@ -55,6 +56,7 @@ export default function NominaTab({
   const [nameFilter, setNameFilter] = useState('');
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [formStaffId, setFormStaffId] = useState('');
@@ -125,6 +127,7 @@ export default function NominaTab({
   );
 
   const openCreate = () => {
+    setEditingId(null);
     setFormStaffId('');
     setFormMonto('');
     setFormMes(mes);
@@ -135,6 +138,26 @@ export default function NominaTab({
     setPickerSearch('');
     setPickingStaff(false);
     setModalOpen(true);
+  };
+
+  const openEdit = (item) => {
+    setEditingId(item._id);
+    setFormStaffId(item.staff?._id ? String(item.staff._id) : '');
+    setFormMonto(item.monto != null ? String(item.monto) : '');
+    setFormMes(item.mes || mes);
+    setFormAnio(item.anio || anio);
+    setFormMetodo(item.metodoPago || 'transferencia');
+    setFormComprobante(item.comprobanteUrl || '');
+    setFormNotas(item.notas || '');
+    setPickerSearch('');
+    setPickingStaff(false);
+    setModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setModalOpen(false);
+    setEditingId(null);
+    setPickingStaff(false);
   };
 
   const uploadProof = async () => {
@@ -162,22 +185,40 @@ export default function NominaTab({
     setSaving(true);
     try {
       const h = await getHeaders();
-      await clubApi.post(
-        '/financial/payroll',
-        {
-          staffId: formStaffId,
-          monto: montoNum,
-          mes: formMes,
-          anio: formAnio,
-          metodoPago: formMetodo,
-          comprobanteUrl: formComprobante || undefined,
-          notas: formNotas.trim() || undefined,
-        },
-        { headers: h },
-      );
-      setModalOpen(false);
-      await reload({ background: true });
-      showAlert('Listo', 'Pago de nómina registrado.');
+      if (editingId) {
+        await clubApi.patch(
+          `/financial/payroll/${editingId}`,
+          {
+            monto: montoNum,
+            mes: formMes,
+            anio: formAnio,
+            metodoPago: formMetodo,
+            comprobanteUrl: formComprobante || '',
+            notas: formNotas.trim(),
+          },
+          { headers: h },
+        );
+        closeModal();
+        await reload({ background: true });
+        showAlert('Listo', 'Pago de nómina actualizado.');
+      } else {
+        await clubApi.post(
+          '/financial/payroll',
+          {
+            staffId: formStaffId,
+            monto: montoNum,
+            mes: formMes,
+            anio: formAnio,
+            metodoPago: formMetodo,
+            comprobanteUrl: formComprobante || undefined,
+            notas: formNotas.trim() || undefined,
+          },
+          { headers: h },
+        );
+        closeModal();
+        await reload({ background: true });
+        showAlert('Listo', 'Pago de nómina registrado.');
+      }
     } catch (e) {
       showAlert('Error', e.response?.data?.message || 'No se pudo guardar.');
     } finally {
@@ -208,46 +249,79 @@ export default function NominaTab({
 
   const renderItem = ({ item }) => {
     const busy = String(deletingId) === String(item._id);
+    const role = ROL_LABEL[item.staff?.rol] || item.staff?.rol || '—';
+    const method = metodoPagoLabel(item.metodoPago) || '—';
+    const dateTxt = item.fechaPago
+      ? new Date(item.fechaPago).toLocaleDateString('es-AR')
+      : null;
+    const periodDiffers = item.mes !== mes || item.anio !== anio;
+    const metaParts = [
+      role,
+      method,
+      dateTxt,
+      periodDiffers ? `${MN[(item.mes || 1) - 1]} ${item.anio}` : null,
+    ].filter(Boolean);
+
     return (
-      <View style={[s.card, { backgroundColor: panelBg, borderColor: theme.border, borderWidth: 1 }]}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[s.planName, { color: theme.text }]} numberOfLines={1}>
-            {staffLabel(item.staff)}
-          </Text>
-          <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
-            {ROL_LABEL[item.staff?.rol] || item.staff?.rol || '—'} · {MN[(item.mes || 1) - 1]} {item.anio}
-          </Text>
-          <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
-            {metodoPagoLabel(item.metodoPago)}
-            {item.fechaPago
-              ? ` · ${new Date(item.fechaPago).toLocaleDateString('es-AR')}`
-              : ''}
-          </Text>
-          {!!item.notas && (
-            <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 4 }} numberOfLines={2}>
-              {item.notas}
+      <View style={[s.financeListCard, { backgroundColor: panelBg, borderColor: theme.border }]}>
+        <View style={s.financeCardTop}>
+          <UserAvatar user={item.staff} size={44} colorMarca={cc} />
+          <View style={[s.financeCardBody, { marginLeft: 12 }]}>
+            <Text style={[s.financeCardTitle, { color: theme.text }]} numberOfLines={1}>
+              {staffLabel(item.staff)}
             </Text>
-          )}
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
-            {!!item.comprobanteUrl && (
-              <TouchableOpacity
-                onPress={() =>
-                  openAttachmentUrl(item.comprobanteUrl).catch((e) =>
-                    showAlert('Error', e.message || 'No se pudo abrir.'),
-                  )
-                }
-              >
-                <Text style={{ color: cc, fontWeight: '700', fontSize: 12 }}>Ver comprobante</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={() => confirmDelete(item)} disabled={busy}>
-              <Text style={{ color: '#ef4444', fontWeight: '600', fontSize: 12 }}>
-                {busy ? 'Eliminando…' : 'Eliminar'}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3, gap: 4 }}>
+              <Ionicons name={metodoPagoIcon(item.metodoPago)} size={13} color={theme.textMuted} />
+              <Text style={[s.financeCardMeta, { color: theme.textMuted, marginTop: 0, flex: 1 }]} numberOfLines={2}>
+                {metaParts.join(' · ')}
               </Text>
-            </TouchableOpacity>
+            </View>
+            {!!item.notas && (
+              <Text style={[s.financeCardNotes, { color: theme.textMuted }]} numberOfLines={2}>
+                {item.notas}
+              </Text>
+            )}
+          </View>
+          <View style={s.financeCardAmountCol}>
+            <Text style={[s.financeCardAmount, { color: cc }]}>{fmtMoney(item.monto)}</Text>
           </View>
         </View>
-        <Text style={[s.planMonto, { color: cc }]}>{fmtMoney(item.monto)}</Text>
+
+        <View style={[s.financeCardActions, { borderTopColor: theme.border }]}>
+          <TouchableOpacity
+            style={[s.financeCardActionBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+            onPress={() => openEdit(item)}
+            hitSlop={6}
+          >
+            <Ionicons name="create-outline" size={15} color={cc} />
+            <Text style={[s.financeCardActionTxt, { color: cc }]}>Editar</Text>
+          </TouchableOpacity>
+          {!!item.comprobanteUrl && (
+            <TouchableOpacity
+              style={[s.financeCardActionBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+              onPress={() =>
+                openAttachmentUrl(item.comprobanteUrl).catch((e) =>
+                  showAlert('Error', e.message || 'No se pudo abrir.'),
+                )
+              }
+              hitSlop={6}
+            >
+              <Ionicons name="document-attach-outline" size={15} color={cc} />
+              <Text style={[s.financeCardActionTxt, { color: cc }]}>Comprobante</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[s.financeCardActionBtn, { borderColor: '#fecaca', backgroundColor: '#fef2f2' }]}
+            onPress={() => confirmDelete(item)}
+            disabled={busy}
+            hitSlop={6}
+          >
+            <Ionicons name="trash-outline" size={15} color="#ef4444" />
+            <Text style={[s.financeCardActionTxt, { color: '#ef4444' }]}>
+              {busy ? 'Eliminando…' : 'Eliminar'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };
@@ -320,21 +394,44 @@ export default function NominaTab({
         <Ionicons name="add" size={28} color="#fff" />
       </TouchableOpacity>
 
-      <Modal visible={modalOpen} animationType="slide" transparent onRequestClose={() => setModalOpen(false)}>
+      <Modal visible={modalOpen} animationType="slide" transparent onRequestClose={closeModal}>
         <KeyboardAvoidingView
           style={s.modalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={[s.modalContent, { backgroundColor: panelBg, maxHeight: '92%' }]}>
             <View style={s.modalHeader}>
-              <Text style={[s.modalTitle, { color: theme.text }]}>Registrar pago</Text>
-              <TouchableOpacity onPress={() => setModalOpen(false)}>
+              <Text style={[s.modalTitle, { color: theme.text }]}>
+                {editingId ? 'Editar pago' : 'Registrar pago'}
+              </Text>
+              <TouchableOpacity onPress={closeModal}>
                 <Ionicons name="close" size={24} color={theme.textMuted} />
               </TouchableOpacity>
             </View>
             <ScrollView keyboardShouldPersistTaps="handled">
               <Text style={[s.label, { color: theme.textMuted }]}>Personal</Text>
-              {!pickingStaff ? (
+              {editingId ? (
+                <View
+                  style={{
+                    borderWidth: 1,
+                    borderColor: theme.border,
+                    borderRadius: 5,
+                    paddingHorizontal: 15,
+                    paddingVertical: 12,
+                    marginBottom: 15,
+                    backgroundColor: theme.background,
+                  }}
+                >
+                  <Text style={{ color: theme.text, fontWeight: '600' }}>
+                    {selectedStaff
+                      ? staffLabel(selectedStaff)
+                      : staffLabel(entries.find((e) => String(e._id) === String(editingId))?.staff)}
+                  </Text>
+                  <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 4 }}>
+                    La persona no se puede cambiar al editar.
+                  </Text>
+                </View>
+              ) : !pickingStaff ? (
                 <TouchableOpacity
                   style={[s.input, { borderColor: theme.border, justifyContent: 'center', backgroundColor: theme.background }]}
                   onPress={() => {
@@ -533,7 +630,7 @@ export default function NominaTab({
                 {saving ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={s.saveBtnTxt}>Guardar pago</Text>
+                  <Text style={s.saveBtnTxt}>{editingId ? 'Guardar cambios' : 'Guardar pago'}</Text>
                 )}
               </TouchableOpacity>
             </ScrollView>

@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
 import { readScreenCache, useCachedFocusLoad } from '../../../hooks/useCachedFocusLoad';
 import { finanzasStyles as s } from './finanzasStyles';
-import { METODOS, MN, fmtMoney, metodoPagoLabel, EST_COLOR } from './finanzasConstants';
+import { METODOS, MN, fmtMoney, metodoPagoLabel, metodoPagoIcon, EST_COLOR } from './finanzasConstants';
 import { pickAndUploadAttachment, openAttachmentUrl } from './finanzasUpload';
 import CustomAlert from '../../../components/CustomAlert';
 
@@ -46,6 +46,7 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
 
   const [modeModal, setModeModal] = useState(false); // choose create vs select
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [selectOpen, setSelectOpen] = useState(false);
   const [selectRows, setSelectRows] = useState([]);
   const [selectLoading, setSelectLoading] = useState(false);
@@ -97,6 +98,7 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
   );
 
   const resetCreateForm = () => {
+    setEditingId(null);
     setConcepto('');
     setMonto('');
     setFacturaUrl('');
@@ -110,6 +112,23 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
     setModeModal(false);
     resetCreateForm();
     setCreateOpen(true);
+  };
+
+  const openEdit = (item) => {
+    setEditingId(item._id);
+    setConcepto(item.concepto || '');
+    setMonto(item.monto != null ? String(item.monto) : '');
+    setFacturaUrl(item.facturaUrl || '');
+    setNotas(item.notas || '');
+    setPayOnCreate(false);
+    setMetodo(item.metodoPago || 'transferencia');
+    setPagoUrl(item.pagoComprobanteUrl || '');
+    setCreateOpen(true);
+  };
+
+  const closeCreate = () => {
+    setCreateOpen(false);
+    setEditingId(null);
   };
 
   const openSelect = async () => {
@@ -178,22 +197,38 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
     setSaving(true);
     try {
       const h = await getHeaders();
-      const body = {
-        concepto: conceptoTrim,
-        monto: amount,
-        fecha: new Date(anio, (mes || 1) - 1, Math.min(new Date().getDate(), 28)).toISOString(),
-        facturaUrl: facturaUrl || undefined,
-        notas: notas.trim() || undefined,
-      };
-      if (payOnCreate) {
-        body.pagarAhora = true;
-        body.metodoPago = metodo;
-        body.pagoComprobanteUrl = pagoUrl || undefined;
+      if (editingId) {
+        await clubApi.patch(
+          `/financial/bills/${editingId}`,
+          {
+            concepto: conceptoTrim,
+            monto: amount,
+            facturaUrl: facturaUrl || '',
+            notas: notas.trim(),
+          },
+          { headers: h },
+        );
+        closeCreate();
+        await reload({ background: true });
+        showAlert('Listo', 'Factura actualizada.');
+      } else {
+        const body = {
+          concepto: conceptoTrim,
+          monto: amount,
+          fecha: new Date(anio, (mes || 1) - 1, Math.min(new Date().getDate(), 28)).toISOString(),
+          facturaUrl: facturaUrl || undefined,
+          notas: notas.trim() || undefined,
+        };
+        if (payOnCreate) {
+          body.pagarAhora = true;
+          body.metodoPago = metodo;
+          body.pagoComprobanteUrl = pagoUrl || undefined;
+        }
+        await clubApi.post('/financial/bills', body, { headers: h });
+        closeCreate();
+        await reload({ background: true });
+        showAlert('Listo', payOnCreate ? 'Factura creada y marcada como pagada.' : 'Factura creada.');
       }
-      await clubApi.post('/financial/bills', body, { headers: h });
-      setCreateOpen(false);
-      await reload({ background: true });
-      showAlert('Listo', payOnCreate ? 'Factura creada y marcada como pagada.' : 'Factura creada.');
     } catch (e) {
       showAlert('Error', e.response?.data?.message || 'No se pudo guardar.');
     } finally {
@@ -275,61 +310,113 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
   const renderItem = ({ item }) => {
     const color = EST_COLOR[item.estado] || theme.textMuted;
     const busy = String(deletingId) === String(item._id);
+    const isPaid = item.estado === 'pagado';
+    const metaParts = [`Factura ${formatDate(item.fecha)}`];
+    if (isPaid) {
+      metaParts.push(`Pagado ${formatDate(item.fechaPago)}`);
+      const method = metodoPagoLabel(item.metodoPago);
+      if (method) metaParts.push(method);
+    }
+
     return (
-      <View style={[s.card, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }]}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <Text style={[s.planName, { color: theme.text, flexShrink: 1 }]} numberOfLines={2}>
+      <View style={[s.financeListCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View style={s.financeCardTop}>
+          <View style={[s.financeCardLeading, { backgroundColor: `${color}18`, marginRight: 0 }]}>
+            <Ionicons
+              name={isPaid ? 'checkmark-circle' : 'receipt-outline'}
+              size={22}
+              color={color}
+            />
+          </View>
+          <View style={[s.financeCardBody, { marginLeft: 12 }]}>
+            <Text style={[s.financeCardTitle, { color: theme.text }]} numberOfLines={2}>
               {item.concepto}
             </Text>
-            <View style={[s.badge, { backgroundColor: `${color}22` }]}>
-              <Text style={{ color, fontSize: 11, fontWeight: '700' }}>
-                {item.estado === 'pagado' ? 'Pagado' : 'Pendiente'}
+            <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+              <View style={[s.financeCardBadge, { backgroundColor: `${color}22`, marginTop: 0 }]}>
+                <Text style={[s.financeCardBadgeTxt, { color }]}>
+                  {isPaid ? 'Pagado' : 'Pendiente'}
+                </Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 }}>
+              {isPaid ? (
+                <Ionicons name={metodoPagoIcon(item.metodoPago)} size={13} color={theme.textMuted} />
+              ) : null}
+              <Text style={[s.financeCardMeta, { color: theme.textMuted, marginTop: 0, flex: 1 }]} numberOfLines={2}>
+                {metaParts.join(' · ')}
               </Text>
             </View>
-          </View>
-          <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 4 }}>
-            Factura: {formatDate(item.fecha)}
-            {item.estado === 'pagado'
-              ? ` · Pagado: ${formatDate(item.fechaPago)} · ${metodoPagoLabel(item.metodoPago) || '—'}`
-              : ''}
-          </Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8 }}>
-            {!!item.facturaUrl && (
-              <TouchableOpacity
-                onPress={() =>
-                  openAttachmentUrl(item.facturaUrl).catch((e) =>
-                    showAlert('Error', e.message || 'No se pudo abrir.'),
-                  )
-                }
-              >
-                <Text style={{ color: cc, fontWeight: '700', fontSize: 12 }}>Ver factura</Text>
-              </TouchableOpacity>
-            )}
-            {!!item.pagoComprobanteUrl && (
-              <TouchableOpacity
-                onPress={() =>
-                  openAttachmentUrl(item.pagoComprobanteUrl).catch((e) =>
-                    showAlert('Error', e.message || 'No se pudo abrir.'),
-                  )
-                }
-              >
-                <Text style={{ color: cc, fontWeight: '700', fontSize: 12 }}>Ver pago</Text>
-              </TouchableOpacity>
-            )}
-            {item.estado === 'pendiente' && (
-              <TouchableOpacity onPress={() => openPayFor(item)}>
-                <Text style={{ color: '#10b981', fontWeight: '700', fontSize: 12 }}>Registrar pago</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={() => confirmDelete(item)} disabled={busy}>
-              <Text style={{ color: '#ef4444', fontWeight: '600', fontSize: 12 }}>
-                {busy ? 'Eliminando…' : 'Eliminar'}
+            {!!item.notas && (
+              <Text style={[s.financeCardNotes, { color: theme.textMuted }]} numberOfLines={2}>
+                {item.notas}
               </Text>
-            </TouchableOpacity>
+            )}
+          </View>
+          <View style={s.financeCardAmountCol}>
+            <Text style={[s.financeCardAmount, { color: cc }]}>{fmtMoney(item.monto)}</Text>
           </View>
         </View>
-        <Text style={[s.planMonto, { color: cc }]}>{fmtMoney(item.monto)}</Text>
+
+        <View style={[s.financeCardActions, { borderTopColor: theme.border }]}>
+          <TouchableOpacity
+            style={[s.financeCardActionBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+            onPress={() => openEdit(item)}
+            hitSlop={6}
+          >
+            <Ionicons name="create-outline" size={15} color={cc} />
+            <Text style={[s.financeCardActionTxt, { color: cc }]}>Editar</Text>
+          </TouchableOpacity>
+          {!!item.facturaUrl && (
+            <TouchableOpacity
+              style={[s.financeCardActionBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+              onPress={() =>
+                openAttachmentUrl(item.facturaUrl).catch((e) =>
+                  showAlert('Error', e.message || 'No se pudo abrir.'),
+                )
+              }
+              hitSlop={6}
+            >
+              <Ionicons name="document-text-outline" size={15} color={cc} />
+              <Text style={[s.financeCardActionTxt, { color: cc }]}>Factura</Text>
+            </TouchableOpacity>
+          )}
+          {!!item.pagoComprobanteUrl && (
+            <TouchableOpacity
+              style={[s.financeCardActionBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+              onPress={() =>
+                openAttachmentUrl(item.pagoComprobanteUrl).catch((e) =>
+                  showAlert('Error', e.message || 'No se pudo abrir.'),
+                )
+              }
+              hitSlop={6}
+            >
+              <Ionicons name="document-attach-outline" size={15} color={cc} />
+              <Text style={[s.financeCardActionTxt, { color: cc }]}>Comprobante</Text>
+            </TouchableOpacity>
+          )}
+          {!isPaid && (
+            <TouchableOpacity
+              style={[s.financeCardActionBtn, { borderColor: '#a7f3d0', backgroundColor: '#ecfdf5' }]}
+              onPress={() => openPayFor(item)}
+              hitSlop={6}
+            >
+              <Ionicons name="checkmark-circle-outline" size={15} color="#10b981" />
+              <Text style={[s.financeCardActionTxt, { color: '#10b981' }]}>Registrar pago</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[s.financeCardActionBtn, { borderColor: '#fecaca', backgroundColor: '#fef2f2' }]}
+            onPress={() => confirmDelete(item)}
+            disabled={busy}
+            hitSlop={6}
+          >
+            <Ionicons name="trash-outline" size={15} color="#ef4444" />
+            <Text style={[s.financeCardActionTxt, { color: '#ef4444' }]}>
+              {busy ? 'Eliminando…' : 'Eliminar'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };
@@ -431,16 +518,18 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
         </TouchableOpacity>
       </Modal>
 
-      {/* Create bill */}
-      <Modal visible={createOpen} animationType="slide" transparent onRequestClose={() => setCreateOpen(false)}>
+      {/* Create / edit bill */}
+      <Modal visible={createOpen} animationType="slide" transparent onRequestClose={closeCreate}>
         <KeyboardAvoidingView
           style={s.modalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={[s.modalContent, { backgroundColor: theme.surface, maxHeight: '92%' }]}>
             <View style={s.modalHeader}>
-              <Text style={[s.modalTitle, { color: theme.text }]}>Nueva factura</Text>
-              <TouchableOpacity onPress={() => setCreateOpen(false)}>
+              <Text style={[s.modalTitle, { color: theme.text }]}>
+                {editingId ? 'Editar factura' : 'Nueva factura'}
+              </Text>
+              <TouchableOpacity onPress={closeCreate}>
                 <Ionicons name="close" size={24} color={theme.textMuted} />
               </TouchableOpacity>
             </View>
@@ -483,19 +572,21 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
                 <Ionicons name="cloud-upload-outline" size={20} color={cc} />
               </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={() => setPayOnCreate((v) => !v)}
-                style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 }}
-              >
-                <Ionicons
-                  name={payOnCreate ? 'checkbox' : 'square-outline'}
-                  size={22}
-                  color={payOnCreate ? cc : theme.textMuted}
-                />
-                <Text style={{ color: theme.text, fontWeight: '600' }}>Marcar como pagada ahora</Text>
-              </TouchableOpacity>
+              {!editingId ? (
+                <TouchableOpacity
+                  onPress={() => setPayOnCreate((v) => !v)}
+                  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 }}
+                >
+                  <Ionicons
+                    name={payOnCreate ? 'checkbox' : 'square-outline'}
+                    size={22}
+                    color={payOnCreate ? cc : theme.textMuted}
+                  />
+                  <Text style={{ color: theme.text, fontWeight: '600' }}>Marcar como pagada ahora</Text>
+                </TouchableOpacity>
+              ) : null}
 
-              {payOnCreate && (
+              {!editingId && payOnCreate && (
                 <>
                   <Text style={[s.label, { color: theme.textMuted }]}>Método de pago</Text>
                   {renderMetodoChips()}
@@ -540,7 +631,11 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
                 onPress={saveNewBill}
                 disabled={saving || uploading}
               >
-                {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.saveBtnTxt}>Guardar</Text>}
+                {saving ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={s.saveBtnTxt}>{editingId ? 'Guardar cambios' : 'Guardar'}</Text>
+                )}
               </TouchableOpacity>
             </ScrollView>
           </View>
