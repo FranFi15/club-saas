@@ -1,6 +1,5 @@
 import { APP_URL, APP_NAME, DEMO_TRIAL_TEXT } from '../config';
 import BrandLogo from './BrandLogo';
-import StoreBadges from './StoreBadges';
 import './Hero.css';
 
 export default function Hero() {
@@ -15,7 +14,6 @@ export default function Hero() {
             Todo tu club en una sola app
           </h1>
           <p className="hero__lead">{DEMO_TRIAL_TEXT}</p>
-          <StoreBadges className="hero__stores" variant="hero" />
           <div className="hero__actions">
             <a href={APP_URL} className="btn btn--outline hero__btn-secondary">
               Abrir {APP_NAME} en el navegador

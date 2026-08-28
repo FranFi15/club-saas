@@ -62,10 +62,6 @@
   max-width: 36rem;
 }
 
-.hero__stores {
-  margin-bottom: 1.15rem;
-}
-
 .hero__actions {
   display: flex;
   flex-wrap: wrap;

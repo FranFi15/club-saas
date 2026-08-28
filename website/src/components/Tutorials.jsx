@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { TUTORIALS } from '../config';
-import StoreBadges from './StoreBadges';
 import './Tutorials.css';
 
 const SCENE_MS = 3400;
@@ -264,11 +263,6 @@ export default function Tutorials() {
               <li key={step}>{step}</li>
             ))}
           </ol>
-
-          <div className="tutorials__download">
-            <p>Descargala y probala en tu club</p>
-            <StoreBadges />
-          </div>
         </div>
 
         <PhoneWalkthrough

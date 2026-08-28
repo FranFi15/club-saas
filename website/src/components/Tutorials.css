@@ -72,17 +72,6 @@
   line-height: 1.55;
 }
 
-.tutorials__download p {
-  margin: 0 0 0.75rem;
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: var(--brand-navy);
-}
-
-.tutorials__download .store-badges {
-  justify-content: flex-start;
-}
-
 .phone {
   justify-self: center;
   width: min(100%, 280px);
