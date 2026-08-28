@@ -54,6 +54,11 @@
   color: rgba(255, 255, 255, 0.88);
 }
 
+.cta__stores {
+  position: relative;
+  margin-bottom: 1.15rem;
+}
+
 .cta__actions {
   position: relative;
   display: flex;

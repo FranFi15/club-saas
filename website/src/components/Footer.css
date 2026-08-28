@@ -11,6 +11,10 @@
   gap: 1rem 1.5rem;
 }
 
+.footer__stores {
+  flex: 1 1 12rem;
+}
+
 .footer__brand {
   display: flex;
   align-items: center;

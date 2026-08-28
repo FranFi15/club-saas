@@ -4,7 +4,7 @@ import './Header.css';
 
 const LINKS = [
   { href: '#funciones', label: 'Funciones' },
-  { href: '#roles', label: 'Para quién' },
+  { href: '#como-usarla', label: 'Cómo usarla' },
   { href: '#precios', label: 'Precios' },
   { href: '#contacto', label: 'Contacto' },
 ];

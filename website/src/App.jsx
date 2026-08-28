@@ -2,6 +2,7 @@ import Header from './components/Header';
 import Hero from './components/Hero';
 import Features from './components/Features';
 import Roles from './components/Roles';
+import Tutorials from './components/Tutorials';
 import Pricing from './components/Pricing';
 import Cta from './components/Cta';
 import Footer from './components/Footer';
@@ -24,6 +25,7 @@ export default function App() {
         <Hero />
         <Features />
         <Roles />
+        <Tutorials />
         <Pricing />
         <Cta />
       </main>

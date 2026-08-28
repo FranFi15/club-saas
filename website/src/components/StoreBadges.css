@@ -1,0 +1,69 @@
+.store-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.store-badge {
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+  border-radius: 6px;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.store-badge:hover {
+  transform: translateY(-1px);
+  opacity: 0.92;
+}
+
+.store-badge:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.store-badge img {
+  display: block;
+  height: 40px;
+  width: auto;
+}
+
+.store-badge--android img {
+  height: 58px;
+  margin: -9px -8px;
+}
+
+.store-badges--footer {
+  justify-content: flex-start;
+}
+
+.store-badges--footer .store-badge img {
+  height: 32px;
+}
+
+.store-badges--footer .store-badge--android img {
+  height: 46px;
+  margin: -7px -6px;
+}
+
+.store-badges--cta .store-badge img {
+  height: 44px;
+}
+
+.store-badges--cta .store-badge--android img {
+  height: 64px;
+  margin: -10px -8px;
+}
+
+@media (max-width: 480px) {
+  .store-badge img {
+    height: 36px;
+  }
+
+  .store-badge--android img {
+    height: 52px;
+    margin: -8px -7px;
+  }
+}

@@ -1,5 +1,11 @@
 export const APP_NAME = 'Hermes Club App';
 export const APP_URL = import.meta.env.VITE_APP_URL || 'https://app.hermesclubapp.com';
+export const IOS_STORE_URL =
+  import.meta.env.VITE_IOS_STORE_URL ||
+  'https://apps.apple.com/ar/app/hermes-club-app/id6788793406';
+export const ANDROID_STORE_URL =
+  import.meta.env.VITE_ANDROID_STORE_URL ||
+  'https://play.google.com/store/apps/details?id=com.hermesclubapp.app';
 export const DEMO_TRIAL_BADGE = '1 mes de prueba gratis';
 export const DEMO_TRIAL_TEXT =
   'Probá la app con tu club durante 30 días. Sin compromiso, para conocer todas las funciones antes de decidir.';
@@ -99,6 +105,57 @@ export function calculateMonthlyPrice(athletes) {
     avgPerAthlete: rate,
   };
 }
+
+export const TUTORIALS = [
+  {
+    id: 'empezar',
+    title: 'Cómo entrar a tu club',
+    audience: 'Todos',
+    summary: 'Descargá la app, escribí el código del club e iniciá sesión con tu usuario.',
+    steps: [
+      'Descargá Hermes Club App desde App Store o Google Play.',
+      'Abrí la app e ingresá el código que te dio el club.',
+      'Iniciá sesión con el email y la contraseña que te asignaron.',
+    ],
+    scenes: [
+      { label: 'Descargar', caption: 'Instalá la app en tu celular' },
+      { label: 'Código', caption: 'Ingresá el código de tu club' },
+      { label: 'Sesión', caption: 'Entrá con email y contraseña' },
+    ],
+  },
+  {
+    id: 'socio',
+    title: 'Cuotas, pagos y acceso',
+    audience: 'Socios y tutores',
+    summary: 'Mirá el estado de tus cuotas, pagá desde el celular y mostrá el QR en la puerta.',
+    steps: [
+      'Entrá a Cuotas para ver qué está pendiente y qué ya pagaste.',
+      'Pagá con Mercado Pago o cargá el comprobante de transferencia.',
+      'Mostrá tu QR de ingreso en la puerta del club.',
+    ],
+    scenes: [
+      { label: 'Cuotas', caption: 'Revisá pagos pendientes' },
+      { label: 'Pagar', caption: 'Confirmá el cobro en un toque' },
+      { label: 'QR', caption: 'Ingresá al club con tu código' },
+    ],
+  },
+  {
+    id: 'coach',
+    title: 'Agenda y asistencia',
+    audience: 'Cuerpo técnico',
+    summary: 'Abrí la grilla de la semana, entrá a una sesión y tomá asistencia del plantel.',
+    steps: [
+      'Abrí la agenda para ver entrenamientos y partidos de la semana.',
+      'Entrá a la sesión y revisá el plantel convocado.',
+      'Marcá presente o ausente: el club queda actualizado al instante.',
+    ],
+    scenes: [
+      { label: 'Agenda', caption: 'Mirá la grilla de la semana' },
+      { label: 'Sesión', caption: 'Abrí el entrenamiento del día' },
+      { label: 'Asistencia', caption: 'Tomá presente en el plantel' },
+    ],
+  },
+];
 
 export function formatArs(amount) {
   return new Intl.NumberFormat('es-AR', {

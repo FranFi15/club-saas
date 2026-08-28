@@ -1,10 +1,11 @@
 import { APP_URL, APP_NAME, DEMO_TRIAL_TEXT } from '../config';
 import BrandLogo from './BrandLogo';
+import StoreBadges from './StoreBadges';
 import './Hero.css';
 
 export default function Hero() {
   return (
-    <section className="hero">
+    <section id="app" className="hero">
       <div className="container hero__inner">
         <div className="hero__brand">
           <BrandLogo size="hero" showText={false} className="hero__logo" />
@@ -14,12 +15,13 @@ export default function Hero() {
             Todo tu club en una sola app
           </h1>
           <p className="hero__lead">{DEMO_TRIAL_TEXT}</p>
+          <StoreBadges className="hero__stores" variant="hero" />
           <div className="hero__actions">
-            <a href={APP_URL} className="btn btn--primary">
-              Abrir {APP_NAME}
+            <a href={APP_URL} className="btn btn--outline hero__btn-secondary">
+              Abrir {APP_NAME} en el navegador
             </a>
-            <a href="#funciones" className="btn btn--outline hero__btn-secondary">
-              Ver funciones
+            <a href="#como-usarla" className="btn btn--outline hero__btn-secondary">
+              Ver cómo usarla
             </a>
           </div>
         </div>
