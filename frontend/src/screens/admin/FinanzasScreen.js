@@ -15,7 +15,7 @@ import {
   Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import PagerView from 'react-native-pager-view';
+import PagerView from '../../components/AppPagerView';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../utils/api';
 import { ClubContext } from '../../context/ClubContext';
