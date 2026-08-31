@@ -62,6 +62,7 @@ export function getNotificationTarget(item, { rol, cuotasEnApp, isTutor }) {
     if (rol === 'atleta' && !cuotasEnApp) return null;
     if (rol === 'atleta') return { tab: 'AthleteProfile', screen: 'AthletePayments' };
     if (rol === 'tutor') return { tab: 'TutorProfile', screen: 'TutorPayments' };
+    if (rol === 'socio') return { tab: 'SocioCuotas' };
     if (rol === 'admin_club' || rol === 'administrativo') return { tab: 'Finanzas', screen: 'FinanzasHome' };
     return null;
   }
@@ -71,6 +72,7 @@ export function getNotificationTarget(item, { rol, cuotasEnApp, isTutor }) {
     if (isTutor || rol === 'tutor') {
       return { tab: 'TutorComunicar', screen: 'MemberNews' };
     }
+    if (rol === 'socio') return { tab: 'SocioNoticias', screen: 'SocioNewsMain' };
     return staffNewsTarget(rol);
   }
 
@@ -160,6 +162,13 @@ export function getNotificationTarget(item, { rol, cuotasEnApp, isTutor }) {
     if (isTutor || rol === 'tutor') {
       return {
         tab: 'TutorComunicar',
+        screen: item?.conversationId ? 'ChatThread' : 'ChatInbox',
+        params,
+      };
+    }
+    if (rol === 'socio') {
+      return {
+        tab: 'SocioChat',
         screen: item?.conversationId ? 'ChatThread' : 'ChatInbox',
         params,
       };

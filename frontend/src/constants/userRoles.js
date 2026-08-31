@@ -2,6 +2,7 @@
 export const USER_ROL_LABELS = {
   atleta: 'Atleta',
   tutor: 'Tutor',
+  socio: 'Socio',
   profe: 'Profesor',
   preparador_fisico: 'Prep. físico',
   nutricionista: 'Nutricionista',
@@ -16,6 +17,7 @@ export const USER_FILTER_ROLES = [
   'Todos',
   'atleta',
   'tutor',
+  'socio',
   'profe',
   'preparador_fisico',
   'nutricionista',

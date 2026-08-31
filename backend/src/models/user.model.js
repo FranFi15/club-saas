@@ -43,7 +43,8 @@ const userSchema = new mongoose.Schema({
             'medico', // deprecated v2 — datos legacy
             'kinesiologo', // deprecated v2 — datos legacy
             'atleta', 
-            'tutor'
+            'tutor',
+            'socio'
         ],
         required: true 
     },
@@ -57,6 +58,9 @@ const userSchema = new mongoose.Schema({
 
     /** Atletas: si es false, no ven la pestaña Cuotas ni pueden pagar en la app. */
     cuotasEnApp: { type: Boolean, default: true },
+
+    /** Clientes (atleta/tutor/socio) exceptuados de la cuota social del club. */
+    exentoCuotaSocial: { type: Boolean, default: false },
 
     /** Para badges de novedades / recursos en la app del miembro. */
     lastSeenNewsAt: { type: Date, default: null },

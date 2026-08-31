@@ -12,6 +12,7 @@ export const ROL_LABELS = {
   psicologo: 'Psicólogo',
   atleta: 'Atleta',
   tutor: 'Tutor',
+  socio: 'Socio',
 };
 
 export function isAdminChatRole(rol) {

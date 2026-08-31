@@ -2,11 +2,12 @@ import React, { useContext } from 'react';
 import { ClubContext } from './ClubContext';
 import { MemberProvider } from './MemberContext';
 
-/** Siempre envuelve con MemberProvider para no remontar AppNavigator al activar atleta/tutor. */
+const MEMBER_MODES = ['atleta', 'tutor', 'socio'];
+
+/** Siempre envuelve con MemberProvider para no remontar AppNavigator al activar el rol cliente. */
 export default function MemberRoot({ children }) {
   const { memberSessionRol } = useContext(ClubContext);
-  const mode =
-    memberSessionRol === 'atleta' || memberSessionRol === 'tutor' ? memberSessionRol : null;
+  const mode = MEMBER_MODES.includes(memberSessionRol) ? memberSessionRol : null;
 
   return <MemberProvider mode={mode}>{children}</MemberProvider>;
 }

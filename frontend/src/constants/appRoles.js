@@ -49,10 +49,21 @@ export const STAFF_AGENDA_ROLES = ['profe', 'preparador_fisico'];
 export const ATHLETE_APP_ROLES = ['atleta'];
 export const TUTOR_APP_ROLES = ['tutor'];
 
+/** Socios: solo cuota social, QR de ingreso, noticias y chat */
+export const SOCIO_APP_ROLES = ['socio'];
+
+/** Roles de cliente del club (pagan cuotas, no gestionan) */
+export const CLIENT_APP_ROLES = ['atleta', 'tutor', 'socio'];
+
+export function isSocioRole(rol) {
+  return SOCIO_APP_ROLES.includes(rol);
+}
+
 /** Quienes pueden mostrar QR de ingreso al club */
 export const CLUB_ENTRY_QR_ROLES = [
   'atleta',
   'tutor',
+  'socio',
   'colaborador',
   ...STAFF_APP_ROLES,
   ...ADMIN_APP_ROLES,
@@ -67,5 +78,6 @@ export function resolveMainNavigator(rol) {
   if (STAFF_APP_ROLES.includes(rol)) return 'StaffHome';
   if (ATHLETE_APP_ROLES.includes(rol)) return 'AthleteHome';
   if (TUTOR_APP_ROLES.includes(rol)) return 'TutorHome';
+  if (SOCIO_APP_ROLES.includes(rol)) return 'SocioHome';
   return 'MemberPlaceholder';
 }

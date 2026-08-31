@@ -25,7 +25,10 @@ const ADMIN_ALCANCE_OPTIONS = [
   { value: 'global', label: 'Todo el club', icon: 'globe-outline' },
   { value: 'categoria', label: 'Categorías', icon: 'shirt-outline' },
   { value: 'tutor', label: 'Tutores', icon: 'people-outline' },
+  { value: 'socios', label: 'Socios', icon: 'ribbon-outline' },
 ];
+/** El chip "Socios" se envía como alcance 'rol' con targetRoles: ['socio']. */
+const SOCIOS_ALCANCE = 'socios';
 const ALCANCE_OPTIONS = ADMIN_ALCANCE_OPTIONS;
 /** Profes: solo categorías propias o atletas puntuales (backend valida) */
 const COACH_ALCANCE_OPTIONS = [
@@ -341,7 +344,12 @@ export default function NoticiasScreen({ navigation, route }) {
         setIsSaving(false);
         return showAlert('Categorías', 'Elegí al menos una categoría o una disciplina (todas sus categorías).');
       }
-      if (payload.alcance === 'tutor') {
+      if (payload.alcance === SOCIOS_ALCANCE) {
+        payload.alcance = 'rol';
+        payload.targetRoles = ['socio'];
+        payload.targetUsuarios = [];
+        payload.targetCategorias = [];
+      } else if (payload.alcance === 'tutor') {
         payload.targetRoles = [];
         payload.targetCategorias = [];
       } else if (payload.alcance === 'categoria') {
@@ -505,7 +513,9 @@ export default function NoticiasScreen({ navigation, route }) {
                   {item.alcance === 'global'
                     ? 'Global'
                     : item.alcance === 'rol'
-                      ? 'Por Rol'
+                      ? (item.targetRoles || []).length === 1 && item.targetRoles[0] === 'socio'
+                        ? 'Socios'
+                        : 'Por Rol'
                       : item.alcance === 'usuario'
                       ? 'Atletas'
                       : item.alcance === 'tutor'

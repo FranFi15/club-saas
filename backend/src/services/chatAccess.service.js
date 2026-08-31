@@ -4,6 +4,8 @@ export const ADMIN_ROLES = new Set(['admin_club', 'administrativo']);
 export const STAFF_ROLES = new Set(['profe', 'preparador_fisico', 'nutricionista', 'psicologo']);
 /** Personal operativo (no atleta/tutor): chat entre sí y con cuerpo técnico. */
 export const OPS_CHAT_ROLES = new Set(['control_ingreso', 'colaborador']);
+/** Socios: solo pagan cuota social, chatean con administración y personal operativo. */
+export const SOCIO_CHAT_PEER_ROLES = new Set([...ADMIN_ROLES, ...OPS_CHAT_ROLES]);
 
 const OPS_NETWORK_ROLES = new Set([...OPS_CHAT_ROLES, ...STAFF_ROLES]);
 
@@ -123,6 +125,10 @@ export async function canChat(models, userA, userB) {
     if (OPS_CHAT_ROLES.has(rolA) && OPS_NETWORK_ROLES.has(rolB)) return true;
     if (OPS_CHAT_ROLES.has(rolB) && OPS_NETWORK_ROLES.has(rolA)) return true;
 
+    // Socio ↔ administración y personal operativo (admins ya cubiertos arriba)
+    if (rolA === 'socio') return SOCIO_CHAT_PEER_ROLES.has(rolB);
+    if (rolB === 'socio') return SOCIO_CHAT_PEER_ROLES.has(rolA);
+
     // Tutor <-> staff vinculado a sus atletas (siempre; no depende del switch)
     if (rolA === 'tutor' && STAFF_ROLES.has(rolB)) {
         const staff = await staffIdsForTutor(models, userA._id);
@@ -215,6 +221,7 @@ export async function listEligibleRecipients(models, user) {
                     'psicologo',
                     'atleta',
                     'tutor',
+                    'socio',
                 ],
             },
         })
@@ -226,6 +233,17 @@ export async function listEligibleRecipients(models, user) {
 
     if (OPS_CHAT_ROLES.has(user.rol)) {
         addMany(await listOpsNetworkPeers(User, user));
+        addMany(
+            await User.find({ rol: 'socio', estado: 'activo' })
+                .select(USER_SELECT)
+                .lean(),
+        );
+        return [...out.values()].sort(sortByName);
+    }
+
+    // Socio: administración (ya agregada) + personal operativo
+    if (user.rol === 'socio') {
+        addMany(await listOpsOnlyPeers(User, user));
         return [...out.values()].sort(sortByName);
     }
 

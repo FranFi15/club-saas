@@ -10,7 +10,11 @@ export const ASSIGNABLE_USER_ROLES = [
     'psicologo',
     'atleta',
     'tutor',
+    'socio',
 ];
+
+/** Roles de cliente del club (pagan cuotas, no gestionan). */
+export const CLIENT_USER_ROLES = ['atleta', 'tutor', 'socio'];
 
 /** @deprecated v2 — conservado en BD por compatibilidad */
 export const DEPRECATED_USER_ROLES = ['medico', 'kinesiologo'];

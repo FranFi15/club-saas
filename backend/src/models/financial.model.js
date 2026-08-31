@@ -13,8 +13,15 @@ const planSchema = new mongoose.Schema({
 
 // 2. DESPUÉS DECLARAMOS EL PAGO
 const paymentSchema = new mongoose.Schema({
+    // Titular de la cuota. Para cuotas sociales puede ser atleta, tutor o socio.
     atleta: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    /**
+     * 'entrenamiento' = cuota de plan por inscripción; 'social' = cuota social del club.
+     * Las cuotas previas a la cuota social no tienen el campo: se consideran entrenamiento.
+     */
+    tipo: { type: String, enum: ['entrenamiento', 'social'], default: 'entrenamiento' },
     plan: { type: mongoose.Schema.Types.ObjectId, ref: 'Plan' },
+    cuotaSocial: { type: mongoose.Schema.Types.ObjectId, ref: 'SocialFee' },
     categoria: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
     mes: { type: Number, required: true }, 
     anio: { type: Number, required: true },
@@ -54,6 +61,8 @@ paymentSchema.index({ mes: 1, anio: 1, estado: 1 });
 paymentSchema.index({ atleta: 1, mes: 1, anio: 1 });
 paymentSchema.index({ atleta: 1, estado: 1 });
 paymentSchema.index({ comprobante: 1, metodoPago: 1 });
+paymentSchema.index({ tipo: 1, mes: 1, anio: 1 });
+paymentSchema.index({ atleta: 1, tipo: 1, mes: 1, anio: 1 });
 
 // 3. AL FINAL DE TODO EXPORTAMOS AMBOS
 export const getPlanModel = (tenantDB) => tenantDB.models.Plan || tenantDB.model('Plan', planSchema);

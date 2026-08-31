@@ -2,6 +2,11 @@ import asyncHandler from 'express-async-handler';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { generateMonthlyPaymentsForTenant } from '../services/generateMonthlyPayments.service.js';
+import {
+    generateSocialFeesForTenant,
+    sanitizeSocialFeeRoles,
+} from '../services/generateSocialFees.service.js';
+import { getOrCreateSocialFee } from '../models/socialFee.model.js';
 import { markOverduePayments, clampRecargoPct } from '../services/overduePayments.service.js';
 import {
     applyDiscountToFamilyEnrollments,
@@ -58,8 +63,88 @@ const getPlans = asyncHandler(async (req, res) => {
 const generarCuotasMes = asyncHandler(async (req, res) => {
     const { mes, anio } = req.body;
     const estadisticas = await generateMonthlyPaymentsForTenant(req.models, mes, anio);
+    const cuotaSocial = await generateSocialFeesForTenant(req.models, mes, anio);
     res.status(201).json({
         message: 'Proceso de facturación completado.',
+        estadisticas,
+        cuotaSocial,
+    });
+});
+
+// @desc    Configuración de la cuota social del club
+// @route   GET /api/financial/social-fee
+const getSocialFee = asyncHandler(async (req, res) => {
+    const { SocialFee } = req.models;
+    const config = await getOrCreateSocialFee(SocialFee);
+    res.json(config);
+});
+
+// @desc    Actualizar la cuota social del club
+// @route   PATCH /api/financial/social-fee
+const updateSocialFee = asyncHandler(async (req, res) => {
+    const { SocialFee } = req.models;
+    const config = await getOrCreateSocialFee(SocialFee);
+    const { nombre, descripcion, monto, diaVencimiento, porcentajeRecargo, activo, rolesAplicables } =
+        req.body || {};
+
+    if (nombre !== undefined) config.nombre = String(nombre).trim() || 'Cuota social';
+    if (descripcion !== undefined) config.descripcion = String(descripcion).trim();
+
+    if (monto !== undefined) {
+        const n = Number(monto);
+        if (Number.isNaN(n) || n < 0) {
+            res.status(400);
+            throw new Error('El monto de la cuota social debe ser un número mayor o igual a 0.');
+        }
+        config.monto = n;
+    }
+
+    if (diaVencimiento !== undefined) {
+        const d = parseInt(diaVencimiento, 10);
+        if (Number.isNaN(d) || d < 1 || d > 28) {
+            res.status(400);
+            throw new Error('El día de vencimiento debe estar entre 1 y 28.');
+        }
+        config.diaVencimiento = d;
+    }
+
+    if (porcentajeRecargo !== undefined) {
+        config.porcentajeRecargo = clampRecargoPct(porcentajeRecargo);
+    }
+    if (rolesAplicables !== undefined) {
+        config.rolesAplicables = sanitizeSocialFeeRoles(rolesAplicables);
+    }
+
+    if (activo !== undefined) {
+        const on = Boolean(activo);
+        if (on && !(Number(config.monto) > 0)) {
+            res.status(400);
+            throw new Error('Definí un monto mayor a 0 antes de activar la cuota social.');
+        }
+        config.activo = on;
+    }
+
+    await config.save();
+    res.json(config);
+});
+
+// @desc    Generar la cuota social de un período (sin tocar las de entrenamiento)
+// @route   POST /api/financial/social-fee/generate
+const generarCuotaSocialMes = asyncHandler(async (req, res) => {
+    const now = new Date();
+    const mes = Number(req.body?.mes) || now.getMonth() + 1;
+    const anio = Number(req.body?.anio) || now.getFullYear();
+
+    if (mes < 1 || mes > 12 || anio < 2000) {
+        res.status(400);
+        throw new Error('Período inválido.');
+    }
+
+    const estadisticas = await generateSocialFeesForTenant(req.models, mes, anio);
+    res.status(201).json({
+        message: estadisticas.omitido
+            ? estadisticas.motivo
+            : 'Cuotas sociales generadas.',
         estadisticas,
     });
 });
@@ -136,8 +221,9 @@ const getAllPayments = asyncHandler(async (req, res) => {
 
     const payments = await Payment.find({ ...filter, atleta: { $in: athleteIds } })
         .sort(isAllVencidos ? { anio: -1, mes: -1, createdAt: -1 } : { estado: 1, createdAt: -1 })
-        .populate('atleta', 'nombre apellido email tutorPrincipal')
+        .populate('atleta', 'nombre apellido email tutorPrincipal rol')
         .populate('plan', 'nombre monto diaVencimiento porcentajeRecargo')
+        .populate('cuotaSocial', 'nombre monto diaVencimiento porcentajeRecargo')
         .populate({ path: 'categoria', select: 'nombre disciplina', populate: { path: 'disciplina', select: 'nombre' } })
         .lean();
 
@@ -580,10 +666,18 @@ async function assertMemberCanPayPayments(req, payments) {
         const atletaId = String(payment.atleta?._id || payment.atleta);
 
         if (req.user.rol === 'tutor') {
-            const hijo = await User.findById(atletaId).select('tutorPrincipal rol').lean();
-            if (!hijo || hijo.rol !== 'atleta' || String(hijo.tutorPrincipal) !== String(req.user._id)) {
+            // El tutor también es titular de su propia cuota social.
+            if (atletaId !== String(req.user._id)) {
+                const hijo = await User.findById(atletaId).select('tutorPrincipal rol').lean();
+                if (!hijo || hijo.rol !== 'atleta' || String(hijo.tutorPrincipal) !== String(req.user._id)) {
+                    res.status(403);
+                    throw new Error('No podés pagar cuotas de este atleta.');
+                }
+            }
+        } else if (req.user.rol === 'socio') {
+            if (atletaId !== String(req.user._id)) {
                 res.status(403);
-                throw new Error('No podés pagar cuotas de este atleta.');
+                throw new Error('Solo podés pagar tus cuotas.');
             }
         } else if (req.user.rol === 'atleta') {
             if (atletaId !== String(req.user._id)) {
@@ -647,12 +741,18 @@ async function notifyPaymentRegistered(req, payment) {
     const { User } = req.models;
     try {
         const atleta = await User.findById(payment.atleta);
-        const destinatario = atleta?.tutorPrincipal || payment.atleta;
+        // Los menores cobran a través del tutor; socios y tutores son sus propios titulares.
+        const destinatario =
+            atleta?.rol === 'atleta' && atleta?.tutorPrincipal ? atleta.tutorPrincipal : payment.atleta;
+        const concepto =
+            payment.tipo === 'social'
+                ? payment.cuotaSocial?.nombre || 'cuota social'
+                : payment.plan?.nombre || 'cuota';
         await createAppNotification(req.models, {
             usuario: destinatario,
             tipo: 'pago_registrado',
             titulo: 'Pago registrado',
-            mensaje: `Se registró el pago de ${payment.plan?.nombre || 'cuota'} por $${payment.montoFinal}.`,
+            mensaje: `Se registró el pago de ${concepto} por $${payment.montoFinal}.`,
             referencia: payment._id,
         });
     } catch (e) {
@@ -1023,24 +1123,26 @@ const getTutorFamilyPayments = asyncHandler(async (req, res) => {
     const mpReady = await mercadoPagoReady(req.models);
     const datosTransferencia = await getTransferBankData(req.models);
 
-    if (!hijos.length) {
-        return res.json({
-            hijos: [],
-            payments: [],
-            impagas: [],
-            stats: { totalPagado: 0, totalPendiente: 0, cuotasVencidas: 0 },
-            mercadoPagoReady: mpReady,
-            datosTransferencia,
-        });
-    }
-
-    const ids = hijos.map((h) => h._id);
+    // El tutor es titular de su propia cuota social además de las cuotas de sus hijos.
+    const ids = [req.user._id, ...hijos.map((h) => h._id)];
 
     const payments = await Payment.find({ atleta: { $in: ids } })
         .sort({ anio: -1, mes: -1 })
         .populate('plan', 'nombre monto')
+        .populate('cuotaSocial', 'nombre monto')
         .populate('categoria', 'nombre')
         .lean();
+
+    if (!payments.length) {
+        return res.json({
+            hijos,
+            payments: [],
+            impagas: [],
+            stats: { totalPagado: 0, totalPendiente: 0, cuotasVencidas: 0, total: 0 },
+            mercadoPagoReady: mpReady,
+            datosTransferencia,
+        });
+    }
 
     const impagas = payments.filter((p) => ['pendiente', 'vencido'].includes(p.estado));
     const totalPagado = payments.filter((p) => p.estado === 'pagado').reduce((s, p) => s + p.montoFinal, 0);
@@ -1083,7 +1185,15 @@ async function assertMemberCanViewAtletaPayments(req, atletaId) {
         }
         return;
     }
+    if (rol === 'socio') {
+        if (target !== String(req.user._id)) {
+            deny(403, 'Solo podés ver tus propios pagos.');
+        }
+        return;
+    }
     if (rol === 'tutor') {
+        // El tutor también es titular de su propia cuota social.
+        if (target === String(req.user._id)) return;
         const hijo = await User.findById(target).select('tutorPrincipal rol').lean();
         if (!hijo || hijo.rol !== 'atleta') {
             deny(400, 'Atleta no válido.');
@@ -1115,6 +1225,7 @@ const getAtletaPayments = asyncHandler(async (req, res) => {
         .skip(skip)
         .limit(limit)
         .populate('plan', 'nombre monto')
+        .populate('cuotaSocial', 'nombre monto')
         .populate({ path: 'categoria', select: 'nombre disciplina', populate: { path: 'disciplina', select: 'nombre' } });
 
     const allForStats = await Payment.find({ atleta: req.params.atletaId }).select('estado montoFinal').lean();
@@ -1281,6 +1392,9 @@ export {
     createPlan,
     getPlans,
     generarCuotasMes,
+    getSocialFee,
+    updateSocialFee,
+    generarCuotaSocialMes,
     getAllPayments,
     getPaymentStats,
     registerManualPayment,

@@ -26,7 +26,7 @@ const REFRESH_BUFFER_MS = 5000;
 
 function entryRoleLabel(rol) {
   if (!rol) return 'Socio';
-  if (rol === 'atleta' || rol === 'tutor') return USER_ROL_LABELS[rol] || rol;
+  if (rol === 'atleta' || rol === 'tutor' || rol === 'socio') return USER_ROL_LABELS[rol] || rol;
   return formatRolStaff(rol);
 }
 

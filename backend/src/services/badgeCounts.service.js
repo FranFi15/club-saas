@@ -94,6 +94,15 @@ export async function countCuotasImpagasAtleta(atletaId, models) {
     });
 }
 
+/** Cuotas impagas de cualquier titular (socio, tutor o atleta) sin filtrar por rol. */
+export async function countCuotasImpagasUsuario(userId, models) {
+    const { Payment } = models;
+    return Payment.countDocuments({
+        atleta: userId,
+        estado: { $in: ['pendiente', 'vencido'] },
+    });
+}
+
 async function countDocsRevisionForUser(user, models) {
     const { Submission, Requirement, Enrollment, Category } = models;
     const isAdmin = ['admin_club', 'administrativo'].includes(user.rol);
@@ -217,6 +226,33 @@ async function opsBadgeSummary(user, models) {
     };
 }
 
+/** Socio: cuota social, noticias y chat. */
+async function socioBadgeSummary(user, models) {
+    const [cuotas, newsUnread, chatUnread] = await Promise.all([
+        countCuotasImpagasUsuario(user._id, models),
+        countUnreadNews(user, models),
+        countUnreadChatForUser(models, user._id),
+    ]);
+
+    const chat = chatUnread > 0 ? Math.min(99, chatUnread) : 0;
+    const noticias = newsUnread > 0 ? Math.min(99, newsUnread) : 0;
+
+    return {
+        tabs: {
+            cuotas: cuotas > 0 ? Math.min(99, cuotas) : 0,
+            noticias,
+            chat,
+            comunicar: chat,
+            perfil: 0,
+        },
+        hubs: {
+            cuotas: cuotas > 0 ? Math.min(99, cuotas) : 0,
+            noticias,
+            chat,
+        },
+    };
+}
+
 async function countPendingConsultConfirmations(user, models) {
     const { Session, User } = models;
     const consultTypes = ['consulta_nutricion', 'consulta_psicologia'];
@@ -334,7 +370,9 @@ export async function buildBadgeSummary(req) {
     const userId = req.user._id;
     const rol = req.user.rol;
 
-    const user = await User.findById(userId).select('rol lastSeenNewsAt lastSeenResourcesAt cuotasEnApp').lean();
+    const user = await User.findById(userId)
+        .select('rol lastSeenNewsAt lastSeenResourcesAt cuotasEnApp')
+        .lean();
     if (!user) {
         return { notifications: { unread: 0 }, tabs: {}, hubs: {} };
     }
@@ -351,6 +389,8 @@ export async function buildBadgeSummary(req) {
         rolePart = await coachBadgeSummary(req.user, req.models);
     } else if (rol === 'atleta' || rol === 'tutor') {
         rolePart = await memberBadgeSummary(user, req.models);
+    } else if (rol === 'socio') {
+        rolePart = await socioBadgeSummary({ ...user, _id: userId }, req.models);
     } else if (rol === 'control_ingreso' || rol === 'colaborador') {
         rolePart = await opsBadgeSummary(user, req.models);
     }

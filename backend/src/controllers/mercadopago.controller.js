@@ -218,9 +218,22 @@ async function assertMemberOwnsCuotas(req, paymentDocs) {
         }
         return;
     }
+    if (req.user.rol === 'socio') {
+        for (const p of paymentDocs) {
+            const aid = String(p.atleta?._id || p.atleta);
+            if (aid !== String(req.user._id)) {
+                const err = new Error('No podés sincronizar cuotas de otro socio.');
+                err.statusCode = 403;
+                throw err;
+            }
+        }
+        return;
+    }
     if (req.user.rol === 'tutor') {
         for (const p of paymentDocs) {
             const atletaId = p.atleta?._id || p.atleta;
+            // El tutor también es titular de su propia cuota social.
+            if (String(atletaId) === String(req.user._id)) continue;
             const hijo = await User.findById(atletaId).select('tutorPrincipal rol').lean();
             if (!hijo || hijo.rol !== 'atleta' || String(hijo.tutorPrincipal) !== String(req.user._id)) {
                 const err = new Error('No podés sincronizar cuotas de un atleta que no está a tu cargo.');
@@ -599,15 +612,23 @@ const createMemberPreference = asyncHandler(async (req, res) => {
                 'Los menores de 15 años no pueden pagar en la app. Pedile a tu tutor o responsable que abone la cuota.',
             );
         }
-    } else if (req.user.rol === 'tutor') {
-        const hijo = await User.findById(atletaId).select('tutorPrincipal rol').lean();
-        if (!hijo || hijo.rol !== 'atleta') {
-            res.status(400);
-            throw new Error('Atleta no válido.');
-        }
-        if (!hijo.tutorPrincipal || String(hijo.tutorPrincipal) !== String(req.user._id)) {
+    } else if (req.user.rol === 'socio') {
+        if (atletaId !== req.user._id.toString()) {
             res.status(403);
-            throw new Error('No podés pagar cuotas de un atleta que no está a tu cargo.');
+            throw new Error('No podés pagar cuotas de otro socio.');
+        }
+    } else if (req.user.rol === 'tutor') {
+        // El tutor también es titular de su propia cuota social.
+        if (atletaId !== req.user._id.toString()) {
+            const hijo = await User.findById(atletaId).select('tutorPrincipal rol').lean();
+            if (!hijo || hijo.rol !== 'atleta') {
+                res.status(400);
+                throw new Error('Atleta no válido.');
+            }
+            if (!hijo.tutorPrincipal || String(hijo.tutorPrincipal) !== String(req.user._id)) {
+                res.status(403);
+                throw new Error('No podés pagar cuotas de un atleta que no está a tu cargo.');
+            }
         }
     } else {
         res.status(403);

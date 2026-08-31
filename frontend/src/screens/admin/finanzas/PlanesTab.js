@@ -13,8 +13,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { Swipeable } from 'react-native-gesture-handler';
 import { finanzasStyles as s } from './finanzasStyles';
 import { fmtMoney } from './finanzasConstants';
+import CuotaSocialSection from './CuotaSocialSection';
 
 export default function PlanesTab({
+  clubData,
+  getHeaders,
+  showAlert,
+  mes,
+  anio,
+  canEditSocialFee,
   theme,
   primaryColor,
   plans,
@@ -225,7 +232,18 @@ export default function PlanesTab({
           ) : undefined
         }
       >
-        <Text style={[s.sectionTitle, { color: theme.text }]}>Planes de cuota</Text>
+        <CuotaSocialSection
+          clubData={clubData}
+          theme={theme}
+          primaryColor={cc}
+          getHeaders={getHeaders}
+          showAlert={showAlert}
+          mes={mes}
+          anio={anio}
+          canEdit={canEditSocialFee}
+        />
+
+        <Text style={[s.sectionTitle, { color: theme.text, marginTop: 24 }]}>Planes de cuota</Text>
         <Text style={[s.sectionSub, { color: theme.textMuted, marginBottom: 10 }]}>
           Creá y editá los montos. Luego asignalos a cada disciplina o categoría.
         </Text>

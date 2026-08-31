@@ -3,7 +3,8 @@ import { calcEdad, puedePagarComoAtleta, atletaCuotasEnApp } from '../utils/ageH
 import { atletasDeTutoresFilter, hijosDelTutorFilter } from '../utils/userQuery.js';
 import { syncFamilyDiscountForAthlete } from '../services/familyDiscount.service.js';
 import { countDocsPendientesAtleta, tutorAthleteHasAlerts } from '../services/badgeCounts.service.js';
-import { isAssignableUserRole, canAssignUserRole } from '../constants/userRoles.js';
+import { isAssignableUserRole, canAssignUserRole, CLIENT_USER_ROLES } from '../constants/userRoles.js';
+import { ensureCurrentMonthSocialFeeForUser } from '../services/generateSocialFees.service.js';
 import { syncAthleteCountToSuper } from '../services/athleteQuota.service.js';
 import { registerUserPushToken, unregisterUserPushToken } from '../services/pushNotification.service.js';
 import { syncStaffGroupChatSafe } from '../services/staffGroupChat.service.js';
@@ -12,7 +13,20 @@ import { userNameCollation, userNameMongoSort } from '../utils/listSort.js';
 import { parsePageLimit } from '../utils/pagination.js';
 
 const registerUser = asyncHandler(async (req, res) => {
-    const { nombre, apellido, dni, email, password, rol, fotoPerfil, tutorPrincipal, fechaNacimiento, cuotasEnApp, sexo } = req.body;
+    const {
+        nombre,
+        apellido,
+        dni,
+        email,
+        password,
+        rol,
+        fotoPerfil,
+        tutorPrincipal,
+        fechaNacimiento,
+        cuotasEnApp,
+        sexo,
+        exentoCuotaSocial,
+    } = req.body;
 
     const { User } = req.models;
 
@@ -45,6 +59,7 @@ const registerUser = asyncHandler(async (req, res) => {
         fechaNacimiento: fechaNacimiento || undefined,
         cuotasEnApp: rol === 'atleta' ? cuotasEnApp !== false : undefined,
         sexo: rol === 'atleta' && (sexo === 'M' || sexo === 'F') ? sexo : '',
+        exentoCuotaSocial: exentoCuotaSocial === true || exentoCuotaSocial === 'true',
     });
 
     if (user) {
@@ -72,6 +87,15 @@ const registerUser = asyncHandler(async (req, res) => {
 
         if (PAYROLL_STAFF_ROLES.includes(user.rol)) {
             await syncStaffGroupChatSafe(req.models);
+        }
+
+        // Alta a mitad de mes: no esperar al cron del día 1 para la cuota social.
+        if (CLIENT_USER_ROLES.includes(user.rol)) {
+            try {
+                await ensureCurrentMonthSocialFeeForUser(req.models, user);
+            } catch (e) {
+                console.log('Cuota social al crear usuario:', e.message);
+            }
         }
     } else {
         res.status(400);
@@ -220,6 +244,11 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
         if (user.rol === 'atleta' || req.body.rol === 'atleta') {
             user.cuotasEnApp = habilitar;
         }
+    }
+
+    if (req.body.exentoCuotaSocial !== undefined) {
+        user.exentoCuotaSocial =
+            req.body.exentoCuotaSocial === true || req.body.exentoCuotaSocial === 'true';
     }
 
     const updatedUser = await user.save();
@@ -425,6 +454,7 @@ const getMe = asyncHandler(async (req, res) => {
     const cuotasHabilitadas = atletaCuotasEnApp(user);
     const puedePagarEnApp =
         req.user.rol === 'tutor' ||
+        req.user.rol === 'socio' ||
         (req.user.rol === 'atleta' && cuotasHabilitadas && puedePagarComoAtleta(user.fechaNacimiento));
 
     res.json({

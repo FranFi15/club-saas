@@ -3,6 +3,7 @@ import cron from 'node-cron';
 import { getTenantDB } from '../config/db.js';
 import { getTenantModels } from '../utils/tenantModels.js';
 import { generateMonthlyPaymentsForTenant } from '../services/generateMonthlyPayments.service.js';
+import { generateSocialFeesForTenant } from '../services/generateSocialFees.service.js';
 
 /** Mes y año calendario actuales del servidor (cuando corre el job, típicamente día 1). */
 export function currentCalendarMonthYear() {
@@ -44,6 +45,7 @@ export function startPaymentGenerationCron() {
         }
 
         let totalCreadas = 0;
+        let totalSociales = 0;
         for (const t of tenants) {
             if (!t.urlIdentifier || !t.connectionStringDB) continue;
             try {
@@ -57,12 +59,20 @@ export function startPaymentGenerationCron() {
                         `[cron-payments] ${t.urlIdentifier}: ${stats.cuotasCreadas} cuota(s) nuevas (${mes}/${anio}), omitidas: ${stats.cuotasOmitidas}`,
                     );
                 }
+
+                const social = await generateSocialFeesForTenant(models, mes, anio);
+                totalSociales += social.cuotasCreadas;
+                if (social.cuotasCreadas > 0) {
+                    console.log(
+                        `[cron-payments] ${t.urlIdentifier}: ${social.cuotasCreadas} cuota(s) social(es) nuevas (${mes}/${anio}), omitidas: ${social.cuotasOmitidas}`,
+                    );
+                }
             } catch (e) {
                 console.error(`[cron-payments] Tenant ${t.urlIdentifier}:`, e.message);
             }
         }
         console.log(
-            `[cron-payments] Fin de corrida ${mes}/${anio}. Cuotas nuevas en total: ${totalCreadas} (${tenants.length} club(es))`,
+            `[cron-payments] Fin de corrida ${mes}/${anio}. Cuotas nuevas: ${totalCreadas} de entrenamiento + ${totalSociales} sociales (${tenants.length} club(es))`,
         );
     };
 

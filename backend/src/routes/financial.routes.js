@@ -6,6 +6,9 @@ import {
     deletePlan,
     reactivatePlan,
     generarCuotasMes,
+    getSocialFee,
+    updateSocialFee,
+    generarCuotaSocialMes,
     getAllPayments,
     getPaymentStats,
     registerManualPayment,
@@ -54,6 +57,11 @@ router.put('/plans/:id', protect, authorize('admin_club'), updatePlan); // Para 
 router.delete('/plans/:id', protect, authorize('admin_club'), deletePlan); // Baja lógica (activo: false)
 router.patch('/plans/:id/reactivate', protect, authorize('admin_club'), reactivatePlan);
 
+// Cuota social del club (independiente del plan de inscripción)
+router.get('/social-fee', protect, authorize('admin_club', 'administrativo'), getSocialFee);
+router.patch('/social-fee', protect, authorize('admin_club'), updateSocialFee);
+router.post('/social-fee/generate', protect, authorize('admin_club', 'administrativo'), generarCuotaSocialMes);
+
 // Movimientos de dinero
 router.get('/payments', protect, authorize('admin_club', 'administrativo'), getAllPayments);
 router.get('/payments/stats', protect, authorize('admin_club', 'administrativo'), getPaymentStats);
@@ -62,9 +70,9 @@ router.post('/payments/check-overdue', protect, authorize('admin_club', 'adminis
 router.get('/payments/pending-review', protect, authorize('admin_club', 'administrativo'), getPendingTransferReviews);
 router.patch('/payments/transfer-review/approve', protect, authorize('admin_club', 'administrativo'), approveTransferReviewBatch);
 router.patch('/payments/transfer-review/reject', protect, authorize('admin_club', 'administrativo'), rejectTransferReviewBatch);
-router.post('/payments/submit-transfer-bulk', protect, authorize('atleta', 'tutor'), submitBulkTransferProof);
+router.post('/payments/submit-transfer-bulk', protect, authorize('atleta', 'tutor', 'socio'), submitBulkTransferProof);
 router.patch('/payments/pay-bulk', protect, authorize('admin_club', 'administrativo'), registerBulkManualPayment);
-router.post('/payments/:id/submit-transfer', protect, authorize('atleta', 'tutor'), submitTransferProof);
+router.post('/payments/:id/submit-transfer', protect, authorize('atleta', 'tutor', 'socio'), submitTransferProof);
 router.patch('/payments/:id/approve-transfer', protect, authorize('admin_club', 'administrativo'), approveTransferPayment);
 router.patch('/payments/:id/reject-transfer', protect, authorize('admin_club', 'administrativo'), rejectTransferPayment);
 router.patch('/payments/:id/pay', protect, authorize('admin_club', 'administrativo'), registerManualPayment);

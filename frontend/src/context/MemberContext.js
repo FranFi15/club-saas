@@ -7,32 +7,33 @@ import { getToken } from '../utils/storage';
 import { isAuthError, getAuthGeneration, shouldClearSessionOnAuthError } from '../utils/session';
 import { readScreenCache, writeScreenCache } from '../hooks/useCachedFocusLoad';
 
-function memberCacheKey(urlIdentifier, isTutor) {
+function memberCacheKey(urlIdentifier, mode) {
   if (!urlIdentifier) return '';
-  return `member-profile:${urlIdentifier}:${isTutor ? 'tutor' : 'athlete'}`;
+  return `member-profile:${urlIdentifier}:${mode || 'athlete'}`;
 }
 
 export const MemberContext = createContext(null);
 
 export function MemberProvider({ mode, children: childNodes }) {
   const { clubData, clearSession } = useContext(ClubContext);
-  const active = mode === 'atleta' || mode === 'tutor';
+  const active = mode === 'atleta' || mode === 'tutor' || mode === 'socio';
   const isTutor = mode === 'tutor';
+  const isSocio = mode === 'socio';
 
   const [profile, setProfile] = useState(() => {
-    const key = memberCacheKey(clubData?.urlIdentifier, isTutor);
+    const key = memberCacheKey(clubData?.urlIdentifier, mode);
     return key ? readScreenCache(key)?.profile ?? null : null;
   });
   const [hijos, setHijos] = useState(() => {
-    const key = memberCacheKey(clubData?.urlIdentifier, isTutor);
+    const key = memberCacheKey(clubData?.urlIdentifier, mode);
     return key ? readScreenCache(key)?.hijos ?? [] : [];
   });
   const [activeAtletaId, setActiveAtletaId] = useState(() => {
-    const key = memberCacheKey(clubData?.urlIdentifier, isTutor);
+    const key = memberCacheKey(clubData?.urlIdentifier, mode);
     return key ? readScreenCache(key)?.activeAtletaId ?? null : null;
   });
   const [loading, setLoading] = useState(() => {
-    const key = memberCacheKey(clubData?.urlIdentifier, isTutor);
+    const key = memberCacheKey(clubData?.urlIdentifier, mode);
     return key ? !readScreenCache(key) : true;
   });
   const [loadError, setLoadError] = useState(null);
@@ -42,7 +43,7 @@ export function MemberProvider({ mode, children: childNodes }) {
     if (!background) setLoading(true);
     setLoadError(null);
     const requestGeneration = getAuthGeneration();
-    const cacheKey = memberCacheKey(clubData.urlIdentifier, isTutor);
+    const cacheKey = memberCacheKey(clubData.urlIdentifier, mode);
     try {
       const h = await clubHeaders(clubData);
       const meRes = await clubApi.get('/users/me', { headers: h });
@@ -107,28 +108,28 @@ export function MemberProvider({ mode, children: childNodes }) {
     } finally {
       setLoading(false);
     }
-  }, [clubData?.urlIdentifier, isTutor, clearSession]);
+  }, [clubData?.urlIdentifier, mode, isTutor, clearSession]);
 
   const selectAtleta = useCallback(
     (id) => {
       setActiveAtletaId(id);
-      const key = memberCacheKey(clubData?.urlIdentifier, isTutor);
+      const key = memberCacheKey(clubData?.urlIdentifier, mode);
       if (!key) return;
       const prev = readScreenCache(key) || {};
       writeScreenCache(key, { ...prev, activeAtletaId: id });
     },
-    [clubData?.urlIdentifier, isTutor],
+    [clubData?.urlIdentifier, mode],
   );
 
   useEffect(() => {
     if (!active) return;
-    const key = memberCacheKey(clubData?.urlIdentifier, isTutor);
+    const key = memberCacheKey(clubData?.urlIdentifier, mode);
     if (key && readScreenCache(key)) {
       refresh({ background: true });
       return;
     }
     refresh();
-  }, [active, refresh, clubData?.urlIdentifier, isTutor]);
+  }, [active, refresh, clubData?.urlIdentifier, mode]);
 
   const memberId = isTutor ? activeAtletaId : profile?._id;
   const cuotasEnApp = isTutor || (profile != null && profile.cuotasEnApp !== false);
@@ -137,6 +138,7 @@ export function MemberProvider({ mode, children: childNodes }) {
 
   const value = {
     isTutor,
+    isSocio,
     profile,
     hijos,
     activeAtletaId,

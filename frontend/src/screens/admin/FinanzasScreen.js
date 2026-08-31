@@ -1334,6 +1334,12 @@ export default function FinanzasScreen({ route }) {
 
       {tab === 'planes' && (
         <PlanesTab
+          clubData={clubData}
+          getHeaders={getHeaders}
+          showAlert={showAlert}
+          mes={mes}
+          anio={anio}
+          canEditSocialFee={canManageClubFinances}
           theme={theme}
           primaryColor={cc}
           plans={plans}

@@ -6,6 +6,7 @@ import { getEnrollmentModel } from '../models/enrollment.model.js';
 import { getSessionModel } from '../models/session.model.js'; 
 import { getSpaceModel } from '../models/space.model.js';
 import { getPlanModel, getPaymentModel } from '../models/financial.model.js';
+import { getSocialFeeModel } from '../models/socialFee.model.js';
 import {getRentalModel} from '../models/rental.model.js';
 import { getNewsModel } from '../models/news.model.js';
 import { getResourceModel } from '../models/resource.model.js';
@@ -39,6 +40,7 @@ export const getTenantModels = (tenantDB) => {
         Space: getSpaceModel(tenantDB),
         Plan: getPlanModel(tenantDB),
         Payment: getPaymentModel(tenantDB),
+        SocialFee: getSocialFeeModel(tenantDB),
         Rental: getRentalModel(tenantDB),
         News: getNewsModel(tenantDB),
         Resource: getResourceModel(tenantDB),

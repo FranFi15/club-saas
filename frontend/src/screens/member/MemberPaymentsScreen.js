@@ -49,6 +49,7 @@ export default function MemberPaymentsScreen({ navigation }) {
   const { theme, isDarkMode } = useContext(ThemeContext);
   const {
     isTutor,
+    isSocio,
     memberId,
     puedePagar,
     cuotasEnApp,
@@ -341,7 +342,9 @@ export default function MemberPaymentsScreen({ navigation }) {
           <Text style={[styles.amount, { color: ec }]}>{fmt(item.montoFinal)}</Text>
         </View>
         <Text style={[styles.sub, { color: theme.textMuted }]}>
-          {item.plan?.nombre || 'Cuota'}
+          {item.tipo === 'social'
+            ? item.cuotaSocial?.nombre || 'Cuota social'
+            : item.plan?.nombre || 'Cuota'}
           {item.categoria?.nombre ? ` · ${item.categoria.nombre}` : ''}
         </Text>
         {item.motivoRechazo && ['pendiente', 'vencido'].includes(item.estado) ? (
@@ -475,7 +478,9 @@ export default function MemberPaymentsScreen({ navigation }) {
   const listHeader = showCuotas ? (
     <>
       {!isTutor ? (
-        <Text style={[styles.sectionHdr, styles.cuotasSectionHdr, { color: theme.text }]}>Cuotas</Text>
+        <Text style={[styles.sectionHdr, styles.cuotasSectionHdr, { color: theme.text }]}>
+          {isSocio ? 'Cuota social' : 'Cuotas'}
+        </Text>
       ) : null}
       <View style={styles.statsRow}>
         <View style={[styles.stat, { backgroundColor: theme.surface }]}>
@@ -541,7 +546,7 @@ export default function MemberPaymentsScreen({ navigation }) {
         colorMarca={colorMarca}
         theme={theme}
         kicker="Finanzas"
-        title="Cuotas"
+        title={isSocio ? 'Cuota social' : 'Cuotas'}
         subtitle={subtitle}
         onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
       />

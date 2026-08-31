@@ -130,6 +130,17 @@ const createNews = asyncHandler(async (req, res) => {
         await assertProfeNewsScope(req);
     }
 
+    if (alcance === 'rol') {
+        if (!ADMIN_NEWS_VIEW.includes(req.user.rol)) {
+            res.status(403);
+            throw new Error('No tenés permiso para enviar comunicados por rol.');
+        }
+        if (!Array.isArray(targetRoles) || targetRoles.length === 0) {
+            res.status(400);
+            throw new Error('Elegí al menos un rol destinatario.');
+        }
+    }
+
     const tutorIds = Array.isArray(targetUsuarios) ? targetUsuarios : [];
 
     if (alcance === 'tutor' && ADMIN_NEWS_VIEW.includes(req.user.rol)) {

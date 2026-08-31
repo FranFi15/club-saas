@@ -15,6 +15,7 @@ import StaffTabNavigator from './StaffTabNavigator';
 import CoachTabNavigator from './CoachTabNavigator';
 import AthleteTabNavigator from './AthleteTabNavigator';
 import TutorTabNavigator from './TutorTabNavigator';
+import SocioTabNavigator from './SocioTabNavigator';
 import { navigationRef } from './navigationRef';
 import PushNotificationHandler from '../components/PushNotificationHandler';
 import PushNotificationPrompt from '../components/PushNotificationPrompt';
@@ -63,6 +64,7 @@ export default function AppNavigator() {
         <Stack.Screen name="CoachHome" component={CoachTabNavigator} />
         <Stack.Screen name="AthleteHome" component={AthleteTabNavigator} />
         <Stack.Screen name="TutorHome" component={TutorTabNavigator} />
+        <Stack.Screen name="SocioHome" component={SocioTabNavigator} />
         <Stack.Screen name="MemberPlaceholder" component={MemberPlaceholderScreen} />
       </Stack.Navigator>
     </NavigationContainer>

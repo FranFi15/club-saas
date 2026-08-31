@@ -31,6 +31,8 @@ export default function UserFormModal({ visible, onClose, onSave, initialData, i
   const [debouncedTutorSearch, setDebouncedTutorSearch] = useState('');
   const [showRoleSelect, setShowRoleSelect] = useState(false);
 
+  const CLIENT_ROLES_WITH_SOCIAL_FEE = ['atleta', 'tutor', 'socio'];
+
   const roles = [
     { label: 'Atleta', value: 'atleta' },
     { label: 'Profesor', value: 'profe' },
@@ -38,6 +40,7 @@ export default function UserFormModal({ visible, onClose, onSave, initialData, i
     { label: 'Nutricionista', value: 'nutricionista' },
     { label: 'Psicólogo', value: 'psicologo' },
     { label: 'Tutor', value: 'tutor' },
+    { label: 'Socio', value: 'socio' },
     { label: 'Colaborador', value: 'colaborador' },
     { label: 'Control de ingreso', value: 'control_ingreso' },
     { label: 'Administrativo', value: 'administrativo' },
@@ -63,11 +66,12 @@ export default function UserFormModal({ visible, onClose, onSave, initialData, i
         fotoPerfil: initialData.fotoPerfil || '',
         cuotasEnApp: initialData.cuotasEnApp !== false,
         sexo: initialData.sexo === 'M' || initialData.sexo === 'F' ? initialData.sexo : '',
+        exentoCuotaSocial: initialData.exentoCuotaSocial === true,
       });
     } else {
       setFormData({
         nombre: '', apellido: '', email: '', password: '', dni: '', telefono: '', rol: 'atleta', tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
-        cuotasEnApp: true, sexo: '',
+        cuotasEnApp: true, sexo: '', exentoCuotaSocial: false,
       });
     }
   }, [initialData, visible]);
@@ -143,6 +147,9 @@ export default function UserFormModal({ visible, onClose, onSave, initialData, i
       delete payload.sexo;
     } else if (payload.sexo !== 'M' && payload.sexo !== 'F') {
       payload.sexo = '';
+    }
+    if (!CLIENT_ROLES_WITH_SOCIAL_FEE.includes(payload.rol)) {
+      delete payload.exentoCuotaSocial;
     }
     onSave(payload);
   };
@@ -344,6 +351,23 @@ export default function UserFormModal({ visible, onClose, onSave, initialData, i
                     onValueChange={(v) => handleChange('cuotasEnApp', v)}
                     trackColor={{ false: theme.border, true: colorMarca + '88' }}
                     thumbColor={formData.cuotasEnApp ? colorMarca : theme.textMuted}
+                  />
+                </View>
+              )}
+
+              {CLIENT_ROLES_WITH_SOCIAL_FEE.includes(formData.rol) && (
+                <View style={[styles.switchRow, { borderColor: theme.border, backgroundColor: theme.background }]}>
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text style={[styles.switchTitle, { color: theme.text }]}>Exento de cuota social</Text>
+                    <Text style={[styles.switchHint, { color: theme.textMuted }]}>
+                      Si está activo, no se le factura la cuota social del club.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={!!formData.exentoCuotaSocial}
+                    onValueChange={(v) => handleChange('exentoCuotaSocial', v)}
+                    trackColor={{ false: theme.border, true: colorMarca + '88' }}
+                    thumbColor={formData.exentoCuotaSocial ? colorMarca : theme.textMuted}
                   />
                 </View>
               )}

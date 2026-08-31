@@ -95,7 +95,7 @@ export const ClubProvider = ({ children }) => {
                   if (!cancelled && getAuthGeneration() === bootGeneration) {
                     beginAuthSession();
                     setSessionActive(true);
-                    if (rol === 'atleta' || rol === 'tutor') {
+                    if (rol === 'atleta' || rol === 'tutor' || rol === 'socio') {
                       setMemberSessionRol(rol);
                     }
                     const acceptedVersion =

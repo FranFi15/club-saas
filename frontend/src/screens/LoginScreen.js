@@ -175,7 +175,7 @@ export default function LoginScreen({ navigation }) {
       await saveToken('acceptedTermsVersion', String(acceptedTermsVersion || ''));
 
       setSessionActive(true);
-      if (rol === 'atleta' || rol === 'tutor') {
+      if (rol === 'atleta' || rol === 'tutor' || rol === 'socio') {
         setMemberSessionRol(rol);
       } else {
         setMemberSessionRol(null);

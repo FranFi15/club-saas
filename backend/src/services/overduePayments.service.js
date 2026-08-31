@@ -7,7 +7,8 @@ export function clampRecargoPct(value) {
 }
 
 /**
- * Marca cuotas pendientes vencidas y aplica el recargo del plan sobre montoFinal.
+ * Marca cuotas pendientes vencidas y aplica el recargo (del plan o de la cuota
+ * social, según el tipo) sobre montoFinal.
  * Idempotente: no vuelve a sumar si ya tiene recargoAplicado > 0.
  */
 export async function markOverduePayments(models, extraFilter = {}) {
@@ -20,13 +21,15 @@ export async function markOverduePayments(models, extraFilter = {}) {
         ...extraFilter,
     })
         .populate('plan', 'porcentajeRecargo')
+        .populate('cuotaSocial', 'porcentajeRecargo')
         .lean();
 
     if (!pending.length) return 0;
 
     const bulkOps = [];
     for (const payment of pending) {
-        const pct = clampRecargoPct(payment.plan?.porcentajeRecargo ?? 0);
+        const origen = payment.tipo === 'social' ? payment.cuotaSocial : payment.plan;
+        const pct = clampRecargoPct(origen?.porcentajeRecargo ?? 0);
         let recargo = 0;
 
         if (pct > 0 && !(payment.recargoAplicado > 0)) {
