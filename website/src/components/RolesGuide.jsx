@@ -6,7 +6,7 @@ function InterfaceScreen({ role }) {
   const image = role.image;
 
   return (
-    <div className="guide-mockup">
+    <div className="guide-mockup guide-mockup--enter">
       <div className="guide-mockup__bezel">
         <div className="guide-mockup__screen">
           {image ? (
@@ -63,8 +63,8 @@ export default function RolesGuide() {
           </div>
 
           {role ? (
-            <div className="roles-guide__panel" key={role.code}>
-              <div className="roles-guide__copy">
+            <div className="roles-guide__panel">
+              <div className="roles-guide__copy roles-guide__enter" key={`copy-${role.code}`}>
                 <h3 className="roles-guide__role-title">{role.name}</h3>
                 <p className="roles-guide__summary">{role.summary}</p>
                 <ul className="roles-guide__list">

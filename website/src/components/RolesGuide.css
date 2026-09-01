@@ -78,6 +78,10 @@
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
 }
 
+.roles-guide__enter {
+  animation: role-copy-in 0.5s ease;
+}
+
 .roles-guide__role-title {
   margin: 0 0 0.65rem;
   font-size: clamp(1.5rem, 2.5vw, 2rem);
@@ -110,6 +114,10 @@
 .guide-mockup {
   justify-self: center;
   width: min(100%, 280px);
+}
+
+.guide-mockup--enter {
+  animation: role-screen-in 0.55s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .guide-mockup__bezel {
@@ -148,6 +156,37 @@
   width: 100%;
   height: auto;
   vertical-align: middle;
+}
+
+@keyframes role-copy-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes role-screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roles-guide__enter,
+  .guide-mockup--enter {
+    animation: none;
+  }
 }
 
 @media (min-width: 900px) {
