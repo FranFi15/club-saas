@@ -1,0 +1,131 @@
+{
+  "about": "Hermes Club App es la aplicación del club: cuotas, plantel, entrenamientos, noticias, documentos e ingreso por QR, todo en el mismo lugar. El admin gestiona, el profe entrena, la familia paga y entra con el celular.",
+  "intro": "Al iniciar sesión, la app abre una interfaz distinta según el rol. Nadie ve menús de otro perfil: un atleta no administra finanzas, un colaborador no toma asistencia y un administrativo no arma la estructura completa del club.",
+  "pdfPath": "/docs/hermes-club-app.pdf",
+  "roles": [
+    {
+      "code": "administrativo",
+      "name": "Administrativo",
+      "summary": "Comparte la app de administración, enfocada en la operación diaria. No personaliza el club ni ve finanzas avanzadas.",
+      "can": [
+        "Gestionar usuarios (no puede crear ni editar un administrador del club).",
+        "Invitar familias, atender solicitudes de inscripción y documentación.",
+        "Escanear ingresos, ver espacios y alquileres, y consultar la grilla (sin modificarla).",
+        "Chatear y ver el muro de noticias (no publica comunicados).",
+        "Seguir cuotas de atletas y familias; registrar o revisar pagos.",
+        "No accede a planes, nómina, gastos, Mercado Pago ni datos bancarios del club."
+      ],
+      "image": "/guide/roles/administrativo.png"
+    },
+    {
+      "code": "colaborador",
+      "name": "Colaborador",
+      "summary": "App reducida para personal general del club (mantenimiento u otros roles sin gestión deportiva).",
+      "can": [
+        "Ver noticias del club.",
+        "Chatear con otros usuarios.",
+        "Editar su perfil y mostrar su QR de ingreso."
+      ],
+      "image": "/guide/roles/colaborador.png"
+    },
+    {
+      "code": "control_ingreso",
+      "name": "Control de ingreso",
+      "summary": "Interfaz mínima para quien está en la puerta: escanea, informa y se comunica.",
+      "can": [
+        "Escanear el QR de atletas, tutores, socios y personal para registrar el ingreso.",
+        "Leer las noticias del club.",
+        "Chatear con usuarios del club."
+      ],
+      "image": "/guide/roles/control_ingreso.png"
+    },
+    {
+      "code": "profe",
+      "name": "Profesor",
+      "summary": "Interfaz del entrenador sobre las categorías que tiene asignadas.",
+      "can": [
+        "Ver el resumen de sus equipos y pendientes.",
+        "Armar la agenda: crear, cancelar o reubicar sesiones y tomar asistencia.",
+        "Registrar wellness y ver estadísticas de las sesiones.",
+        "Ver el plantel, pedir o revisar documentación y cargar mediciones.",
+        "Publicar noticias por categoría, enviar material y chatear con el plantel.",
+        "Ajustar horarios de la grilla de sus categorías."
+      ],
+      "image": "/guide/roles/profe.png"
+    },
+    {
+      "code": "preparador_fisico",
+      "name": "Preparador físico",
+      "summary": "Misma lógica que el profesor, orientada a preparación física y seguimiento individual.",
+      "can": [
+        "Ver un dashboard de sus atletas y sesiones.",
+        "Crear, cancelar o reubicar sesiones; tomar asistencia y wellness.",
+        "Consultar el plantel, mediciones y documentación.",
+        "Publicar noticias, enviar material, pedir archivos y chatear."
+      ],
+      "image": "/guide/roles/preparador_fisico.png"
+    },
+    {
+      "code": "nutricionista",
+      "name": "Nutricionista",
+      "summary": "Agenda de consultas y seguimiento nutricional de los atletas asignados.",
+      "can": [
+        "Agendar, ver y cancelar consultas de nutrición.",
+        "Ver el listado de atletas, wellness y documentación.",
+        "Cargar controles y mediciones corporales.",
+        "Publicar noticias, enviar material, pedir archivos y chatear."
+      ],
+      "image": "/guide/roles/nutricionista.png"
+    },
+    {
+      "code": "psicologo",
+      "name": "Psicólogo",
+      "summary": "Seguimiento de consultas y comunicación con los atletas a cargo. No carga mediciones físicas.",
+      "can": [
+        "Ver un resumen de su trabajo con el plantel.",
+        "Agendar, ver y cancelar consultas psicológicas.",
+        "Consultar atletas, wellness y documentación (sin mediciones).",
+        "Publicar noticias, enviar material, pedir archivos y chatear."
+      ],
+      "image": "/guide/roles/psicologo.png"
+    },
+    {
+      "code": "atleta",
+      "name": "Atleta",
+      "summary": "La app del deportista: ve su semana, carga cómo se siente y gestiona lo administrativo propio.",
+      "can": [
+        "Ver su agenda de entrenamientos y sesiones.",
+        "Completar el wellness del día.",
+        "Leer noticias, chatear, subir documentación pedida y ver recursos.",
+        "Consultar sus métricas y gráficos de seguimiento.",
+        "Pagar cuotas, mostrar el QR de ingreso y editar su perfil."
+      ],
+      "image": "/guide/roles/atleta.png"
+    },
+    {
+      "code": "tutor",
+      "name": "Tutor",
+      "summary": "Ve y gestiona a los atletas a su cargo.",
+      "can": [
+        "Ver un resumen de cada atleta a cargo y elegir a quién está mirando.",
+        "Consultar agenda y wellness de ese atleta.",
+        "Leer noticias, chatear, cargar documentación y ver recursos.",
+        "Pagar cuotas propias y de los atletas a cargo.",
+        "Mostrar su QR o el del familiar para ingresar al club."
+      ],
+      "image": "/guide/roles/tutor.png"
+    },
+    {
+      "code": "socio",
+      "name": "Socio",
+      "summary": "Interfaz de socio: cuota social, novedades y acceso. No tiene agenda deportiva ni wellness.",
+      "can": [
+        "Ver y pagar la cuota social.",
+        "Leer las noticias del club.",
+        "Mostrar su QR de ingreso.",
+        "Chatear y editar su perfil."
+      ],
+      "image": "/guide/roles/socio.png"
+    }
+  ]
+}

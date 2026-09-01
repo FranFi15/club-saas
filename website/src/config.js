@@ -62,9 +62,10 @@ export const PRICING = {
   /** Monto mínimo mensual (0 = sin mínimo). */
   minimumMonthly: 0,
   tiers: [
-    { upTo: 500, rate: 400, label: 'Hasta 500 atletas' },
-    { upTo: 1000, rate: 350, label: 'De 501 a 1.000' },
-    { upTo: Infinity, rate: 300, label: 'Más de 1.000' },
+    { upTo: 500, rate: 450, label: 'Hasta 500 atletas' },
+    { upTo: 1000, rate: 400, label: 'De 501 a 1.000' },
+    { upTo: 2000, rate: 350, label: 'De 1.001 a 2.000' },
+    { upTo: Infinity, rate: 300, label: 'Más de 2.000' },
   ],
 };
 
@@ -105,57 +106,6 @@ export function calculateMonthlyPrice(athletes) {
     avgPerAthlete: rate,
   };
 }
-
-export const TUTORIALS = [
-  {
-    id: 'empezar',
-    title: 'Cómo entrar a tu club',
-    audience: 'Todos',
-    summary: 'Descargá la app, escribí el código del club e iniciá sesión con tu usuario.',
-    steps: [
-      'Descargá Hermes Club App desde App Store o Google Play.',
-      'Abrí la app e ingresá el código que te dio el club.',
-      'Iniciá sesión con el email y la contraseña que te asignaron.',
-    ],
-    scenes: [
-      { label: 'Descargar', caption: 'Instalá la app en tu celular' },
-      { label: 'Código', caption: 'Ingresá el código de tu club' },
-      { label: 'Sesión', caption: 'Entrá con email y contraseña' },
-    ],
-  },
-  {
-    id: 'socio',
-    title: 'Cuotas, pagos y acceso',
-    audience: 'Socios y tutores',
-    summary: 'Mirá el estado de tus cuotas, pagá desde el celular y mostrá el QR en la puerta.',
-    steps: [
-      'Entrá a Cuotas para ver qué está pendiente y qué ya pagaste.',
-      'Pagá con Mercado Pago o cargá el comprobante de transferencia.',
-      'Mostrá tu QR de ingreso en la puerta del club.',
-    ],
-    scenes: [
-      { label: 'Cuotas', caption: 'Revisá pagos pendientes' },
-      { label: 'Pagar', caption: 'Confirmá el cobro en un toque' },
-      { label: 'QR', caption: 'Ingresá al club con tu código' },
-    ],
-  },
-  {
-    id: 'coach',
-    title: 'Agenda y asistencia',
-    audience: 'Cuerpo técnico',
-    summary: 'Abrí la grilla de la semana, entrá a una sesión y tomá asistencia del plantel.',
-    steps: [
-      'Abrí la agenda para ver entrenamientos y partidos de la semana.',
-      'Entrá a la sesión y revisá el plantel convocado.',
-      'Marcá presente o ausente: el club queda actualizado al instante.',
-    ],
-    scenes: [
-      { label: 'Agenda', caption: 'Mirá la grilla de la semana' },
-      { label: 'Sesión', caption: 'Abrí el entrenamiento del día' },
-      { label: 'Asistencia', caption: 'Tomá presente en el plantel' },
-    ],
-  },
-];
 
 export function formatArs(amount) {
   return new Intl.NumberFormat('es-AR', {
