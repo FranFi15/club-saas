@@ -1,7 +1,5 @@
 import Header from './components/Header';
 import Hero from './components/Hero';
-import Features from './components/Features';
-import Roles from './components/Roles';
 import RolesGuide from './components/RolesGuide';
 import Pricing from './components/Pricing';
 import Cta from './components/Cta';
@@ -23,8 +21,6 @@ export default function App() {
       <Header />
       <main>
         <Hero />
-        <Features />
-        <Roles />
         <RolesGuide />
         <Pricing />
         <Cta />

@@ -3,7 +3,6 @@ import BrandLogo from './BrandLogo';
 import './Header.css';
 
 const LINKS = [
-  { href: '#funciones', label: 'Funciones' },
   { href: '#como-usarla', label: 'Cómo usarla' },
   { href: '#precios', label: 'Precios' },
   { href: '#contacto', label: 'Contacto' },
