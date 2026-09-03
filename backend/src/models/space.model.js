@@ -28,6 +28,19 @@ const spaceSchema = new mongoose.Schema({
     indisponibleHasta: {
         type: Date,
     },
+    /** Reserva online por socios/atletas/tutores (Mercado Pago). */
+    alquilerOnline: {
+        habilitado: { type: Boolean, default: false },
+        precioPorHora: { type: Number, default: 0, min: 0 },
+        /** Ventana horaria diaria en la que se ofrecen slots (HH:mm). */
+        horaInicio: { type: String, default: '08:00', trim: true },
+        horaFin: { type: String, default: '22:00', trim: true },
+        duracionSlotMinutos: {
+            type: Number,
+            enum: [30, 60, 90],
+            default: 60,
+        },
+    },
 }, { timestamps: true });
 
 export const getSpaceModel = (tenantDB) => {

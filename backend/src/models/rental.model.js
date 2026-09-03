@@ -15,6 +15,17 @@ const rentalSchema = new mongoose.Schema({
     // 3. El ancla con nuestro Calendario (Para el Patovica)
     sesionVinculada: { type: mongoose.Schema.Types.ObjectId, ref: 'Session' },
 
+    /** admin = mesa; online = reserva del socio/atleta/tutor con MP. */
+    origen: {
+        type: String,
+        enum: ['admin', 'online'],
+        default: 'admin',
+        index: true,
+    },
+    reservadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
+    /** Hold online sin pago: se libera pasado este instante. */
+    pagoExpiraEn: { type: Date },
+
     // 4. Dinero
     montoTotal: { type: Number, required: true },
     señaPagada: { type: Number, default: 0 },
@@ -40,7 +51,7 @@ const rentalSchema = new mongoose.Schema({
 
     estadoReserva: { 
         type: String, 
-        enum: ['confirmada', 'cancelada', 'completada'], 
+        enum: ['pendiente_pago', 'confirmada', 'cancelada', 'completada'], 
         default: 'confirmada' 
     },
     notas: { type: String }

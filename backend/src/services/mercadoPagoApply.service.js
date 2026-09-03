@@ -210,6 +210,10 @@ export async function applyApprovedMercadoPagoPayment(models, paymentData) {
         });
         if (result.applied) {
             await rental.save();
+            if (rental.origen === 'online') {
+                const { finalizeOnlineRentalAfterPayment } = await import('./onlineRental.service.js');
+                await finalizeOnlineRentalAfterPayment(models, rental);
+            }
             const ids = [String(rental._id)];
             await markProcessed(models, {
                 mpPaymentId: paymentId,

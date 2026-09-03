@@ -2,6 +2,7 @@ import asyncHandler from 'express-async-handler';
 import { hasTimeOverlap } from '../utils/timeHelper.js';
 import { syncRentalEstadoPago, rentalSaldoPendiente } from '../utils/rentalPayments.js';
 import { parsePageLimit, paginationMeta } from '../utils/pagination.js';
+import { activeRentalFilter, expirePendingOnlineRentals } from '../services/onlineRental.service.js';
 // @desc    Crear un alquiler de cancha externo
 // @route   POST /api/rentals
 const createRental = asyncHandler(async (req, res) => {
@@ -12,6 +13,8 @@ const createRental = asyncHandler(async (req, res) => {
         res.status(400);
         throw new Error('El horario de fin debe ser posterior al de inicio.');
     }
+
+    await expirePendingOnlineRentals(Rental);
 
     // 1. Verificamos el Espacio
     const spaceInfo = await Space.findById(espacio);
@@ -44,7 +47,7 @@ const createRental = asyncHandler(async (req, res) => {
     const alquileresExistentes = await Rental.find({
         espacio,
         fecha: { $gte: inicioDia, $lte: finDia },
-        estadoReserva: { $ne: 'cancelada' },
+        ...activeRentalFilter(),
     });
 
     const choqueAlquiler = alquileresExistentes.find((r) =>
@@ -166,6 +169,8 @@ const getRentalsBySpaceAndDate = asyncHandler(async (req, res) => {
     const { Rental } = req.models;
     const { fecha } = req.query;
 
+    await expirePendingOnlineRentals(Rental);
+
     const inicioDia = new Date(fecha);
     inicioDia.setUTCHours(0, 0, 0, 0);
     const finDia = new Date(fecha);
@@ -174,7 +179,7 @@ const getRentalsBySpaceAndDate = asyncHandler(async (req, res) => {
     const rentals = await Rental.find({
         espacio: req.params.spaceId,
         fecha: { $gte: inicioDia, $lte: finDia },
-        estadoReserva: { $ne: 'cancelada' }
+        ...activeRentalFilter(),
     }).populate('espacio', 'nombre');
 
     res.json(rentals);

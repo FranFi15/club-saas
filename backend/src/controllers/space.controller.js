@@ -10,14 +10,20 @@ import {
     findSpacesFreeForSession,
     findSpacesFreeForAllSessions,
 } from '../services/spaceSessionRelocation.service.js';
+import { sanitizeAlquilerOnline } from '../services/onlineRental.service.js';
 
 // @desc    Crear un nuevo espacio en el club
 // @route   POST /api/spaces
 const createSpace = asyncHandler(async (req, res) => {
-    const { nombre, tipo, admiteSubdivision } = req.body;
+    const { nombre, tipo, admiteSubdivision, alquilerOnline } = req.body;
     const { Space } = req.models;
 
-    const space = await Space.create({ nombre, tipo, admiteSubdivision });
+    const payload = { nombre, tipo, admiteSubdivision };
+    if (alquilerOnline !== undefined) {
+        payload.alquilerOnline = sanitizeAlquilerOnline(alquilerOnline);
+    }
+
+    const space = await Space.create(payload);
     res.status(201).json(space);
 });
 
@@ -231,11 +237,20 @@ const updateSpaceStatus = asyncHandler(async (req, res) => {
     });
 });
 
-// @desc    Editar datos base del espacio (Nombre, admite subdivisión)
+// @desc    Editar datos base del espacio (Nombre, admite subdivisión, alquiler online)
 // @route   PUT /api/spaces/:id
 const updateSpace = asyncHandler(async (req, res) => {
     const { Space } = req.models;
-    const space = await Space.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
+    const { nombre, tipo, admiteSubdivision, alquilerOnline } = req.body;
+    const update = {};
+    if (nombre !== undefined) update.nombre = nombre;
+    if (tipo !== undefined) update.tipo = tipo;
+    if (admiteSubdivision !== undefined) update.admiteSubdivision = admiteSubdivision;
+    if (alquilerOnline !== undefined) {
+        update.alquilerOnline = sanitizeAlquilerOnline(alquilerOnline);
+    }
+
+    const space = await Space.findByIdAndUpdate(req.params.id, update, { returnDocument: 'after' });
     if (!space) {
         res.status(404);
         throw new Error('Espacio no encontrado');

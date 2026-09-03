@@ -1,9 +1,9 @@
-import express from 'express';
 import {
     createPreference,
     createMemberPreference,
     createMemberFamilyPreference,
     createRentalPreference,
+    createMemberRentalPreference,
     webhookReceiver,
     syncMemberPayments,
     reconcilePayments,
@@ -34,6 +34,12 @@ router.post(
     protect,
     authorize('admin_club', 'administrativo'),
     createRentalPreference,
+);
+router.post(
+    '/create-preference-rental-member',
+    protect,
+    authorize('atleta', 'tutor', 'socio'),
+    createMemberRentalPreference,
 );
 router.post('/sync-member-payments', protect, authorize('atleta', 'tutor', 'socio'), syncMemberPayments);
 router.post(

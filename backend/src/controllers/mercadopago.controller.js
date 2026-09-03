@@ -9,6 +9,7 @@ import { isClubMercadoPagoLinked } from '../services/mercadoPagoClub.service.js'
 import {
     resolveRentalMpCharge,
 } from '../utils/rentalPayments.js';
+import { assertMemberOwnsOnlineRental, expirePendingOnlineRentals } from '../services/onlineRental.service.js';
 import {
     verifyMercadoPagoWebhookSignature,
     getMercadoPagoWebhookSecret,
@@ -832,6 +833,87 @@ const createRentalPreference = asyncHandler(async (req, res) => {
     }
 });
 
+// @desc    Preferencia MP para que el socio pague su reserva online (total)
+// @route   POST /api/mercadopago/create-preference-rental-member
+const createMemberRentalPreference = asyncHandler(async (req, res) => {
+    const { rentalId } = req.body;
+    const { Rental } = req.models;
+
+    if (!(await isClubMercadoPagoLinked(req.models)) && !process.env.MERCADOPAGO_ACCESS_TOKEN?.trim()) {
+        res.status(400);
+        throw new Error('Mercado Pago no está habilitado en este club.');
+    }
+
+    if (!rentalId) {
+        res.status(400);
+        throw new Error('Indicá el alquiler a cobrar.');
+    }
+
+    await expirePendingOnlineRentals(Rental);
+
+    const rental = await Rental.findById(rentalId).populate('espacio', 'nombre');
+    try {
+        assertMemberOwnsOnlineRental(rental, req.user._id);
+    } catch (e) {
+        res.status(e.statusCode || 400);
+        throw e;
+    }
+
+    let charge;
+    try {
+        charge = resolveRentalMpCharge(rental, 'total');
+    } catch (e) {
+        res.status(e.statusCode || 400);
+        throw e;
+    }
+
+    const espacioNombre = rental.espacio?.nombre || 'cancha';
+    const titulo = `Alquiler ${espacioNombre} — ${rental.nombreCliente}`.slice(0, 256);
+
+    const accessToken = await resolveAccessToken(req.models, req.clubIdentifier);
+    const client = mpClientFromToken(accessToken);
+    const clubIdentifier = req.clubIdentifier || req.headers['x-club-identifier'] || req.query?.club;
+    const frontend = primaryFrontendUrl() || 'https://www.google.com';
+
+    try {
+        const preference = new Preference(client);
+        const body = {
+            items: [
+                {
+                    id: String(rental._id),
+                    title: titulo,
+                    quantity: 1,
+                    unit_price: Number(charge.monto),
+                    currency_id: 'ARS',
+                },
+            ],
+            external_reference: `alquiler_${rental._id}_total`,
+            back_urls: {
+                success: `${frontend}/pago/ok`,
+                failure: `${frontend}/pago/error`,
+                pending: `${frontend}/pago/pendiente`,
+            },
+            auto_return: 'approved',
+        };
+        const notificationUrl = webhookNotificationUrl(clubIdentifier);
+        if (notificationUrl) body.notification_url = notificationUrl;
+
+        const response = await preference.create({ body });
+        res.status(200).json({
+            idPreferencia: response.id,
+            linkDePago: response.init_point,
+            monto: charge.monto,
+            concepto: 'total',
+            rentalId: String(rental._id),
+            pagoExpiraEn: rental.pagoExpiraEn,
+        });
+    } catch (error) {
+        console.error('Error preferencia alquiler online MP:', error);
+        res.status(500);
+        throw new Error('No se pudo conectar con Mercado Pago');
+    }
+});
+
 // @route   POST /api/mercadopago/webhook
 const webhookReceiver = asyncHandler(async (req, res) => {
     const isProd = process.env.NODE_ENV === 'production';
@@ -1011,6 +1093,7 @@ export {
     createMemberPreference,
     createMemberFamilyPreference,
     createRentalPreference,
+    createMemberRentalPreference,
     webhookReceiver,
     syncMemberPayments,
     reconcilePayments,
