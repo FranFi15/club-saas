@@ -7,12 +7,6 @@
     "orientation": "portrait",
     "icon": "./assets/icono-app.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/icono-app.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.hermesclubapp.app",
@@ -26,9 +20,7 @@
         "foregroundImage": "./assets/androidicon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "resize",
-      "usesCleartextTraffic": true,
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE"
@@ -41,6 +33,24 @@
     "plugins": [
       "expo-secure-store",
       "expo-video",
+      "expo-sharing",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/icono-app.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "imageWidth": 200
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
       [
         "expo-navigation-bar",
         {

@@ -12,6 +12,7 @@ import MemberClubEntryScreen from '../screens/member/MemberClubEntryScreen';
 import MemberMediaViewerScreen from '../screens/member/MemberMediaViewerScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import SocioProfileScreen from '../screens/socio/SocioProfileScreen';
+import MemberAlquilerScreen from '../screens/member/MemberAlquilerScreen';
 import ChatInboxScreen from '../screens/chat/ChatInboxScreen';
 import ChatThreadScreen from '../screens/chat/ChatThreadScreen';
 import ChatNewScreen from '../screens/chat/ChatNewScreen';
@@ -47,6 +48,7 @@ function SocioProfileStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ProfileMain" component={SocioProfileScreen} />
       <Stack.Screen name="SocioPayments" component={MemberPaymentsScreen} />
+      <Stack.Screen name="MemberAlquiler" component={MemberAlquilerScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="ClubEntryQr" component={MemberClubEntryScreen} />
     </Stack.Navigator>
@@ -67,7 +69,7 @@ function SocioTabs() {
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const insets = useSafeAreaInsets();
   const tabBottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 10);
-  const tabBarHeight = 64 + tabBottomPad;
+  const tabBarHeight = 60 + tabBottomPad;
 
   return (
     <Tab.Navigator
@@ -78,8 +80,7 @@ function SocioTabs() {
         theme,
         tabBarHeight,
         tabBottomPad,
-        paddingHorizontal: 12,
-        labelFontSize: 11,
+        paddingTop: 6,
         getIcon: (name, focused, color) => {
           const map = {
             SocioCuotas: focused ? 'wallet' : 'wallet-outline',
@@ -88,7 +89,7 @@ function SocioTabs() {
             SocioChat: focused ? 'chatbubbles' : 'chatbubbles-outline',
             SocioProfile: focused ? 'person' : 'person-outline',
           };
-          return <Ionicons name={map[name] || 'ellipse-outline'} size={24} color={color} />;
+          return <Ionicons name={map[name] || 'ellipse-outline'} size={22} color={color} />;
         },
       })}
     >

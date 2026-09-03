@@ -150,7 +150,7 @@ export default function CoachTabNavigator() {
       <Tab.Screen
         name="CoachComunicar"
         component={CoachCommsStackNav}
-        options={{ tabBarLabel: 'Comunicación', tabBarBadge: tabBadgeLabel(tab('comunicar')) }}
+        options={{ tabBarLabel: 'Social', tabBarBadge: tabBadgeLabel(tab('comunicar')) }}
         listeners={tabPressResetToRoot('CoachComunicar', 'CoachCommsHub')}
       />
       <Tab.Screen

@@ -137,7 +137,7 @@ export default function NutricionistaTabNavigator() {
       <Tab.Screen
         name="NutComunicar"
         component={NutCommsStackNav}
-        options={{ tabBarLabel: 'Comunicación', tabBarBadge: tabBadgeLabel(tab('comunicar')) }}
+        options={{ tabBarLabel: 'Social', tabBarBadge: tabBadgeLabel(tab('comunicar')) }}
         listeners={tabPressResetToRoot('NutComunicar', 'CoachCommsHub')}
       />
       <Tab.Screen

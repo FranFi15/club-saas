@@ -18,6 +18,9 @@
   ],
   "rewrites": [
     { "source": "/.well-known/(.*)", "destination": "/.well-known/$1" },
+    { "source": "/pago/ok", "destination": "/pago-return.html" },
+    { "source": "/pago/error", "destination": "/pago-return.html" },
+    { "source": "/pago/pendiente", "destination": "/pago-return.html" },
     { "source": "/((?!\\.well-known/).*)", "destination": "/index.html" }
   ]
 }

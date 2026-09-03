@@ -8,30 +8,46 @@ export const MP_DEEP_LINK_EVENTS = {
   PAYMENT_PENDING: 'pago/pendiente',
 };
 
+function pathFromUrl(normalized) {
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(normalized)) {
+    try {
+      const parsed = new URL(normalized);
+      const isHttp = parsed.protocol === 'http:' || parsed.protocol === 'https:';
+      if (isHttp) {
+        return {
+          path: (parsed.pathname || '').replace(/^\/+|\/+$/g, ''),
+          search: parsed.search || '',
+        };
+      }
+      // Custom schemes: clubapp://pago/ok → host=pago, pathname=/ok
+      const host = (parsed.hostname || '').replace(/^\/+|\/+$/g, '');
+      const pathPart = (parsed.pathname || '').replace(/^\/+|\/+$/g, '');
+      return {
+        path: [host, pathPart].filter(Boolean).join('/'),
+        search: parsed.search || '',
+      };
+    } catch {
+      const withoutScheme = normalized.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, '');
+      const [p, q] = withoutScheme.split('?');
+      return {
+        path: (p || '').replace(/^\/+|\/+$/g, ''),
+        search: q ? `?${q}` : '',
+      };
+    }
+  }
+  const [p, q] = normalized.split('?');
+  return {
+    path: (p || '').replace(/^\/+|\/+$/g, ''),
+    search: q ? `?${q}` : '',
+  };
+}
+
 export function parseMercadoPagoDeepLink(url) {
   if (!url || typeof url !== 'string') return null;
   const normalized = url.trim();
   if (!normalized) return null;
 
-  let path = '';
-  let search = '';
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(normalized)) {
-    try {
-      const parsed = new URL(normalized);
-      path = parsed.pathname.replace(/^\/+|\/+$/g, '');
-      search = parsed.search || '';
-    } catch {
-      const withoutScheme = normalized.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, '');
-      const [p, q] = withoutScheme.split('?');
-      path = (p || '').replace(/^\/+|\/+$/g, '');
-      search = q ? `?${q}` : '';
-    }
-  } else {
-    const [p, q] = normalized.split('?');
-    path = (p || '').replace(/^\/+|\/+$/g, '');
-    search = q ? `?${q}` : '';
-  }
-
+  const { path, search } = pathFromUrl(normalized);
   if (!path) return null;
 
   let mpPaymentId = null;

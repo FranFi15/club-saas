@@ -78,7 +78,7 @@ function TutorTabs() {
       <Tab.Screen
         name="TutorComunicar"
         component={MemberCommsStack}
-        options={{ tabBarLabel: 'Comunicación', tabBarBadge: tabBadgeLabel(tab('comunicar')) }}
+        options={{ tabBarLabel: 'Social', tabBarBadge: tabBadgeLabel(tab('comunicar')) }}
         listeners={tabPressResetToRoot('TutorComunicar', 'MemberCommsHub')}
       />
       <Tab.Screen

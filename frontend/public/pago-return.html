@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Volviendo a Hermes Club App</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        padding: 24px;
+        max-width: 520px;
+        margin: 0 auto;
+        text-align: center;
+        color: #111827;
+      }
+      h1 {
+        font-size: 1.25rem;
+        margin: 24px 0 8px;
+      }
+      p {
+        color: #4b5563;
+        line-height: 1.5;
+      }
+      .btn {
+        display: inline-block;
+        margin-top: 20px;
+        padding: 12px 20px;
+        background: #009ee3;
+        color: #fff;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 600;
+      }
+      .link {
+        display: inline-block;
+        margin-top: 16px;
+        color: #009ee3;
+        font-size: 14px;
+      }
+      #fallback {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 id="title">Listo</h1>
+    <p id="message">Volviendo a la app del club…</p>
+    <div id="fallback">
+      <p>Si la app no se abrió sola, usá uno de estos botones:</p>
+      <a id="nativeBtn" class="btn" href="#">Abrir Hermes Club App</a>
+      <br />
+      <a id="webBtn" class="link" href="#">Continuar en el navegador</a>
+    </div>
+    <script>
+      (function () {
+        var path = (location.pathname || '').replace(/^\/+|\/+$/g, '');
+        var search = location.search || '';
+        var nativeUrl = 'clubapp://' + path + search;
+        var titles = {
+          'pago/ok': 'Pago recibido',
+          'pago/error': 'Pago no completado',
+          'pago/pendiente': 'Pago pendiente',
+        };
+        var messages = {
+          'pago/ok': 'Tu pago se acreditó. Te estamos llevando de vuelta a la app.',
+          'pago/error': 'El pago no se completó. Volvé a la app para intentar de nuevo.',
+          'pago/pendiente': 'El pago quedó pendiente. Volvé a la app para ver el estado.',
+        };
+        document.getElementById('title').textContent = titles[path] || 'Volviendo a la app';
+        document.getElementById('message').textContent =
+          messages[path] || 'Volviendo a la app del club…';
+
+        var nativeBtn = document.getElementById('nativeBtn');
+        var webBtn = document.getElementById('webBtn');
+        nativeBtn.href = nativeUrl;
+        webBtn.href =
+          '/?mp_return=' +
+          encodeURIComponent(path + search);
+
+        var mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+        if (mobile) {
+          location.replace(nativeUrl);
+        } else {
+          location.replace(webBtn.href);
+          return;
+        }
+
+        setTimeout(function () {
+          document.getElementById('fallback').style.display = 'block';
+        }, 1200);
+      })();
+    </script>
+  </body>
+</html>

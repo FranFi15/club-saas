@@ -114,6 +114,13 @@ export default function SocioProfileScreen({ navigation }) {
             onPress={() => navigation.navigate('SocioPayments')}
             theme={theme}
             badge={tabBadgeText(tab('cuotas'))}
+          />
+          <ProfileLinkRow
+            icon="tennisball-outline"
+            title="Alquiler"
+            subtitle="Reservá espacios y pagá con Mercado Pago"
+            onPress={() => navigation.navigate('MemberAlquiler')}
+            theme={theme}
             isLast
           />
         </View>

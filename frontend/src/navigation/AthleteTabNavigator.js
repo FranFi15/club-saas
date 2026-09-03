@@ -70,13 +70,13 @@ function AthleteTabs() {
       <Tab.Screen
         name="AthleteComunicar"
         component={MemberCommsStack}
-        options={{ tabBarLabel: 'Comunicación', tabBarBadge: tabBadgeLabel(tab('comunicar')) }}
+        options={{ tabBarLabel: 'Social', tabBarBadge: tabBadgeLabel(tab('comunicar')) }}
         listeners={tabPressResetToRoot('AthleteComunicar', 'MemberCommsHub')}
       />
       <Tab.Screen
         name="AthleteMetrics"
         component={AthleteMetricsStack}
-        options={{ tabBarLabel: 'Mis métricas' }}
+        options={{ tabBarLabel: 'Métricas' }}
         listeners={tabPressResetToRoot('AthleteMetrics', 'AthleteMetricsMain')}
       />
       <Tab.Screen

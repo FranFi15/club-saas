@@ -150,7 +150,7 @@ export default function PsicologoTabNavigator() {
       <Tab.Screen
         name="PsiComunicar"
         component={PsiCommsStackNav}
-        options={{ tabBarLabel: 'Comunicación', tabBarBadge: tabBadgeLabel(tab('comunicar')) }}
+        options={{ tabBarLabel: 'Social', tabBarBadge: tabBadgeLabel(tab('comunicar')) }}
         listeners={tabPressResetToRoot('PsiComunicar', 'CoachCommsHub')}
       />
       <Tab.Screen

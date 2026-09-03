@@ -172,6 +172,13 @@ export default function TutorProfileScreen({ navigation }) {
               onPress={() => navigation.navigate('TutorPayments')}
               theme={theme}
               badge={tabBadgeText(tab('cuotas'))}
+            />
+            <ProfileLinkRow
+              icon="tennisball-outline"
+              title="Alquiler"
+              subtitle="Reservá espacios y pagá con Mercado Pago"
+              onPress={() => navigation.navigate('MemberAlquiler')}
+              theme={theme}
               isLast
             />
           </View>

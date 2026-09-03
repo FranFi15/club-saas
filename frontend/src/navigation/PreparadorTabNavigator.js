@@ -157,7 +157,7 @@ export default function PreparadorTabNavigator() {
       <Tab.Screen
         name="PrepComunicar"
         component={PrepCommsStackNav}
-        options={{ tabBarLabel: 'Comunicación', tabBarBadge: tabBadgeLabel(tab('comunicar')) }}
+        options={{ tabBarLabel: 'Social', tabBarBadge: tabBadgeLabel(tab('comunicar')) }}
         listeners={tabPressResetToRoot('PrepComunicar', 'CoachCommsHub')}
       />
       <Tab.Screen

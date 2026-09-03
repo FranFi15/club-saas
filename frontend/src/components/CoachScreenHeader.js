@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import NotificationBell from './NotificationBell';
 import HeaderClubLogo, { HEADER_CLUB_LOGO_SIZE } from './HeaderClubLogo';
+import { lightTheme } from '../theme/colors';
 
 /** Altura fija del bloque de marca (todas las pantallas). */
 export const COACH_HEADER_HEIGHT = 152;
@@ -32,6 +33,7 @@ export default function CoachScreenHeader({
   showNotifications = true,
   showClubLogo = true,
 }) {
+  const safeTheme = theme || lightTheme;
   const toolbarLeft = onBack ? (
     <CoachHeaderActions>
       <TouchableOpacity
@@ -53,7 +55,7 @@ export default function CoachScreenHeader({
   const displayClubLogo = showClubLogo && !heroRight;
 
   return (
-    <View style={[styles.heroWrap, { backgroundColor: theme.background }]}>
+    <View style={[styles.heroWrap, { backgroundColor: safeTheme.background }]}>
       <View
         style={[
           styles.hero,

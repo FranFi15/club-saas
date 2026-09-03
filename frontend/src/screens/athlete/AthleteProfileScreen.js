@@ -188,10 +188,28 @@ export default function AthleteProfileScreen({ navigation }) {
               onPress={() => navigation.navigate('AthletePayments')}
               theme={theme}
               badge={tabBadgeText(tab('cuotas'))}
+            />
+            <ProfileLinkRow
+              icon="tennisball-outline"
+              title="Alquiler"
+              subtitle="Reservá espacios y pagá con Mercado Pago"
+              onPress={() => navigation.navigate('MemberAlquiler')}
+              theme={theme}
               isLast
             />
           </View>
-        ) : null}
+        ) : (
+          <View style={[profileCardStyles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <ProfileLinkRow
+              icon="tennisball-outline"
+              title="Alquiler"
+              subtitle="Reservá espacios y pagá con Mercado Pago"
+              onPress={() => navigation.navigate('MemberAlquiler')}
+              theme={theme}
+              isLast
+            />
+          </View>
+        )}
 
         <ProfileClubEntryButton
           theme={theme}

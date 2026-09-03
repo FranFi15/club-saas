@@ -167,13 +167,8 @@ export default function AdminProfileScreen({ navigation }) {
   const canEditClubBank = userRol === 'admin_club';
   const roleBadgeLabel = userRol === 'administrativo' ? 'Administrativo' : 'Admin club';
   const clubMpLinked = integration.tokenSource === 'club';
-  const mpStatusLabel = clubMpLinked
-    ? `Conectado${integration.maskedSuffix ? ` ${integration.maskedSuffix}` : ''}${
-        integration.sellerMapped ? ' · webhooks listos' : ''
-      }`
-    : integration.envFallbackActive
-      ? 'Conectado de forma temporal'
-      : 'Sin vincular';
+  const mpStatusLabel =
+    clubMpLinked || integration.envFallbackActive ? 'Conectado' : 'Falta conexión';
 
   const showInitialLoader = loading && !profile;
 

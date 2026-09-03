@@ -42,7 +42,18 @@ export default function EspaciosFisicosScreen({ navigation }) {
   // Form Modal
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState({ nombre: '', tipo: 'cancha', admiteSubdivision: false });
+  const [formData, setFormData] = useState({
+    nombre: '',
+    tipo: 'cancha',
+    admiteSubdivision: false,
+    alquilerOnline: {
+      habilitado: false,
+      precioPorHora: '',
+      horaInicio: '08:00',
+      horaFin: '22:00',
+      duracionSlotMinutos: 60,
+    },
+  });
   const [editingSpace, setEditingSpace] = useState(null);
 
   // Status Action Modal
@@ -255,18 +266,49 @@ export default function EspaciosFisicosScreen({ navigation }) {
     });
   };
 
+  const emptyAlquilerOnline = () => ({
+    habilitado: false,
+    precioPorHora: '',
+    horaInicio: '08:00',
+    horaFin: '22:00',
+    duracionSlotMinutos: 60,
+  });
+
   const handleSaveSpace = async () => {
     if (!formData.nombre.trim()) return showAlert('Error', 'Poné un nombre para el espacio.');
+    const online = formData.alquilerOnline || emptyAlquilerOnline();
+    if (online.habilitado) {
+      const precio = Number(String(online.precioPorHora).replace(',', '.'));
+      if (!Number.isFinite(precio) || precio <= 0) {
+        return showAlert('Error', 'Indicá un precio por hora válido para el alquiler online.');
+      }
+      if (!(String(online.horaInicio) < String(online.horaFin))) {
+        return showAlert('Error', 'La hora de fin debe ser posterior a la de inicio.');
+      }
+    }
+
+    const payload = {
+      nombre: formData.nombre.trim(),
+      tipo: formData.tipo,
+      admiteSubdivision: formData.admiteSubdivision,
+      alquilerOnline: {
+        habilitado: Boolean(online.habilitado),
+        precioPorHora: Number(String(online.precioPorHora).replace(',', '.')) || 0,
+        horaInicio: online.horaInicio || '08:00',
+        horaFin: online.horaFin || '22:00',
+        duracionSlotMinutos: Number(online.duracionSlotMinutos) || 60,
+      },
+    };
     
     setIsSaving(true);
     try {
       const headers = await getHeaders();
       if (editingSpace) {
-        const response = await clubApi.put(`/spaces/${editingSpace._id}`, formData, { headers });
+        const response = await clubApi.put(`/spaces/${editingSpace._id}`, payload, { headers });
         setSpaces(spaces.map(s => s._id === response.data._id ? response.data : s));
         showAlert('Éxito', 'Espacio actualizado correctamente');
       } else {
-        const response = await clubApi.post('/spaces', formData, { headers });
+        const response = await clubApi.post('/spaces', payload, { headers });
         setSpaces([...spaces, response.data]);
         showAlert('Éxito', 'Espacio creado correctamente');
       }
@@ -281,10 +323,27 @@ export default function EspaciosFisicosScreen({ navigation }) {
   const openForm = (space = null) => {
     if (space) {
       setEditingSpace(space);
-      setFormData({ nombre: space.nombre, tipo: space.tipo, admiteSubdivision: space.admiteSubdivision });
+      const online = space.alquilerOnline || {};
+      setFormData({
+        nombre: space.nombre,
+        tipo: space.tipo,
+        admiteSubdivision: space.admiteSubdivision,
+        alquilerOnline: {
+          habilitado: Boolean(online.habilitado),
+          precioPorHora: online.precioPorHora != null ? String(online.precioPorHora) : '',
+          horaInicio: online.horaInicio || '08:00',
+          horaFin: online.horaFin || '22:00',
+          duracionSlotMinutos: online.duracionSlotMinutos || 60,
+        },
+      });
     } else {
       setEditingSpace(null);
-      setFormData({ nombre: '', tipo: 'cancha', admiteSubdivision: false });
+      setFormData({
+        nombre: '',
+        tipo: 'cancha',
+        admiteSubdivision: false,
+        alquilerOnline: emptyAlquilerOnline(),
+      });
     }
     setIsModalVisible(true);
   };
@@ -327,7 +386,12 @@ export default function EspaciosFisicosScreen({ navigation }) {
           </View>
           <View style={styles.info}>
             <Text style={[styles.name, { color: theme.text }]}>{item.nombre}</Text>
-            <Text style={[styles.sub, { color: theme.textMuted, textTransform: 'capitalize' }]}>{item.tipo}</Text>
+            <Text style={[styles.sub, { color: theme.textMuted, textTransform: 'capitalize' }]}>
+              {item.tipo}
+              {item.alquilerOnline?.habilitado
+                ? ` · Online $${Number(item.alquilerOnline.precioPorHora || 0).toLocaleString('es-AR')}/h`
+                : ''}
+            </Text>
             
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5, flexWrap: 'wrap' }}>
               <View style={[styles.badge, { backgroundColor: getStatusColor(item.estado) + '20' }]}>
@@ -338,6 +402,11 @@ export default function EspaciosFisicosScreen({ navigation }) {
               {item.admiteSubdivision ? (
                 <View style={[styles.badge, { backgroundColor: colorMarca + '15' }]}>
                   <Text style={{ color: colorMarca, fontSize: 11, fontWeight: '600' }}>Multi-uso</Text>
+                </View>
+              ) : null}
+              {item.alquilerOnline?.habilitado ? (
+                <View style={[styles.badge, { backgroundColor: '#0ea5e915' }]}>
+                  <Text style={{ color: '#0284c7', fontSize: 11, fontWeight: '600' }}>Alquiler online</Text>
                 </View>
               ) : null}
             </View>
@@ -440,6 +509,131 @@ export default function EspaciosFisicosScreen({ navigation }) {
                   <Text style={{color:theme.textMuted,fontSize:12,marginTop:2}}>Permite que varias actividades usen el espacio simultáneamente sin choque de horarios</Text>
                 </View>
               </TouchableOpacity>
+
+              <Text style={[styles.label, { color: theme.textMuted, marginTop: 18 }]}>Alquiler online</Text>
+              <TouchableOpacity
+                style={[styles.subdivisionToggle, { backgroundColor: formData.alquilerOnline?.habilitado ? colorMarca + '15' : theme.background, borderColor: formData.alquilerOnline?.habilitado ? colorMarca : theme.border }]}
+                onPress={() =>
+                  setFormData({
+                    ...formData,
+                    alquilerOnline: {
+                      ...formData.alquilerOnline,
+                      habilitado: !formData.alquilerOnline?.habilitado,
+                    },
+                  })
+                }
+              >
+                <Ionicons
+                  name={formData.alquilerOnline?.habilitado ? 'checkbox' : 'square-outline'}
+                  size={22}
+                  color={formData.alquilerOnline?.habilitado ? colorMarca : theme.textMuted}
+                />
+                <View style={{ marginLeft: 12, flex: 1 }}>
+                  <Text style={{ color: theme.text, fontWeight: '600', fontSize: 14 }}>
+                    Socios pueden alquilar y pagar con Mercado Pago
+                  </Text>
+                  <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
+                    Atletas, tutores y socios reservan slots libres dentro del rango que configures.
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {formData.alquilerOnline?.habilitado ? (
+                <View style={{ marginTop: 8 }}>
+                  <Text style={[styles.label, { color: theme.textMuted }]}>Precio por hora (ARS) *</Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                    placeholder="Ej: 15000"
+                    placeholderTextColor={theme.textMuted}
+                    keyboardType="decimal-pad"
+                    value={String(formData.alquilerOnline.precioPorHora ?? '')}
+                    onChangeText={(v) =>
+                      setFormData({
+                        ...formData,
+                        alquilerOnline: { ...formData.alquilerOnline, precioPorHora: v },
+                      })
+                    }
+                  />
+
+                  <Text style={[styles.label, { color: theme.textMuted }]}>Horario disponible</Text>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 4 }}>Desde (HH:mm)</Text>
+                      <TextInput
+                        style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                        placeholder="08:00"
+                        placeholderTextColor={theme.textMuted}
+                        value={formData.alquilerOnline.horaInicio}
+                        onChangeText={(v) =>
+                          setFormData({
+                            ...formData,
+                            alquilerOnline: { ...formData.alquilerOnline, horaInicio: v },
+                          })
+                        }
+                        autoCapitalize="none"
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 4 }}>Hasta (HH:mm)</Text>
+                      <TextInput
+                        style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                        placeholder="22:00"
+                        placeholderTextColor={theme.textMuted}
+                        value={formData.alquilerOnline.horaFin}
+                        onChangeText={(v) =>
+                          setFormData({
+                            ...formData,
+                            alquilerOnline: { ...formData.alquilerOnline, horaFin: v },
+                          })
+                        }
+                        autoCapitalize="none"
+                      />
+                    </View>
+                  </View>
+
+                  <Text style={[styles.label, { color: theme.textMuted }]}>Duración de cada turno</Text>
+                  <View style={styles.typesContainer}>
+                    {[30, 60, 90].map((mins) => (
+                      <TouchableOpacity
+                        key={mins}
+                        style={[
+                          styles.typeChip,
+                          {
+                            backgroundColor:
+                              formData.alquilerOnline.duracionSlotMinutos === mins
+                                ? colorMarca
+                                : theme.background,
+                            borderColor:
+                              formData.alquilerOnline.duracionSlotMinutos === mins
+                                ? colorMarca
+                                : theme.border,
+                          },
+                        ]}
+                        onPress={() =>
+                          setFormData({
+                            ...formData,
+                            alquilerOnline: {
+                              ...formData.alquilerOnline,
+                              duracionSlotMinutos: mins,
+                            },
+                          })
+                        }
+                      >
+                        <Text
+                          style={{
+                            color:
+                              formData.alquilerOnline.duracionSlotMinutos === mins
+                                ? '#fff'
+                                : theme.text,
+                          }}
+                        >
+                          {mins} min
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
 
               <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colorMarca, marginTop: 20 }]} onPress={handleSaveSpace} disabled={isSaving}>
                 {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Guardar</Text>}
