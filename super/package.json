@@ -21,6 +21,7 @@
     "express-async-handler": "^1.2.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.3.3",
+    "safer-buffer": "^2.1.2",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

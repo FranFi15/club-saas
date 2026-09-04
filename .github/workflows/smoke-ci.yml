@@ -58,11 +58,21 @@ jobs:
 
       - name: Install super
         working-directory: super
-        run: npm ci --omit=dev
+        run: |
+          mv ../package.json ../package.json.__ci_bak
+          npm ci --omit=dev
+          EC=$?
+          mv ../package.json.__ci_bak ../package.json
+          exit $EC
 
       - name: Install backend
         working-directory: backend
-        run: npm ci --omit=dev
+        run: |
+          mv ../package.json ../package.json.__ci_bak
+          npm ci --omit=dev
+          EC=$?
+          mv ../package.json.__ci_bak ../package.json
+          exit $EC
 
       - name: Start Super Admin
         working-directory: super
