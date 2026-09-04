@@ -28,6 +28,41 @@ export function weekdayNameFromYmd(fechaYmd) {
     return DIAS[d.getUTCDay()];
 }
 
+/** Fecha civil del club (Argentina) en YYYY-MM-DD. */
+export function todayYmdClub(now = new Date()) {
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).format(now);
+}
+
+/** Hora actual HH:mm en zona del club. */
+export function nowHhMmClub(now = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+    }).formatToParts(now);
+    const hour = parts.find((p) => p.type === 'hour')?.value || '00';
+    const minute = parts.find((p) => p.type === 'minute')?.value || '00';
+    return `${hour}:${minute}`;
+}
+
+export function isPastCalendarDay(fechaYmd, now = new Date()) {
+    if (!fechaYmd || !/^\d{4}-\d{2}-\d{2}$/.test(String(fechaYmd))) return true;
+    return String(fechaYmd) < todayYmdClub(now);
+}
+
+/** El turno ya empezó (o el día ya pasó). */
+export function isSlotInPast(fechaYmd, horaInicio, now = new Date()) {
+    if (isPastCalendarDay(fechaYmd, now)) return true;
+    if (String(fechaYmd) > todayYmdClub(now)) return false;
+    return String(horaInicio || '') <= nowHhMmClub(now);
+}
+
 /** Normaliza días; si viene vacío/ausente, todos (compat con espacios viejos). */
 export function normalizeDiasDisponibles(raw) {
     const list = Array.isArray(raw) ? raw.map(String) : [];

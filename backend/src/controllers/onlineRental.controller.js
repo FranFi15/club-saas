@@ -10,6 +10,8 @@ import {
     isOnlineDayAllowed,
     normalizeDiasDisponibles,
     weekdayNameFromYmd,
+    isPastCalendarDay,
+    isSlotInPast,
 } from '../services/onlineRental.service.js';
 
 function memberDisplayName(user) {
@@ -80,6 +82,18 @@ export const getOnlineAvailability = asyncHandler(async (req, res) => {
 
     const cfg = cfgFromSpace(space);
     const diaSemana = weekdayNameFromYmd(fecha);
+
+    if (isPastCalendarDay(fecha)) {
+        return res.json({
+            espacio: spaceOnlinePublic(space),
+            fecha,
+            diaSemana,
+            diaDisponible: false,
+            slots: [],
+            mensaje: 'No se pueden alquilar días que ya pasaron.',
+        });
+    }
+
     const diaDisponible = isOnlineDayAllowed(cfg, fecha);
 
     if (!diaDisponible) {
@@ -98,6 +112,10 @@ export const getOnlineAvailability = asyncHandler(async (req, res) => {
 
     const slots = [];
     for (const slot of candidates) {
+        if (isSlotInPast(fecha, slot.horaInicio)) {
+            slots.push({ ...slot, disponible: false, precio: precioPorSlot, pasado: true });
+            continue;
+        }
         try {
             await assertSlotFree({
                 Session,
@@ -152,6 +170,16 @@ export const bookOnlineRental = asyncHandler(async (req, res) => {
     }
 
     const cfg = cfgFromSpace(space);
+
+    if (isPastCalendarDay(fecha)) {
+        res.status(400);
+        throw new Error('No se pueden alquilar días que ya pasaron.');
+    }
+
+    if (isSlotInPast(fecha, horaInicio)) {
+        res.status(400);
+        throw new Error('Ese horario ya pasó. Elegí un turno futuro.');
+    }
 
     if (!isOnlineDayAllowed(cfg, fecha)) {
         const dia = weekdayNameFromYmd(fecha) || 'ese día';
