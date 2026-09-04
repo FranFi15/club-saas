@@ -40,6 +40,7 @@
     "node-cache": "^5.1.2",
     "node-cron": "^3.0.3",
     "pdfkit": "^0.19.1",
+    "safer-buffer": "^2.1.2",
     "xss-clean": "^0.1.4"
   },
   "devDependencies": {
