@@ -1,6 +1,7 @@
 import { hasTimeOverlap } from '../utils/timeHelper.js';
 
-const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+export const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const DIAS = DIAS_SEMANA;
 export const ONLINE_HOLD_MINUTES = 15;
 export const MEMBER_RENTAL_ROLES = ['atleta', 'tutor', 'socio'];
 export const SLOT_DURATIONS = [30, 60, 90];
@@ -21,6 +22,27 @@ export function minutesToHhMm(total) {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+export function weekdayNameFromYmd(fechaYmd) {
+    const d = new Date(`${fechaYmd}T00:00:00.000Z`);
+    if (Number.isNaN(d.getTime())) return null;
+    return DIAS[d.getUTCDay()];
+}
+
+/** Normaliza días; si viene vacío/ausente, todos (compat con espacios viejos). */
+export function normalizeDiasDisponibles(raw) {
+    const list = Array.isArray(raw) ? raw.map(String) : [];
+    const unique = [...new Set(list.filter((d) => DIAS.includes(d)))];
+    if (!unique.length) return [...DIAS];
+    return DIAS.filter((d) => unique.includes(d));
+}
+
+export function isOnlineDayAllowed(cfg, fechaYmd) {
+    const day = weekdayNameFromYmd(fechaYmd);
+    if (!day) return false;
+    const days = normalizeDiasDisponibles(cfg?.diasDisponibles);
+    return days.includes(day);
+}
+
 export function sanitizeAlquilerOnline(raw = {}) {
     const habilitado = Boolean(raw.habilitado);
     const precioPorHora = Math.max(0, Number(raw.precioPorHora) || 0);
@@ -29,6 +51,8 @@ export function sanitizeAlquilerOnline(raw = {}) {
     const duracionSlotMinutos = SLOT_DURATIONS.includes(Number(raw.duracionSlotMinutos))
         ? Number(raw.duracionSlotMinutos)
         : 60;
+    const hasExplicitDays = Array.isArray(raw.diasDisponibles);
+    const diasDisponibles = normalizeDiasDisponibles(raw.diasDisponibles);
 
     if (habilitado) {
         if (precioPorHora <= 0) {
@@ -47,6 +71,11 @@ export function sanitizeAlquilerOnline(raw = {}) {
             err.statusCode = 400;
             throw err;
         }
+        if (hasExplicitDays && raw.diasDisponibles.length === 0) {
+            const err = new Error('Elegí al menos un día de la semana para el alquiler online.');
+            err.statusCode = 400;
+            throw err;
+        }
     }
 
     return {
@@ -55,6 +84,7 @@ export function sanitizeAlquilerOnline(raw = {}) {
         horaInicio,
         horaFin,
         duracionSlotMinutos,
+        diasDisponibles,
     };
 }
 

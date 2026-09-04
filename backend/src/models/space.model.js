@@ -40,6 +40,16 @@ const spaceSchema = new mongoose.Schema({
             enum: [30, 60, 90],
             default: 60,
         },
+        /** Días de la semana en que se puede alquilar online. */
+        diasDisponibles: {
+            type: [
+                {
+                    type: String,
+                    enum: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
+                },
+            ],
+            default: () => ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'],
+        },
     },
 }, { timestamps: true });
 

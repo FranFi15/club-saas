@@ -7,11 +7,22 @@ import {
     generateOnlineSlots,
     assertSlotFree,
     sanitizeAlquilerOnline,
+    isOnlineDayAllowed,
+    normalizeDiasDisponibles,
+    weekdayNameFromYmd,
 } from '../services/onlineRental.service.js';
 
 function memberDisplayName(user) {
     const parts = [user?.nombre, user?.apellido].filter(Boolean);
     return parts.join(' ').trim() || user?.email || 'Socio';
+}
+
+function cfgFromSpace(space) {
+    const raw = space.alquilerOnline?.toObject?.() ?? space.alquilerOnline ?? {};
+    return sanitizeAlquilerOnline({
+        ...raw,
+        habilitado: true,
+    });
 }
 
 function spaceOnlinePublic(space) {
@@ -27,6 +38,7 @@ function spaceOnlinePublic(space) {
         horaFin: cfg.horaFin || '22:00',
         duracionSlotMinutos: duracion,
         precioPorSlot: calcSlotPrice(precioPorHora, duracion),
+        diasDisponibles: normalizeDiasDisponibles(cfg.diasDisponibles),
     };
 }
 
@@ -66,7 +78,21 @@ export const getOnlineAvailability = asyncHandler(async (req, res) => {
         throw new Error('Este espacio no admite alquiler online.');
     }
 
-    const cfg = sanitizeAlquilerOnline(space.alquilerOnline);
+    const cfg = cfgFromSpace(space);
+    const diaSemana = weekdayNameFromYmd(fecha);
+    const diaDisponible = isOnlineDayAllowed(cfg, fecha);
+
+    if (!diaDisponible) {
+        return res.json({
+            espacio: spaceOnlinePublic(space),
+            fecha,
+            diaSemana,
+            diaDisponible: false,
+            slots: [],
+            mensaje: `${diaSemana || 'Este día'} no está habilitado para alquiler online en este espacio.`,
+        });
+    }
+
     const candidates = generateOnlineSlots(cfg);
     const precioPorSlot = calcSlotPrice(cfg.precioPorHora, cfg.duracionSlotMinutos);
 
@@ -91,6 +117,8 @@ export const getOnlineAvailability = asyncHandler(async (req, res) => {
     res.json({
         espacio: spaceOnlinePublic(space),
         fecha,
+        diaSemana,
+        diaDisponible: true,
         slots,
     });
 });
@@ -123,7 +151,14 @@ export const bookOnlineRental = asyncHandler(async (req, res) => {
         throw new Error('Este espacio no admite alquiler online.');
     }
 
-    const cfg = sanitizeAlquilerOnline(space.alquilerOnline);
+    const cfg = cfgFromSpace(space);
+
+    if (!isOnlineDayAllowed(cfg, fecha)) {
+        const dia = weekdayNameFromYmd(fecha) || 'ese día';
+        res.status(400);
+        throw new Error(`El alquiler online no está disponible los ${dia}.`);
+    }
+
     const expectedSlots = generateOnlineSlots(cfg);
     const matched = expectedSlots.find(
         (s) => s.horaInicio === horaInicio && s.horaFin === horaFin,
