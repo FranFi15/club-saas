@@ -29,7 +29,7 @@ services:
     runtime: node
     plan: free
     rootDir: backend
-    buildCommand: npm install
+    buildCommand: npm ci --omit=dev
     startCommand: node index.js
     healthCheckPath: /
     buildFilter:
