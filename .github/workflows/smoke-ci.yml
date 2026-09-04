@@ -1,4 +1,4 @@
-# Smoke CI — install workspaces + health checks for super & backend
+# Smoke CI — isolated installs + health checks for super & backend
 name: Smoke CI
 
 on:
@@ -55,10 +55,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: npm
 
-      - name: Install backend + super
-        run: npm install --workspace=backend --workspace=super
+      - name: Install super
+        working-directory: super
+        run: npm ci --omit=dev
+
+      - name: Install backend
+        working-directory: backend
+        run: npm ci --omit=dev
 
       - name: Start Super Admin
         working-directory: super

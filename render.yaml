@@ -6,7 +6,9 @@ services:
     runtime: node
     plan: free
     rootDir: super
-    buildCommand: npm install
+    # Hide monorepo root package.json during install so npm does not treat this as a workspace
+    # member and leave transitive deps unresolved.
+    buildCommand: "mv ../package.json ../package.json.__render_bak; npm ci --omit=dev; EC=$?; mv ../package.json.__render_bak ../package.json; exit $EC"
     startCommand: npm start
     healthCheckPath: /
     buildFilter:
