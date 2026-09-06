@@ -417,7 +417,7 @@ async function resolveCoachCategoriesFilter(req, res) {
 // @route   GET /api/sessions/profe/agenda
 const getCoachAgenda = asyncHandler(async (req, res) => {
     const { Session } = req.models;
-    const { desde, hasta } = req.query;
+    const { desde, hasta, estado } = req.query;
 
     const { misCats, catIds, categoriaSeleccionada } = await resolveCoachCategoriesFilter(req, res);
     if (catIds.length === 0) {
@@ -436,10 +436,15 @@ const getCoachAgenda = asyncHandler(async (req, res) => {
         end.setUTCHours(23, 59, 59, 999);
     }
 
+    const estadoFilter =
+        estado === 'programada' || estado === 'completada' || estado === 'cancelada'
+            ? { estado }
+            : {};
+
     const sesiones = await Session.find({
         categoria: { $in: catIds },
         fecha: { $gte: start, $lte: end },
-        estado: { $ne: 'cancelada' },
+        ...estadoFilter,
         ...TRAINING_SESSION_FILTER,
     })
         .populate('categoria', 'nombre')
@@ -1529,60 +1534,50 @@ const bulkRestoreSessions = asyncHandler(async (req, res) => {
 async function assertStaffCanModifySession(req, session) {
     const { Category } = req.models;
 
+    const deny = (message) => {
+        const err = new Error(message);
+        err.statusCode = 403;
+        throw err;
+    };
+
     if (['admin_club', 'administrativo'].includes(req.user.rol)) {
         return;
     }
 
     if (req.user.rol === 'profe') {
         const ok = await esProfeDeCategoria(Category, session.categoria, req.user._id);
-        if (!ok) {
-            res.status(403);
-            throw new Error('No tenés acceso a esta sesión');
-        }
+        if (!ok) deny('No tenés acceso a esta sesión');
         return;
     }
 
     if (req.user.rol === 'preparador_fisico') {
         if (session.tipo !== 'entrenamiento' && session.tipo !== 'partido') {
-            res.status(403);
-            throw new Error('Solo podés modificar entrenamientos o partidos.');
+            deny('Solo podés modificar entrenamientos o partidos.');
         }
         const ok = await esPreparadorDeCategoria(Category, session.categoria, req.user._id);
-        if (!ok) {
-            res.status(403);
-            throw new Error('No tenés acceso a esta sesión');
-        }
+        if (!ok) deny('No tenés acceso a esta sesión');
         return;
     }
 
     if (req.user.rol === 'nutricionista') {
         if (session.tipo !== 'consulta_nutricion') {
-            res.status(403);
-            throw new Error('No autorizado.');
+            deny('No autorizado.');
         }
         const ok = await esNutricionistaDeCategoria(Category, session.categoria, req.user._id);
-        if (!ok) {
-            res.status(403);
-            throw new Error('No tenés acceso a esta sesión');
-        }
+        if (!ok) deny('No tenés acceso a esta sesión');
         return;
     }
 
     if (req.user.rol === 'psicologo') {
         if (session.tipo !== 'consulta_psicologia') {
-            res.status(403);
-            throw new Error('No autorizado.');
+            deny('No autorizado.');
         }
         const ok = await esPsicologoDeCategoria(Category, session.categoria, req.user._id);
-        if (!ok) {
-            res.status(403);
-            throw new Error('No tenés acceso a esta sesión');
-        }
+        if (!ok) deny('No tenés acceso a esta sesión');
         return;
     }
 
-    res.status(403);
-    throw new Error('No autorizado.');
+    deny('No autorizado.');
 }
 
 const STAFF_CANCEL_REQUIRES_COMUNICADO = [
@@ -1693,6 +1688,60 @@ const cancelSession = asyncHandler(async (req, res) => {
 
     const updatedSession = await session.save();
 
+    await populateSessionDetail(updatedSession);
+
+    res.json(updatedSession);
+});
+
+// @desc    Reactivar sesión cancelada (vuelve a programada si el espacio está libre)
+// @route   PATCH /api/sessions/:id/uncancel
+const uncancelSession = asyncHandler(async (req, res) => {
+    const { Session, Space } = req.models;
+
+    const session = await Session.findById(req.params.id);
+    if (!session) {
+        res.status(404);
+        throw new Error('Sesión no encontrada');
+    }
+
+    if (session.estado !== 'cancelada') {
+        res.status(400);
+        throw new Error('Solo se pueden reactivar sesiones canceladas.');
+    }
+
+    await assertStaffCanModifySession(req, session);
+
+    if (session.espacio) {
+        const fechaAControlar = new Date(session.fecha);
+        const inicioDia = new Date(fechaAControlar);
+        inicioDia.setUTCHours(0, 0, 0, 0);
+        const finDia = new Date(fechaAControlar);
+        finDia.setUTCHours(23, 59, 59, 999);
+
+        const spaceInfo = await Space.findById(session.espacio);
+        if (spaceInfo && !spaceInfo.admiteSubdivision) {
+            const sesionesExistentes = await Session.find({
+                espacio: session.espacio,
+                fecha: { $gte: inicioDia, $lte: finDia },
+                estado: { $ne: 'cancelada' },
+                _id: { $ne: session._id },
+            });
+            const choque = sesionesExistentes.find((s) =>
+                hasTimeOverlap(session.horaInicio, session.horaFin, s.horaInicio, s.horaFin),
+            );
+            if (choque) {
+                res.status(400);
+                throw new Error(
+                    `No se puede reactivar: el espacio está ocupado de ${choque.horaInicio} a ${choque.horaFin}.`,
+                );
+            }
+        }
+    }
+
+    session.estado = 'programada';
+    session.motivoCancelacion = undefined;
+
+    const updatedSession = await session.save();
     await populateSessionDetail(updatedSession);
 
     res.json(updatedSession);
@@ -2093,6 +2142,7 @@ export {
     generateSessionsFromSchedule,
     reprogramarSession,
     cancelSession,
+    uncancelSession,
     reopenSession,
     attachTrainingPlanToSession,
     finishSession,

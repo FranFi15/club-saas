@@ -20,6 +20,14 @@ const enrollmentSchema = new mongoose.Schema({
         default: false 
     },
     plan: { type: mongoose.Schema.Types.ObjectId, ref: 'Plan' },
+    /**
+     * Si true, esta inscripción genera la cuota de entrenamiento de la disciplina.
+     * Un atleta puede estar en varias categorías de la misma disciplina; solo una factura.
+     */
+    esFacturacion: {
+        type: Boolean,
+        default: false,
+    },
     descuentoPorcentaje: { 
         type: Number, 
         default: 0 

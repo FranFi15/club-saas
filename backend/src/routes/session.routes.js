@@ -7,6 +7,7 @@ import {
     reprogramarSession,
     cancelSession,
     reopenSession,
+    uncancelSession,
     generateSessionsFromSchedule,
     attachTrainingPlanToSession,
     finishSession,
@@ -76,6 +77,12 @@ router.patch(
     protect,
     authorize('admin_club', 'administrativo', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'),
     cancelSession
+);
+router.patch(
+    '/:id/uncancel',
+    protect,
+    authorize('admin_club', 'administrativo', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'),
+    uncancelSession
 );
 router.patch('/:id/reopen', protect, authorize('admin_club', 'administrativo', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'), reopenSession);
 router.patch(

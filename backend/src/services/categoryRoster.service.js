@@ -5,6 +5,17 @@ import { sortUsersByName, userNameCollation, userNameMongoSort } from '../utils/
 import { buildAthletePlantelSearchFilter } from '../utils/pagination.js';
 import { syncCategoryGroupChatSafe } from './categoryGroupChat.service.js';
 import { ensureCurrentMonthPaymentForEnrollment } from './generateMonthlyPayments.service.js';
+import {
+    clearEnrollmentBilling,
+    resolveNewEnrollmentBilling,
+} from './disciplineBilling.service.js';
+
+async function applyPreviousBillingClear(models, previousBillingId) {
+    if (!previousBillingId) return;
+    const { Enrollment } = models;
+    const prev = await Enrollment.findById(previousBillingId);
+    if (prev) await clearEnrollmentBilling(prev);
+}
 
 function mapAtletaElegible(u, activeIds, otrasByAtleta) {
     return {
@@ -141,7 +152,7 @@ export async function syncCategoryAthletes(models, categoryId, atletaIds) {
         throw err;
     }
 
-    const category = await Category.findById(categoryId).populate('disciplina', 'planDefault');
+    const category = await Category.findById(categoryId).populate('disciplina', 'nombre planDefault');
     if (!category) {
         const err = new Error('Categoría no encontrada');
         err.statusCode = 404;
@@ -190,31 +201,42 @@ export async function syncCategoryAthletes(models, categoryId, atletaIds) {
 
     const activosIds = new Set(activos.map((e) => String(e.atleta)));
     let altas = 0;
-    const planAuto = category.planDefault || category.disciplina?.planDefault || undefined;
 
     for (const aid of ids) {
         if (activosIds.has(aid)) continue;
+
+        const billing = await resolveNewEnrollmentBilling(models, {
+            atletaId: aid,
+            category,
+            autoKeepOnConflict: true,
+        });
 
         let enr = await Enrollment.findOne({ atleta: aid, categoria: categoryId });
         if (enr) {
             enr.estado = 'activo';
             enr.fechaBaja = undefined;
-            if (!enr.plan && planAuto) enr.plan = planAuto;
+            enr.esFacturacion = Boolean(billing.esFacturacion);
+            enr.plan = billing.plan || null;
             await enr.save();
+            await applyPreviousBillingClear(models, billing.previousBillingId);
             enr = await applyFamilyDiscountToEnrollment(models, aid, enr);
         } else {
             enr = await Enrollment.create({
                 atleta: aid,
                 categoria: categoryId,
                 aptoMedico: false,
-                plan: planAuto,
+                plan: billing.plan || undefined,
+                esFacturacion: Boolean(billing.esFacturacion),
             });
+            await applyPreviousBillingClear(models, billing.previousBillingId);
             enr = await applyFamilyDiscountToEnrollment(models, aid, enr);
         }
-        try {
-            await ensureCurrentMonthPaymentForEnrollment(models, enr);
-        } catch (e) {
-            console.warn('[plantel] cuota mes actual:', e.message);
+        if (enr.esFacturacion && enr.plan) {
+            try {
+                await ensureCurrentMonthPaymentForEnrollment(models, enr);
+            } catch (e) {
+                console.warn('[plantel] cuota mes actual:', e.message);
+            }
         }
         altas += 1;
     }

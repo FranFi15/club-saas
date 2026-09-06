@@ -5,6 +5,7 @@ import { ensureCurrentMonthPaymentForEnrollment } from '../services/generateMont
 import { syncCategoryGroupChatSafe } from '../services/categoryGroupChat.service.js';
 import { syncAthleteCountToSuper } from '../services/athleteQuota.service.js';
 import { categorySexoError, applyCategorySexoToAthlete } from '../utils/atletaSexo.js';
+import { resolveNewEnrollmentBilling } from '../services/disciplineBilling.service.js';
 
 const CURRENT_TERMS_VERSION = '2026-08-15';
 const INVITE_TTL_MS = 72 * 60 * 60 * 1000;
@@ -358,13 +359,26 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
 
             await applyCategorySexoToAthlete(atleta, category);
 
-            const planAuto = category.planDefault || category.disciplina?.planDefault || undefined;
+            const billing = await resolveNewEnrollmentBilling(req.models, {
+                atletaId: atleta._id,
+                category,
+                autoKeepOnConflict: true,
+            });
             const enrollment = await Enrollment.create({
                 atleta: atleta._id,
                 categoria: category._id,
                 aptoMedico: false,
-                plan: planAuto,
+                plan: billing.plan || undefined,
+                esFacturacion: Boolean(billing.esFacturacion),
             });
+            if (billing.previousBillingId) {
+                const prev = await Enrollment.findById(billing.previousBillingId);
+                if (prev) {
+                    prev.esFacturacion = false;
+                    prev.plan = null;
+                    await prev.save();
+                }
+            }
             await syncCategoryGroupChatSafe(req.models, category._id);
 
             createdAthletes.push(atleta);
@@ -388,6 +402,7 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
         }
 
         for (const enrollment of enrollments) {
+            if (!enrollment.esFacturacion || !enrollment.plan) continue;
             try {
                 await ensureCurrentMonthPaymentForEnrollment(req.models, enrollment);
             } catch (e) {
