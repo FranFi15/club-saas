@@ -1,5 +1,5 @@
 import asyncHandler from 'express-async-handler';
-import { hasTimeOverlap } from '../utils/timeHelper.js';
+import { hasTimeOverlap, isSessionReadOnly, isSessionPast } from '../utils/timeHelper.js';
 import { generateSessionsInDateRange } from '../services/sessionFromSchedule.service.js';
 import {
     notifyConsultSessionCreated,
@@ -215,12 +215,29 @@ const createSession = asyncHandler(async (req, res) => {
         lugarExterno: useExterno ? ext : undefined,
         nombreSesion: nombreTxt,
         esOpcional: opcionalFlag,
+        creadoPor: req.user._id,
     });
 
     await session.populate('espacio', 'nombre tipo estado admiteSubdivision');
 
     res.status(201).json(session);
 });
+
+async function assertSessionMutable(session, res, { allowCompleted = false } = {}) {
+    if (allowCompleted && session.estado === 'completada' && !isSessionPast(session)) {
+        return;
+    }
+    if (isSessionReadOnly(session)) {
+        res.status(400);
+        throw new Error(
+            session.estado === 'cancelada'
+                ? 'Esta sesión está cancelada y no se puede modificar.'
+                : session.estado === 'completada' || isSessionPast(session)
+                  ? 'Esta sesión ya pasó o está cerrada. Solo se puede consultar el resumen.'
+                  : 'Esta sesión no se puede modificar.',
+        );
+    }
+}
 
 // @desc    Pasar asistencia en una sesión
 // @route   PUT /api/sessions/:id/asistencia
@@ -236,6 +253,7 @@ const takeAttendance = asyncHandler(async (req, res) => {
         throw new Error('Sesión no encontrada');
     }
 
+    await assertSessionMutable(session, res);
     if (req.user.rol === 'profe') {
         const ok = await esProfeDeCategoria(Category, session.categoria, req.user._id);
         if (!ok) {
@@ -378,6 +396,7 @@ async function populateSessionDetail(sessDoc) {
     });
     await sessDoc.populate('espacio', 'nombre tipo estado');
     await sessDoc.populate('espacioSuspendido', 'nombre tipo estado');
+    await sessDoc.populate('creadoPor', 'nombre apellido rol');
     await sessDoc.populate('atletaIndividual', 'nombre apellido fotoPerfil');
     await sessDoc.populate('asistencia.atleta', 'nombre apellido fotoPerfil');
     return sessDoc;
@@ -450,6 +469,7 @@ const getCoachAgenda = asyncHandler(async (req, res) => {
         .populate('categoria', 'nombre')
         .populate('espacio', 'nombre tipo')
         .populate('espacioSuspendido', 'nombre')
+        .populate('creadoPor', 'nombre apellido rol')
         .sort({ fecha: 1, horaInicio: 1 });
 
     res.json({ categorias: misCats, sesiones, categoriaSeleccionada });
@@ -846,6 +866,7 @@ const getNutricionistaAgenda = asyncHandler(async (req, res) => {
     })
         .populate('categoria', 'nombre')
         .populate('atletaIndividual', 'nombre apellido')
+        .populate('creadoPor', 'nombre apellido rol')
         .sort({ fecha: 1, horaInicio: 1 });
 
     res.json({ categorias: misCats, sesiones });
@@ -883,6 +904,7 @@ const getPsicologoAgenda = asyncHandler(async (req, res) => {
     })
         .populate('categoria', 'nombre')
         .populate('atletaIndividual', 'nombre apellido')
+        .populate('creadoPor', 'nombre apellido rol')
         .sort({ fecha: 1, horaInicio: 1 });
 
     res.json({ categorias: misCats, sesiones });
@@ -900,6 +922,7 @@ const getSessionById = asyncHandler(async (req, res) => {
         })
         .populate('espacio', 'nombre tipo estado')
         .populate('planEntrenamiento')
+        .populate('creadoPor', 'nombre apellido rol')
         .populate('atletaIndividual', 'nombre apellido fotoPerfil')
         .populate('asistencia.atleta', 'nombre apellido fotoPerfil');
 
@@ -1078,7 +1101,8 @@ const getSessionsByCategory = asyncHandler(async (req, res) => {
         .populate('asistencia.atleta', 'nombre apellido')
         .populate('categoria', 'nombre')
         .populate('atletaIndividual', 'nombre apellido')
-        .populate('espacio', 'nombre tipo estado notasMantenimiento');
+        .populate('espacio', 'nombre tipo estado notasMantenimiento')
+        .populate('creadoPor', 'nombre apellido rol');
 
     if (rol === 'atleta' || rol === 'tutor') {
         await Promise.all(
@@ -1160,6 +1184,18 @@ const reprogramarSession = asyncHandler(async (req, res) => {
     if (!session) {
         res.status(404);
         throw new Error('Sesión no encontrada');
+    }
+
+    if (isSessionPast(session)) {
+        res.status(400);
+        throw new Error(
+            'Esta sesión ya pasó. Solo se puede consultar el resumen y las estadísticas.'
+        );
+    }
+
+    if (session.estado === 'cancelada') {
+        res.status(400);
+        throw new Error('Esta sesión está cancelada y no se puede modificar.');
     }
 
     if (req.user.rol === 'profe') {
@@ -1651,6 +1687,7 @@ const cancelSession = asyncHandler(async (req, res) => {
         );
     }
 
+    await assertSessionMutable(session, res);
     await assertStaffCanModifySession(req, session);
 
     const staffNeedsComunicado = STAFF_CANCEL_REQUIRES_COMUNICADO.includes(req.user.rol);
@@ -1709,6 +1746,13 @@ const uncancelSession = asyncHandler(async (req, res) => {
         throw new Error('Solo se pueden reactivar sesiones canceladas.');
     }
 
+    if (isSessionPast(session)) {
+        res.status(400);
+        throw new Error(
+            'No se puede reactivar una sesión cuyo horario ya pasó. Solo podés consultar el resumen.'
+        );
+    }
+
     await assertStaffCanModifySession(req, session);
 
     if (session.espacio) {
@@ -1761,6 +1805,13 @@ const reopenSession = asyncHandler(async (req, res) => {
     if (session.estado !== 'completada') {
         res.status(400);
         throw new Error('Solo se pueden reabrir sesiones ya completadas.');
+    }
+
+    if (isSessionPast(session)) {
+        res.status(400);
+        throw new Error(
+            'No se puede reabrir una sesión cuyo horario ya pasó. Solo podés consultar el resumen y las estadísticas.'
+        );
     }
 
     if (req.user.rol === 'profe') {
@@ -1829,6 +1880,8 @@ const attachTrainingPlanToSession = asyncHandler(async (req, res) => {
         throw new Error('Sesión no encontrada');
     }
 
+    await assertSessionMutable(session, res);
+
     if (session.tipo === 'consulta_nutricion' || session.tipo === 'consulta_psicologia') {
         res.status(400);
         throw new Error('Las consultas individuales no usan plan de entrenamiento.');
@@ -1881,6 +1934,8 @@ const finishSession = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Sesión no encontrada');
     }
+
+    await assertSessionMutable(session, res);
 
     if (req.user.rol === 'profe') {
         const ok = await esProfeDeCategoria(Category, session.categoria, req.user._id);
@@ -1987,6 +2042,11 @@ const confirmConsultAttendance = asyncHandler(async (req, res) => {
         throw new Error('Esta consulta fue cancelada.');
     }
 
+    if (isSessionPast(session) || session.estado === 'completada') {
+        res.status(400);
+        throw new Error('Esta consulta ya pasó o está cerrada. No se puede confirmar asistencia.');
+    }
+
     const estadoActual = session.confirmacionAtleta?.estado;
     if (estadoActual && estadoActual !== 'pendiente') {
         res.status(400);
@@ -2068,6 +2128,7 @@ const cambiarAtletaConsulta = asyncHandler(async (req, res) => {
         throw new Error('No podés cambiar el atleta de una consulta cerrada o cancelada.');
     }
 
+    await assertSessionMutable(session, res);
     await assertStaffCanModifySession(req, session);
 
     if (!nuevoAtletaId) {
@@ -2134,6 +2195,52 @@ const getLastTrainingPlanForCategory = asyncHandler(async (req, res) => {
     res.json(row.planEntrenamiento);
 });
 
+// @desc    Historial de notas/informes de psicología de un atleta
+// @route   GET /api/sessions/psicologo/atleta/:atletaId/notas
+const getPsicologoAthleteNotes = asyncHandler(async (req, res) => {
+    const { Session, Category, Enrollment } = req.models;
+    const atletaId = req.params.atletaId;
+
+    const misCats = await Category.find({ psicologos: req.user._id }).select('_id');
+    const catIds = misCats.map((c) => c._id);
+
+    if (req.user.rol === 'psicologo') {
+        if (catIds.length === 0) {
+            res.status(403);
+            throw new Error('No tenés categorías asignadas como psicólogo.');
+        }
+        const enr = await Enrollment.findOne({
+            atleta: atletaId,
+            categoria: { $in: catIds },
+            estado: 'activo',
+        }).select('_id');
+        if (!enr) {
+            res.status(403);
+            throw new Error('No tenés acceso a este atleta.');
+        }
+    }
+
+    const sessions = await Session.find({
+        tipo: 'consulta_psicologia',
+        atletaIndividual: atletaId,
+        estado: { $ne: 'cancelada' },
+    })
+        .select(
+            'fecha horaInicio horaFin informeSesion informeVisibleParaAtleta informeVisibleParaTutor estado categoria lugarLibre nombreSesion',
+        )
+        .populate('categoria', 'nombre')
+        .sort({ fecha: -1, horaInicio: -1 })
+        .limit(100);
+
+    const { ClinicalNote } = req.models;
+    const notas = await ClinicalNote.find({ atleta: atletaId, area: 'psicologia' })
+        .populate('autor', 'nombre apellido')
+        .sort({ fecha: -1 })
+        .limit(100);
+
+    res.json({ sessions, notas });
+});
+
 export {
     createSession,
     takeAttendance,
@@ -2157,6 +2264,7 @@ export {
     getSessionStatsById,
     getNutricionistaAgenda,
     getPsicologoAgenda,
+    getPsicologoAthleteNotes,
     getSessionById,
     confirmConsultAttendance,
     cambiarAtletaConsulta,

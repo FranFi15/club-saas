@@ -1082,14 +1082,14 @@ const registerBulkManualPayment = asyncHandler(async (req, res) => {
         total += payment.montoFinal || 0;
         queuePaymentReceipt(req.models, payment._id, req.clubIdentifier);
 
-        try {
-            const atleta = await User.findById(payment.atleta);
-            const destinatario = atleta?.tutorPrincipal || payment.atleta;
+    try {
+        const atleta = await User.findById(payment.atleta);
+        const destinatario = atleta?.tutorPrincipal || payment.atleta;
             await createAppNotification(req.models, {
-                usuario: destinatario,
-                tipo: 'pago_registrado',
-                titulo: 'Pago Registrado',
-                mensaje: `Se registró el pago de ${payment.plan?.nombre || 'cuota'} por $${payment.montoFinal}.`,
+            usuario: destinatario,
+            tipo: 'pago_registrado',
+            titulo: 'Pago Registrado',
+            mensaje: `Se registró el pago de ${payment.plan?.nombre || 'cuota'} por $${payment.montoFinal}.`,
                 referencia: payment._id,
             });
         } catch (e) {
@@ -1237,7 +1237,7 @@ const getAtletaPayments = asyncHandler(async (req, res) => {
     const mpReady = await mercadoPagoReady(req.models);
     const datosTransferencia = await getTransferBankData(req.models);
 
-    res.json({
+    res.json({ 
         payments: history,
         stats: { totalPagado, totalPendiente, cuotasVencidas, total: allForStats.length },
         mercadoPagoReady: mpReady,

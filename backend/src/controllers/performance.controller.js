@@ -180,17 +180,42 @@ const addMeasurementsBulk = asyncHandler(async (req, res) => {
 // @desc    Crear una nota evolutiva (Rich Text)
 // @route   POST /api/performance/clinical-notes
 const createClinicalNote = asyncHandler(async (req, res) => {
-    const { atleta, area, titulo, contenidoRichText, visibleParaAtleta, visibleParaTutor } = req.body;
-    const { ClinicalNote } = req.models;
+    const { atleta, titulo, contenidoRichText, visibleParaAtleta, visibleParaTutor } = req.body;
+    const { ClinicalNote, Category, Enrollment } = req.models;
+
+    if (!atleta) {
+        res.status(400);
+        throw new Error('Indicá el atleta.');
+    }
+    const tituloTxt = String(titulo || '').trim();
+    const contenidoTxt = String(contenidoRichText || '').trim();
+    if (!tituloTxt || !contenidoTxt) {
+        res.status(400);
+        throw new Error('Título y contenido de la nota son obligatorios.');
+    }
+
+    if (req.user.rol === 'psicologo') {
+        const misCats = await Category.find({ psicologos: req.user._id }).select('_id');
+        const catIds = misCats.map((c) => c._id);
+        const enr = await Enrollment.findOne({
+            atleta,
+            categoria: { $in: catIds },
+            estado: 'activo',
+        }).select('_id');
+        if (!enr) {
+            res.status(403);
+            throw new Error('No tenés acceso a este atleta.');
+        }
+    }
 
     const note = await ClinicalNote.create({
         atleta,
         autor: req.user._id,
-        area,
-        titulo,
-        contenidoRichText,
-        visibleParaAtleta,
-        visibleParaTutor
+        area: 'psicologia',
+        titulo: tituloTxt.slice(0, 120),
+        contenidoRichText: contenidoTxt,
+        visibleParaAtleta: visibleParaAtleta === true,
+        visibleParaTutor: visibleParaTutor === true,
     });
 
     res.status(201).json(note);
@@ -201,7 +226,7 @@ const createClinicalNote = asyncHandler(async (req, res) => {
 // @desc    Obtener el perfil de rendimiento de un atleta (Lo que el pibe/padre ven)
 // @route   GET /api/performance/atleta/:atletaId
 const getAthletePerformance = asyncHandler(async (req, res) => {
-    const { Measurement, ClinicalNote, User } = req.models;
+    const { Measurement, ClinicalNote, User, Session, Enrollment } = req.models;
     const userId = req.user._id;
     const isOwner = userId.toString() === req.params.atletaId;
     const isStaff = ['admin_club', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'].includes(req.user.rol);
@@ -228,9 +253,32 @@ const getAthletePerformance = asyncHandler(async (req, res) => {
         .sort({ fechaMedicion: -1 });
 
     const notas = await ClinicalNote.find(noteFilter)
+        .populate('autor', 'nombre apellido rol')
         .sort({ fecha: -1 });
 
-    const { Enrollment } = req.models;
+    const psychFilter = {
+        tipo: 'consulta_psicologia',
+        atletaIndividual: req.params.atletaId,
+        estado: { $ne: 'cancelada' },
+        informeSesion: { $exists: true, $nin: [null, ''] },
+    };
+    if (!isStaff) {
+        if (isOwner) {
+            psychFilter.informeVisibleParaAtleta = { $ne: false };
+        } else {
+            psychFilter.informeVisibleParaTutor = { $ne: false };
+        }
+    }
+
+    const informesPsicologia = await Session.find(psychFilter)
+        .select('fecha horaInicio horaFin informeSesion estado categoria')
+        .populate('categoria', 'nombre')
+        .sort({ fecha: -1 })
+        .limit(80)
+        .lean();
+
+    const notasPsicologia = (notas || []).filter((n) => n.area === 'psicologia');
+
     const atletaUser = await User.findById(req.params.atletaId)
         .select('nombre apellido fechaNacimiento sexo')
         .lean();
@@ -250,7 +298,14 @@ const getAthletePerformance = asyncHandler(async (req, res) => {
 
     const metodoGrasaCorporal = await getClubBodyFatMethod(req.models);
 
-    res.json({ mediciones, notas, atleta, nutricion: { metodoGrasaCorporal } });
+    res.json({
+        mediciones,
+        notas,
+        notasPsicologia,
+        informesPsicologia,
+        atleta,
+        nutricion: { metodoGrasaCorporal },
+    });
 });
 
 // @desc    ¿El tutor tiene mediciones visibles para algún hijo?

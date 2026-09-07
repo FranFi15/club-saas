@@ -75,7 +75,7 @@ const sessionSchema = new mongoose.Schema({
         ref: 'User',
     },
 
-    /** Staff que creó la consulta individual */
+    /** Staff que creó la sesión (entrenamientos / partidos / consultas). */
     creadoPor: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',

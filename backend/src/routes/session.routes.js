@@ -22,6 +22,7 @@ import {
     getSessionStatsById,
     getNutricionistaAgenda,
     getPsicologoAgenda,
+    getPsicologoAthleteNotes,
     getSessionById,
     confirmConsultAttendance,
     cambiarAtletaConsulta,
@@ -54,6 +55,12 @@ router.get(
 );
 router.get('/nutricionista/agenda', protect, authorize('nutricionista'), getNutricionistaAgenda);
 router.get('/psicologo/agenda', protect, authorize('psicologo'), getPsicologoAgenda);
+router.get(
+    '/psicologo/atleta/:atletaId/notas',
+    protect,
+    authorize('psicologo', 'admin_club'),
+    getPsicologoAthleteNotes,
+);
 router.patch('/:id/confirmar-asistencia', protect, authorize('atleta', 'tutor'), confirmConsultAttendance);
 router.patch(
     '/:id/cambiar-atleta',

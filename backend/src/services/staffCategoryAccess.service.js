@@ -163,11 +163,24 @@ export async function assertStaffAtletaAccess(user, atletaId, Category, Enrollme
 const STAFF_ROLES = new Set(['profe', 'preparador_fisico', 'nutricionista', 'psicologo']);
 
 /**
+ * Normaliza destino(s) de usuario: `targetUsuario` o `targetUsuarios[]`.
+ */
+export function resolveTargetUsuarioIds(body = {}) {
+    const raw = body.targetUsuarios ?? body.targetUsuario;
+    if (Array.isArray(raw)) {
+        return [...new Set(raw.map((id) => String(id || '').trim()).filter(Boolean))];
+    }
+    if (raw) return [String(raw).trim()].filter(Boolean);
+    return [];
+}
+
+/**
  * Valida alcance/target para creación de docs o recursos.
  * Admin: global | categoria | usuario. Staff: categoria | usuario con ACL.
+ * Para alcance usuario acepta uno o varios IDs (`targetUsuario` / `targetUsuarios`).
  */
 export async function assertDeliveryTargets(req, { allowGlobal = true } = {}) {
-    const { alcance, targetCategoria, targetUsuario } = req.body;
+    const { alcance, targetCategoria } = req.body;
     const { Category, Enrollment, User } = req.models;
     const rol = req.user.rol;
 
@@ -186,12 +199,15 @@ export async function assertDeliveryTargets(req, { allowGlobal = true } = {}) {
             await assertStaffCategoriaAccess(req.user, targetCategoria, Category);
         }
         if (alcance === 'usuario') {
-            if (!targetUsuario) {
-                const err = new Error('Indicá el atleta destino.');
+            const ids = resolveTargetUsuarioIds(req.body);
+            if (!ids.length) {
+                const err = new Error('Indicá al menos un atleta destino.');
                 err.statusCode = 400;
                 throw err;
             }
-            await assertStaffAtletaAccess(req.user, targetUsuario, Category, Enrollment);
+            for (const id of ids) {
+                await assertStaffAtletaAccess(req.user, id, Category, Enrollment);
+            }
         }
         return;
     }
@@ -219,21 +235,24 @@ export async function assertDeliveryTargets(req, { allowGlobal = true } = {}) {
             }
         }
         if (alcance === 'usuario') {
-            if (!targetUsuario) {
-                const err = new Error('Indicá la persona destino.');
+            const ids = resolveTargetUsuarioIds(req.body);
+            if (!ids.length) {
+                const err = new Error('Indicá al menos una persona destino.');
                 err.statusCode = 400;
                 throw err;
             }
-            const person = await User.findById(targetUsuario).select('rol estado');
-            if (!person) {
-                const err = new Error('Usuario no encontrado en el club.');
-                err.statusCode = 404;
-                throw err;
-            }
-            if (person.estado === 'inactivo') {
-                const err = new Error('No podés apuntar a un usuario inactivo.');
-                err.statusCode = 400;
-                throw err;
+            for (const id of ids) {
+                const person = await User.findById(id).select('rol estado');
+                if (!person) {
+                    const err = new Error('Usuario no encontrado en el club.');
+                    err.statusCode = 404;
+                    throw err;
+                }
+                if (person.estado === 'inactivo') {
+                    const err = new Error('No podés apuntar a un usuario inactivo.');
+                    err.statusCode = 400;
+                    throw err;
+                }
             }
         }
         return;

@@ -4,7 +4,7 @@ import {
     deliverResourceToChat,
     countSuccessfulDeliveries,
 } from '../services/deliveryToChat.service.js';
-import { assertDeliveryTargets } from '../services/staffCategoryAccess.service.js';
+import { assertDeliveryTargets, resolveTargetUsuarioIds } from '../services/staffCategoryAccess.service.js';
 
 function parseYouTubeVideoId(url) {
     if (!url || typeof url !== 'string') return null;
@@ -47,7 +47,7 @@ function normalizeResourceFileUrl(fileUrl) {
 // @desc    Subir un recurso y notificar automáticamente
 // @route   POST /api/resources
 const uploadResource = asyncHandler(async (req, res) => {
-    const { titulo, descripcion, fileUrl, tipo, alcance, targetCategoria, targetUsuario } = req.body;
+    const { titulo, descripcion, fileUrl, tipo, alcance, targetCategoria } = req.body;
     const { Resource } = req.models;
 
     try {
@@ -60,34 +60,60 @@ const uploadResource = asyncHandler(async (req, res) => {
     const normalizedFileUrl = normalizeResourceFileUrl(fileUrl);
     if (!normalizedFileUrl) {
         res.status(400);
-        throw new Error('URL de archivo inválida. Usá un enlace http(s) o de YouTube.');
+        throw new Error('URL de archivo inválida. Usá un enlace http(s) o un archivo subido.');
     }
 
-    const resource = await Resource.create({
+    const basePayload = {
         titulo,
         descripcion,
         fileUrl: normalizedFileUrl,
         tipo,
         autor: req.user._id,
         alcance,
-        targetCategoria,
-        targetUsuario,
-    });
+        targetCategoria: alcance === 'categoria' ? targetCategoria : undefined,
+    };
 
+    const created = [];
     let chatDelivered = 0;
-    try {
-        const delivery = await deliverResourceToChat(req.models, req.user, resource);
-        chatDelivered = countSuccessfulDeliveries(delivery);
-    } catch (e) {
-        console.warn('[resources] chat delivery:', e.message);
+
+    if (alcance === 'usuario') {
+        const athleteIds = resolveTargetUsuarioIds(req.body);
+        for (const athleteId of athleteIds) {
+            const resource = await Resource.create({
+                ...basePayload,
+                targetUsuario: athleteId,
+            });
+            created.push(resource);
+            try {
+                const delivery = await deliverResourceToChat(req.models, req.user, resource);
+                chatDelivered += countSuccessfulDeliveries(delivery);
+            } catch (e) {
+                console.warn('[resources] chat delivery:', e.message);
+            }
+        }
+    } else {
+        const resource = await Resource.create(basePayload);
+        created.push(resource);
+        try {
+            const delivery = await deliverResourceToChat(req.models, req.user, resource);
+            chatDelivered += countSuccessfulDeliveries(delivery);
+        } catch (e) {
+            console.warn('[resources] chat delivery:', e.message);
+        }
     }
 
+    const n = created.length;
     res.status(201).json({
         message:
             chatDelivered > 0
-                ? 'Recurso subido y enviado por chat.'
-                : 'Recurso subido. No se pudo enviar por chat; igual queda en Recursos.',
-        resource,
+                ? n > 1
+                    ? `Recurso enviado a ${n} atletas por chat.`
+                    : 'Recurso subido y enviado por chat.'
+                : n > 1
+                  ? `Recurso creado para ${n} atletas. No se pudo enviar por chat; igual queda en Recursos.`
+                  : 'Recurso subido. No se pudo enviar por chat; igual queda en Recursos.',
+        resource: created[0],
+        resources: created,
         chatDelivered,
     });
 });
@@ -172,7 +198,7 @@ const updateResource = asyncHandler(async (req, res) => {
         const normalizedFileUrl = normalizeResourceFileUrl(req.body.fileUrl);
         if (!normalizedFileUrl) {
             res.status(400);
-            throw new Error('URL de archivo inválida. Usá un enlace http(s) o de YouTube.');
+            throw new Error('URL de archivo inválida. Usá un enlace http(s) o un archivo subido.');
         }
         recurso.fileUrl = normalizedFileUrl;
     }
