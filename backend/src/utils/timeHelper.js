@@ -38,10 +38,28 @@ export function nowHhMmClub(now = new Date()) {
         hour: '2-digit',
         minute: '2-digit',
         hour12: false,
+        hourCycle: 'h23',
     }).formatToParts(now);
     const hour = parts.find((p) => p.type === 'hour')?.value || '00';
     const minute = parts.find((p) => p.type === 'minute')?.value || '00';
-    return `${hour}:${minute}`;
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
+export function normalizeHhMm(value, fallback = '00:00') {
+    const parts = String(value || fallback).split(':');
+    const hh = parseInt(parts[0], 10);
+    const mm = parseInt(parts[1], 10);
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) {
+        const fb = String(fallback).split(':');
+        return `${String(parseInt(fb[0], 10) || 0).padStart(2, '0')}:${String(parseInt(fb[1], 10) || 0).padStart(2, '0')}`;
+    }
+    return `${String(Math.min(23, Math.max(0, hh))).padStart(2, '0')}:${String(Math.min(59, Math.max(0, mm))).padStart(2, '0')}`;
+}
+
+export function hhMmToMinutes(value) {
+    const norm = normalizeHhMm(value);
+    const [h, m] = norm.split(':').map(Number);
+    return h * 60 + m;
 }
 
 /**
@@ -51,22 +69,42 @@ export function nowHhMmClub(now = new Date()) {
 export function sessionEndLocalDate(session) {
     const ymd = sessionCalendarYmd(session?.fecha);
     if (!ymd) return null;
-    const parts = String(session?.horaFin || '23:59').split(':');
-    const hh = String(Number.isFinite(parseInt(parts[0], 10)) ? parseInt(parts[0], 10) : 23).padStart(2, '0');
-    const mm = String(Number.isFinite(parseInt(parts[1], 10)) ? parseInt(parts[1], 10) : 59).padStart(2, '0');
+    const hhmm = normalizeHhMm(session?.horaFin, '23:59');
     // Offset fijo ART (−03): el club opera en Argentina; evita Date(y,m,d) del TZ del servidor (UTC en Render).
-    return new Date(`${ymd}T${hh}:${mm}:00.000-03:00`);
+    return new Date(`${ymd}T${hhmm}:00.000-03:00`);
+}
+
+/**
+ * Instante de inicio de sesión en zona del club.
+ */
+export function sessionStartLocalDate(session) {
+    const ymd = sessionCalendarYmd(session?.fecha);
+    if (!ymd) return null;
+    const hhmm = normalizeHhMm(session?.horaInicio, '00:00');
+    return new Date(`${ymd}T${hhmm}:00.000-03:00`);
 }
 
 /** True si la hora de fin (Argentina) ya pasó. */
 export function isSessionPast(session, now = new Date()) {
     const ymd = sessionCalendarYmd(session?.fecha);
     if (!ymd) return false;
-    const horaFin = String(session?.horaFin || '23:59').slice(0, 5);
     const today = todayYmdClub(now);
     if (ymd < today) return true;
     if (ymd > today) return false;
-    return horaFin < nowHhMmClub(now);
+    return hhMmToMinutes(session?.horaFin || '23:59') < hhMmToMinutes(nowHhMmClub(now));
+}
+
+/**
+ * True si la consulta ya empezó (Argentina).
+ * Usado para confirmación de asistencia atleta/tutor.
+ */
+export function isSessionStarted(session, now = new Date()) {
+    const ymd = sessionCalendarYmd(session?.fecha);
+    if (!ymd) return false;
+    const today = todayYmdClub(now);
+    if (ymd < today) return true;
+    if (ymd > today) return false;
+    return hhMmToMinutes(session?.horaInicio || '00:00') <= hhMmToMinutes(nowHhMmClub(now));
 }
 
 /** Completada, cancelada o con horario ya terminado → no mutar. */

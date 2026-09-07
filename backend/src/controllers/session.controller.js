@@ -1,5 +1,5 @@
 import asyncHandler from 'express-async-handler';
-import { hasTimeOverlap, isSessionReadOnly, isSessionPast } from '../utils/timeHelper.js';
+import { hasTimeOverlap, isSessionReadOnly, isSessionPast, isSessionStarted } from '../utils/timeHelper.js';
 import { generateSessionsInDateRange } from '../services/sessionFromSchedule.service.js';
 import {
     notifyConsultSessionCreated,
@@ -2042,9 +2042,15 @@ const confirmConsultAttendance = asyncHandler(async (req, res) => {
         throw new Error('Esta consulta fue cancelada.');
     }
 
-    if (isSessionPast(session) || session.estado === 'completada') {
+    if (session.estado === 'completada') {
         res.status(400);
-        throw new Error('Esta consulta ya pasó o está cerrada. No se puede confirmar asistencia.');
+        throw new Error('Esta consulta ya está cerrada. No se puede confirmar asistencia.');
+    }
+
+    // Corte por hora de inicio en zona del club (no UTC del servidor).
+    if (isSessionStarted(session)) {
+        res.status(400);
+        throw new Error('Esta consulta ya comenzó o pasó. No se puede confirmar asistencia.');
     }
 
     const estadoActual = session.confirmacionAtleta?.estado;
