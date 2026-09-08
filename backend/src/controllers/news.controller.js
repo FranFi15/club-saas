@@ -167,6 +167,7 @@ const createNews = asyncHandler(async (req, res) => {
         autor: req.user._id,
         tipo: tipo || 'general',
         alcance,
+        origen: 'muro',
         targetRoles: req.user.rol === 'profe' ? [] : (Array.isArray(targetRoles) ? targetRoles : []),
         targetCategorias: Array.isArray(targetCategorias) ? targetCategorias : [],
         targetUsuarios: alcance === 'tutor' ? tutorIds : (Array.isArray(targetUsuarios) ? targetUsuarios : []),
@@ -202,8 +203,21 @@ const getMyNewsFeed = asyncHandler(async (req, res) => {
         misCategoriasIds = misInscripciones.map((insc) => insc.categoria);
     }
 
-    // 2. LA CONSULTA MÁGICA: Buscamos noticias que hagan "match" con su perfil
+    // Solo el muro (publicados desde Noticias). Avisos de sistema → notificaciones.
+    const SISTEMA_TITULOS_LEGACY = [
+        'Tu asistencia',
+        'Asistencia de la sesión',
+        'Parte Médico Actualizado',
+        'Nueva consulta de nutrición',
+        'Nueva consulta de psicología',
+    ];
+    await News.updateMany(
+        { titulo: { $in: SISTEMA_TITULOS_LEGACY }, origen: { $ne: 'sistema' } },
+        { $set: { origen: 'sistema' } },
+    );
+
     const feed = await News.find({
+        origen: { $ne: 'sistema' },
         $or: [
             { alcance: 'global' }, // Avisos para todo el club
             { alcance: 'rol', targetRoles: userRole }, // Avisos para "todos los atletas"
@@ -227,10 +241,10 @@ const getAllNews = asyncHandler(async (req, res) => {
     const { News } = req.models;
     const rol = req.user?.rol;
 
-    let query = {};
+    let query = { origen: { $ne: 'sistema' } };
     if (!ADMIN_NEWS_VIEW.includes(rol)) {
         if (STAFF_AUTHOR_NEWS_VIEW.includes(rol)) {
-            query = { autor: req.user._id };
+            query = { autor: req.user._id, origen: { $ne: 'sistema' } };
         } else {
             res.status(403);
             throw new Error('No tenés permiso para este listado de noticias.');

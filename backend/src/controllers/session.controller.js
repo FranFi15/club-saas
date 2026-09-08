@@ -1657,6 +1657,7 @@ async function createSessionCancellationNews(req, session, comunicado) {
         autor: req.user._id,
         tipo,
         alcance: isConsultaIndividual ? 'usuario' : 'categoria',
+        origen: 'sistema',
         targetRoles: [],
         targetCategorias: isConsultaIndividual || !categoriaId ? [] : [categoriaId],
         targetUsuarios: isConsultaIndividual && atletaId ? [atletaId] : [],

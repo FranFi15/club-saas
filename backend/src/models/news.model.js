@@ -28,7 +28,18 @@ const newsSchema = new mongoose.Schema({
     imagen: {
         url: { type: String },
         publicId: { type: String }
-    }
+    },
+
+    /**
+     * muro = publicado desde Noticias (único que aparece en el feed /news/feed).
+     * sistema = avisos automáticos (asistencia, consultas, cancelaciones, etc.) → notificaciones.
+     */
+    origen: {
+        type: String,
+        enum: ['muro', 'sistema'],
+        default: 'muro',
+        index: true,
+    },
     
 }, { timestamps: true });
 

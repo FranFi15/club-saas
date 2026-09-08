@@ -23,6 +23,7 @@ export async function buildNewsFeedOrConditions(user, models) {
     }
 
     return {
+        origen: { $ne: 'sistema' },
         $or: [
             { alcance: 'global' },
             { alcance: 'rol', targetRoles: userRole },
@@ -30,6 +31,15 @@ export async function buildNewsFeedOrConditions(user, models) {
             { alcance: 'usuario', targetUsuarios: { $in: targetUsuarioIds } },
             { alcance: 'tutor', targetUsuarios: { $in: targetUsuarioIds } },
         ],
+    };
+}
+
+/** Avisos automáticos (asistencia, consultas, etc.) para el centro de notificaciones. */
+export async function buildSistemaNewsOrConditions(user, models) {
+    const feed = await buildNewsFeedOrConditions(user, models);
+    return {
+        origen: 'sistema',
+        $or: feed.$or,
     };
 }
 
@@ -45,7 +55,8 @@ function resourceIsRead(createdAt, lastSeenResourcesAt) {
 
 async function listNewsFeedItems(user, models, limit = 20) {
     const { News } = models;
-    const feedFilter = await buildNewsFeedOrConditions(user, models);
+    // En notificaciones solo avisos de sistema; el muro vive en /news/feed (Noticias).
+    const feedFilter = await buildSistemaNewsOrConditions(user, models);
     const hasOr = feedFilter?.$or?.length;
     if (!hasOr) return [];
 

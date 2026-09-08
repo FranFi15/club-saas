@@ -26,6 +26,7 @@ const reportInjury = asyncHandler(async (req, res) => {
         autor: req.user._id,
         tipo: 'urgente',
         alcance: 'usuario',
+        origen: 'sistema',
         targetUsuarios: [atleta]
     });
 
