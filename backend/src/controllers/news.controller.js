@@ -176,7 +176,7 @@ const createNews = asyncHandler(async (req, res) => {
     }
 
     const news = await News.create(newsData);
-    await news.populate('autor', 'nombre apellido rol');
+    await news.populate('autor', 'nombre apellido rol fotoPerfil');
     res.status(201).json(news);
 });
 
@@ -213,7 +213,7 @@ const getMyNewsFeed = asyncHandler(async (req, res) => {
         ]
     })
     .sort({ createdAt: -1 }) // Las más nuevas arriba
-    .populate('autor', 'nombre apellido rol')
+    .populate('autor', 'nombre apellido rol fotoPerfil')
     .limit(20); // Paginación básica (traemos las últimas 20)
 
     res.json(feed);
@@ -239,7 +239,7 @@ const getAllNews = asyncHandler(async (req, res) => {
 
     const news = await News.find(query)
         .sort({ createdAt: -1 })
-        .populate('autor', 'nombre apellido rol');
+        .populate('autor', 'nombre apellido rol fotoPerfil');
     res.json(news);
 });
 

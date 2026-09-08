@@ -221,7 +221,7 @@ const getAllPayments = asyncHandler(async (req, res) => {
 
     const payments = await Payment.find({ ...filter, atleta: { $in: athleteIds } })
         .sort(isAllVencidos ? { anio: -1, mes: -1, createdAt: -1 } : { estado: 1, createdAt: -1 })
-        .populate('atleta', 'nombre apellido email tutorPrincipal rol')
+        .populate('atleta', 'nombre apellido email tutorPrincipal rol fotoPerfil')
         .populate('plan', 'nombre monto diaVencimiento porcentajeRecargo')
         .populate('cuotaSocial', 'nombre monto diaVencimiento porcentajeRecargo')
         .populate({ path: 'categoria', select: 'nombre disciplina', populate: { path: 'disciplina', select: 'nombre' } })
@@ -382,7 +382,7 @@ const adjustPayment = asyncHandler(async (req, res) => {
 
     const updated = await payment.save();
     await updated.populate('plan', 'nombre monto');
-    await updated.populate('atleta', 'nombre apellido');
+    await updated.populate('atleta', 'nombre apellido fotoPerfil');
 
     res.json(updated);
 });
@@ -477,7 +477,7 @@ const getSiblings = asyncHandler(async (req, res) => {
         rol: 'atleta',
         tutorPrincipal: { $in: pageTutorIds },
     })
-        .select('nombre apellido tutorPrincipal')
+        .select('nombre apellido tutorPrincipal fotoPerfil')
         .lean();
 
     const atletaIds = atletasConTutor.map((a) => a._id);
@@ -844,7 +844,7 @@ const getPendingTransferReviews = asyncHandler(async (req, res) => {
         .sort({ fechaEnvioComprobante: -1, updatedAt: -1 })
         .populate('plan', 'nombre monto')
         .populate('categoria', 'nombre')
-        .populate('atleta', 'nombre apellido')
+        .populate('atleta', 'nombre apellido fotoPerfil')
         .populate('enviadoPor', 'nombre apellido rol')
         .lean();
 
@@ -1271,7 +1271,7 @@ const getMorosidad = asyncHandler(async (req, res) => {
 
     // Ranking de deudores: atletas con más cuotas pendientes/vencidas (global, no solo del mes)
     const deudas = await Payment.find({ estado: { $in: ['pendiente', 'vencido'] } })
-        .populate('atleta', 'nombre apellido email');
+        .populate('atleta', 'nombre apellido email fotoPerfil');
 
     const deudorMap = {};
     for (const d of deudas) {
