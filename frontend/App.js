@@ -1,5 +1,6 @@
 import 'react-native-gesture-handler';
-import './src/services/pushNotifications';
+import { LogBox } from 'react-native';
+import { initPushNotifications } from './src/services/pushNotifications';
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
 import React from 'react';
@@ -11,6 +12,18 @@ import MemberRoot from './src/context/MemberRoot';
 import { ThemeProvider } from './src/context/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import AndroidSystemChrome from './src/components/AndroidSystemChrome';
+
+// Expo Go shows a blocking error for Android push; ignore so dismiss doesn't leave the UI stuck.
+if (__DEV__) {
+  LogBox.ignoreLogs([
+    'expo-notifications',
+    'Android Push notifications',
+    'was removed from Expo Go',
+    'development build',
+  ]);
+}
+
+initPushNotifications();
 
 const sentryDsn =
   process.env.EXPO_PUBLIC_SENTRY_DSN ||

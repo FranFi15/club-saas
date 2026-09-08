@@ -25,6 +25,7 @@ import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
+import DesignCard from '../../components/DesignCard';
 import { sortEnrollmentsByAtleta, sortUsersByName } from '../../utils/listSort';
 import UserDetailsModal from '../../components/UserDetailsModal';
 import UserAvatar from '../../components/UserAvatar';
@@ -213,13 +214,12 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
 
   const headerPlantelBtn = (
     <TouchableOpacity
-      style={styles.headerPlantelBtn}
+      style={styles.headerIconBtn}
       onPress={() => setPlantelModalOpen(true)}
       accessibilityRole="button"
       accessibilityLabel="Actualizar plantel"
     >
-      <Ionicons name="people-outline" size={16} color="#fff" />
-      <Text style={styles.headerPlantelBtnTxt}>Actualizar plantel</Text>
+      <Ionicons name="people-outline" size={20} color="#fff" />
     </TouchableOpacity>
   );
 
@@ -325,16 +325,64 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
     setIsPickerVisible(false);
     try {
       if (activeTab === 'atletas') {
-        // Inscribir Atleta POST /api/enrollments
         const response = await clubApi.post('/enrollments', {
           atletaId: user._id,
           categoriaId: categoria._id,
           aptoMedico: false
         }, { headers: await getHeaders() });
 
-        // Actualizamos localmente para no hacer refetch
-        setEnrollments([...enrollments, { ...response.data, atleta: user }]);
-        showAlert('Éxito', `${user.nombre} inscrito correctamente.`);
+        const enrollment = response.data;
+        const { billingConflict, ...enrollmentFields } = enrollment;
+        setEnrollments([...enrollments, { ...enrollmentFields, atleta: user }]);
+
+        if (billingConflict?.code === 'DISCIPLINE_BILLING_CHOICE') {
+          const discName = billingConflict.disciplina?.nombre || 'esta disciplina';
+          const currentCat = billingConflict.current?.categoria?.nombre || 'otra categoría';
+          const currentPlan = billingConflict.current?.plan?.nombre
+            || (billingConflict.current?.plan?.monto != null
+              ? `$${billingConflict.current.plan.monto}`
+              : 'cuota actual');
+          const proposedPlan = billingConflict.proposed?.plan?.nombre
+            || (billingConflict.proposed?.plan?.monto != null
+              ? `$${billingConflict.proposed.plan.monto}`
+              : 'plan de esta categoría');
+
+          showAlert(
+            'Cuota de entrenamiento',
+            `${user.nombre} ya tiene cuota en ${discName} por ${currentCat} (${currentPlan}). ¿Qué cuota aplica para esta disciplina?\n\nMantener: ${currentPlan}\nUsar esta categoría: ${proposedPlan}`,
+            {
+              showCancel: true,
+              cancelText: 'Mantener actual',
+              confirmText: 'Usar esta',
+              onCancel: () => {
+                closeAlert();
+                showAlert('Listo', `${user.nombre} inscrito. Se mantiene la cuota actual de la disciplina.`);
+              },
+              onConfirm: async () => {
+                closeAlert();
+                try {
+                  const { data: updated } = await clubApi.patch(
+                    `/enrollments/${enrollment._id}/billing`,
+                    { preferencia: 'switch' },
+                    { headers: await getHeaders() },
+                  );
+                  setEnrollments((prev) =>
+                    prev.map((e) =>
+                      e._id === enrollment._id
+                        ? { ...e, plan: updated.plan || null, esFacturacion: updated.esFacturacion }
+                        : e,
+                    ),
+                  );
+                  showAlert('Listo', `${user.nombre} inscrito. Ahora factura con el plan de esta categoría.`);
+                } catch (err) {
+                  showAlert('Error', err.response?.data?.message || 'No se pudo cambiar la cuota.');
+                }
+              },
+            },
+          );
+        } else {
+          showAlert('Éxito', `${user.nombre} inscrito correctamente.`);
+        }
         
       } else if (activeTab === 'profesores') {
         const nuevosProfes = [...profesores.map(p => p._id), user._id];
@@ -429,7 +477,20 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
 
     return (
       <Swipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>
-        <TouchableOpacity style={[styles.card, { backgroundColor: theme.surface }]} onPress={() => handleUserClick(user)}>
+        <DesignCard
+          theme={theme}
+          isDarkMode={isDarkMode}
+          accent={
+            activeTab === 'atletas'
+              ? item.estado === 'activo'
+                ? '#10b981'
+                : '#ef4444'
+              : colorMarca
+          }
+          onPress={() => handleUserClick(user)}
+          style={{ marginBottom: 12 }}
+          contentStyle={styles.cardInner}
+        >
           <UserAvatar user={user} size={44} colorMarca={colorMarca} style={{ marginRight: 15 }} />
           <View style={styles.info}>
             <Text style={[styles.name, { color: theme.text }]}>{user.nombre} {user.apellido}</Text>
@@ -460,7 +521,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
               </>
             )}
           </View>
-        </TouchableOpacity>
+        </DesignCard>
       </Swipeable>
     );
   };
@@ -824,7 +885,7 @@ const styles = StyleSheet.create({
   activeTab: {},
   tabText: { fontSize: 12 },
   body: { flex: 1, paddingHorizontal: 20 },
-  card: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 5, marginBottom: 12, elevation: 1 },
+  cardInner: { flexDirection: 'row', alignItems: 'center' },
   info: { flex: 1 },
   name: { fontSize: 16, fontWeight: '600' },
   sub: { fontSize: 13, marginTop: 2 },
@@ -850,16 +911,14 @@ const styles = StyleSheet.create({
   planContext: { padding: 12, borderRadius: 5, borderWidth: 1, marginBottom: 10 },
   planPickItem: { paddingVertical: 14, paddingHorizontal: 6, borderBottomWidth: 1, flexDirection: 'row', alignItems: 'center' },
   savePlanBtn: { height: 52, borderRadius: 5, justifyContent: 'center', alignItems: 'center', marginTop: 12 },
-  headerPlantelBtn: {
-    flexDirection: 'row',
+  headerIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 5,
+    justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.22)',
   },
-  headerPlantelBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 12 },
   chatPanel: {
     marginHorizontal: 16,
     marginTop: 10,

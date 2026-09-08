@@ -30,6 +30,7 @@ import { useBadgesOptional } from '../../context/BadgeContext';
 import SelectPaymentsModal from '../../components/SelectPaymentsModal';
 import MemberPayFlowModal from '../../components/MemberPayFlowModal';
 import { subscribeMercadoPagoDeepLinks } from '../../utils/mpDeepLinks';
+import DesignCard from '../../components/DesignCard';
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -329,7 +330,7 @@ export default function MemberPaymentsScreen({ navigation }) {
     const inReview = item.estado === 'en_revision';
 
     return (
-      <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <DesignCard theme={theme} isDarkMode={isDarkMode} accent={ec} contentStyle={styles.cardInner}>
         <View style={styles.cardTop}>
           <View style={{ flex: 1 }}>
             {atletaNombre ? (
@@ -396,7 +397,7 @@ export default function MemberPaymentsScreen({ navigation }) {
             ) : null}
           </View>
         </View>
-      </View>
+      </DesignCard>
     );
   };
 
@@ -735,7 +736,7 @@ const styles = StyleSheet.create({
   payChooseTxt: { fontWeight: '700', fontSize: 14 },
   sectionHdr: { fontSize: 16, fontWeight: '800', marginBottom: 8, marginTop: 4 },
   cuotasSectionHdr: { marginHorizontal: 16, marginTop: 4 },
-  card: { borderRadius: 5, borderWidth: 1, padding: 14, marginBottom: 10 },
+  cardInner: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 14 },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   athleteLbl: { fontSize: 12, fontWeight: '700', marginBottom: 2 },
   cardTitle: { fontSize: 16, fontWeight: '700' },

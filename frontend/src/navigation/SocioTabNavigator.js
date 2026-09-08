@@ -18,7 +18,7 @@ import ChatThreadScreen from '../screens/chat/ChatThreadScreen';
 import ChatNewScreen from '../screens/chat/ChatNewScreen';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
-import { tabBadgeLabel } from '../utils/tabBadgeLabel';
+import { tabBadgeText } from '../utils/tabBadgeLabel';
 import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
 
 const Tab = createSwipeBottomTabNavigator();
@@ -91,34 +91,37 @@ function SocioTabs() {
           };
           return <Ionicons name={map[name] || 'ellipse-outline'} size={22} color={color} />;
         },
+        getBadge: (name) =>
+          ({
+            SocioCuotas: tabBadgeText(tab('cuotas')),
+            SocioNoticias: tabBadgeText(tab('noticias')),
+            SocioChat: tabBadgeText(tab('chat')),
+          })[name],
+        getLabel: (name) =>
+          ({
+            SocioCuotas: 'Cuota',
+            SocioNoticias: 'Noticias',
+            SocioQr: 'Mi QR',
+            SocioChat: 'Chat',
+            SocioProfile: 'Perfil',
+          })[name],
       })}
     >
-      <Tab.Screen
-        name="SocioCuotas"
-        component={MemberPaymentsScreen}
-        options={{ tabBarLabel: 'Cuota', tabBarBadge: tabBadgeLabel(tab('cuotas')) }}
-      />
+      <Tab.Screen name="SocioCuotas" component={MemberPaymentsScreen} />
       <Tab.Screen
         name="SocioNoticias"
         component={SocioNewsStack}
-        options={{ tabBarLabel: 'Noticias', tabBarBadge: tabBadgeLabel(tab('noticias')) }}
         listeners={tabPressResetToRoot('SocioNoticias', 'SocioNewsMain')}
       />
-      <Tab.Screen
-        name="SocioQr"
-        component={MemberClubEntryScreen}
-        options={{ tabBarLabel: 'Mi QR' }}
-      />
+      <Tab.Screen name="SocioQr" component={MemberClubEntryScreen} />
       <Tab.Screen
         name="SocioChat"
         component={SocioChatStack}
-        options={{ tabBarLabel: 'Chat', tabBarBadge: tabBadgeLabel(tab('chat')) }}
         listeners={tabPressResetToRoot('SocioChat', 'ChatInbox')}
       />
       <Tab.Screen
         name="SocioProfile"
         component={SocioProfileStack}
-        options={{ tabBarLabel: 'Perfil' }}
         listeners={tabPressResetToRoot('SocioProfile', 'ProfileMain')}
       />
     </Tab.Navigator>

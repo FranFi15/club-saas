@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import { useMember } from '../../context/MemberContext';
@@ -24,6 +25,7 @@ import NutriMetricsChart from '../../components/NutriMetricsChart';
 import NutriBodyFatPanel from '../../components/NutriBodyFatPanel';
 import NutriStructuredChartsPanel from '../../components/NutriStructuredChartsPanel';
 import MetricSingleBarChartPanel from '../../components/MetricSingleBarChartPanel';
+import DesignCard from '../../components/DesignCard';
 import { defsWithChartData, pickDefaultMetricId } from '../../utils/metricChartSeries';
 import { buildNutriChartSeries } from '../../utils/nutriMeasurementChart';
 import { NUTRI_AREA_LABELS, sortDefsByNutritionProtocol } from '../../constants/nutritionMetrics';
@@ -71,6 +73,12 @@ export default function AthleteMetricsScreen({ navigation }) {
 
   const [activeTab, setActiveTab] = useState('grafico');
   const [mediciones, setMediciones] = useState(() => readScreenCache(metricsCacheKey)?.mediciones ?? []);
+  const [informesPsicologia, setInformesPsicologia] = useState(
+    () => readScreenCache(metricsCacheKey)?.informesPsicologia ?? [],
+  );
+  const [notasPsicologia, setNotasPsicologia] = useState(
+    () => readScreenCache(metricsCacheKey)?.notasPsicologia ?? [],
+  );
   const [searchHistorial, setSearchHistorial] = useState('');
   const [selectedStaffId, setSelectedStaffId] = useState('');
   const [chartMetricId, setChartMetricId] = useState('');
@@ -81,8 +89,18 @@ export default function AthleteMetricsScreen({ navigation }) {
 
   const isPrepFisico = selectedStaffId === 'preparador_fisico';
   const isNutriStaff = selectedStaffId === 'nutricionista';
+  const isPsiStaff = selectedStaffId === 'psicologo';
 
-  const staffOptions = useMemo(() => staffFiltersWithData(mediciones), [mediciones]);
+  const staffOptions = useMemo(() => {
+    const fromMeds = staffFiltersWithData(mediciones);
+    const hasPsi =
+      (informesPsicologia || []).length > 0 || (notasPsicologia || []).length > 0;
+    if (hasPsi) {
+      const psi = ATHLETE_METRICS_STAFF_FILTERS.find((f) => f.id === 'psicologo');
+      if (psi && !fromMeds.some((f) => f.id === 'psicologo')) return [...fromMeds, psi];
+    }
+    return fromMeds;
+  }, [mediciones, informesPsicologia, notasPsicologia]);
 
   const staffMediciones = useMemo(
     () => filterMedicionesByStaff(mediciones, selectedStaffId),
@@ -135,7 +153,34 @@ export default function AthleteMetricsScreen({ navigation }) {
     setChartMetricId((prev) => pickDefaultMetricId(chartDefs, prev));
   }, [isPrepFisico, chartDefs]);
 
+  const psychTimelineRows = useMemo(() => {
+    const sessionRows = (informesPsicologia || []).map((n) => ({
+      kind: 'session',
+      id: `s-${n._id}`,
+      date: n.fecha ? new Date(n.fecha).getTime() : 0,
+      data: n,
+    }));
+    const noteRows = (notasPsicologia || []).map((n) => ({
+      kind: 'note',
+      id: `n-${n._id}`,
+      date: n.fecha ? new Date(n.fecha).getTime() : 0,
+      data: n,
+    }));
+    return [...sessionRows, ...noteRows].sort((a, b) => b.date - a.date);
+  }, [informesPsicologia, notasPsicologia]);
+
   const historialFiltered = useMemo(() => {
+    if (isPsiStaff) {
+      const q = searchHistorial.trim().toLowerCase();
+      if (!q) return psychTimelineRows;
+      return psychTimelineRows.filter((row) => {
+        if (row.kind === 'session') {
+          return String(row.data.informeSesion || '').toLowerCase().includes(q);
+        }
+        const hay = `${row.data.titulo || ''} ${row.data.contenidoRichText || ''}`.toLowerCase();
+        return hay.includes(q);
+      });
+    }
     const q = searchHistorial.trim().toLowerCase();
     let rows = staffMediciones;
     if (!q) return rows;
@@ -144,27 +189,45 @@ export default function AthleteMetricsScreen({ navigation }) {
       const label = `${m.metrica?.nombre || ''} ${m.metrica?.unidad || ''} ${areaLbl}`.toLowerCase();
       return label.includes(q);
     });
-  }, [staffMediciones, searchHistorial]);
+  }, [staffMediciones, searchHistorial, isPsiStaff, psychTimelineRows]);
 
   const applyMetrics = useCallback((data) => {
     setMediciones(data.mediciones);
+    setInformesPsicologia(data.informesPsicologia || []);
+    setNotasPsicologia(data.notasPsicologia || []);
     setAtletaMeta(data.atletaMeta);
     setNutricionSettings(data.nutricionSettings);
   }, []);
 
   const fetchMetrics = useCallback(async () => {
     if (!clubData?.urlIdentifier) {
-      return { mediciones: [], atletaMeta: null, nutricionSettings: { metodoGrasaCorporal: 'durnin_siri' } };
+      return {
+        mediciones: [],
+        informesPsicologia: [],
+        notasPsicologia: [],
+        atletaMeta: null,
+        nutricionSettings: { metodoGrasaCorporal: 'durnin_siri' },
+      };
     }
     const atletaId = isTutor ? memberId : await getToken('userId');
     if (!atletaId) {
-      return { mediciones: [], atletaMeta: null, nutricionSettings: { metodoGrasaCorporal: 'durnin_siri' } };
+      return {
+        mediciones: [],
+        informesPsicologia: [],
+        notasPsicologia: [],
+        atletaMeta: null,
+        nutricionSettings: { metodoGrasaCorporal: 'durnin_siri' },
+      };
     }
     const h = await clubHeaders(clubData);
     const res = await clubApi.get(`/performance/atleta/${atletaId}`, { headers: h });
     const meds = res.data?.mediciones;
+    const informes = res.data?.informesPsicologia;
+    const notasPsi = res.data?.notasPsicologia;
     return {
       mediciones: Array.isArray(meds) ? meds : [],
+      informesPsicologia: Array.isArray(informes) ? informes : [],
+      notasPsicologia: Array.isArray(notasPsi) ? notasPsi : [],
       atletaMeta: res.data?.atleta || null,
       nutricionSettings: res.data?.nutricion || { metodoGrasaCorporal: 'durnin_siri' },
     };
@@ -178,13 +241,21 @@ export default function AthleteMetricsScreen({ navigation }) {
     onFetchError: () => {
       applyMetrics({
         mediciones: [],
+        informesPsicologia: [],
+        notasPsicologia: [],
         atletaMeta: null,
         nutricionSettings: { metodoGrasaCorporal: 'durnin_siri' },
       });
     },
   });
 
-  const showInitialLoader = (memberLoading || loading) && mediciones.length === 0;
+  const showInitialLoader =
+    (memberLoading || loading) &&
+    mediciones.length === 0 &&
+    informesPsicologia.length === 0 &&
+    notasPsicologia.length === 0;
+  const hasAnyMetrics =
+    mediciones.length > 0 || informesPsicologia.length > 0 || notasPsicologia.length > 0;
 
   const metricsTitle = isTutor ? 'Métricas' : 'Mis métricas';
   const metricsKicker = isTutor ? 'Seguimiento' : 'Tu evolución';
@@ -192,8 +263,57 @@ export default function AthleteMetricsScreen({ navigation }) {
     ? 'Mediciones que el club compartió con vos como tutor'
     : 'Mediciones compartidas por el club';
   const emptyMetricsMsg = isTutor
-    ? 'Todavía no hay mediciones visibles para este atleta.'
-    : 'Todavía no hay mediciones visibles. Cuando nutrición, preparador físico o entrenador carguen y compartan datos, los vas a ver acá.';
+    ? 'Todavía no hay mediciones ni notas visibles para este atleta.'
+    : 'Todavía no hay mediciones ni notas visibles. Cuando nutrición, preparador, entrenador o psicología compartan datos, los vas a ver acá.';
+
+  const renderPsychNotes = (rows) => {
+    if (!rows.length) {
+      return (
+        <Text style={[styles.empty, { color: theme.textMuted }]}>
+          No hay notas de psicología visibles por ahora.
+        </Text>
+      );
+    }
+    return rows.map((row) => {
+      const n = row.data || row;
+      const isSession = (row.kind || 'session') === 'session';
+      const body = isSession
+        ? n.informeSesion
+        : String(n.contenidoRichText || '')
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+      const title = isSession ? 'Nota de sesión' : n.titulo || 'Nota clínica';
+      const subtitle = isSession
+        ? `${n.categoria?.nombre || 'Psicología'}${
+            n.horaInicio ? ` · ${n.horaInicio}${n.horaFin ? `–${n.horaFin}` : ''}` : ''
+          }`
+        : 'Nota libre';
+      const dateVal = n.fecha ? formatJsDateToDisplay(new Date(n.fecha)) : '—';
+      return (
+        <DesignCard
+          key={row.id || n._id}
+          theme={theme}
+          isDarkMode={isDarkMode}
+          accent="#8b5cf6"
+          contentStyle={styles.cardInner}
+        >
+          <View style={styles.cardTop}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[styles.metricName, { color: theme.text }]} numberOfLines={1}>
+                {title}
+              </Text>
+              <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>{subtitle}</Text>
+            </View>
+            <Text style={{ color: theme.textMuted, fontSize: 12 }}>{dateVal}</Text>
+          </View>
+          {body ? (
+            <Text style={[styles.notas, { color: theme.text, marginTop: 4 }]}>{body}</Text>
+          ) : null}
+        </DesignCard>
+      );
+    });
+  };
 
   const renderSearchBox = (value, onChangeText, placeholder) => (
     <View style={[styles.searchBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -237,7 +357,11 @@ export default function AthleteMetricsScreen({ navigation }) {
               ]}
               onPress={() => setSelectedStaffId(opt.id)}
             >
-              <Ionicons name={opt.icon} size={16} color={on ? colorMarca : theme.icon} />
+              {opt.iconSet === 'MaterialCommunityIcons' ? (
+                <MaterialCommunityIcons name={opt.icon} size={16} color={on ? colorMarca : theme.icon} />
+              ) : (
+                <Ionicons name={opt.icon} size={16} color={on ? colorMarca : theme.icon} />
+              )}
               <Text style={[styles.chipTitle, { color: on ? colorMarca : theme.text }]} numberOfLines={1}>
                 {opt.label}
               </Text>
@@ -298,7 +422,7 @@ export default function AthleteMetricsScreen({ navigation }) {
               }
             >
 
-              {mediciones.length === 0 ? (
+              {!hasAnyMetrics ? (
                 <Text style={[styles.empty, { color: theme.textMuted }]}>{emptyMetricsMsg}</Text>
               ) : staffOptions.length === 0 ? (
                 <Text style={[styles.empty, { color: theme.textMuted }]}>
@@ -312,23 +436,27 @@ export default function AthleteMetricsScreen({ navigation }) {
                     <Text style={[styles.staffHead, { color: theme.text }]}>{selectedStaff.label}</Text>
                   ) : null}
 
-                  {isNutriStaff ? (
+                  {isPsiStaff ? (
+                    renderPsychNotes(psychTimelineRows)
+                  ) : isNutriStaff ? (
                     <NutriBodyFatPanel
                       mediciones={staffMediciones}
                       defs={defs}
                       atleta={atletaMeta}
                       theme={theme}
+                      isDarkMode={isDarkMode}
                       colorMarca={colorMarca}
                       metodoGrasaCorporal={nutricionSettings.metodoGrasaCorporal}
                     />
                   ) : null}
 
-                  {isNutriStaff ? (
+                  {isPsiStaff ? null : isNutriStaff ? (
                     <NutriStructuredChartsPanel
                       mediciones={staffMediciones}
                       defs={defs}
                       chartLayout={chartLayout}
                       theme={theme}
+                      isDarkMode={isDarkMode}
                       colorMarca={colorMarca}
                       emptyMessage="La nutricionista todavía no tiene mediciones visibles para vos."
                     />
@@ -340,6 +468,7 @@ export default function AthleteMetricsScreen({ navigation }) {
                       onChangeChartMetricId={setChartMetricId}
                       chartLayout={chartLayout}
                       theme={theme}
+                      isDarkMode={isDarkMode}
                       colorMarca={colorMarca}
                       emptyDefsMessage="El preparador físico todavía no tiene mediciones visibles para vos."
                     />
@@ -351,6 +480,7 @@ export default function AthleteMetricsScreen({ navigation }) {
                     <NutriMetricsChart
                       series={otherStaffChartSeries}
                       theme={theme}
+                      isDarkMode={isDarkMode}
                       colorMarca={colorMarca}
                       groupedNutriCharts
                       showLegend={false}
@@ -370,23 +500,34 @@ export default function AthleteMetricsScreen({ navigation }) {
                 <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />
               }
             >
-              {mediciones.length > 0 && staffOptions.length > 0 ? renderStaffChips() : null}
-              {renderSearchBox(searchHistorial, setSearchHistorial, 'Buscar en el historial…')}
+              {hasAnyMetrics && staffOptions.length > 0 ? renderStaffChips() : null}
+              {renderSearchBox(
+                searchHistorial,
+                setSearchHistorial,
+                isPsiStaff ? 'Buscar en notas…' : 'Buscar en el historial…',
+              )}
               <Text style={[styles.countHint, { color: theme.textMuted }]}>
                 {historialFiltered.length} registro{historialFiltered.length === 1 ? '' : 's'}
                 {selectedStaff ? ` · ${selectedStaff.label}` : ''}
               </Text>
               {historialFiltered.length === 0 ? (
                 <Text style={[styles.empty, { color: theme.textMuted }]}>
-                  {mediciones.length === 0
-                    ? 'Sin mediciones visibles por ahora.'
-                    : 'Ningún registro para este profesional con ese filtro.'}
+                  {!hasAnyMetrics
+                    ? 'Sin registros visibles por ahora.'
+                    : isPsiStaff
+                      ? 'Ninguna nota coincide con ese filtro.'
+                      : 'Ningún registro para este profesional con ese filtro.'}
                 </Text>
+              ) : isPsiStaff ? (
+                renderPsychNotes(historialFiltered)
               ) : (
                 historialFiltered.map((m) => (
-                  <View
+                  <DesignCard
                     key={m._id}
-                    style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                    theme={theme}
+                    isDarkMode={isDarkMode}
+                    accent={colorMarca}
+                    contentStyle={styles.cardInner}
                   >
                     <View style={styles.cardTop}>
                       <View style={{ flex: 1, minWidth: 0 }}>
@@ -414,7 +555,7 @@ export default function AthleteMetricsScreen({ navigation }) {
                         {m.evaluador.nombre} {m.evaluador.apellido || ''}
                       </Text>
                     ) : null}
-                  </View>
+                  </DesignCard>
                 ))
               )}
             </ScrollView>
@@ -482,7 +623,7 @@ const styles = StyleSheet.create({
   avgBannerVal: { fontSize: 26, fontWeight: '900' },
   avgBannerDate: { fontSize: 13, fontWeight: '600' },
   countHint: { fontSize: 12, marginBottom: 8 },
-  card: { borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 10 },
+  cardInner: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 14 },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 6 },
   metricName: { fontSize: 16, fontWeight: '800' },
   valor: { fontSize: 28, fontWeight: '900' },

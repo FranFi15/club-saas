@@ -15,6 +15,7 @@ import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
+import DesignCard from '../../components/DesignCard';
 import { sortByNombre } from '../../utils/listSort';
 import SearchableDropdown from '../../components/SearchableDropdown';
 import { maskTimeHHMM, isValidTimeHHMM } from '../../utils/timeDisplay';
@@ -31,6 +32,8 @@ function defaultVigenteHastaDisplay() {
   d.setDate(d.getDate() + 12 * 7);
   return formatJsDateToDisplay(d);
 }
+
+const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
 const EMPTY_FORM = {
   disciplina: '',
@@ -67,6 +70,7 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
   const [filterDay, setFilterDay] = useState('');
   const [filterDiscipline, setFilterDiscipline] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
+  const [openFilter, setOpenFilter] = useState(null); // 'day' | 'discipline' | 'category'
 
   useEffect(() => {
     getToken('userRol').then((r) => setViewerRol(r || ''));
@@ -248,7 +252,7 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
     });
   };
 
-  const diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+  const diasSemana = DIAS_SEMANA;
 
   const toggleDia = (dia) => {
     const current = formData.diasSemana;
@@ -283,7 +287,13 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
 
   const renderListItem = ({ item }) => (
     <Swipeable renderRightActions={() => renderRightActions(item)}>
-      <View style={[styles.card, { backgroundColor: theme.surface }]}>
+      <DesignCard
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent={colorMarca}
+        style={{ marginBottom: 12 }}
+        contentStyle={styles.cardInner}
+      >
         <View style={[styles.timeBox, { backgroundColor: colorMarca + '20' }]}>
           <Text style={[styles.dayText, { color: colorMarca }]}>{item.diaSemana.substring(0, 3).toUpperCase()}</Text>
           <Text style={[styles.timeText, { color: colorMarca }]}>{item.horaInicio}</Text>
@@ -305,9 +315,57 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
             </View>
           ) : null}
         </View>
-      </View>
+      </DesignCard>
     </Swipeable>
   );
+
+  const dayFilterOptions = useMemo(
+    () => [{ label: 'Todos los días', value: '' }, ...DIAS_SEMANA.map((d) => ({ label: d, value: d }))],
+    [],
+  );
+  const disciplineFilterOptions = useMemo(
+    () => [
+      { label: 'Todas las disciplinas', value: '' },
+      ...uniqueDisciplines.map((d) => ({ label: d, value: d })),
+    ],
+    [uniqueDisciplines],
+  );
+  const categoryFilterOptions = useMemo(
+    () => [
+      { label: 'Todas las categorías', value: '' },
+      ...uniqueCategories.map((c) => ({ label: c, value: c })),
+    ],
+    [uniqueCategories],
+  );
+
+  const filterPillDefs = [
+    {
+      key: 'day',
+      placeholder: 'Día',
+      value: filterDay,
+      options: dayFilterOptions,
+      onChange: setFilterDay,
+    },
+    {
+      key: 'discipline',
+      placeholder: 'Disciplina',
+      value: filterDiscipline,
+      options: disciplineFilterOptions,
+      onChange: (v) => {
+        setFilterDiscipline(v);
+        setFilterCategory('');
+      },
+    },
+    {
+      key: 'category',
+      placeholder: 'Categoría',
+      value: filterCategory,
+      options: categoryFilterOptions,
+      onChange: setFilterCategory,
+    },
+  ];
+
+  const activeFilterDef = filterPillDefs.find((f) => f.key === openFilter);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
@@ -316,45 +374,107 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
       <AdminScreenHeader
         theme={theme}
         colorMarca={colorMarca}
-        kicker="Planificación"
-        title="Grilla de entrenamientos"
+        kicker="Grilla"
+        title="Entrenamientos"
+        subtitle={clubData?.nombre || 'Tu club'}
         onBack={embeddedStaff ? undefined : () => navigation.goBack()}
       />
 
       <View style={styles.body}>
         {/* Filtros */}
         <View style={styles.filtersContainer}>
-          <SearchableDropdown 
-            data={[{ label: 'Todos los Días', value: '' }, ...diasSemana.map(d => ({ label: d, value: d }))]}
-            value={filterDay}
-            onChange={setFilterDay}
-            placeholder="Todos los Días"
-            theme={theme}
-            colorMarca={colorMarca}
-          />
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-            <View style={{ flex: 1 }}>
-              <SearchableDropdown 
-                data={[{ label: 'Todas las Disciplinas', value: '' }, ...uniqueDisciplines.map(d => ({ label: d, value: d }))]}
-                value={filterDiscipline}
-                onChange={(v) => { setFilterDiscipline(v); setFilterCategory(''); }}
-                placeholder="Disciplinas"
-                theme={theme}
-                colorMarca={colorMarca}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <SearchableDropdown 
-                data={[{ label: 'Todas las Categorías', value: '' }, ...uniqueCategories.map(c => ({ label: c, value: c }))]}
-                value={filterCategory}
-                onChange={setFilterCategory}
-                placeholder="Categorías"
-                theme={theme}
-                colorMarca={colorMarca}
+          <View style={styles.filterPillsRow}>
+            {filterPillDefs.map((f) => {
+              const selected = f.options.find((o) => o.value === f.value);
+              const hasValue = f.value !== '';
+              return (
+                <TouchableOpacity
+                  key={f.key}
+                  onPress={() => setOpenFilter(f.key)}
+                  style={[
+                    styles.filterChip,
+                    {
+                      borderColor: hasValue ? colorMarca : theme.border,
+                      backgroundColor: hasValue ? `${colorMarca}18` : theme.surface,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      color: hasValue ? colorMarca : theme.text,
+                      fontSize: 12,
+                      fontWeight: '600',
+                      flexShrink: 1,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {hasValue ? selected?.label || f.placeholder : f.placeholder}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={14}
+                    color={hasValue ? colorMarca : theme.textMuted}
+                    style={{ marginLeft: 4 }}
+                  />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        <Modal
+          visible={!!openFilter}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setOpenFilter(null)}
+        >
+          <View style={styles.filterModalOverlay}>
+            <View style={[styles.filterModalContent, { backgroundColor: theme.surface }]}>
+              <View style={styles.filterModalHeader}>
+                <TouchableOpacity onPress={() => setOpenFilter(null)} hitSlop={8}>
+                  <Ionicons name="close" size={26} color={theme.icon} />
+                </TouchableOpacity>
+                <Text style={[styles.filterModalTitle, { color: theme.text }]}>
+                  {activeFilterDef?.placeholder || 'Filtrar'}
+                </Text>
+                <View style={{ width: 26 }} />
+              </View>
+              <FlatList
+                data={activeFilterDef?.options || []}
+                keyExtractor={(item, index) =>
+                  item.value !== undefined && item.value !== ''
+                    ? String(item.value)
+                    : `all-${index}`
+                }
+                keyboardShouldPersistTaps="handled"
+                renderItem={({ item }) => {
+                  const selected = item.value === activeFilterDef?.value;
+                  return (
+                    <TouchableOpacity
+                      style={[styles.filterOptionRow, { borderBottomColor: theme.border }]}
+                      onPress={() => {
+                        activeFilterDef?.onChange(item.value);
+                        setOpenFilter(null);
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: selected ? colorMarca : theme.text,
+                          fontWeight: selected ? '700' : '500',
+                          fontSize: 15,
+                          flex: 1,
+                        }}
+                      >
+                        {item.label}
+                      </Text>
+                      {selected ? <Ionicons name="checkmark" size={22} color={colorMarca} /> : null}
+                    </TouchableOpacity>
+                  );
+                }}
               />
             </View>
           </View>
-        </View>
+        </Modal>
 
         {showInitialLoader ? (
           <ActivityIndicator size="large" color={colorMarca} style={{ marginTop: 50 }} />
@@ -536,7 +656,7 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   body: { flex: 1, paddingHorizontal: 20 },
-  card: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, marginBottom: 12, elevation: 1 },
+  cardInner: { flexDirection: 'row', alignItems: 'center' },
   timeBox: { width: 70, height: 70, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
   dayText: { fontSize: 13, fontWeight: 'bold' },
   timeText: { fontSize: 16, fontWeight: 'bold', marginVertical: 2 },
@@ -561,7 +681,45 @@ const styles = StyleSheet.create({
   chipText: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
   saveBtn: { height: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   saveBtnText: { color: '#ffffff', fontSize: 16, fontWeight: 'bold' },
-  filtersContainer: { marginTop: 10, marginBottom: 15 },
+  filtersContainer: { marginTop: 10, marginBottom: 10 },
+  filterPillsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  filterChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 5,
+    borderWidth: 1,
+    minWidth: 0,
+  },
+  filterModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  filterModalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 28,
+    maxHeight: '70%',
+  },
+  filterModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  filterModalTitle: { fontSize: 17, fontWeight: '700' },
+  filterOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
   pickerWrapper: { borderWidth: 1, borderRadius: 12, overflow: 'hidden', justifyContent: 'center' },
   actionBtn:  { width: 70, justifyContent: 'center', alignItems: 'center', height: '100%' },
 });

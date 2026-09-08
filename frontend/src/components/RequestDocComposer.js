@@ -19,8 +19,9 @@ import CustomAlert from './CustomAlert';
 import SearchableDropdown from './SearchableDropdown';
 import NewsMultiSelectList from './NewsMultiSelectList';
 import CoachNewsAthletePicker from './CoachNewsAthletePicker';
+import CalendarDateField from './CalendarDateField';
 import { sortByNombre, sortUsersByName } from '../utils/listSort';
-import { displayDateToIsoCalendar, maskDateDDMMAAAA } from '../utils/dateDisplay';
+import { displayDateToIsoCalendar } from '../utils/dateDisplay';
 import { USER_FILTER_ROLES, USER_ROL_LABELS, userRoleFilterLabel } from '../constants/userRoles';
 
 const DOC_ADMIN_ALCANCE = [
@@ -252,7 +253,7 @@ export default function RequestDocComposer({
     if (fechaVencimiento.trim()) {
       fechaIso = displayDateToIsoCalendar(fechaVencimiento.trim());
       if (!fechaIso) {
-        showAlert('Fecha', 'Usá el formato DD-MM-AAAA para el vencimiento.');
+        showAlert('Fecha', 'Elegí una fecha de vencimiento válida.');
         return;
       }
     }
@@ -342,14 +343,13 @@ export default function RequestDocComposer({
         />
 
         <Text style={[styles.label, { color: theme.textMuted }]}>Vencimiento (opcional)</Text>
-        <TextInput
-          style={inputStyle}
+        <CalendarDateField
+          theme={theme}
+          colorMarca={colorMarca}
           value={fechaVencimiento}
-          onChangeText={(t) => setFechaVencimiento(maskDateDDMMAAAA(t))}
-          placeholder="DD-MM-AAAA"
-          placeholderTextColor={theme.textMuted}
-          keyboardType="number-pad"
-          maxLength={10}
+          onChange={setFechaVencimiento}
+          placeholder="Sin vencimiento — tocá para elegir"
+          allowClear
         />
 
         <View style={[styles.switchRow, { borderColor: theme.border }]}>

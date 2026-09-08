@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useContext, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,8 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { finanzasStyles as s } from './finanzasStyles';
 import { fmtMoney } from './finanzasConstants';
 import CuotaSocialSection from './CuotaSocialSection';
+import DesignCard from '../../../components/DesignCard';
+import { ThemeContext } from '../../../context/ThemeContext';
 
 export default function PlanesTab({
   clubData,
@@ -38,6 +40,7 @@ export default function PlanesTab({
   onAssignPlan,
   isSavingAssignment,
 }) {
+  const { isDarkMode } = useContext(ThemeContext);
   const cc = primaryColor;
   const [planSearch, setPlanSearch] = useState('');
   const [assignSearch, setAssignSearch] = useState('');
@@ -133,61 +136,70 @@ export default function PlanesTab({
     setAssignTarget(null);
   };
 
-  const renderPlanCard = (item) => (
-    <Swipeable
-      key={item._id}
-      renderRightActions={() => (
-        <View style={{ flexDirection: 'row', marginBottom: 10, borderRadius: 5, overflow: 'hidden' }}>
-          {item.activo !== false ? (
-            <>
-              <TouchableOpacity onPress={() => onEditPlan(item)} style={[s.actionBtn, { backgroundColor: '#3b82f6' }]}>
-                <Ionicons name="pencil" size={20} color="#fff" />
+  const renderPlanCard = (item) => {
+    const active = item.activo !== false;
+    return (
+      <Swipeable
+        key={item._id}
+        renderRightActions={() => (
+          <View style={{ flexDirection: 'row', marginBottom: 14, borderRadius: 14, overflow: 'hidden' }}>
+            {active ? (
+              <>
+                <TouchableOpacity onPress={() => onEditPlan(item)} style={[s.actionBtn, { backgroundColor: '#3b82f6' }]}>
+                  <Ionicons name="pencil" size={20} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => onArchivePlan(item)} style={[s.actionBtn, { backgroundColor: '#ef4444' }]}>
+                  <Ionicons name="archive" size={20} color="#fff" />
+                </TouchableOpacity>
+              </>
+            ) : (
+              <TouchableOpacity onPress={() => onReactivatePlan(item)} style={[s.actionBtn, { backgroundColor: '#10b981' }]}>
+                <Ionicons name="refresh" size={20} color="#fff" />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => onArchivePlan(item)} style={[s.actionBtn, { backgroundColor: '#ef4444' }]}>
-                <Ionicons name="archive" size={20} color="#fff" />
-              </TouchableOpacity>
-            </>
-          ) : (
-            <TouchableOpacity onPress={() => onReactivatePlan(item)} style={[s.actionBtn, { backgroundColor: '#10b981' }]}>
-              <Ionicons name="refresh" size={20} color="#fff" />
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
-    >
-      <View style={[s.card, { backgroundColor: theme.surface, opacity: item.activo !== false ? 1 : 0.65 }]}>
-        <View style={[s.planIcon, { backgroundColor: cc + '15' }]}>
-          <Ionicons name="document-text-outline" size={22} color={cc} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.planName, { color: theme.text }]}>{item.nombre}</Text>
-          {item.descripcion ? (
-            <Text style={{ color: theme.textMuted, fontSize: 12 }} numberOfLines={1}>
-              {item.descripcion}
-            </Text>
-          ) : null}
-          {item.diaVencimiento ? (
-            <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 2 }}>
-              Vence día {item.diaVencimiento} de cada mes
-              {(item.porcentajeRecargo || 0) > 0 ? ` · +${item.porcentajeRecargo}% si vence` : ''}
-            </Text>
-          ) : (item.porcentajeRecargo || 0) > 0 ? (
-            <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 2 }}>
-              +{item.porcentajeRecargo}% si vence
-            </Text>
-          ) : null}
-        </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text style={[s.planMonto, { color: cc }]}>{fmtMoney(item.monto)}</Text>
-          <View style={[s.badge, { backgroundColor: item.activo !== false ? '#10b98120' : '#ef444420' }]}>
-            <Text style={{ color: item.activo !== false ? '#10b981' : '#ef4444', fontSize: 10, fontWeight: 'bold' }}>
-              {item.activo !== false ? 'Activo' : 'Archivado'}
-            </Text>
+            )}
           </View>
-        </View>
-      </View>
-    </Swipeable>
-  );
+        )}
+      >
+        <DesignCard
+          theme={theme}
+          isDarkMode={isDarkMode}
+          accent={active ? cc : '#ef4444'}
+          muted={!active}
+          contentStyle={s.cardInner}
+        >
+          <View style={[s.planIcon, { backgroundColor: cc + '15' }]}>
+            <Ionicons name="document-text-outline" size={22} color={cc} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.planName, { color: theme.text }]}>{item.nombre}</Text>
+            {item.descripcion ? (
+              <Text style={{ color: theme.textMuted, fontSize: 12 }} numberOfLines={1}>
+                {item.descripcion}
+              </Text>
+            ) : null}
+            {item.diaVencimiento ? (
+              <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 2 }}>
+                Vence día {item.diaVencimiento} de cada mes
+                {(item.porcentajeRecargo || 0) > 0 ? ` · +${item.porcentajeRecargo}% si vence` : ''}
+              </Text>
+            ) : (item.porcentajeRecargo || 0) > 0 ? (
+              <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 2 }}>
+                +{item.porcentajeRecargo}% si vence
+              </Text>
+            ) : null}
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={[s.planMonto, { color: cc }]}>{fmtMoney(item.monto)}</Text>
+            <View style={[s.badge, { backgroundColor: active ? '#10b98120' : '#ef444420' }]}>
+              <Text style={{ color: active ? '#10b981' : '#ef4444', fontSize: 10, fontWeight: 'bold' }}>
+                {active ? 'Activo' : 'Archivado'}
+              </Text>
+            </View>
+          </View>
+        </DesignCard>
+      </Swipeable>
+    );
+  };
 
   const renderAssignRow = (label, sublabel, planRef, onPress, indent) => (
     <TouchableOpacity

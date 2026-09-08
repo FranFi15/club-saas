@@ -12,7 +12,7 @@ import MemberCommsStack from './MemberCommsStack';
 import AthleteMetricsStack from './AthleteMetricsStack';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
-import { tabBadgeLabel } from '../utils/tabBadgeLabel';
+import { tabBadgeText } from '../utils/tabBadgeLabel';
 import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
 
 const Tab = createSwipeBottomTabNavigator();
@@ -53,40 +53,43 @@ function AthleteTabs() {
           };
           return <Ionicons name={map[name] || 'ellipse'} size={22} color={color} />;
         },
+        getBadge: (name) =>
+          ({
+            AthleteAgenda: tabBadgeText(tab('agenda')),
+            AthleteComunicar: tabBadgeText(tab('comunicar')),
+            AthleteProfile: tabBadgeText(tab('cuotas')),
+          })[name],
+        getLabel: (name) =>
+          ({
+            AthleteAgenda: 'Agenda',
+            AthleteWellness: 'Wellness',
+            AthleteComunicar: 'Social',
+            AthleteMetrics: 'Métricas',
+            AthleteProfile: 'Perfil',
+          })[name],
       })}
     >
       <Tab.Screen
         name="AthleteAgenda"
         component={AthleteAgendaStack}
-        options={{ tabBarLabel: 'Agenda', tabBarBadge: tabBadgeLabel(tab('agenda')) }}
         listeners={tabPressResetToRoot('AthleteAgenda', 'AthleteAgendaMain')}
       />
       <Tab.Screen
         name="AthleteWellness"
         component={AthleteWellnessStack}
-        options={{ tabBarLabel: 'Wellness' }}
         listeners={tabPressResetToRoot('AthleteWellness', 'AthleteWellnessMain')}
       />
       <Tab.Screen
         name="AthleteComunicar"
         component={MemberCommsStack}
-        options={{ tabBarLabel: 'Social', tabBarBadge: tabBadgeLabel(tab('comunicar')) }}
         listeners={tabPressResetToRoot('AthleteComunicar', 'MemberCommsHub')}
       />
       <Tab.Screen
         name="AthleteMetrics"
         component={AthleteMetricsStack}
-        options={{ tabBarLabel: 'Métricas' }}
         listeners={tabPressResetToRoot('AthleteMetrics', 'AthleteMetricsMain')}
       />
-      <Tab.Screen
-        name="AthleteProfile"
-        component={AthleteProfileStackNav}
-        options={{
-          tabBarLabel: 'Perfil',
-          tabBarBadge: tabBadgeLabel(tab('cuotas')),
-        }}
-      />
+      <Tab.Screen name="AthleteProfile" component={AthleteProfileStackNav} />
     </Tab.Navigator>
   );
 }

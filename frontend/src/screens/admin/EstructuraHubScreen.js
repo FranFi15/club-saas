@@ -7,6 +7,7 @@ import { getToken } from '../../utils/storage';
 import { clubApi } from '../../utils/api';
 import { useBadges } from '../../context/BadgeContext';
 import HubMenuCard from '../../components/HubMenuCard';
+import DesignCard from '../../components/DesignCard';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { isClubOwnerRole } from '../../constants/appRoles';
@@ -78,7 +79,13 @@ export default function EstructuraHubScreen({ navigation }) {
 
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         <View style={styles.statsRow}>
-          <View style={[styles.statBox, { backgroundColor: theme.surface }]}>
+          <DesignCard
+            theme={theme}
+            isDarkMode={isDarkMode}
+            accent={colorMarca}
+            style={styles.statCard}
+            contentStyle={styles.statInner}
+          >
             {loadingStats ? (
               <ActivityIndicator color={colorMarca} />
             ) : (
@@ -87,10 +94,16 @@ export default function EstructuraHubScreen({ navigation }) {
                 <Text style={[styles.statLabel, { color: theme.textMuted }]}>Atletas</Text>
               </>
             )}
-          </View>
+          </DesignCard>
           {isClubOwner ? (
             <>
-              <View style={[styles.statBox, { backgroundColor: theme.surface }]}>
+              <DesignCard
+                theme={theme}
+                isDarkMode={isDarkMode}
+                accent={colorMarca}
+                style={styles.statCard}
+                contentStyle={styles.statInner}
+              >
                 {loadingStats ? (
                   <ActivityIndicator color={colorMarca} />
                 ) : (
@@ -99,8 +112,14 @@ export default function EstructuraHubScreen({ navigation }) {
                     <Text style={[styles.statLabel, { color: theme.textMuted }]}>Disciplinas</Text>
                   </>
                 )}
-              </View>
-              <View style={[styles.statBox, { backgroundColor: theme.surface }]}>
+              </DesignCard>
+              <DesignCard
+                theme={theme}
+                isDarkMode={isDarkMode}
+                accent={colorMarca}
+                style={styles.statCard}
+                contentStyle={styles.statInner}
+              >
                 {loadingStats ? (
                   <ActivityIndicator color={colorMarca} />
                 ) : (
@@ -109,7 +128,7 @@ export default function EstructuraHubScreen({ navigation }) {
                     <Text style={[styles.statLabel, { color: theme.textMuted }]}>Categorías</Text>
                   </>
                 )}
-              </View>
+              </DesignCard>
             </>
           ) : null}
         </View>
@@ -126,7 +145,7 @@ export default function EstructuraHubScreen({ navigation }) {
             />
             <HubMenuCard
               title="Usuarios y Staff"
-              subtitle="Jugadores, profes, médicos y tutores"
+              subtitle="Jugadores, tutores, socios y staff del club"
               icon="people"
               theme={theme}
               colorMarca={colorMarca}
@@ -194,7 +213,7 @@ export default function EstructuraHubScreen({ navigation }) {
             />
             <HubMenuCard
               title="Usuarios y Staff"
-              subtitle="Jugadores, profes, médicos y tutores"
+              subtitle="Jugadores, tutores, socios y staff del club"
               icon="people"
               theme={theme}
               colorMarca={colorMarca}
@@ -254,19 +273,12 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   scrollContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 30 },
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: 24, justifyContent: 'space-between' },
-  statBox: {
-    flex: 1,
+  statCard: { flex: 1, marginBottom: 0 },
+  statInner: {
     paddingVertical: 16,
     paddingHorizontal: 8,
-    borderRadius: 5,
     alignItems: 'center',
-    minHeight: 88,
     justifyContent: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
   },
   statNumber: { fontSize: 22, fontWeight: 'bold' },
   statLabel: { fontSize: 12, marginTop: 6, textAlign: 'center' },

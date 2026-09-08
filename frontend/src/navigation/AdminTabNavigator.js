@@ -34,7 +34,7 @@ import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import MemberClubEntryScreen from '../screens/member/MemberClubEntryScreen';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
-import { tabBadgeLabel } from '../utils/tabBadgeLabel';
+import { tabBadgeText } from '../utils/tabBadgeLabel';
 import { getToken } from '../utils/storage';
 import { isClubOwnerRole } from '../constants/appRoles';
 import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
@@ -144,24 +144,34 @@ export default function AdminTabNavigator() {
           if (name === 'Perfil') iconName = focused ? 'person' : 'person-outline';
           return <Ionicons name={iconName} size={22} color={color} />;
         },
+        getBadge: (name) =>
+          ({
+            Estructura: tabBadgeText(tab('estructura')),
+            Gestión: tabBadgeText(tab('gestion')),
+            Finanzas: tabBadgeText(tab('finanzas')),
+          })[name],
+        getLabel: (name) =>
+          ({
+            Estructura: estructuraTabLabel,
+            Gestión: 'Gestión',
+            Finanzas: 'Finanzas',
+            Perfil: 'Perfil',
+          })[name],
       })}
     >
       <Tab.Screen
         name="Estructura"
         component={EstructuraStackNavigator}
-        options={{ tabBarLabel: estructuraTabLabel, tabBarBadge: tabBadgeLabel(tab('estructura')) }}
         listeners={tabPressResetToRoot('Estructura', 'EstructuraHome')}
       />
       <Tab.Screen
         name="Gestión"
         component={GestionStackNavigator}
-        options={{ tabBarBadge: tabBadgeLabel(tab('gestion')) }}
         listeners={tabPressResetToRoot('Gestión', 'GestionMenu')}
       />
       <Tab.Screen
         name="Finanzas"
         component={FinanzasStackNavigator}
-        options={{ tabBarBadge: tabBadgeLabel(tab('finanzas')) }}
         listeners={tabPressResetToRoot('Finanzas', 'FinanzasHome')}
       />
       <Tab.Screen

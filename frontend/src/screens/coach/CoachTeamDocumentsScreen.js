@@ -372,8 +372,6 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
     await submitReview(item, 'rechazado', motivo);
   };
 
-  const pendingCount = useMemo(() => list.filter((s) => s.estado === 'revision').length, [list]);
-
   const estadoOptions = useMemo(
     () => ESTADO_FILTERS.map((f) => ({ label: f.label, value: f.value })),
     [],
@@ -553,13 +551,7 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
         theme={theme}
         kicker={isAdminVariant ? 'Gestión' : 'Equipo'}
         title={isAdminVariant ? 'Revisar documentación' : 'Documentación enviada'}
-        subtitle={
-          pendingCount > 0
-            ? `${pendingCount} pendiente${pendingCount === 1 ? '' : 's'} de revisión`
-            : isAdminVariant
-              ? 'Revisá todas las entregas del club'
-              : 'Revisá y aprobá lo que subieron tus atletas'
-        }
+        subtitle={clubData?.nombre || 'Tu club'}
         onBack={() => navigation.goBack()}
       />
 

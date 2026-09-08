@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { finanzasStyles as s } from './finanzasStyles';
 import { MN, ESTADO_FILTROS, EST_COLOR, fmtMoney } from './finanzasConstants';
 import SearchableDropdown from '../../../components/SearchableDropdown';
+import DesignCard from '../../../components/DesignCard';
+import { ThemeContext } from '../../../context/ThemeContext';
 
 export default function CuotasTab({
   theme,
@@ -28,15 +30,22 @@ export default function CuotasTab({
   onOpenPay,
   autoGenerateNote,
 }) {
+  const { isDarkMode } = useContext(ThemeContext);
   const cc = primaryColor;
 
   const renderPayment = (item) => {
     const ec = EST_COLOR[item.estado] || '#999';
+    const canPay = item.estado !== 'pagado';
     return (
-      <TouchableOpacity
-        style={[s.card, { backgroundColor: theme.surface }]}
-        onPress={() => (item.estado !== 'pagado' ? onOpenPay(item) : null)}
-        disabled={item.estado === 'pagado'}
+      <DesignCard
+        key={item._id}
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent={ec}
+        onPress={canPay ? () => onOpenPay(item) : undefined}
+        muted={!canPay}
+        contentStyle={s.cardInner}
+        style={{ marginBottom: 10 }}
       >
         <View style={{ flex: 1 }}>
           <Text style={[s.planName, { color: theme.text }]}>
@@ -56,7 +65,7 @@ export default function CuotasTab({
             <Text style={{ color: ec, fontSize: 10, fontWeight: 'bold', textTransform: 'capitalize' }}>{item.estado}</Text>
           </View>
         </View>
-      </TouchableOpacity>
+      </DesignCard>
     );
   };
 
@@ -70,7 +79,13 @@ export default function CuotasTab({
         keyboardShouldPersistTaps="handled"
       >
         <Text style={[s.sectionTitle, { color: theme.text }]}>Período</Text>
-        <View style={[s.monthRow, { backgroundColor: theme.surface }]}>
+        <DesignCard
+          theme={theme}
+          isDarkMode={isDarkMode}
+          accent={cc}
+          contentStyle={s.monthRowInner}
+          style={{ marginTop: 15, marginBottom: 10 }}
+        >
           <TouchableOpacity onPress={onPrevMonth} accessibilityLabel="Mes anterior">
             <Ionicons name="chevron-back" size={24} color={cc} />
           </TouchableOpacity>
@@ -80,7 +95,7 @@ export default function CuotasTab({
           <TouchableOpacity onPress={onNextMonth} accessibilityLabel="Mes siguiente">
             <Ionicons name="chevron-forward" size={24} color={cc} />
           </TouchableOpacity>
-        </View>
+        </DesignCard>
 
         <View style={styles.resumenToggleRow}>
           <Text style={[s.sectionTitle, { color: theme.text, marginTop: 8, marginBottom: 0 }]}>Resumen</Text>
@@ -98,28 +113,58 @@ export default function CuotasTab({
         {showResumen ? (
           <>
             <View style={s.statsRow}>
-              <View style={[s.statBox, { backgroundColor: theme.surface }]}>
+              <DesignCard
+                theme={theme}
+                isDarkMode={isDarkMode}
+                accent={cc}
+                style={s.statCard}
+                contentStyle={s.statInner}
+              >
                 <Text style={{ color: cc, fontSize: 18, fontWeight: 'bold' }}>{fmtMoney(stats.totalFacturado)}</Text>
                 <Text style={{ color: theme.textMuted, fontSize: 11 }}>Facturado</Text>
-              </View>
-              <View style={[s.statBox, { backgroundColor: theme.surface }]}>
+              </DesignCard>
+              <DesignCard
+                theme={theme}
+                isDarkMode={isDarkMode}
+                accent="#10b981"
+                style={s.statCard}
+                contentStyle={s.statInner}
+              >
                 <Text style={{ color: '#10b981', fontSize: 18, fontWeight: 'bold' }}>{fmtMoney(stats.totalCobrado)}</Text>
                 <Text style={{ color: theme.textMuted, fontSize: 11 }}>Cobrado</Text>
-              </View>
+              </DesignCard>
             </View>
             <View style={s.statsRow}>
-              <View style={[s.statMini, { backgroundColor: theme.surface }]}>
+              <DesignCard
+                theme={theme}
+                isDarkMode={isDarkMode}
+                accent="#10b981"
+                style={s.statCard}
+                contentStyle={s.statMiniInner}
+              >
                 <Text style={{ color: '#10b981', fontWeight: 'bold' }}>{stats.pagados || 0}</Text>
                 <Text style={{ color: theme.textMuted, fontSize: 10 }}>Pagados</Text>
-              </View>
-              <View style={[s.statMini, { backgroundColor: theme.surface }]}>
+              </DesignCard>
+              <DesignCard
+                theme={theme}
+                isDarkMode={isDarkMode}
+                accent="#f59e0b"
+                style={s.statCard}
+                contentStyle={s.statMiniInner}
+              >
                 <Text style={{ color: '#f59e0b', fontWeight: 'bold' }}>{stats.pendientes || 0}</Text>
                 <Text style={{ color: theme.textMuted, fontSize: 10 }}>Pendientes</Text>
-              </View>
-              <View style={[s.statMini, { backgroundColor: theme.surface }]}>
+              </DesignCard>
+              <DesignCard
+                theme={theme}
+                isDarkMode={isDarkMode}
+                accent="#ef4444"
+                style={s.statCard}
+                contentStyle={s.statMiniInner}
+              >
                 <Text style={{ color: '#ef4444', fontWeight: 'bold' }}>{stats.vencidos || 0}</Text>
                 <Text style={{ color: theme.textMuted, fontSize: 10 }}>Vencidos</Text>
-              </View>
+              </DesignCard>
             </View>
           </>
         ) : null}
@@ -182,7 +227,7 @@ export default function CuotasTab({
             <Text style={[s.emptySub, { color: theme.textMuted }]}>Generá cuotas o probá otros filtros / mes.</Text>
           </View>
         ) : (
-          payments.map((p) => <View key={p._id}>{renderPayment(p)}</View>)
+          payments.map((p) => renderPayment(p))
         )}
       </ScrollView>
     </View>

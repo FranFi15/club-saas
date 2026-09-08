@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
   StatusBar,
@@ -17,6 +16,7 @@ import { ThemeContext } from '../../context/ThemeContext';
 import { useBadges } from '../../context/BadgeContext';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import BadgeDot from '../../components/BadgeDot';
+import DesignCard from '../../components/DesignCard';
 import { clubApi } from '../../utils/api';
 import { getToken } from '../../utils/storage';
 
@@ -82,10 +82,12 @@ export default function AdminPendientesScreen({ navigation }) {
   };
 
   const renderItem = ({ item }) => (
-    <TouchableOpacity
-      style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}
+    <DesignCard
+      theme={theme}
+      isDarkMode={isDarkMode}
+      accent={colorMarca}
       onPress={() => navigatePendingItem(navigation, item.nav)}
-      activeOpacity={0.75}
+      contentStyle={styles.rowInner}
     >
       <View style={[styles.iconWrap, { backgroundColor: colorMarca + '18' }]}>
         <Ionicons name={item.icon || 'alert-circle-outline'} size={22} color={colorMarca} />
@@ -100,7 +102,7 @@ export default function AdminPendientesScreen({ navigation }) {
       </View>
       <BadgeDot count={item.count || 0} />
       <Ionicons name="chevron-forward" size={20} color={theme.icon} />
-    </TouchableOpacity>
+    </DesignCard>
   );
 
   return (
@@ -111,7 +113,7 @@ export default function AdminPendientesScreen({ navigation }) {
         colorMarca={colorMarca}
         kicker="Gestión"
         title="Pendientes"
-        subtitle="Todo lo que necesita tu atención"
+        subtitle={clubData?.nombre || 'Tu club'}
         onBack={() => navigation.goBack()}
       />
       {loading ? (
@@ -143,14 +145,13 @@ export default function AdminPendientesScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   list: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 },
-  row: {
+  rowInner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    marginBottom: 10,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
   },
   iconWrap: {
     width: 44,

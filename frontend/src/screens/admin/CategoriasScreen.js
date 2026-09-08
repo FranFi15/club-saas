@@ -15,6 +15,7 @@ import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
+import DesignCard from '../../components/DesignCard';
 import { sortByNombre } from '../../utils/listSort';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 
@@ -240,33 +241,38 @@ export default function CategoriasScreen({ navigation, route }) {
 
   const renderItem = ({ item }) => (
     <Swipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>
-      {/* NAVEGACIÓN A DETALLE DE CATEGORIA */}
-      <TouchableOpacity 
-        style={[styles.card, { backgroundColor: theme.surface }]}
-        activeOpacity={0.7}
+      <DesignCard
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent={colorMarca}
         onPress={() => navigation.navigate('DetalleCategoria', { categoria: item })}
+        style={{ marginBottom: 12 }}
+        contentStyle={styles.cardInner}
       >
         <View style={styles.cardContent}>
           <View style={[styles.iconBox, { backgroundColor: colorMarca + '20' }]}>
             <Ionicons name="people" size={24} color={colorMarca} />
           </View>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={[styles.cardTitle, { color: theme.text }]}>{item.nombre}</Text>
             <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 3 }}>
-              Plan auto: {item.planDefault?.nombre || 'Sin plan'}
+              Plan: {item.planDefault?.nombre || 'Sin plan'}
               {item.planDefault?.monto ? ` • $${Number(item.planDefault.monto).toLocaleString('es-AR')}` : ''}
             </Text>
             <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 3 }}>
               {item.sexo === 'M' ? 'Solo varones' : item.sexo === 'F' ? 'Solo mujeres' : 'Varones y mujeres'}
-              {(item.edadMinima || item.edadMaxima) ? ' · ' : ''}
-              {item.edadMinima ? `Desde ${item.edadMinima} años` : ''}
-              {item.edadMinima && item.edadMaxima ? ' - ' : ''}
-              {item.edadMaxima ? `Hasta ${item.edadMaxima} años` : ''}
             </Text>
+            {(item.edadMinima || item.edadMaxima) ? (
+              <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 2 }}>
+                {item.edadMinima ? `Desde ${item.edadMinima} años` : ''}
+                {item.edadMinima && item.edadMaxima ? ' - ' : ''}
+                {item.edadMaxima ? `Hasta ${item.edadMaxima} años` : ''}
+              </Text>
+            ) : null}
           </View>
         </View>
         <Ionicons name="chevron-forward" size={20} color={theme.icon} />
-      </TouchableOpacity>
+      </DesignCard>
     </Swipeable>
   );
 
@@ -490,8 +496,8 @@ export default function CategoriasScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   body: { flex: 1, paddingHorizontal: 20 },
-  card: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 15, borderRadius: 5, marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
-  cardContent: { flexDirection: 'row', alignItems: 'center' },
+  cardInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  cardContent: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   iconBox: { padding: 10, borderRadius: 10, marginRight: 15 },
   cardTitle: { fontSize: 16, fontWeight: '600' },
   swipeActionsContainer: { flexDirection: 'row', marginBottom: 12, overflow: 'hidden', borderRadius: 5 },

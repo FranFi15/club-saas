@@ -19,25 +19,7 @@ import { clubHeaders } from '../athlete/athleteApi';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScreenHeader';
 import MemberChildPicker from '../../components/MemberChildPicker';
-import { platformCardShadow } from '../../utils/platformShadow';
-
-const SHORTCUTS = [
-  { tab: 'TutorAgenda', icon: 'calendar-outline', label: 'Agenda' },
-  { tab: 'TutorWellness', icon: 'fitness-outline', label: 'Wellness' },
-  { tab: 'TutorProfile', screen: 'TutorPayments', icon: 'wallet-outline', label: 'Cuotas' },
-  {
-    tab: 'TutorComunicar',
-    screen: 'MemberCommsHub',
-    icon: 'chatbubbles-outline',
-    label: 'Comunicar',
-  },
-  {
-    tab: 'TutorComunicar',
-    screen: 'MemberDocuments',
-    icon: 'document-attach-outline',
-    label: 'Documentación',
-  },
-];
+import DesignCard from '../../components/DesignCard';
 
 function fmtMoney(n) {
   return `$${(n || 0).toLocaleString('es-AR')}`;
@@ -79,14 +61,6 @@ export default function TutorHomeScreen({ navigation }) {
     [dashboard, activeAtletaId],
   );
 
-  const navigateShortcut = (s) => {
-    if (s.screen) {
-      navigation.navigate(s.tab, { screen: s.screen });
-    } else {
-      navigation.navigate(s.tab);
-    }
-  };
-
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
@@ -123,7 +97,7 @@ export default function TutorHomeScreen({ navigation }) {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
         >
           {!hijos.length ? (
-            <View style={[styles.emptyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <DesignCard theme={theme} isDarkMode={isDarkMode} accent={colorMarca} contentStyle={styles.emptyInner}>
               <Ionicons name="alert-circle-outline" size={40} color={theme.icon} />
               <Text style={[styles.emptyTitle, { color: theme.text }]}>Sin atletas vinculados</Text>
               <Text style={[styles.emptySub, { color: theme.textMuted }]}>
@@ -133,11 +107,11 @@ export default function TutorHomeScreen({ navigation }) {
               <TouchableOpacity style={[styles.retryBtn, { backgroundColor: colorMarca }]} onPress={onRefresh}>
                 <Text style={styles.retryBtnTxt}>Reintentar</Text>
               </TouchableOpacity>
-            </View>
+            </DesignCard>
           ) : (
             <>
               {activeHijo && activeSummary ? (
-                <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }, platformCardShadow(4)]}>
+                <DesignCard theme={theme} isDarkMode={isDarkMode} accent={colorMarca} contentStyle={styles.summaryInner}>
                   <Text style={[styles.summaryKicker, { color: colorMarca }]}>Resumen del atleta</Text>
                   <Text style={[styles.summaryTitle, { color: theme.text }]}>
                     {activeHijo.nombre} {activeHijo.apellido}
@@ -195,24 +169,8 @@ export default function TutorHomeScreen({ navigation }) {
                       ) : null}
                     </View>
                   )}
-                </View>
+                </DesignCard>
               ) : null}
-
-              <Text style={[styles.section, { color: theme.text }]}>
-                {activeHijo ? `Accesos de ${activeHijo.nombre}` : 'Accesos rápidos'}
-              </Text>
-              <View style={styles.grid}>
-                {SHORTCUTS.map((s) => (
-                  <TouchableOpacity
-                    key={`${s.tab}-${s.screen || s.label}`}
-                    style={[styles.tile, { backgroundColor: theme.surface, borderColor: theme.border }, platformCardShadow(3)]}
-                    onPress={() => navigateShortcut(s)}
-                  >
-                    <Ionicons name={s.icon} size={28} color={colorMarca} />
-                    <Text style={[styles.tileLbl, { color: theme.text }]}>{s.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
             </>
           )}
         </ScrollView>
@@ -226,7 +184,7 @@ const styles = StyleSheet.create({
   scroll: { padding: 16, paddingBottom: 32 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   heroBadgeTxt: { color: '#fff', fontWeight: '700', fontSize: 12 },
-  summaryCard: { borderRadius: 14, borderWidth: 1, padding: 16, marginBottom: 16 },
+  summaryInner: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16 },
   summaryKicker: {
     fontSize: 11,
     fontWeight: '800',
@@ -250,20 +208,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   alertTxt: { flex: 1, fontSize: 14, fontWeight: '600' },
-  section: { fontSize: 16, fontWeight: '700', marginBottom: 10, marginTop: 4 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  tile: {
-    width: '47%',
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 18,
-    alignItems: 'center',
-    gap: 10,
-  },
-  tileLbl: { fontSize: 14, fontWeight: '600', textAlign: 'center' },
-  emptyCard: {
-    borderRadius: 14,
-    borderWidth: 1,
+  emptyInner: {
     padding: 24,
     alignItems: 'center',
     gap: 12,

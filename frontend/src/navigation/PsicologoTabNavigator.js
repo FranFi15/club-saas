@@ -15,6 +15,7 @@ import CoachSessionDetailScreen from '../screens/coach/CoachSessionDetailScreen'
 import CoachCancelSessionScreen from '../screens/coach/CoachCancelSessionScreen';
 import CoachCategoriesScreen from '../screens/coach/CoachCategoriesScreen';
 import StaffAthleteRosterScreen from '../screens/staff/StaffAthleteRosterScreen';
+import PsychologyAthleteNotesScreen from '../screens/staff/PsychologyAthleteNotesScreen';
 import CoachCategoryDetailScreen from '../screens/coach/CoachCategoryDetailScreen';
 import CoachWellnessScreen from '../screens/coach/CoachWellnessScreen';
 import CoachTeamDocumentsScreen from '../screens/coach/CoachTeamDocumentsScreen';
@@ -28,7 +29,7 @@ import ChatThreadScreen from '../screens/chat/ChatThreadScreen';
 import ChatNewScreen from '../screens/chat/ChatNewScreen';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
-import { tabBadgeLabel } from '../utils/tabBadgeLabel';
+import { tabBadgeText } from '../utils/tabBadgeLabel';
 import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
 
 const Tab = createSwipeBottomTabNavigator();
@@ -66,11 +67,13 @@ function PsiTeamStackNav() {
         component={StaffAthleteRosterScreen}
         initialParams={{ categoriesScreen: 'CoachCategories', showMeasurements: false }}
       />
+      <PsiTeamStack.Screen name="PsychologyAthleteNotes" component={PsychologyAthleteNotesScreen} />
       <PsiTeamStack.Screen name="CoachCategories" component={CoachCategoriesScreen} />
       <PsiTeamStack.Screen name="CoachCategoryDetail" component={CoachCategoryDetailScreen} />
       <PsiTeamStack.Screen name="CoachWellness" component={CoachWellnessScreen} />
       <PsiTeamStack.Screen name="CoachTeamDocuments" component={CoachTeamDocumentsScreen} />
       <PsiTeamStack.Screen name="CoachMediaViewer" component={MemberMediaViewerScreen} />
+      <PsiTeamStack.Screen name="CoachSessionDetail" component={CoachSessionDetailScreen} />
     </PsiTeamStack.Navigator>
   );
 }
@@ -127,37 +130,45 @@ export default function PsicologoTabNavigator() {
           };
           return <Ionicons name={map[name] || 'ellipse'} size={22} color={color} />;
         },
+        getBadge: (name) =>
+          ({
+            PsiInicio: tabBadgeText(tab('inicio')),
+            PsiSesiones: tabBadgeText(tab('sesiones')),
+            PsiEquipo: tabBadgeText(tab('equipo')),
+            PsiComunicar: tabBadgeText(tab('comunicar')),
+            PsiPerfil: tabBadgeText(tab('perfil')),
+          })[name],
+        getLabel: (name) =>
+          ({
+            PsiInicio: 'Inicio',
+            PsiSesiones: 'Sesiones',
+            PsiEquipo: 'Atletas',
+            PsiComunicar: 'Social',
+            PsiPerfil: 'Perfil',
+          })[name],
       })}
     >
       <Tab.Screen
         name="PsiInicio"
         component={PsiHomeStackNav}
-        options={{ tabBarLabel: 'Inicio', tabBarBadge: tabBadgeLabel(tab('inicio')) }}
         listeners={tabPressResetToRoot('PsiInicio', 'PsiDashboardMain')}
       />
       <Tab.Screen
         name="PsiSesiones"
         component={PsiSessionsStackNav}
-        options={{ tabBarLabel: 'Sesiones', tabBarBadge: tabBadgeLabel(tab('sesiones')) }}
         listeners={tabPressResetToRoot('PsiSesiones', 'PsychologyAgenda')}
       />
       <Tab.Screen
         name="PsiEquipo"
         component={PsiTeamStackNav}
-        options={{ tabBarLabel: 'Atletas', tabBarBadge: tabBadgeLabel(tab('equipo')) }}
         listeners={tabPressResetToRoot('PsiEquipo', 'PsiRoster')}
       />
       <Tab.Screen
         name="PsiComunicar"
         component={PsiCommsStackNav}
-        options={{ tabBarLabel: 'Social', tabBarBadge: tabBadgeLabel(tab('comunicar')) }}
         listeners={tabPressResetToRoot('PsiComunicar', 'CoachCommsHub')}
       />
-      <Tab.Screen
-        name="PsiPerfil"
-        component={PsiProfileStackNav}
-        options={{ tabBarLabel: 'Perfil', tabBarBadge: tabBadgeLabel(tab('perfil')) }}
-      />
+      <Tab.Screen name="PsiPerfil" component={PsiProfileStackNav} />
     </Tab.Navigator>
   );
 }

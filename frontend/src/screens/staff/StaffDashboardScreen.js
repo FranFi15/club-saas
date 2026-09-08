@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   ScrollView,
   StatusBar,
 } from 'react-native';
@@ -19,6 +18,8 @@ import {
 } from '../../constants/appRoles';
 import { formatRolStaff } from './staffUtils';
 import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScreenHeader';
+import HubMenuCard from '../../components/HubMenuCard';
+import DesignCard from '../../components/DesignCard';
 
 export default function StaffDashboardScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
@@ -42,23 +43,6 @@ export default function StaffDashboardScreen({ navigation }) {
   const showAgenda = rol && STAFF_AGENDA_ROLES.includes(rol);
   const showNewsComposer = rol && STAFF_NEWS_AUTHOR_ROLES.includes(rol);
 
-  const Card = ({ icon, title, subtitle, onPress }) => (
-    <TouchableOpacity
-      style={[styles.card, { backgroundColor: theme.surface }]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <View style={[styles.cardIconWrap, { backgroundColor: colorMarca + '18' }]}>
-        <Ionicons name={icon} size={26} color={colorMarca} />
-      </View>
-      <View style={styles.cardText}>
-        <Text style={[styles.cardTitle, { color: theme.text }]}>{title}</Text>
-        <Text style={[styles.cardSubtitle, { color: theme.textMuted }]}>{subtitle}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={22} color={theme.icon} />
-    </TouchableOpacity>
-  );
-
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
@@ -81,7 +65,9 @@ export default function StaffDashboardScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Accesos rápidos</Text>
 
-        <Card
+        <HubMenuCard
+          theme={theme}
+          colorMarca={colorMarca}
           icon="megaphone-outline"
           title="Comunicaciones"
           subtitle={
@@ -93,19 +79,23 @@ export default function StaffDashboardScreen({ navigation }) {
         />
 
         {showAgenda ? (
-          <Card
+          <HubMenuCard
+            theme={theme}
+            colorMarca={colorMarca}
             icon="calendar-outline"
             title="Grilla semanal"
             subtitle="Horarios fijos por categoría"
             onPress={() => navigation.navigate('Agenda')}
           />
         ) : (
-          <View style={[styles.mutedStrip, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Ionicons name="information-circle-outline" size={20} color={theme.icon} />
-            <Text style={[styles.mutedStripTxt, { color: theme.textMuted }]}>
-              La grilla de horarios aparece aquí solo para profes y preparadores físicos en esta primera versión.
-            </Text>
-          </View>
+          <DesignCard theme={theme} isDarkMode={isDarkMode} accent={colorMarca} muted contentStyle={styles.mutedInner}>
+            <View style={styles.mutedRow}>
+              <Ionicons name="information-circle-outline" size={20} color={theme.icon} />
+              <Text style={[styles.mutedStripTxt, { color: theme.textMuted }]}>
+                La grilla de horarios aparece aquí solo para profes y preparadores físicos en esta primera versión.
+              </Text>
+            </View>
+          </DesignCard>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -124,30 +114,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginLeft: 2,
   },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-  },
-  cardIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cardText: { flex: 1, marginHorizontal: 12 },
-  cardTitle: { fontSize: 16, fontWeight: '700' },
-  cardSubtitle: { fontSize: 13, marginTop: 4, lineHeight: 18 },
-  mutedStrip: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
+  mutedInner: { paddingHorizontal: 14, paddingVertical: 14 },
+  mutedRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   mutedStripTxt: { flex: 1, fontSize: 13, lineHeight: 19 },
 });

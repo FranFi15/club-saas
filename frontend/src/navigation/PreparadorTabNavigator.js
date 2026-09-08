@@ -32,7 +32,7 @@ import ChatNewScreen from '../screens/chat/ChatNewScreen';
 import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
-import { tabBadgeLabel } from '../utils/tabBadgeLabel';
+import { tabBadgeText } from '../utils/tabBadgeLabel';
 
 const Tab = createSwipeBottomTabNavigator();
 const PrepHomeStack = createNativeStackNavigator();
@@ -134,37 +134,45 @@ export default function PreparadorTabNavigator() {
           };
           return <Ionicons name={map[name] || 'ellipse'} size={22} color={color} />;
         },
+        getBadge: (name) =>
+          ({
+            PrepInicio: tabBadgeText(tab('inicio')),
+            PrepSesiones: tabBadgeText(tab('sesiones')),
+            PrepEquipo: tabBadgeText(tab('equipo')),
+            PrepComunicar: tabBadgeText(tab('comunicar')),
+            PrepPerfil: tabBadgeText(tab('perfil')),
+          })[name],
+        getLabel: (name) =>
+          ({
+            PrepInicio: 'Inicio',
+            PrepSesiones: 'Sesiones',
+            PrepEquipo: 'Atletas',
+            PrepComunicar: 'Social',
+            PrepPerfil: 'Perfil',
+          })[name],
       })}
     >
       <Tab.Screen
         name="PrepInicio"
         component={PrepHomeStackNav}
-        options={{ tabBarLabel: 'Inicio', tabBarBadge: tabBadgeLabel(tab('inicio')) }}
         listeners={tabPressResetToRoot('PrepInicio', 'PrepDashboardMain')}
       />
       <Tab.Screen
         name="PrepSesiones"
         component={PrepSessionsStackNav}
-        options={{ tabBarLabel: 'Sesiones', tabBarBadge: tabBadgeLabel(tab('sesiones')) }}
         listeners={tabPressResetToRoot('PrepSesiones', 'CoachAgenda')}
       />
       <Tab.Screen
         name="PrepEquipo"
         component={PrepTeamStackNav}
-        options={{ tabBarLabel: 'Atletas', tabBarBadge: tabBadgeLabel(tab('equipo')) }}
         listeners={tabPressResetToRoot('PrepEquipo', 'PrepRoster')}
       />
       <Tab.Screen
         name="PrepComunicar"
         component={PrepCommsStackNav}
-        options={{ tabBarLabel: 'Social', tabBarBadge: tabBadgeLabel(tab('comunicar')) }}
         listeners={tabPressResetToRoot('PrepComunicar', 'CoachCommsHub')}
       />
-      <Tab.Screen
-        name="PrepPerfil"
-        component={PrepProfileStackNav}
-        options={{ tabBarLabel: 'Perfil', tabBarBadge: tabBadgeLabel(tab('perfil')) }}
-      />
+      <Tab.Screen name="PrepPerfil" component={PrepProfileStackNav} />
     </Tab.Navigator>
   );
 }

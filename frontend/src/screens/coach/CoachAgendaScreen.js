@@ -1,4 +1,4 @@
-import React, { useContext, useCallback, useState } from 'react';
+import React, { useContext, useCallback, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,15 +16,27 @@ import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
 import { clubApi } from '../../utils/api';
 import CustomAlert from '../../components/CustomAlert';
-import CoachCategoryFilter from '../../components/CoachCategoryFilter';
 import CoachScreenHeader, {
   CoachHeaderOverlayFab,
   CoachScreenHeaderWithFabs,
 } from '../../components/CoachScreenHeader';
+import FilterPillSheet from '../../components/FilterPillSheet';
+import DesignCard from '../../components/DesignCard';
 import { compareIsoCalendarDates, isoCalendarDateToDisplay, isoCalendarWeekday } from '../../utils/dateDisplay';
-import { sessionDisplayName, sessionEsOpcional } from '../../utils/sessionDisplay';
+import { sessionDisplayName, sessionEsOpcional, isSessionPast, isSessionReadOnly, sessionTipoVisual } from '../../utils/sessionDisplay';
 import { sortByNombre } from '../../utils/listSort';
+import {
+  categoriesGroupedByDisciplina,
+  categoryPillLabel,
+} from '../../utils/categoryFilterOptions';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+
+const ESTADO_OPTIONS = [
+  { label: 'Todos los estados', value: '' },
+  { label: 'Programadas', value: 'programada' },
+  { label: 'Completadas', value: 'completada' },
+  { label: 'Canceladas', value: 'cancelada' },
+];
 
 function sessionLabel(s) {
   const weekday = isoCalendarWeekday(s.fecha, { style: 'long' });
@@ -40,14 +52,25 @@ function sessionAttendancePct(s) {
   return Math.round((ok / rows.length) * 100);
 }
 
+function estadoLabel(item) {
+  if (item.reubicacionPendiente) return 'Lugar pendiente';
+  if (item.estado === 'completada') return 'Completada';
+  if (item.estado === 'cancelada') return 'Cancelada';
+  return 'Programada';
+}
+
 export default function CoachAgendaScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
 
-  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  const [selectedEstado, setSelectedEstado] = useState('');
+  const [openFilter, setOpenFilter] = useState(null);
+  const [reactivatingId, setReactivatingId] = useState(null);
+
   const agendaCacheKey = clubData?.urlIdentifier
-    ? `coach-agenda:${clubData.urlIdentifier}:${selectedCategoryId || 'all'}`
+    ? `coach-agenda:v2:${clubData.urlIdentifier}:${selectedCategoryId || 'all'}:${selectedEstado || 'all'}`
     : '';
 
   const [categories, setCategories] = useState(() => readScreenCache(agendaCacheKey)?.categories ?? []);
@@ -66,19 +89,21 @@ export default function CoachAgendaScreen({ navigation }) {
     onCancel: () => {},
   });
 
-  const showAlert = (title, message) => {
+  const showAlert = (title, message, options = {}) => {
     setAlertConfig({
       visible: true,
       title,
       message,
-      showCancel: false,
-      isDanger: false,
-      confirmText: 'Aceptar',
-      cancelText: 'Cancelar',
-      onConfirm: () => setAlertConfig((p) => ({ ...p, visible: false })),
-      onCancel: () => setAlertConfig((p) => ({ ...p, visible: false })),
+      showCancel: options.showCancel || false,
+      isDanger: options.isDanger || false,
+      confirmText: options.confirmText || 'Aceptar',
+      cancelText: options.cancelText || 'Cancelar',
+      onConfirm: options.onConfirm || (() => setAlertConfig((p) => ({ ...p, visible: false }))),
+      onCancel: options.onCancel || (() => setAlertConfig((p) => ({ ...p, visible: false }))),
     });
   };
+
+  const closeAlert = () => setAlertConfig((p) => ({ ...p, visible: false }));
 
   const applyAgenda = useCallback((data) => {
     setCategories(data.categories);
@@ -93,13 +118,16 @@ export default function CoachAgendaScreen({ navigation }) {
       'x-club-identifier': clubData.urlIdentifier,
       Authorization: `Bearer ${token}`,
     };
-    const qs = selectedCategoryId ? `?categoriaId=${selectedCategoryId}` : '';
+    const params = new URLSearchParams();
+    if (selectedCategoryId) params.set('categoriaId', selectedCategoryId);
+    if (selectedEstado) params.set('estado', selectedEstado);
+    const qs = params.toString() ? `?${params.toString()}` : '';
     const [res, pendingRes, restoreRes] = await Promise.all([
       clubApi.get(`/sessions/profe/agenda${qs}`, { headers: h }),
       clubApi.get('/sessions/reubicacion-pendiente', { headers: h }).catch(() => ({ data: { sesiones: [] } })),
       clubApi.get('/sessions/restauracion-disponible', { headers: h }).catch(() => ({ data: { sesiones: [] } })),
     ]);
-    const sesiones = (res.data.sesiones || []).filter((x) => x.estado !== 'cancelada');
+    const sesiones = [...(res.data.sesiones || [])];
     sesiones.sort(
       (a, b) =>
         compareIsoCalendarDates(a.fecha, b.fecha) ||
@@ -111,9 +139,9 @@ export default function CoachAgendaScreen({ navigation }) {
       pendingRelocations: (pendingRes.data?.sesiones || []).length,
       restorableCount: (restoreRes.data?.sesiones || []).length,
     };
-  }, [clubData?.urlIdentifier, selectedCategoryId]);
+  }, [clubData?.urlIdentifier, selectedCategoryId, selectedEstado]);
 
-  const { loading, refreshing, onRefresh } = useCachedFocusLoad({
+  const { loading, refreshing, onRefresh, reload } = useCachedFocusLoad({
     cacheKey: agendaCacheKey,
     enabled: !!agendaCacheKey,
     fetchData: fetchAgenda,
@@ -125,41 +153,88 @@ export default function CoachAgendaScreen({ navigation }) {
 
   const showInitialLoader = loading && list.length === 0;
 
-  const onCategoryChange = (id) => {
-    setSelectedCategoryId(id);
+  const filterPillDefs = useMemo(
+    () => [
+      {
+        key: 'category',
+        placeholder: 'Categoría',
+        value: selectedCategoryId,
+        sections: categoriesGroupedByDisciplina(categories, {
+          includeAll: true,
+          allLabel: 'Todas las categorías',
+        }),
+        displayLabel: selectedCategoryId
+          ? categoryPillLabel(categories, selectedCategoryId)
+          : null,
+        onChange: setSelectedCategoryId,
+        searchable: true,
+      },
+      {
+        key: 'estado',
+        placeholder: 'Estado',
+        value: selectedEstado,
+        options: ESTADO_OPTIONS,
+        onChange: setSelectedEstado,
+        searchable: false,
+      },
+    ],
+    [categories, selectedCategoryId, selectedEstado],
+  );
+
+  const reactivateSession = async (item) => {
+    if (reactivatingId) return;
+    setReactivatingId(item._id);
+    try {
+      const token = await getToken('userToken');
+      const h = {
+        'x-club-identifier': clubData.urlIdentifier,
+        Authorization: `Bearer ${token}`,
+      };
+      await clubApi.patch(`/sessions/${item._id}/uncancel`, {}, { headers: h });
+      if (typeof reload === 'function') await reload();
+      else await onRefresh();
+      showAlert('Listo', 'La sesión volvió a programada.');
+    } catch (e) {
+      showAlert('Error', e.response?.data?.message || 'No se pudo reactivar la sesión.');
+    } finally {
+      setReactivatingId(null);
+    }
+  };
+
+  const confirmReactivate = (item) => {
+    showAlert('Reactivar sesión', '¿Querés volver a programar esta sesión cancelada?', {
+      showCancel: true,
+      confirmText: 'Reactivar',
+      onConfirm: () => {
+        closeAlert();
+        reactivateSession(item);
+      },
+      onCancel: closeAlert,
+    });
   };
 
   const renderItem = ({ item }) => {
-    const isProgramada = item.estado !== 'completada';
-    const asistPct = item.estado === 'completada' ? sessionAttendancePct(item) : null;
+    const isCancelada = item.estado === 'cancelada';
+    const isCompletada = item.estado === 'completada';
+    const isProgramada = item.estado === 'programada';
+    const past = isSessionPast(item);
+    const readOnly = isSessionReadOnly(item);
+    const asistPct = isCompletada ? sessionAttendancePct(item) : null;
+    const muted = isCancelada || past;
+    const visual = sessionTipoVisual(item, { colorMarca });
+    const titleColor = muted ? theme.textMuted : theme.text;
+    const dotColor = isCancelada
+      ? '#9ca3af'
+      : isCompletada
+        ? '#22c55e'
+        : past
+          ? '#9ca3af'
+          : visual.accent;
+    const accent = muted ? '#9ca3af' : visual.accent;
 
-    return (
-      <View style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <TouchableOpacity
-          style={styles.rowMain}
-          onPress={() => navigation.navigate('CoachSessionDetail', { sessionId: item._id })}
-        >
-          <View style={[styles.dot, { backgroundColor: item.estado === 'completada' ? '#22c55e' : colorMarca }]} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.rowTitle, { color: theme.text }]}>{sessionLabel(item)}</Text>
-            <Text style={[styles.rowSub, { color: theme.textMuted }]}>
-              {item.horaInicio}–{item.horaFin} · {item.categoria?.nombre}
-            </Text>
-            <Text style={[styles.rowMeta, { color: theme.textMuted }]}>
-              {(item.lugarExterno || '').trim() || item.espacio?.nombre || 'Sin lugar'} ·{' '}
-              {sessionDisplayName(item)}
-              {sessionEsOpcional(item) ? ' · Opcional' : ''} ·{' '}
-              {item.reubicacionPendiente ? 'Lugar pendiente' : item.estado === 'completada' ? 'Completada' : 'Programada'}
-              {asistPct != null ? ` · Asist. ${asistPct}%` : ''}
-            </Text>
-            {item.reubicacionPendiente ? (
-              <Text style={{ color: '#f59e0b', fontSize: 12, fontWeight: '700', marginTop: 4 }}>
-                Definí el nuevo lugar de entrenamiento
-              </Text>
-            ) : null}
-          </View>
-        </TouchableOpacity>
-        {item.estado === 'completada' ? (
+    const actions = (
+      <View style={styles.rowActions}>
+        {(isCompletada || past) && !isCancelada ? (
           <TouchableOpacity
             style={styles.statsBtn}
             onPress={() => navigation.navigate('CoachSessionStats', { sessionId: item._id })}
@@ -168,7 +243,7 @@ export default function CoachAgendaScreen({ navigation }) {
             <Ionicons name="stats-chart-outline" size={22} color={colorMarca} />
           </TouchableOpacity>
         ) : null}
-        {isProgramada ? (
+        {isProgramada && !past ? (
           <TouchableOpacity
             style={styles.cancelBtn}
             onPress={() =>
@@ -179,7 +254,74 @@ export default function CoachAgendaScreen({ navigation }) {
             <Ionicons name="close-circle-outline" size={26} color="#ef4444" />
           </TouchableOpacity>
         ) : null}
+        {isCancelada && !past ? (
+          <TouchableOpacity
+            style={styles.cancelBtn}
+            onPress={() => confirmReactivate(item)}
+            disabled={reactivatingId === item._id}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            {reactivatingId === item._id ? (
+              <ActivityIndicator size="small" color="#22c55e" />
+            ) : (
+              <Ionicons name="checkmark-circle-outline" size={26} color="#22c55e" />
+            )}
+          </TouchableOpacity>
+        ) : null}
       </View>
+    );
+
+    const hasActions =
+      ((isCompletada || past) && !isCancelada) ||
+      (isProgramada && !past) ||
+      (isCancelada && !past);
+
+    return (
+      <DesignCard
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent={accent}
+        muted={muted}
+        onPress={() => navigation.navigate('CoachSessionDetail', { sessionId: item._id })}
+        contentStyle={styles.rowMain}
+        footer={
+          <View style={styles.footerRow}>
+            <Text style={[styles.rowMeta, { color: theme.textMuted, marginTop: 0, flex: 1 }]} numberOfLines={2}>
+              {(item.lugarExterno || '').trim() || item.espacio?.nombre || 'Sin lugar'} ·{' '}
+              {sessionDisplayName(item)}
+              {sessionEsOpcional(item) ? ' · Opcional' : ''} · {estadoLabel(item)}
+              {past && isProgramada ? ' · Finalizada' : ''}
+              {asistPct != null ? ` · Asist. ${asistPct}%` : ''}
+            </Text>
+            {hasActions ? actions : <Ionicons name="chevron-forward" size={18} color={theme.icon} />}
+          </View>
+        }
+      >
+        <View style={[styles.dot, { backgroundColor: dotColor }]} />
+        <View style={{ flex: 1 }}>
+          {!muted ? (
+            <View style={styles.tipoChipRow}>
+              <View style={[styles.tipoChip, { backgroundColor: `${visual.accent}22`, borderColor: visual.accent }]}>
+                <Text style={[styles.tipoChipTxt, { color: visual.accent }]}>{visual.shortLabel}</Text>
+              </View>
+            </View>
+          ) : null}
+          <Text style={[styles.rowTitle, { color: titleColor }]}>{sessionLabel(item)}</Text>
+          <Text style={[styles.rowSub, { color: theme.textMuted }]}>
+            {item.horaInicio}–{item.horaFin} · {item.categoria?.nombre}
+          </Text>
+          {item.reubicacionPendiente && !readOnly ? (
+            <Text style={{ color: '#f59e0b', fontSize: 12, fontWeight: '700', marginTop: 4 }}>
+              Definí el nuevo lugar de entrenamiento
+            </Text>
+          ) : null}
+          {isCancelada && item.motivoCancelacion ? (
+            <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 4 }} numberOfLines={2}>
+              {item.motivoCancelacion}
+            </Text>
+          ) : null}
+        </View>
+      </DesignCard>
     );
   };
 
@@ -221,19 +363,13 @@ export default function CoachAgendaScreen({ navigation }) {
           <Ionicons name="chevron-forward" size={20} color={theme.textMuted} />
         </TouchableOpacity>
       ) : null}
-      <CoachCategoryFilter
-        categories={categories}
-        selectedId={selectedCategoryId}
-        onSelect={onCategoryChange}
-        colorMarca={colorMarca}
-        theme={theme}
-      />
     </>
   );
 
-  const emptyMessage = selectedCategoryId
-    ? 'No hay sesiones para esta categoría en el rango visible.'
-    : 'No hay sesiones en el rango visible. Creá una nueva con el botón +.';
+  const emptyMessage =
+    selectedCategoryId || selectedEstado
+      ? 'No hay sesiones para este filtro en el rango visible.'
+      : 'No hay sesiones en el rango visible. Creá una nueva con el botón +.';
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
@@ -285,17 +421,31 @@ export default function CoachAgendaScreen({ navigation }) {
       {showInitialLoader ? (
         <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />
       ) : (
-        <FlatList
-          data={list}
-          keyExtractor={(item) => item._id}
-          renderItem={renderItem}
-          ListHeaderComponent={listHeader}
-          contentContainerStyle={styles.listPad}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
-          ListEmptyComponent={
-            <Text style={[styles.empty, { color: theme.textMuted }]}>{emptyMessage}</Text>
-          }
-        />
+        <>
+          <View style={styles.filtersWrap}>
+            <FilterPillSheet
+              pills={filterPillDefs}
+              openKey={openFilter}
+              onOpen={setOpenFilter}
+              onClose={() => setOpenFilter(null)}
+              colorMarca={colorMarca}
+              theme={theme}
+            />
+          </View>
+          <FlatList
+            data={list}
+            keyExtractor={(item) => item._id}
+            renderItem={renderItem}
+            ListHeaderComponent={listHeader}
+            contentContainerStyle={styles.listPad}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />
+            }
+            ListEmptyComponent={
+              <Text style={[styles.empty, { color: theme.textMuted }]}>{emptyMessage}</Text>
+            }
+          />
+        </>
       )}
     </SafeAreaView>
   );
@@ -303,7 +453,8 @@ export default function CoachAgendaScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  listPad: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40 },
+  filtersWrap: { paddingHorizontal: 16, paddingTop: 12 },
+  listPad: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 40 },
   relocBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -312,22 +463,33 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 12,
   },
-  row: {
+  rowMain: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 10,
-    overflow: 'hidden',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 12,
   },
-  rowMain: {
+  footerRow: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
-    gap: 10,
+    gap: 8,
+  },
+  rowActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   dot: { width: 10, height: 10, borderRadius: 5 },
+  tipoChipRow: { flexDirection: 'row', marginBottom: 4 },
+  tipoChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  tipoChipTxt: { fontSize: 10, fontWeight: '800', letterSpacing: 0.2 },
   rowTitle: { fontSize: 15, fontWeight: '700', textTransform: 'capitalize' },
   rowSub: { fontSize: 14, marginTop: 4 },
   rowMeta: { fontSize: 12, marginTop: 4 },

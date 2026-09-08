@@ -18,6 +18,7 @@ import { clubApi } from '../../utils/api';
 import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import MemberChildPicker from '../../components/MemberChildPicker';
+import DesignCard from '../../components/DesignCard';
 import { clubHeaders } from './athleteApi';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 
@@ -140,40 +141,29 @@ export default function AthleteWellnessHubScreen({ navigation }) {
           {showInitialLoader ? (
             <ActivityIndicator color={colorMarca} style={{ marginVertical: 24 }} />
           ) : pendingItems.length === 0 ? (
-            <View style={[styles.empty, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <DesignCard theme={theme} isDarkMode={isDarkMode} accent="#22c55e" contentStyle={styles.emptyInner}>
               <Ionicons name="checkmark-circle-outline" size={36} color="#22c55e" />
               <Text style={[styles.emptyTitle, { color: theme.text }]}>Todo al día</Text>
               <Text style={[styles.emptyTxt, { color: theme.textMuted }]}>
                 No tenés registros de wellness pendientes para hoy.
               </Text>
-            </View>
+            </DesignCard>
           ) : (
             pendingItems.map((item) => {
               const isPre = item.kind === 'pre';
               const sesion = item.sesion;
+              const accent = isPre ? colorMarca : '#f59e0b';
               return (
-                <TouchableOpacity
+                <DesignCard
                   key={item.key}
-                  style={[
-                    styles.card,
-                    isPre
-                      ? { backgroundColor: colorMarca + '18', borderColor: colorMarca }
-                      : { backgroundColor: theme.surface, borderColor: theme.border },
-                  ]}
+                  theme={theme}
+                  isDarkMode={isDarkMode}
+                  accent={accent}
                   onPress={() => openWellness(item)}
-                  activeOpacity={0.85}
+                  contentStyle={styles.cardRow}
                 >
-                  <View
-                    style={[
-                      styles.cardIcon,
-                      { backgroundColor: isPre ? colorMarca + '22' : '#f59e0b22' },
-                    ]}
-                  >
-                    <Ionicons
-                      name="fitness-outline"
-                      size={24}
-                      color={isPre ? colorMarca : '#f59e0b'}
-                    />
+                  <View style={[styles.cardIcon, { backgroundColor: `${accent}22` }]}>
+                    <Ionicons name="fitness-outline" size={24} color={accent} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.cardTitle, { color: theme.text }]}>
@@ -185,8 +175,8 @@ export default function AthleteWellnessHubScreen({ navigation }) {
                         : `${sesion.categoria?.nombre || 'Sesión'} · ${sesion.horaInicio}–${sesion.horaFin}`}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={22} color={isPre ? colorMarca : theme.icon} />
-                </TouchableOpacity>
+                  <Ionicons name="chevron-forward" size={22} color={accent} />
+                </DesignCard>
               );
             })
           )}
@@ -208,15 +198,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginLeft: 2,
   },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 14,
-    borderWidth: 1.5,
-    padding: 14,
-    marginBottom: 10,
-    gap: 12,
-  },
+  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 14 },
   cardIcon: {
     width: 44,
     height: 44,
@@ -226,12 +208,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 16, fontWeight: '800' },
   cardSub: { fontSize: 13, marginTop: 4, lineHeight: 18 },
-  empty: {
-    padding: 24,
-    borderRadius: 14,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
+  emptyInner: { padding: 24, alignItems: 'center', gap: 8 },
   emptyTitle: { fontSize: 17, fontWeight: '800', marginTop: 12 },
   emptyTxt: { fontSize: 14, lineHeight: 20, marginTop: 8, textAlign: 'center' },
 });

@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { finanzasStyles as s } from './finanzasStyles';
+import DesignCard from '../../../components/DesignCard';
+import UserAvatar from '../../../components/UserAvatar';
+import { ThemeContext } from '../../../context/ThemeContext';
 
 export default function HermanosTab({
   theme,
@@ -16,6 +19,7 @@ export default function HermanosTab({
   onDiscountChange,
   onApplyDiscount,
 }) {
+  const { isDarkMode } = useContext(ThemeContext);
   const cc = primaryColor;
 
   const familyDiscountDisplay = (g) => {
@@ -27,8 +31,14 @@ export default function HermanosTab({
     <View style={s.tabPanel}>
       <ScrollView style={s.tabScroll} contentContainerStyle={{ paddingBottom: 30, paddingTop: 15 }} keyboardShouldPersistTaps="handled">
         <Text style={[s.sectionTitle, { color: theme.text }]}>Descuento global</Text>
-        
-        <View style={[styles.globalBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+
+        <DesignCard
+          theme={theme}
+          isDarkMode={isDarkMode}
+          accent={cc}
+          contentStyle={styles.globalBoxInner}
+          style={{ marginBottom: 16 }}
+        >
           <Text style={[styles.discountLabel, { color: theme.text }]}>Descuento por defecto (%)</Text>
           <View style={styles.discountRow}>
             <TextInput
@@ -57,7 +67,7 @@ export default function HermanosTab({
               Activo: {globalDiscount}% para familias nuevas.
             </Text>
           ) : null}
-        </View>
+        </DesignCard>
 
         <Text style={[s.sectionTitle, { color: theme.text, marginTop: 8 }]}>Familias</Text>
         <Text style={[s.sectionSub, { color: theme.textMuted }]}>
@@ -77,11 +87,16 @@ export default function HermanosTab({
             const tutorId = g.tutor._id;
             const pctActual = familyDiscountDisplay(g);
             const inputVal = discountInput[tutorId] ?? (pctActual ? String(pctActual) : '');
+            const accent = g.descuentoEsPersonalizado ? '#f59e0b' : cc;
 
             return (
-              <View
+              <DesignCard
                 key={tutorId}
-                style={[styles.familyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                theme={theme}
+                isDarkMode={isDarkMode}
+                accent={accent}
+                contentStyle={styles.familyCardInner}
+                style={{ marginBottom: 14 }}
               >
                 <View style={styles.familyHeader}>
                   <View style={[s.planIcon, { backgroundColor: '#8b5cf620' }]}>
@@ -113,7 +128,8 @@ export default function HermanosTab({
 
                 {g.hijos.map((h) => (
                   <View key={h._id} style={styles.childRow}>
-                    <Text style={{ color: theme.text, flex: 1, fontSize: 14 }}>
+                    <UserAvatar user={h} size={32} colorMarca={cc} />
+                    <Text style={{ color: theme.text, flex: 1, fontSize: 14, marginLeft: 10 }}>
                       {h.nombre} {h.apellido}
                     </Text>
                     {h.descuentoPorcentaje > 0 ? (
@@ -157,7 +173,7 @@ export default function HermanosTab({
                     </TouchableOpacity>
                   </View>
                 </View>
-              </View>
+              </DesignCard>
             );
           })
         )}
@@ -167,18 +183,16 @@ export default function HermanosTab({
 }
 
 const styles = {
-  globalBox: {
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 16,
+  globalBoxInner: {
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
   },
   globalHint: { fontSize: 12, marginTop: 8 },
-  familyCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 14,
+  familyCardInner: {
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
   },
   familyHeader: {
     flexDirection: 'row',

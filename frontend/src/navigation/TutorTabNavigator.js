@@ -13,7 +13,7 @@ import MemberCommsStack from './MemberCommsStack';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
 import { useMember } from '../context/MemberContext';
-import { tabBadgeLabel } from '../utils/tabBadgeLabel';
+import { tabBadgeText } from '../utils/tabBadgeLabel';
 import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
 
 const Tab = createSwipeBottomTabNavigator();
@@ -55,37 +55,44 @@ function TutorTabs() {
           };
           return <Ionicons name={map[name] || 'ellipse'} size={22} color={color} />;
         },
+        getBadge: (name) =>
+          ({
+            TutorInicio: tabBadgeText(tab('inicio')),
+            TutorAgenda: tabBadgeText(tab('agenda')),
+            TutorComunicar: tabBadgeText(tab('comunicar')),
+            TutorProfile: tabBadgeText(tab('cuotas')),
+          })[name],
+        getLabel: (name) =>
+          ({
+            TutorInicio: 'Inicio',
+            TutorAgenda: 'Agenda',
+            TutorWellness: 'Wellness',
+            TutorComunicar: 'Social',
+            TutorProfile: 'Perfil',
+          })[name],
       })}
     >
       <Tab.Screen
         name="TutorInicio"
         component={TutorHomeScreen}
-        options={{ tabBarLabel: 'Inicio', tabBarBadge: tabBadgeLabel(tab('inicio')) }}
         listeners={tabPressResetToRoot('TutorInicio')}
       />
       <Tab.Screen
         name="TutorAgenda"
         component={AthleteAgendaStack}
-        options={{ tabBarLabel: 'Agenda', tabBarBadge: tabBadgeLabel(tab('agenda')) }}
         listeners={tabPressResetToRoot('TutorAgenda', 'AthleteAgendaMain')}
       />
       <Tab.Screen
         name="TutorWellness"
         component={AthleteWellnessStack}
-        options={{ tabBarLabel: 'Wellness' }}
         listeners={tabPressResetToRoot('TutorWellness', 'AthleteWellnessMain')}
       />
       <Tab.Screen
         name="TutorComunicar"
         component={MemberCommsStack}
-        options={{ tabBarLabel: 'Social', tabBarBadge: tabBadgeLabel(tab('comunicar')) }}
         listeners={tabPressResetToRoot('TutorComunicar', 'MemberCommsHub')}
       />
-      <Tab.Screen
-        name="TutorProfile"
-        component={TutorProfileStackNav}
-        options={{ tabBarLabel: 'Perfil', tabBarBadge: tabBadgeLabel(tab('cuotas')) }}
-      />
+      <Tab.Screen name="TutorProfile" component={TutorProfileStackNav} />
     </Tab.Navigator>
   );
 }

@@ -21,6 +21,7 @@ import { clubHeaders } from '../athlete/athleteApi';
 import { useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
+import DesignCard from '../../components/DesignCard';
 import { formatLocalDate, todayYmd } from '../../utils/timeSlots';
 import { isoCalendarDateToDisplay } from '../../utils/dateDisplay';
 
@@ -33,6 +34,10 @@ function addDaysYmd(ymd, delta) {
   const dt = new Date(y, m - 1, d);
   dt.setDate(dt.getDate() + delta);
   return formatLocalDate(dt);
+}
+
+function isPastDay(ymd) {
+  return String(ymd) < todayYmd();
 }
 
 const ESTADO_LABEL = {
@@ -53,6 +58,7 @@ export default function MemberAlquilerScreen() {
   const [spaceId, setSpaceId] = useState('');
   const [fecha, setFecha] = useState(todayYmd());
   const [slots, setSlots] = useState([]);
+  const [dayUnavailableMsg, setDayUnavailableMsg] = useState('');
   const [mine, setMine] = useState([]);
   const [loadingDay, setLoadingDay] = useState(false);
   const [bookingKey, setBookingKey] = useState('');
@@ -99,6 +105,12 @@ export default function MemberAlquilerScreen() {
     async (sid, day) => {
       if (!sid || !day) {
         setSlots([]);
+        setDayUnavailableMsg('');
+        return;
+      }
+      if (isPastDay(day)) {
+        setSlots([]);
+        setDayUnavailableMsg('No se pueden alquilar días que ya pasaron.');
         return;
       }
       setLoadingDay(true);
@@ -109,8 +121,14 @@ export default function MemberAlquilerScreen() {
           params: { espacio: sid, fecha: day },
         });
         setSlots(Array.isArray(res.data?.slots) ? res.data.slots : []);
+        setDayUnavailableMsg(
+          res.data?.diaDisponible === false
+            ? res.data?.mensaje || 'Este día no está habilitado para alquiler.'
+            : '',
+        );
       } catch (error) {
         setSlots([]);
+        setDayUnavailableMsg('');
         showAlert('Error', error.response?.data?.message || 'No se pudo cargar la disponibilidad.');
       } finally {
         setLoadingDay(false);
@@ -130,10 +148,16 @@ export default function MemberAlquilerScreen() {
   });
 
   React.useEffect(() => {
-    if (tab === 'reservar' && spaceId && fecha) {
+    if (isPastDay(fecha)) setFecha(todayYmd());
+  }, [fecha]);
+
+  React.useEffect(() => {
+    if (tab === 'reservar' && spaceId && fecha && !isPastDay(fecha)) {
       loadAvailability(spaceId, fecha);
     }
   }, [tab, spaceId, fecha, loadAvailability]);
+
+  const canGoPrevDay = !isPastDay(addDaysYmd(fecha, -1));
 
   const selectedSpace = useMemo(
     () => spaces.find((s) => s._id === spaceId) || null,
@@ -154,6 +178,10 @@ export default function MemberAlquilerScreen() {
 
   const handleBook = (slot) => {
     if (!selectedSpace || !slot?.disponible) return;
+    if (isPastDay(fecha)) {
+      showAlert('Fecha inválida', 'No se pueden alquilar días que ya pasaron.');
+      return;
+    }
     showAlert(
       'Confirmar reserva',
       `${selectedSpace.nombre}\n${isoCalendarDateToDisplay(fecha)} · ${slot.horaInicio}–${slot.horaFin}\n${fmtMoney(slot.precio)}\n\nSe abre Mercado Pago. Tenés 15 minutos para pagar.`,
@@ -308,8 +336,19 @@ export default function MemberAlquilerScreen() {
 
                   <View style={styles.dateRow}>
                     <TouchableOpacity
-                      onPress={() => setFecha((f) => addDaysYmd(f, -1))}
-                      style={[styles.dateNav, { borderColor: theme.border, backgroundColor: theme.surface }]}
+                      onPress={() => {
+                        if (!canGoPrevDay) return;
+                        setFecha((f) => addDaysYmd(f, -1));
+                      }}
+                      disabled={!canGoPrevDay}
+                      style={[
+                        styles.dateNav,
+                        {
+                          borderColor: theme.border,
+                          backgroundColor: theme.surface,
+                          opacity: canGoPrevDay ? 1 : 0.35,
+                        },
+                      ]}
                     >
                       <Ionicons name="chevron-back" size={18} color={theme.text} />
                     </TouchableOpacity>
@@ -328,9 +367,21 @@ export default function MemberAlquilerScreen() {
                   </View>
 
                   {selectedSpace ? (
-                    <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 10 }}>
-                      Disponible de {selectedSpace.horaInicio} a {selectedSpace.horaFin} · turnos de{' '}
-                      {selectedSpace.duracionSlotMinutos} min
+                    <View style={{ marginBottom: 10 }}>
+                      <Text style={{ color: theme.textMuted, fontSize: 12 }}>
+                        Disponible de {selectedSpace.horaInicio} a {selectedSpace.horaFin} · turnos de{' '}
+                        {selectedSpace.duracionSlotMinutos} min
+                      </Text>
+                      {Array.isArray(selectedSpace.diasDisponibles) && selectedSpace.diasDisponibles.length ? (
+                        <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
+                          Días: {selectedSpace.diasDisponibles.map((d) => d.substring(0, 3)).join(', ')}
+                        </Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+                  {dayUnavailableMsg ? (
+                    <Text style={{ color: '#f59e0b', fontSize: 13, marginBottom: 10, fontWeight: '600' }}>
+                      {dayUnavailableMsg}
                     </Text>
                   ) : null}
                 </>
@@ -341,31 +392,28 @@ export default function MemberAlquilerScreen() {
           ListEmptyComponent={
             !loadingDay && spaces.length ? (
               <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 24 }}>
-                No hay turnos en este día.
+                {dayUnavailableMsg || 'No hay turnos en este día.'}
               </Text>
             ) : null
           }
           renderItem={({ item }) => {
             const busy = bookingKey === `${item.horaInicio}-${item.horaFin}`;
             return (
-              <TouchableOpacity
-                disabled={!item.disponible || !!bookingKey}
-                onPress={() => handleBook(item)}
-                style={[
-                  styles.slotCard,
-                  {
-                    backgroundColor: theme.surface,
-                    borderColor: item.disponible ? colorMarca + '55' : theme.border,
-                    opacity: item.disponible ? 1 : 0.55,
-                  },
-                ]}
+              <DesignCard
+                theme={theme}
+                isDarkMode={isDarkMode}
+                accent={item.disponible ? colorMarca : theme.border}
+                muted={!item.disponible}
+                onPress={item.disponible && !bookingKey ? () => handleBook(item) : undefined}
+                style={styles.slotCardWrap}
+                contentStyle={styles.slotInner}
               >
                 <View>
                   <Text style={[styles.slotTime, { color: theme.text }]}>
                     {item.horaInicio} – {item.horaFin}
                   </Text>
                   <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
-                    {item.disponible ? 'Libre' : 'Ocupado'}
+                    {item.disponible ? 'Libre' : item.pasado ? 'Pasó' : 'Ocupado'}
                   </Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
@@ -380,7 +428,7 @@ export default function MemberAlquilerScreen() {
                     )
                   ) : null}
                 </View>
-              </TouchableOpacity>
+              </DesignCard>
             );
           }}
         />
@@ -405,7 +453,13 @@ export default function MemberAlquilerScreen() {
                   ? new Date(item.fecha).toISOString().slice(0, 10)
                   : '';
             return (
-              <View style={[styles.slotCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <DesignCard
+                theme={theme}
+                isDarkMode={isDarkMode}
+                accent={pending ? '#f59e0b' : colorMarca}
+                style={styles.slotCardWrap}
+                contentStyle={styles.slotInner}
+              >
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.slotTime, { color: theme.text }]}>
                     {item.espacio?.nombre || 'Espacio'}
@@ -437,7 +491,7 @@ export default function MemberAlquilerScreen() {
                     </TouchableOpacity>
                   </View>
                 ) : null}
-              </View>
+              </DesignCard>
             );
           }}
         />
@@ -508,16 +562,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 15,
   },
-  slotCard: {
+  slotCardWrap: {
     marginHorizontal: 16,
-    marginBottom: 10,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
+  },
+  slotInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
   },
   slotTime: {
     fontSize: 15,

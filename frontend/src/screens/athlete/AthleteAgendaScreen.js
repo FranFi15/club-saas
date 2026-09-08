@@ -19,6 +19,7 @@ import { clubApi } from '../../utils/api';
 import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import CoachSessionCalendar from '../../components/CoachSessionCalendar';
+import DesignCard from '../../components/DesignCard';
 import MemberChildPicker from '../../components/MemberChildPicker';
 import { calendarPartsToYmd, todayYmd } from '../../utils/timeSlots';
 import {
@@ -29,7 +30,7 @@ import {
 } from '../../utils/dateDisplay';
 import { clubHeaders } from './athleteApi';
 import { pickPaginatedRows } from '../../utils/paginatedApi';
-import { sessionDisplayName, sessionEsOpcional, isConsultaIndividual, consultaConfirmacionEstado, consultaConfirmacionLabel, consultaNeedsConfirmacion } from '../../utils/sessionDisplay';
+import { sessionDisplayName, sessionEsOpcional, isConsultaIndividual, consultaConfirmacionEstado, consultaConfirmacionLabel, consultaNeedsConfirmacion, sessionTipoVisual } from '../../utils/sessionDisplay';
 import { readScreenCache, useCachedFocusLoad, clearScreenCache } from '../../hooks/useCachedFocusLoad';
 import { useBadgesOptional } from '../../context/BadgeContext';
 
@@ -172,7 +173,7 @@ export default function AthleteAgendaScreen({ navigation }) {
         compareIsoCalendarDates(a.fecha, b.fecha) ||
         String(a.horaInicio).localeCompare(String(b.horaInicio)),
     );
-    return { sessions: merged.filter((s) => s.estado !== 'cancelada') };
+    return { sessions: merged };
   }, [clubData?.urlIdentifier, memberId, currentMonth]);
 
   const { loading, refreshing, onRefresh } = useCachedFocusLoad({
@@ -360,159 +361,175 @@ export default function AthleteAgendaScreen({ navigation }) {
           {calendarLoading ? (
             <ActivityIndicator color={colorMarca} style={{ marginVertical: 16 }} />
           ) : sessionsForSelectedDay.length === 0 ? (
-            <View style={[styles.empty, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <DesignCard theme={theme} isDarkMode={isDarkMode} accent={colorMarca} contentStyle={styles.emptyInner}>
               <Ionicons name="calendar-clear-outline" size={32} color={theme.textMuted} />
               <Text style={[styles.emptyTxt, { color: theme.textMuted }]}>
                 No hay actividades programadas para este día. Elegí otro día con punto en el calendario.
               </Text>
-            </View>
+            </DesignCard>
           ) : (
             sessionsForSelectedDay.map((item) => {
+              const isCancelada = item.estado === 'cancelada';
               const confirmEstado = consultaConfirmacionEstado(item);
               const esConsulta = isConsultaIndividual(item);
-              const pendiente = consultaNeedsConfirmacion(item);
+              const pendiente = !isCancelada && consultaNeedsConfirmacion(item);
               const busy = respondingId === item._id;
-              return (
-              <View
-                key={item._id}
-                style={[
-                  styles.sessionCard,
-                  {
-                    backgroundColor: theme.surface,
-                    borderColor: pendiente ? '#ef4444' : theme.border,
-                    borderWidth: pendiente ? 2 : 1,
-                  },
-                ]}
-              >
-                <View style={styles.sessionCardRow}>
-                <View
-                  style={[
-                    styles.timeCol,
-                    {
-                      backgroundColor: pendiente
-                        ? '#ef444418'
-                        : item.estado === 'completada'
-                          ? '#22c55e18'
-                          : colorMarca + '14',
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.timeStart,
-                      {
-                        color: pendiente
-                          ? '#ef4444'
-                          : item.estado === 'completada'
-                            ? '#22c55e'
-                            : colorMarca,
-                      },
-                    ]}
-                  >
-                    {item.horaInicio}
-                  </Text>
-                  <Text style={[styles.timeEnd, { color: theme.textMuted }]}>{item.horaFin}</Text>
-                </View>
-                <View style={styles.sessionBody}>
-                  <View style={styles.sessionTitleRow}>
-                    <Text style={[styles.sessionCat, { color: pendiente ? '#ef4444' : colorMarca }]}>
-                      {item.categoria?.nombre || 'Categoría'}
-                    </Text>
-                    {pendiente ? <View style={styles.sessionPendingDot} /> : null}
+              const visual = sessionTipoVisual(item, { colorMarca });
+              const accent = isCancelada
+                ? '#9ca3af'
+                : pendiente
+                  ? '#ef4444'
+                  : item.estado === 'completada'
+                    ? '#22c55e'
+                    : visual.accent;
+              const place =
+                (item.lugarExterno || '').trim() || item.lugarLibre || item.espacio?.nombre || 'Sin lugar';
+              const estadoTxt =
+                item.estado === 'completada'
+                  ? 'Realizada'
+                  : item.estado === 'cancelada'
+                    ? 'Cancelada'
+                    : 'Programada';
+              const confirmTxt =
+                esConsulta && confirmEstado && !isCancelada
+                  ? ` · ${consultaConfirmacionLabel(confirmEstado)}`
+                  : '';
+              const asistBadge = (() => {
+                if (isCancelada) return null;
+                const asistEstado = attendanceForMember(item, memberId);
+                const asist = asistEstado ? ASIST_LABEL[asistEstado] : null;
+                if (!asist) return null;
+                return (
+                  <View style={[styles.asistBadge, { backgroundColor: asist.color + '18', borderColor: asist.color }]}>
+                    <Text style={{ color: asist.color, fontWeight: '800', fontSize: 11 }}>{asist.text}</Text>
                   </View>
-                  <Text style={[styles.sessionTipo, { color: theme.text }]}>
-                    {sessionDisplayName(item)}
-                    {sessionEsOpcional(item) ? ' · Opcional' : ''}
-                  </Text>
-                  <Text style={[styles.sessionMeta, { color: theme.textMuted }]} numberOfLines={2}>
-                    {(item.lugarExterno || '').trim() || item.lugarLibre || item.espacio?.nombre || 'Sin lugar'}
-                    {' · '}
-                    {item.estado === 'completada' ? 'Realizada' : 'Programada'}
-                    {esConsulta && confirmEstado ? ` · ${consultaConfirmacionLabel(confirmEstado)}` : ''}
-                  </Text>
-                  {(() => {
-                    const asistEstado = attendanceForMember(item, memberId);
-                    const asist = asistEstado ? ASIST_LABEL[asistEstado] : null;
-                    if (!asist) return null;
-                    return (
-                      <View style={[styles.asistBadge, { backgroundColor: asist.color + '18', borderColor: asist.color }]}>
-                        <Text style={{ color: asist.color, fontWeight: '800', fontSize: 11 }}>{asist.text}</Text>
-                      </View>
-                    );
-                  })()}
-                </View>
-                </View>
+                );
+              })();
 
-                {pendiente ? (
-                  <View style={styles.confirmBlock}>
-                    <Text style={[styles.confirmHint, { color: theme.textMuted }]}>
-                      {isTutor ? 'Confirmá si tu atleta asistirá a esta consulta.' : 'Confirmá si vas a asistir.'}
-                    </Text>
-                    {rejectingId === item._id ? (
-                      <>
-                        <TextInput
-                          style={[
-                            styles.rejectInput,
-                            { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
-                          ]}
-                          placeholder="Motivo (obligatorio)"
-                          placeholderTextColor={theme.textMuted}
-                          value={rejectMotivo}
-                          onChangeText={setRejectMotivo}
-                        />
-                        <View style={styles.confirmActions}>
-                          <TouchableOpacity
-                            style={[styles.confirmBtnOutline, { borderColor: theme.border }]}
-                            onPress={() => {
-                              setRejectingId(null);
-                              setRejectMotivo('');
-                            }}
-                            disabled={busy}
-                          >
-                            <Text style={{ color: theme.text, fontWeight: '700' }}>Cancelar</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[styles.confirmBtnDanger, { opacity: busy ? 0.6 : 1 }]}
-                            onPress={() => respondConsult(item._id, 'rechazar', rejectMotivo.trim())}
-                            disabled={busy}
-                          >
-                            {busy ? (
-                              <ActivityIndicator color="#fff" size="small" />
-                            ) : (
-                              <Text style={styles.confirmBtnTxt}>Enviar</Text>
-                            )}
-                          </TouchableOpacity>
-                        </View>
-                      </>
-                    ) : (
+              const confirmFooter = pendiente ? (
+                <View style={styles.confirmBlock}>
+                  <Text style={[styles.confirmHint, { color: theme.textMuted }]}>
+                    {isTutor ? 'Confirmá si tu atleta asistirá a esta consulta.' : 'Confirmá si vas a asistir.'}
+                  </Text>
+                  {rejectingId === item._id ? (
+                    <>
+                      <TextInput
+                        style={[
+                          styles.rejectInput,
+                          { color: theme.text, borderColor: theme.border, backgroundColor: isDarkMode ? '#1a191f' : theme.background },
+                        ]}
+                        placeholder="Motivo (obligatorio)"
+                        placeholderTextColor={theme.textMuted}
+                        value={rejectMotivo}
+                        onChangeText={setRejectMotivo}
+                      />
                       <View style={styles.confirmActions}>
                         <TouchableOpacity
                           style={[styles.confirmBtnOutline, { borderColor: theme.border }]}
                           onPress={() => {
-                            setRejectingId(item._id);
+                            setRejectingId(null);
                             setRejectMotivo('');
                           }}
                           disabled={busy}
                         >
-                          <Text style={{ color: theme.text, fontWeight: '700' }}>No puedo asistir</Text>
+                          <Text style={{ color: theme.text, fontWeight: '700' }}>Cancelar</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                          style={[styles.confirmBtnPrimary, { backgroundColor: colorMarca, opacity: busy ? 0.6 : 1 }]}
-                          onPress={() => confirmConsultAttendance(item._id)}
+                          style={[styles.confirmBtnDanger, { opacity: busy ? 0.6 : 1 }]}
+                          onPress={() => respondConsult(item._id, 'rechazar', rejectMotivo.trim())}
                           disabled={busy}
                         >
                           {busy ? (
                             <ActivityIndicator color="#fff" size="small" />
                           ) : (
-                            <Text style={styles.confirmBtnTxt}>Confirmar</Text>
+                            <Text style={styles.confirmBtnTxt}>Enviar</Text>
                           )}
                         </TouchableOpacity>
                       </View>
-                    )}
+                    </>
+                  ) : (
+                    <View style={styles.confirmActions}>
+                      <TouchableOpacity
+                        style={[styles.confirmBtnOutline, { borderColor: theme.border }]}
+                        onPress={() => {
+                          setRejectingId(item._id);
+                          setRejectMotivo('');
+                        }}
+                        disabled={busy}
+                      >
+                        <Text style={{ color: theme.text, fontWeight: '700' }}>No puedo asistir</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.confirmBtnPrimary, { backgroundColor: colorMarca, opacity: busy ? 0.6 : 1 }]}
+                        onPress={() => confirmConsultAttendance(item._id)}
+                        disabled={busy}
+                      >
+                        {busy ? (
+                          <ActivityIndicator color="#fff" size="small" />
+                        ) : (
+                          <Text style={styles.confirmBtnTxt}>Confirmar</Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              ) : (
+                <View style={styles.sessionFooterRow}>
+                  <Text style={[styles.sessionMeta, { color: theme.textMuted, marginTop: 0, flex: 1 }]} numberOfLines={2}>
+                    {place} · {estadoTxt}
+                    {confirmTxt}
+                  </Text>
+                  {asistBadge}
+                </View>
+              );
+
+              return (
+                <DesignCard
+                  key={item._id}
+                  theme={theme}
+                  isDarkMode={isDarkMode}
+                  accent={accent}
+                  muted={isCancelada}
+                  contentStyle={styles.sessionCardInner}
+                  footer={confirmFooter}
+                >
+                  <View style={styles.sessionCardRow}>
+                    <View style={[styles.timeCol, { backgroundColor: accent + '22' }]}>
+                      <Text style={[styles.timeStart, { color: accent }]}>{item.horaInicio}</Text>
+                      <Text style={[styles.timeEnd, { color: theme.textMuted }]}>{item.horaFin}</Text>
+                    </View>
+                    <View style={styles.sessionBody}>
+                      {!isCancelada ? (
+                        <View style={styles.tipoChipRow}>
+                          <View
+                            style={[
+                              styles.tipoChip,
+                              { backgroundColor: `${visual.accent}22`, borderColor: visual.accent },
+                            ]}
+                          >
+                            <Text style={[styles.tipoChipTxt, { color: visual.accent }]}>{visual.shortLabel}</Text>
+                          </View>
+                        </View>
+                      ) : null}
+                      <View style={styles.sessionTitleRow}>
+                        <Text style={[styles.sessionCat, { color: isCancelada ? theme.textMuted : accent }]}>
+                          {item.categoria?.nombre || 'Categoría'}
+                        </Text>
+                        {pendiente ? <View style={styles.sessionPendingDot} /> : null}
+                      </View>
+                      <Text style={[styles.sessionTipo, { color: isCancelada ? theme.textMuted : theme.text }]}>
+                        {sessionDisplayName(item)}
+                        {sessionEsOpcional(item) ? ' · Opcional' : ''}
+                      </Text>
+                      {isCancelada && item.motivoCancelacion ? (
+                        <Text style={[styles.sessionMeta, { color: theme.textMuted, marginTop: 4 }]} numberOfLines={2}>
+                          {item.motivoCancelacion}
+                        </Text>
+                      ) : null}
+                    </View>
                   </View>
-                ) : null}
-              </View>
-            );
+                </DesignCard>
+              );
             })
           )}
         </ScrollView>
@@ -549,21 +566,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 8,
   },
-  sessionCard: {
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 10,
+  sessionCardInner: {
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 10,
   },
   sessionCardRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
+  sessionFooterRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   confirmBlock: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#9ca3af55',
+    flex: 1,
+    width: '100%',
   },
   confirmHint: { fontSize: 13, marginBottom: 10, lineHeight: 18 },
   confirmActions: { flexDirection: 'row', gap: 10 },
@@ -598,7 +618,7 @@ const styles = StyleSheet.create({
   },
   timeCol: {
     width: 64,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingVertical: 10,
     paddingHorizontal: 6,
     alignItems: 'center',
@@ -607,21 +627,25 @@ const styles = StyleSheet.create({
   timeStart: { fontSize: 15, fontWeight: '800' },
   timeEnd: { fontSize: 11, marginTop: 2 },
   sessionBody: { flex: 1 },
+  tipoChipRow: { flexDirection: 'row', marginBottom: 4 },
+  tipoChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  tipoChipTxt: { fontSize: 10, fontWeight: '800', letterSpacing: 0.2 },
   sessionCat: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
   sessionTipo: { fontSize: 16, fontWeight: '700', marginTop: 4 },
   sessionMeta: { fontSize: 13, marginTop: 4 },
   asistBadge: {
-    alignSelf: 'flex-start',
-    marginTop: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
   },
-  empty: {
+  emptyInner: {
     padding: 20,
-    borderRadius: 14,
-    borderWidth: 1,
     alignItems: 'center',
   },
   emptyTxt: { fontSize: 14, lineHeight: 20, marginTop: 12, textAlign: 'center' },

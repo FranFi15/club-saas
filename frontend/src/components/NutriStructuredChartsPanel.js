@@ -1,7 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import SearchableDropdown from './SearchableDropdown';
 import NutriMetricsChart from './NutriMetricsChart';
+import DesignCard from './DesignCard';
+import { ThemeContext } from '../context/ThemeContext';
 import { NUTRI_STRUCTURED_SECTIONS } from '../constants/nutritionMetrics';
 import {
   buildNutriChartSeries,
@@ -48,9 +50,14 @@ function PromedioBanner({ series, theme, colorMarca }) {
   );
 }
 
-function NutriChartSection({ section, chartLayout, theme, colorMarca }) {
+function NutriChartSection({ section, chartLayout, theme, isDarkMode, colorMarca }) {
   return (
-    <View style={[styles.section, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+    <DesignCard
+      theme={theme}
+      isDarkMode={isDarkMode}
+      accent={colorMarca}
+      contentStyle={styles.sectionInner}
+    >
       <Text style={[styles.title, { color: theme.text }]}>{section.title}</Text>
       {section.subtitle ? (
         <Text style={[styles.subtitle, { color: theme.textMuted }]}>{section.subtitle}</Text>
@@ -62,7 +69,9 @@ function NutriChartSection({ section, chartLayout, theme, colorMarca }) {
         series={section.series}
         width={chartLayout?.chartWidth}
         theme={theme}
+        isDarkMode={isDarkMode}
         colorMarca={colorMarca}
+        framed={false}
         groupedNutriCharts={false}
         showLegend={false}
         showCaption={false}
@@ -76,7 +85,7 @@ function NutriChartSection({ section, chartLayout, theme, colorMarca }) {
           ))}
         </View>
       ) : null}
-    </View>
+    </DesignCard>
   );
 }
 
@@ -89,9 +98,12 @@ export default function NutriStructuredChartsPanel({
   defs,
   chartLayout,
   theme,
+  isDarkMode: isDarkModeProp,
   colorMarca,
   emptyMessage = 'Todavía no hay mediciones para graficar.',
 }) {
+  const { isDarkMode: isDarkModeCtx } = useContext(ThemeContext);
+  const isDarkMode = isDarkModeProp ?? isDarkModeCtx;
   const [selectedSectionKey, setSelectedSectionKey] = useState('');
 
   const allSeries = useMemo(
@@ -144,6 +156,7 @@ export default function NutriStructuredChartsPanel({
           section={activeSection}
           chartLayout={chartLayout}
           theme={theme}
+          isDarkMode={isDarkMode}
           colorMarca={colorMarca}
         />
       ) : null}
@@ -155,12 +168,7 @@ const styles = StyleSheet.create({
   wrap: { marginTop: 8 },
   filterLbl: { fontSize: 13, fontWeight: '700', marginBottom: 8 },
   dropdownWrap: { marginBottom: 12 },
-  section: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    paddingBottom: 10,
-  },
+  sectionInner: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 10 },
   title: { fontSize: 16, fontWeight: '800', lineHeight: 22 },
   subtitle: { fontSize: 12, marginTop: 4, lineHeight: 17, marginBottom: 4 },
   banner: {

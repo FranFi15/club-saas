@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useContext } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
 import { downloadPaymentReceipt } from '../../../utils/paymentReceipt';
 import { MN, EST_COLOR, fmtMoney, metodoPagoLabel, metodoPagoIcon } from './finanzasConstants';
+import DesignCard from '../../../components/DesignCard';
+import { ThemeContext } from '../../../context/ThemeContext';
 
 const HISTORY_PAGE_SIZE = 30;
 
@@ -31,6 +33,7 @@ export default function PaymentHistoryModal({
   refreshKey = 0,
   onDismiss,
 }) {
+  const { isDarkMode } = useContext(ThemeContext);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [payments, setPayments] = useState([]);
@@ -102,7 +105,13 @@ export default function PaymentHistoryModal({
     const busyRecibo = downloadingId === p._id;
 
     return (
-      <View style={[styles.row, { backgroundColor: theme.background, borderColor: theme.border }]}>
+      <DesignCard
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent={ec}
+        contentStyle={styles.rowInner}
+        style={{ marginBottom: 8 }}
+      >
         <View style={styles.rowMain}>
           <View style={{ flex: 1 }}>
             <Text style={{ color: theme.text, fontWeight: '700' }}>
@@ -176,7 +185,7 @@ export default function PaymentHistoryModal({
             ) : null}
           </View>
         )}
-      </View>
+      </DesignCard>
     );
   };
 
@@ -204,14 +213,26 @@ export default function PaymentHistoryModal({
           ) : (
             <>
               <View style={styles.statsRow}>
-                <View style={[styles.stat, { backgroundColor: theme.background }]}>
+                <DesignCard
+                  theme={theme}
+                  isDarkMode={isDarkMode}
+                  accent="#10b981"
+                  style={styles.statCard}
+                  contentStyle={styles.statInner}
+                >
                   <Text style={{ color: '#10b981', fontWeight: '800' }}>{fmtMoney(stats.totalPagado)}</Text>
                   <Text style={{ color: theme.textMuted, fontSize: 11 }}>Pagado</Text>
-                </View>
-                <View style={[styles.stat, { backgroundColor: theme.background }]}>
+                </DesignCard>
+                <DesignCard
+                  theme={theme}
+                  isDarkMode={isDarkMode}
+                  accent="#f59e0b"
+                  style={styles.statCard}
+                  contentStyle={styles.statInner}
+                >
                   <Text style={{ color: '#f59e0b', fontWeight: '800' }}>{fmtMoney(stats.totalPendiente)}</Text>
                   <Text style={{ color: theme.textMuted, fontSize: 11 }}>Pendiente</Text>
-                </View>
+                </DesignCard>
               </View>
 
               <FlatList
@@ -249,14 +270,10 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: '800', flex: 1 },
   sub: { fontSize: 14, marginBottom: 12 },
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-  stat: { flex: 1, padding: 12, borderRadius: 5, alignItems: 'center' },
+  statCard: { flex: 1, marginBottom: 0 },
+  statInner: { alignItems: 'center', paddingHorizontal: 12, paddingTop: 12, paddingBottom: 12 },
   list: { flex: 1 },
-  row: {
-    padding: 12,
-    borderRadius: 5,
-    borderWidth: 1,
-    marginBottom: 8,
-  },
+  rowInner: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 12 },
   rowMain: { flexDirection: 'row', alignItems: 'center' },
   metodoRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5, marginTop: 4 },

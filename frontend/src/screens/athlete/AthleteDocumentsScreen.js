@@ -24,6 +24,7 @@ import { pickPaginatedRows } from '../../utils/paginatedApi';
 import { detectMediaKind, openMediaViewer, downloadMediaFile } from '../../utils/mediaUtils';
 import { uploadFileToClub, pickWebFile } from '../../utils/uploadMedia';
 import MemberChildPicker from '../../components/MemberChildPicker';
+import DesignCard from '../../components/DesignCard';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 
 function estadoEntrega(miEntrega) {
@@ -180,7 +181,7 @@ export default function AthleteDocumentsScreen({ navigation }) {
       item.miEntrega.estado === 'revision';
 
     return (
-      <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <DesignCard theme={theme} isDarkMode={isDarkMode} accent={st.color} contentStyle={styles.cardInner}>
         <View style={styles.cardTop}>
           <Text style={[styles.cardTitle, { color: theme.text }]}>{item.titulo}</Text>
           <View style={[styles.badge, { backgroundColor: `${st.color}22` }]}>
@@ -272,7 +273,7 @@ export default function AthleteDocumentsScreen({ navigation }) {
             Este requerimiento ya fue aprobado. Si necesitás cambiar el archivo, pedí ayuda en el club.
           </Text>
         )}
-      </View>
+      </DesignCard>
     );
   };
 
@@ -326,7 +327,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   list: { padding: 16, paddingBottom: 32 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  card: { borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 12 },
+  cardInner: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 14 },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
   cardTitle: { flex: 1, fontSize: 16, fontWeight: '700' },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },

@@ -15,7 +15,7 @@ import { ClubContext } from '../context/ClubContext';
 import { ThemeContext } from '../context/ThemeContext';
 import CustomAlert from '../components/CustomAlert';
 import AuthFormLayout from '../components/AuthFormLayout';
-import { platformCardShadow } from '../utils/platformShadow';
+import DesignCard from '../components/DesignCard';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -83,12 +83,18 @@ export default function WorkspaceSearchScreen({ navigation }) {
           />
         </View>
 
-        <View style={[styles.card, { backgroundColor: theme.surface }]}>
+        <DesignCard
+          theme={theme}
+          isDarkMode={isDarkMode}
+          accent="#3b82f6"
+          contentStyle={styles.cardBody}
+          style={styles.cardWrap}
+        >
           <TextInput
             style={[
               styles.input,
               {
-                backgroundColor: theme.background,
+                backgroundColor: isDarkMode ? '#1a191f' : theme.background,
                 borderColor: theme.border,
                 color: theme.text,
               },
@@ -118,7 +124,7 @@ export default function WorkspaceSearchScreen({ navigation }) {
               <Text style={styles.buttonText}>Ingresar</Text>
             )}
           </TouchableOpacity>
-        </View>
+        </DesignCard>
       </AuthFormLayout>
 
       <CustomAlert
@@ -134,12 +140,12 @@ export default function WorkspaceSearchScreen({ navigation }) {
 const styles = StyleSheet.create({
   heroWrap: { alignItems: 'center', width: '100%' },
   heroImage: { width: 250, height: 250, marginBottom: 0 },
-  card: {
-    borderRadius: 16,
-    padding: 24,
+  cardWrap: { width: '100%', marginBottom: 0 },
+  cardBody: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 20,
     alignItems: 'center',
-    width: '100%',
-    ...platformCardShadow(6),
   },
   input: {
     width: '100%',

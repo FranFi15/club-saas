@@ -8,11 +8,12 @@ import {
   StatusBar,
   FlatList,
   Platform,
-  Dimensions,
   ScrollView,
   TextInput,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useIsFocused } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -32,8 +33,6 @@ const ENTRY_TABS = [
   { key: 'scan', label: 'Escanear', icon: 'qr-code-outline' },
   { key: 'history', label: 'Historial', icon: 'time-outline' },
 ];
-
-const CAMERA_HEIGHT = Math.min(360, Math.round(Dimensions.get('window').width * 0.78));
 
 function entryRoleLabel(rol) {
   if (!rol) return 'Socio';
@@ -187,6 +186,10 @@ function ResultCard({ result, onDismiss, theme }) {
 
 export default function AdminClubEntryScanScreen({ navigation, route }) {
   const standalone = route?.params?.standalone === true;
+  const isFocused = useIsFocused();
+  const { width: windowWidth } = useWindowDimensions();
+  const cameraHeight = Math.min(360, Math.round(windowWidth * 0.78));
+  const cameraWidth = Math.max(1, windowWidth - 32); // body paddingHorizontal 16 * 2
   const { clubData, clearSession } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
@@ -201,6 +204,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
   const [historyPickerOpen, setHistoryPickerOpen] = useState(false);
   const [visitorOpen, setVisitorOpen] = useState(false);
   const [savingVisitor, setSavingVisitor] = useState(false);
+  const [cameraKey, setCameraKey] = useState(0);
   const lastScanRef = useRef({ token: '', at: 0 });
   const cooldownRef = useRef(null);
 
@@ -279,6 +283,14 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
       requestPermission();
     }
   }, [permission, requestPermission]);
+
+  // Swipe tabs keep screens mounted — remount camera when this tab gains focus.
+  useEffect(() => {
+    if (isFocused && tab === 'scan' && !visitorOpen) {
+      setCameraKey((k) => k + 1);
+      setScanning(true);
+    }
+  }, [isFocused, tab, visitorOpen]);
 
   const handleRequestCamera = async () => {
     const result = await requestPermission();
@@ -395,6 +407,8 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
 
   const cameraReady = !!permission?.granted;
   const canRequestCamera = permission?.canAskAgain !== false;
+  const showLiveCamera =
+    cameraReady && isFocused && tab === 'scan' && !visitorOpen && !historyPickerOpen;
 
   const permissionMessage =
     Platform.OS === 'web'
@@ -402,12 +416,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
       : 'Necesitamos acceso a la cámara para escanear los QR de ingreso.';
 
   const renderScanTab = () => (
-    <ScrollView
-      style={styles.tabScroll}
-      contentContainerStyle={styles.scanTabContent}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-    >
+    <View style={styles.scanTab}>
       {!cameraReady ? (
         <View style={[styles.permissionBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           {permission == null ? (
@@ -425,7 +434,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
                 </TouchableOpacity>
               ) : (
                 <Text style={[styles.permissionHint, { color: theme.textMuted }]}>
-                  El permiso fue bloqueado. Habilitá la cámara en la configuración del navegador y recargá la página.
+                  El permiso fue bloqueado. Habilitá la cámara en la configuración del dispositivo o del navegador y volvé a entrar.
                 </Text>
               )}
             </>
@@ -435,26 +444,29 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
         <View
           style={[
             styles.cameraWrap,
-            { height: CAMERA_HEIGHT },
+            { width: cameraWidth, height: cameraHeight },
             Platform.OS === 'web' && styles.cameraWrapWeb,
           ]}
           collapsable={false}
         >
-          {/* Unmount camera while visitor modal is open — Modal + CameraView freezes on some devices. */}
-          {visitorOpen ? (
-            <View style={[StyleSheet.absoluteFillObject, styles.cameraPaused]}>
-              <Ionicons name="camera-outline" size={36} color="rgba(255,255,255,0.5)" />
-              <Text style={styles.cameraPausedTxt}>Cámara en pausa</Text>
-            </View>
-          ) : (
+          {showLiveCamera ? (
             <CameraView
-              style={StyleSheet.absoluteFillObject}
+              key={`entry-cam-${cameraKey}`}
+              style={{ width: cameraWidth, height: cameraHeight }}
               facing="back"
+              active={Platform.OS === 'ios' ? true : undefined}
               barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
               onBarcodeScanned={
                 scanning && !processing ? ({ data }) => handleScan(data) : undefined
               }
             />
+          ) : (
+            <View style={[StyleSheet.absoluteFillObject, styles.cameraPaused]}>
+              <Ionicons name="camera-outline" size={36} color="rgba(255,255,255,0.5)" />
+              <Text style={styles.cameraPausedTxt}>
+                {visitorOpen ? 'Cámara en pausa' : 'Activando cámara…'}
+              </Text>
+            </View>
           )}
           <View style={styles.cameraOverlay} pointerEvents="none">
             <View style={styles.scanFrame} />
@@ -468,26 +480,33 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
         </View>
       )}
 
-      <TouchableOpacity
-        style={[styles.visitorBtn, { backgroundColor: colorMarca, opacity: savingVisitor ? 0.7 : 1 }]}
-        onPress={() => setVisitorOpen(true)}
-        disabled={savingVisitor}
-        accessibilityRole="button"
-        accessibilityLabel="Registrar visitante"
+      <ScrollView
+        style={styles.tabScroll}
+        contentContainerStyle={styles.scanTabContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        {savingVisitor ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <>
-            <Ionicons name="person-add-outline" size={18} color="#fff" />
-            <Text style={styles.visitorBtnTxt}>Registrar visitante</Text>
-          </>
-        )}
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.visitorBtn, { backgroundColor: colorMarca, opacity: savingVisitor ? 0.7 : 1 }]}
+          onPress={() => setVisitorOpen(true)}
+          disabled={savingVisitor}
+          accessibilityRole="button"
+          accessibilityLabel="Registrar visitante"
+        >
+          {savingVisitor ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="person-add-outline" size={18} color="#fff" />
+              <Text style={styles.visitorBtnTxt}>Registrar visitante</Text>
+            </>
+          )}
+        </TouchableOpacity>
 
-      <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Último ingreso</Text>
-      <ResultCard result={lastResult} onDismiss={dismissResult} theme={theme} />
-    </ScrollView>
+        <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Último ingreso</Text>
+        <ResultCard result={lastResult} onDismiss={dismissResult} theme={theme} />
+      </ScrollView>
+    </View>
   );
 
   const renderHistoryTab = () => (
@@ -624,7 +643,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
         colorMarca={colorMarca}
         kicker="Acceso"
         title="Control de ingreso"
-        subtitle={standalone ? clubData?.nombre || 'Tu club' : 'Escaneá el QR del socio o revisá el historial'}
+        subtitle={standalone ? clubData?.nombre || 'Tu club' : 'Escaneá el QR del socio '}
         onBack={standalone ? undefined : () => navigation.goBack()}
         showNotifications={!standalone}
         rightAccessory={
@@ -735,8 +754,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tabBadgeTxt: { color: '#fff', fontSize: 10, fontWeight: '800' },
+  scanTab: { flex: 1 },
   tabScroll: { flex: 1 },
-  scanTabContent: { paddingTop: 10, paddingBottom: 24 },
+  scanTabContent: { paddingTop: 4, paddingBottom: 24 },
   historyTab: { flex: 1, paddingTop: 8 },
   list: { flex: 1 },
   historyListContent: { paddingBottom: 24 },
@@ -765,11 +785,11 @@ const styles = StyleSheet.create({
   permissionBtnTxt: { color: '#fff', fontWeight: '800' },
   permissionHint: { textAlign: 'center', lineHeight: 18, fontSize: 13, marginTop: 4 },
   cameraWrap: {
-    width: '100%',
     borderRadius: 14,
     backgroundColor: '#111',
     position: 'relative',
-    flexShrink: 0,
+    overflow: Platform.OS === 'android' ? 'visible' : 'hidden',
+    alignSelf: 'center',
   },
   cameraPaused: {
     alignItems: 'center',

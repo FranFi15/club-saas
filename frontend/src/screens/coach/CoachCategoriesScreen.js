@@ -20,6 +20,7 @@ import { clubApi } from '../../utils/api';
 import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import BadgeDot from '../../components/BadgeDot';
+import DesignCard from '../../components/DesignCard';
 import { sortByNombre } from '../../utils/listSort';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 
@@ -163,8 +164,10 @@ export default function CoachCategoriesScreen({ navigation }) {
             const pendiente = plantelPendientes.some((p) => String(p._id) === String(item._id));
             const alertasCount = item.alertasCount ?? (pendiente ? 1 : 0);
             return (
-            <TouchableOpacity
-              style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}
+            <DesignCard
+              theme={theme}
+              isDarkMode={isDarkMode}
+              accent={pendiente ? '#f59e0b' : colorMarca}
               onPress={() =>
                 navigation.navigate('CoachCategoryDetail', {
                   categoriaId: item._id,
@@ -172,6 +175,7 @@ export default function CoachCategoriesScreen({ navigation }) {
                   openPlantel: pendiente,
                 })
               }
+              contentStyle={styles.rowInner}
             >
               <View style={[styles.iconWrap, { backgroundColor: colorMarca + '18' }]}>
                 <Ionicons name="shirt-outline" size={22} color={colorMarca} />
@@ -189,7 +193,7 @@ export default function CoachCategoriesScreen({ navigation }) {
               </View>
               <BadgeDot count={alertasCount} />
               <Ionicons name="chevron-forward" size={20} color={theme.icon} />
-            </TouchableOpacity>
+            </DesignCard>
             );
           }}
         />
@@ -214,13 +218,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
   },
-  row: {
+  rowInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 10,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
     gap: 12,
   },
   iconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },

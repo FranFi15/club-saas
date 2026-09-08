@@ -1,6 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useContext, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Polyline, Circle, Line, Text as SvgText } from 'react-native-svg';
+import DesignCard from './DesignCard';
+import { ThemeContext } from '../context/ThemeContext';
 import {
   collectNutriDates,
   groupNutriSeriesByUnit,
@@ -222,11 +224,15 @@ export default function NutriMetricsChart({
   height = 280,
   perChartHeight = 260,
   theme,
+  isDarkMode: isDarkModeProp,
   colorMarca = '#3b82f6',
+  framed = true,
   groupedNutriCharts = false,
   showLegend = true,
   showCaption = true,
 }) {
+  const { isDarkMode: isDarkModeCtx } = useContext(ThemeContext);
+  const isDarkMode = isDarkModeProp ?? isDarkModeCtx;
   const layout = useChartLayout({ grouped: groupedNutriCharts });
   const blockWidth = groupedNutriCharts ? layout.groupedBlockWidth : width;
   const blockHeight = groupedNutriCharts ? layout.perChartHeight : perChartHeight;
@@ -259,7 +265,7 @@ export default function NutriMetricsChart({
 
   if (!activeSeries.length) {
     return (
-      <View style={[styles.wrap, styles.empty, { borderColor: grid, width }]}>
+      <View style={[styles.emptyWrap, styles.empty, { borderColor: grid, width }]}>
         <Text style={{ color: muted, textAlign: 'center', fontSize: 13 }}>
           Registrá mediciones para ver la evolución de todas las medidas juntas.
         </Text>
@@ -276,12 +282,13 @@ export default function NutriMetricsChart({
           const useStackedSingles = block.key === 'basicos' && block.series.length > 1;
 
           return (
-            <View
+            <DesignCard
               key={block.key}
-              style={[
-                styles.separateCard,
-                { borderColor: grid, backgroundColor: theme?.surface },
-              ]}
+              theme={theme}
+              isDarkMode={isDarkMode}
+              accent={colorMarca}
+              contentStyle={styles.separateInner}
+              style={styles.separateCard}
             >
               <View style={styles.separateHead}>
                 <Text style={[styles.separateTitle, { color: theme?.text || '#111' }]}>{block.title}</Text>
@@ -325,15 +332,15 @@ export default function NutriMetricsChart({
                     grid={grid}
                   />
                 )}
-            </View>
+            </DesignCard>
           );
         })}
       </View>
     );
   }
 
-  return (
-    <View style={[styles.wrap, { borderColor: grid, width: layout.isWide ? layout.chartWidth : width }, wrapWide]}>
+  const chartBody = (
+    <>
       {showLegend ? (
         <View style={styles.legendWrap}>
           {activeSeries.map((s) => {
@@ -387,20 +394,34 @@ export default function NutriMetricsChart({
           Línea destacada: promedio de los pliegues ISAK registrados el mismo día · Eje horizontal: fecha
         </Text>
       ) : null}
-    </View>
+    </>
+  );
+
+  if (!framed) {
+    return <View style={[styles.unframed, wrapWide, { width: layout.isWide ? layout.chartWidth : width }]}>{chartBody}</View>;
+  }
+
+  return (
+    <DesignCard
+      theme={theme}
+      isDarkMode={isDarkMode}
+      accent={colorMarca}
+      contentStyle={styles.wrapInner}
+      style={[styles.framedCard, wrapWide, { width: layout.isWide ? layout.chartWidth : width }]}
+    >
+      {chartBody}
+    </DesignCard>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { borderWidth: 1, borderRadius: 12, padding: 10, marginTop: 8 },
+  emptyWrap: { borderWidth: 1, borderRadius: 12, padding: 10, marginTop: 8 },
+  framedCard: { marginTop: 8 },
+  wrapInner: { paddingHorizontal: 10, paddingTop: 10, paddingBottom: 10 },
+  unframed: { marginTop: 4 },
   separateWrap: { marginTop: 4, gap: 14, width: '100%' },
-  separateCard: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    paddingBottom: 8,
-    width: '100%',
-  },
+  separateCard: { width: '100%', marginBottom: 0 },
+  separateInner: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8 },
   separateHead: { marginBottom: 8 },
   separateTitle: { fontSize: 16, fontWeight: '800', lineHeight: 22 },
   separateSub: { fontSize: 12, marginTop: 4, lineHeight: 17 },

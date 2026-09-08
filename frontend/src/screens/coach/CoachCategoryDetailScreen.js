@@ -14,6 +14,9 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
+  LayoutAnimation,
+  UIManager,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,12 +27,12 @@ import { getToken } from '../../utils/storage';
 import { clubApi } from '../../utils/api';
 import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
+import DesignCard from '../../components/DesignCard';
 import WellnessMetricsChart from '../../components/WellnessMetricsChart';
 import { seriesFromHistorial, wellnessMetricAverages, wellnessRecordValue } from '../../utils/wellnessHistorial';
 import { WELLNESS_METRICS, WELLNESS_CARD_LABELS, WELLNESS_PRE_FIELDS } from '../../constants/wellnessMetrics';
 import { isoCalendarDateToDisplay } from '../../utils/dateDisplay';
 import { detectMediaKind, mediaKindIcon, downloadMediaFile, openMediaViewer } from '../../utils/mediaUtils';
-import { platformCardShadow } from '../../utils/platformShadow';
 import { sortEnrollmentsByAtleta, sortUsersByName } from '../../utils/listSort';
 import CategoryRosterModal from '../../components/CategoryRosterModal';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
@@ -80,6 +83,30 @@ function matchesRosterSearch(enrollment, query) {
   const full = `${a.nombre || ''} ${a.apellido || ''}`.toLowerCase();
   const dni = String(a.dni || '').toLowerCase();
   return full.includes(q) || dni.includes(q);
+}
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const ATHLETE_PANEL_ANIM = LayoutAnimation.create(
+  260,
+  LayoutAnimation.Types.easeInEaseOut,
+  LayoutAnimation.Properties.opacity,
+);
+
+/** Fade-in for expanded wellness / asistencias panel. */
+function AthletePanelReveal({ children, style }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    opacity.setValue(0);
+    Animated.timing(opacity, {
+      toValue: 1,
+      duration: 240,
+      useNativeDriver: true,
+    }).start();
+  }, [opacity]);
+  return <Animated.View style={[style, { opacity }]}>{children}</Animated.View>;
 }
 
 export default function CoachCategoryDetailScreen({ navigation, route }) {
@@ -570,6 +597,18 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
     [navigation],
   );
 
+  const setAthletePanel = useCallback((aid, key) => {
+    LayoutAnimation.configureNext(ATHLETE_PANEL_ANIM);
+    setActivePanel((p) => {
+      if (p[aid] === key) {
+        const next = { ...p };
+        delete next[aid];
+        return next;
+      }
+      return { ...p, [aid]: key };
+    });
+  }, []);
+
   const renderAthlete = ({ item }) => {
     const a = item.atleta;
     if (!a) return null;
@@ -580,7 +619,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
     const panel = activePanel[aid];
 
     return (
-      <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <DesignCard theme={theme} isDarkMode={isDarkMode} accent={colorMarca} contentStyle={styles.cardInner}>
         <View style={styles.cardHeader}>
           <Text style={[styles.athName, { color: theme.text }]} numberOfLines={1}>
             {a.nombre} {a.apellido}
@@ -603,7 +642,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
                       openAthleteMeasurement(a);
                       return;
                     }
-                    setActivePanel((p) => ({ ...p, [aid]: tab.key }));
+                    setAthletePanel(aid, tab.key);
                   }}
                   accessibilityLabel={tab.label}
                 >
@@ -627,7 +666,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
         ) : null}
 
         {panel === 'wellness' ? (
-          <View style={styles.panelBlock}>
+          <AthletePanelReveal style={styles.panelBlock}>
             <TouchableOpacity
               style={styles.sparkWrap}
               onPress={() =>
@@ -681,18 +720,18 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
             >
               <Text style={{ color: colorMarca, fontWeight: '700' }}>Abrir wellness</Text>
             </TouchableOpacity>
-          </View>
+          </AthletePanelReveal>
         ) : null}
 
         {panel === 'asistencias' ? (
-          <View style={styles.panelBlock}>
+          <AthletePanelReveal style={styles.panelBlock}>
             {renderAttendanceSummary(a._id)}
             <Text style={[styles.panelHint, { color: theme.textMuted }]}>
               Resumen de los últimos 90 días. Se actualiza al guardar asistencia en cada sesión.
             </Text>
-          </View>
+          </AthletePanelReveal>
         ) : null}
-      </View>
+      </DesignCard>
     );
   };
 
@@ -766,34 +805,46 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
       ) : null}
 
       <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={[styles.actionTile, { backgroundColor: theme.surface, borderColor: theme.border }]}
+        <DesignCard
+          theme={theme}
+          isDarkMode={isDarkMode}
+          accent={colorMarca}
           onPress={openAddModal}
+          style={styles.actionTileWrap}
+          contentStyle={styles.actionTileInner}
         >
-          <View style={[styles.actionTileIcon, { backgroundColor: colorMarca + '18' }]}>
+          <View style={[styles.actionTileIcon, { backgroundColor: `${colorMarca}22` }]}>
             <Ionicons name="person-add-outline" size={22} color={colorMarca} />
           </View>
           <Text style={[styles.actionTileLbl, { color: theme.text }]} numberOfLines={2}>
             Alta atletas
           </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionTile, { backgroundColor: theme.surface, borderColor: theme.border }]}
+        </DesignCard>
+        <DesignCard
+          theme={theme}
+          isDarkMode={isDarkMode}
+          accent="#01c3a8"
           onPress={openTeamWellness}
+          style={styles.actionTileWrap}
+          contentStyle={styles.actionTileInner}
         >
-          <View style={[styles.actionTileIcon, { backgroundColor: colorMarca + '18' }]}>
-            <Ionicons name="pulse-outline" size={22} color={colorMarca} />
+          <View style={[styles.actionTileIcon, { backgroundColor: '#01c3a822' }]}>
+            <Ionicons name="pulse-outline" size={22} color="#01c3a8" />
           </View>
           <Text style={[styles.actionTileLbl, { color: theme.text }]} numberOfLines={2}>
             Wellness hoy
           </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionTile, { backgroundColor: theme.surface, borderColor: theme.border }]}
+        </DesignCard>
+        <DesignCard
+          theme={theme}
+          isDarkMode={isDarkMode}
+          accent="#ffb741"
           onPress={openDocModal}
+          style={styles.actionTileWrap}
+          contentStyle={styles.actionTileInner}
         >
-          <View style={[styles.actionTileIcon, { backgroundColor: colorMarca + '18' }]}>
-            <Ionicons name="document-attach-outline" size={22} color={colorMarca} />
+          <View style={[styles.actionTileIcon, { backgroundColor: '#ffb74122' }]}>
+            <Ionicons name="document-attach-outline" size={22} color="#ffb741" />
             {docPendingCount > 0 ? (
               <View style={styles.tileBadge}>
                 <Text style={styles.tileBadgeTxt}>{docPendingCount > 10 ? '+' : docPendingCount}</Text>
@@ -803,7 +854,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
           <Text style={[styles.actionTileLbl, { color: theme.text }]} numberOfLines={2}>
             Revisar docs
           </Text>
-        </TouchableOpacity>
+        </DesignCard>
       </View>
 
       {!showInitialLoader ? (
@@ -1000,9 +1051,12 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
                     const hist = aid ? seriesFor(aid) : [];
                     const isPost = w.tipo === 'post';
                     return (
-                      <View
+                      <DesignCard
                         key={w._id}
-                        style={[styles.wellnessCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                        theme={theme}
+                        isDarkMode={isDarkMode}
+                        accent={isPost ? '#f59e0b' : colorMarca}
+                        contentStyle={styles.wellnessCardInner}
                       >
                         <View style={styles.wellnessCardHead}>
                           <Text style={[styles.wellnessAthName, { color: theme.text }]}>
@@ -1067,7 +1121,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
                             showLegend
                           />
                         </View>
-                      </View>
+                      </DesignCard>
                     );
                   })
                 )}
@@ -1182,13 +1236,66 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
                       ? { style: styles.docReviewMain }
                       : { style: styles.docReviewMain, onPress: () => openDocFile(item), activeOpacity: 0.85 };
                     return (
-                      <View
+                      <DesignCard
                         key={item._id}
-                        style={[
-                          styles.docReviewCard,
-                          { backgroundColor: theme.surface, borderColor: theme.border },
-                          platformCardShadow(3),
-                        ]}
+                        theme={theme}
+                        isDarkMode={isDarkMode}
+                        accent={st.color}
+                        contentStyle={styles.docReviewCardInner}
+                        footer={
+                          <View style={styles.docReviewActions}>
+                            <TouchableOpacity
+                              style={[styles.docViewBtn, { borderColor: theme.border, opacity: fileBusy ? 0.65 : 1 }]}
+                              onPress={() => openDocFile(item)}
+                              disabled={fileBusy}
+                            >
+                              {fileBusy ? (
+                                <ActivityIndicator size="small" color={theme.text} />
+                              ) : (
+                                <>
+                                  <Ionicons
+                                    name={isPdf ? 'download-outline' : 'eye-outline'}
+                                    size={16}
+                                    color={theme.text}
+                                  />
+                                  <Text style={{ color: theme.text, fontWeight: '600', fontSize: 12, marginLeft: 4 }}>
+                                    {isPdf ? 'Descargar' : 'Ver'}
+                                  </Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
+                            {canReview ? (
+                              <>
+                                <TouchableOpacity
+                                  style={[styles.docApproveBtn, { opacity: busy ? 0.6 : 1 }]}
+                                  onPress={() => confirmApproveDoc(item)}
+                                  disabled={busy}
+                                >
+                                  {busy ? (
+                                    <ActivityIndicator color="#fff" size="small" />
+                                  ) : (
+                                    <>
+                                      <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
+                                      <Text style={styles.docActionTxt}>Aprobar</Text>
+                                    </>
+                                  )}
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={[styles.docRejectBtn, { opacity: busy ? 0.6 : 1 }]}
+                                  onPress={() => setRejectModal({ visible: true, item, motivo: '' })}
+                                  disabled={busy}
+                                >
+                                  <Ionicons name="close-circle-outline" size={16} color="#ef4444" />
+                                  <Text style={[styles.docActionTxt, { color: '#ef4444' }]}>Rechazar</Text>
+                                </TouchableOpacity>
+                              </>
+                            ) : item.estado === 'revision' && !canReviewDoc(item) ? (
+                              <Text style={[styles.docReadOnly, { color: theme.textMuted }]}>
+                                Solo quien lo solicitó puede revisar
+                              </Text>
+                            ) : null}
+                          </View>
+                        }
                       >
                         <DocMain {...docMainProps}>
                           <View style={[styles.docReviewIcon, { backgroundColor: colorMarca + '18' }]}>
@@ -1214,59 +1321,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
                             <Text style={{ color: st.color, fontWeight: '800', fontSize: 11 }}>{st.label}</Text>
                           </View>
                         </DocMain>
-                        <View style={styles.docReviewActions}>
-                          <TouchableOpacity
-                            style={[styles.docViewBtn, { borderColor: theme.border, opacity: fileBusy ? 0.65 : 1 }]}
-                            onPress={() => openDocFile(item)}
-                            disabled={fileBusy}
-                          >
-                            {fileBusy ? (
-                              <ActivityIndicator size="small" color={theme.text} />
-                            ) : (
-                              <>
-                                <Ionicons
-                                  name={isPdf ? 'download-outline' : 'eye-outline'}
-                                  size={16}
-                                  color={theme.text}
-                                />
-                                <Text style={{ color: theme.text, fontWeight: '600', fontSize: 12, marginLeft: 4 }}>
-                                  {isPdf ? 'Descargar' : 'Ver'}
-                                </Text>
-                              </>
-                            )}
-                          </TouchableOpacity>
-                          {canReview ? (
-                            <>
-                              <TouchableOpacity
-                                style={[styles.docApproveBtn, { opacity: busy ? 0.6 : 1 }]}
-                                onPress={() => confirmApproveDoc(item)}
-                                disabled={busy}
-                              >
-                                {busy ? (
-                                  <ActivityIndicator color="#fff" size="small" />
-                                ) : (
-                                  <>
-                                    <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
-                                    <Text style={styles.docActionTxt}>Aprobar</Text>
-                                  </>
-                                )}
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                style={[styles.docRejectBtn, { opacity: busy ? 0.6 : 1 }]}
-                                onPress={() => setRejectModal({ visible: true, item, motivo: '' })}
-                                disabled={busy}
-                              >
-                                <Ionicons name="close-circle-outline" size={16} color="#ef4444" />
-                                <Text style={[styles.docActionTxt, { color: '#ef4444' }]}>Rechazar</Text>
-                              </TouchableOpacity>
-                            </>
-                          ) : item.estado === 'revision' && !canReviewDoc(item) ? (
-                            <Text style={[styles.docReadOnly, { color: theme.textMuted }]}>
-                              Solo quien lo solicitó puede revisar
-                            </Text>
-                          ) : null}
-                        </View>
-                      </View>
+                      </DesignCard>
                     );
                   })
                 )}
@@ -1329,13 +1384,14 @@ const styles = StyleSheet.create({
     marginTop: 12,
     gap: 10,
   },
-  actionTile: {
+  actionTileWrap: {
     flex: 1,
+    marginBottom: 0,
+  },
+  actionTileInner: {
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 6,
-    borderRadius: 14,
-    borderWidth: 1,
   },
   actionTileIcon: {
     width: 44,
@@ -1377,7 +1433,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  docReviewCard: { borderRadius: 14, borderWidth: 1, marginBottom: 12, overflow: 'hidden' },
+  docReviewCardInner: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 },
   docReviewMain: { flexDirection: 'row', alignItems: 'flex-start', padding: 14, gap: 10 },
   docReviewIcon: {
     width: 44,
@@ -1396,8 +1452,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 14,
-    paddingBottom: 14,
   },
   docViewBtn: {
     flexDirection: 'row',
@@ -1475,7 +1529,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   listPad: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
-  card: { borderWidth: 1, borderRadius: 6, padding: 12, marginBottom: 10 },
+  cardInner: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 12 },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1680,16 +1734,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 12,
   },
-  wellnessCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+  wellnessCardInner: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
   },
   wellnessCardHead: {
     flexDirection: 'row',

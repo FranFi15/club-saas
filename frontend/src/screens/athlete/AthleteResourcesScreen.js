@@ -8,7 +8,7 @@ import {
   RefreshControl,
   StatusBar,
   ActivityIndicator,
-  ScrollView,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +22,7 @@ import { clubHeaders, memberScopeParams } from './athleteApi';
 import { pickPaginatedRows } from '../../utils/paginatedApi';
 import { detectMediaKind, openMediaViewer, downloadMediaFile, mediaKindIcon } from '../../utils/mediaUtils';
 import MemberChildPicker from '../../components/MemberChildPicker';
+import DesignCard from '../../components/DesignCard';
 import { formatRolStaff, STAFF_ROL_FILTER_ORDER } from '../staff/staffUtils';
 import { useBadges } from '../../context/BadgeContext';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
@@ -59,7 +60,8 @@ export default function AthleteResourcesScreen({ navigation }) {
   const [resourcesPage, setResourcesPage] = useState(1);
   const [resourcesHasMore, setResourcesHasMore] = useState(false);
   const [loadingMoreResources, setLoadingMoreResources] = useState(false);
-  const [selectedStaffRol, setSelectedStaffRol] = useState(null);
+  const [selectedStaffRol, setSelectedStaffRol] = useState('');
+  const [openFilter, setOpenFilter] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
@@ -149,13 +151,20 @@ export default function AthleteResourcesScreen({ navigation }) {
   useEffect(() => {
     if (!selectedStaffRol) return;
     const stillThere = staffRolOptions.some((s) => s.id === selectedStaffRol);
-    if (!stillThere) setSelectedStaffRol(null);
+    if (!stillThere) setSelectedStaffRol('');
   }, [staffRolOptions, selectedStaffRol]);
 
   const filteredList = useMemo(() => {
     if (!selectedStaffRol) return list;
     return list.filter((item) => authorRolKey(item.autor) === selectedStaffRol);
   }, [list, selectedStaffRol]);
+
+  const staffFilterOptions = useMemo(
+    () => [{ value: '', label: 'Todas las áreas' }, ...staffRolOptions.map((s) => ({ value: s.id, label: s.label }))],
+    [staffRolOptions],
+  );
+
+  const selectedStaffLabel = staffFilterOptions.find((o) => o.value === selectedStaffRol)?.label;
 
   const openResource = async (item) => {
     if (!item.fileUrl) {
@@ -190,17 +199,16 @@ export default function AthleteResourcesScreen({ navigation }) {
     const isPdf = kind === 'pdf';
     const tipoLabel = TIPO_LABELS[item.tipo] || item.tipo || 'Recurso';
     const busy = downloadingId === item._id;
-    const RowWrap = isPdf ? View : TouchableOpacity;
-    const rowProps = isPdf
-      ? { style: [styles.row, { backgroundColor: theme.surface, borderColor: theme.border }] }
-      : {
-          style: [styles.row, { backgroundColor: theme.surface, borderColor: theme.border }],
-          onPress: () => openResource(item),
-          activeOpacity: 0.85,
-        };
 
     return (
-      <RowWrap {...rowProps}>
+      <DesignCard
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent={colorMarca}
+        onPress={isPdf ? undefined : () => openResource(item)}
+        contentStyle={styles.rowInner}
+        muted={!item.fileUrl}
+      >
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: theme.text }]} numberOfLines={2}>
             {item.titulo}
@@ -232,47 +240,40 @@ export default function AthleteResourcesScreen({ navigation }) {
         ) : (
           <Ionicons name={mediaKindIcon(kind)} size={22} color={theme.icon} />
         )}
-      </RowWrap>
+      </DesignCard>
     );
   };
 
   const listHeader = staffRolOptions.length > 1 ? (
-    <View style={styles.filterWrap}>
-      <Text style={[styles.filterLabel, { color: theme.textMuted }]}>Área del staff</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-        <TouchableOpacity
-          style={[
-            styles.chip,
-            {
-              borderColor: !selectedStaffRol ? colorMarca : theme.border,
-              backgroundColor: !selectedStaffRol ? colorMarca : theme.surface,
-            },
-          ]}
-          onPress={() => setSelectedStaffRol(null)}
+    <View style={styles.filterPillsRow}>
+      <TouchableOpacity
+        onPress={() => setOpenFilter(true)}
+        style={[
+          styles.filterChip,
+          {
+            borderColor: selectedStaffRol ? colorMarca : theme.border,
+            backgroundColor: selectedStaffRol ? `${colorMarca}18` : theme.surface,
+          },
+        ]}
+      >
+        <Text
+          style={{
+            color: selectedStaffRol ? colorMarca : theme.text,
+            fontSize: 12,
+            fontWeight: '600',
+            flexShrink: 1,
+          }}
+          numberOfLines={1}
         >
-          <Text style={[styles.chipTxt, { color: !selectedStaffRol ? '#fff' : theme.text }]}>Todos</Text>
-        </TouchableOpacity>
-        {staffRolOptions.map((s) => {
-          const active = selectedStaffRol === s.id;
-          return (
-            <TouchableOpacity
-              key={s.id}
-              style={[
-                styles.chip,
-                {
-                  borderColor: active ? colorMarca : theme.border,
-                  backgroundColor: active ? colorMarca : theme.surface,
-                },
-              ]}
-              onPress={() => setSelectedStaffRol(s.id)}
-            >
-              <Text style={[styles.chipTxt, { color: active ? '#fff' : theme.text }]} numberOfLines={1}>
-                {s.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+          {selectedStaffRol ? selectedStaffLabel || 'Área' : 'Área del staff'}
+        </Text>
+        <Ionicons
+          name="chevron-down"
+          size={14}
+          color={selectedStaffRol ? colorMarca : theme.textMuted}
+          style={{ marginLeft: 4 }}
+        />
+      </TouchableOpacity>
     </View>
   ) : null;
 
@@ -299,6 +300,54 @@ export default function AthleteResourcesScreen({ navigation }) {
         subtitle={isTutor ? 'Material compartido con tu familiar' : 'Archivos que te compartieron para tu categoría o para vos'}
         onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
       />
+
+      <Modal
+        visible={openFilter}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setOpenFilter(false)}
+      >
+        <View style={styles.filterModalOverlay}>
+          <View style={[styles.filterModalContent, { backgroundColor: theme.surface }]}>
+            <View style={styles.filterModalHeader}>
+              <TouchableOpacity onPress={() => setOpenFilter(false)} hitSlop={8}>
+                <Ionicons name="close" size={26} color={theme.icon} />
+              </TouchableOpacity>
+              <Text style={[styles.filterModalTitle, { color: theme.text }]}>Área del staff</Text>
+              <View style={{ width: 26 }} />
+            </View>
+            <FlatList
+              data={staffFilterOptions}
+              keyExtractor={(item, index) => (item.value ? String(item.value) : `all-${index}`)}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => {
+                const selected = item.value === selectedStaffRol;
+                return (
+                  <TouchableOpacity
+                    style={[styles.filterOptionRow, { borderBottomColor: theme.border }]}
+                    onPress={() => {
+                      setSelectedStaffRol(item.value);
+                      setOpenFilter(false);
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: selected ? colorMarca : theme.text,
+                        fontWeight: selected ? '700' : '500',
+                        fontSize: 15,
+                        flex: 1,
+                      }}
+                    >
+                      {item.label}
+                    </Text>
+                    {selected ? <Ionicons name="checkmark" size={22} color={colorMarca} /> : null}
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
 
       {isTutor ? <MemberChildPicker theme={theme} colorMarca={colorMarca} compact /> : null}
 
@@ -334,30 +383,50 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   list: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 4 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  filterWrap: { marginBottom: 12, paddingTop: 8 },
-  filterLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: 8,
-    marginLeft: 2,
-  },
-  filterScroll: { gap: 8, paddingRight: 8 },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  chipTxt: { fontSize: 13, fontWeight: '700' },
-  row: {
+  filterPillsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, paddingTop: 8 },
+  filterChip: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 12,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 5,
     borderWidth: 1,
-    padding: 14,
-    marginBottom: 10,
+    minWidth: 0,
+  },
+  filterModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  filterModalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 28,
+    maxHeight: '70%',
+  },
+  filterModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  filterModalTitle: { fontSize: 17, fontWeight: '700' },
+  filterOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  rowInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
   },
   title: { fontSize: 16, fontWeight: '600' },
   sub: { fontSize: 13, marginTop: 4 },

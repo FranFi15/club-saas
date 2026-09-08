@@ -14,7 +14,7 @@ import ChatNewScreen from '../screens/chat/ChatNewScreen';
 import { createProfileStack } from './createProfileStack';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
-import { tabBadgeLabel } from '../utils/tabBadgeLabel';
+import { tabBadgeText } from '../utils/tabBadgeLabel';
 import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
 
 const Tab = createSwipeBottomTabNavigator();
@@ -76,28 +76,28 @@ export default function ColaboradorTabNavigator() {
             ColabChat: focused ? 'chatbubbles' : 'chatbubbles-outline',
             ColabPerfil: focused ? 'person' : 'person-outline',
           };
-          return <Ionicons name={map[name] || 'ellipse-outline'} size={24} color={color} />;
+          return <Ionicons name={map[name] || 'ellipse-outline'} size={22} color={color} />;
         },
+        getBadge: (name) =>
+          ({
+            ColabNoticias: tabBadgeText(tab('noticias')),
+            ColabChat: tabBadgeText(tab('chat')),
+          })[name],
+        getLabel: (name) =>
+          ({
+            ColabNoticias: 'Noticias',
+            ColabChat: 'Chat',
+            ColabPerfil: 'Perfil',
+          })[name],
       })}
     >
-      <Tab.Screen
-        name="ColabNoticias"
-        component={ColaboradorNewsScreen}
-        options={{
-          tabBarLabel: 'Noticias',
-          tabBarBadge: tabBadgeLabel(tab('noticias')),
-        }}
-      />
+      <Tab.Screen name="ColabNoticias" component={ColaboradorNewsScreen} />
       <Tab.Screen
         name="ColabChat"
         component={ColaboradorChatStackNav}
-        options={{
-          tabBarLabel: 'Chat',
-          tabBarBadge: tabBadgeLabel(tab('chat')),
-        }}
         listeners={tabPressResetToRoot('ColabChat', 'ChatInbox')}
       />
-      <Tab.Screen name="ColabPerfil" component={ColaboradorProfileStack} options={{ tabBarLabel: 'Perfil' }} />
+      <Tab.Screen name="ColabPerfil" component={ColaboradorProfileStack} />
     </Tab.Navigator>
   );
 }

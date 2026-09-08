@@ -17,6 +17,7 @@ import { getToken } from '../../utils/storage';
 // 1. IMPORTAMOS EL CUSTOM ALERT
 import CustomAlert from '../../components/CustomAlert';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
+import DesignCard from '../../components/DesignCard';
 import { sortByNombre } from '../../utils/listSort';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 
@@ -212,23 +213,25 @@ export default function EstructuraScreen({ navigation }) {
 
  const renderItem = ({ item }) => (
     <Swipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>
-      <TouchableOpacity 
-        style={[styles.card, { backgroundColor: theme.surface }]} 
-        activeOpacity={0.7} 
-        onPress={() => navigation.navigate('Categorias', { disciplina: item })} 
+      <DesignCard
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent={colorMarca}
+        onPress={() => navigation.navigate('Categorias', { disciplina: item })}
+        style={{ marginBottom: 12 }}
+        contentStyle={styles.cardInner}
       >
         <View style={styles.cardContent}>
-          
           <View style={{ flex: 1 }}>
             <Text style={[styles.cardTitle, { color: theme.text }]}>{item.nombre}</Text>
             <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 3 }}>
-              Plan auto: {item.planDefault?.nombre || 'Sin plan'}
+              Plan: {item.planDefault?.nombre || 'Sin plan'}
               {item.planDefault?.monto ? ` • $${Number(item.planDefault.monto).toLocaleString('es-AR')}` : ''}
             </Text>
           </View>
         </View>
         <Ionicons name="chevron-forward" size={20} color={theme.icon} />
-      </TouchableOpacity>
+      </DesignCard>
     </Swipeable>
   );
 
@@ -425,8 +428,8 @@ const styles = StyleSheet.create({
   searchIcon: { marginRight: 10 },
   searchInput: { flex: 1, fontSize: 16 },
   body: { flex: 1, paddingHorizontal: 20 },
-  card: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderRadius: 5, marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
-  cardContent: { flexDirection: 'row', alignItems: 'center' },
+  cardInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  cardContent: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   iconBox: { padding: 10, borderRadius: 10, marginRight: 15 },
   cardTitle: { fontSize: 16, fontWeight: '600' },
   swipeActionsContainer: { flexDirection: 'row', marginBottom: 12, overflow: 'hidden', borderRadius: 5 },

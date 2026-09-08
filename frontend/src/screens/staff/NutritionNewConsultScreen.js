@@ -1,4 +1,4 @@
-import React, { useContext, useState, useCallback } from 'react';
+import React, { useContext, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,16 +12,21 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
 import { clubApi } from '../../utils/api';
 import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
+import FilterPillSheet from '../../components/FilterPillSheet';
+import CalendarDateField from '../../components/CalendarDateField';
 import { sortByNombre } from '../../utils/listSort';
+import {
+  categoriesGroupedByDisciplina,
+  categoryPillLabel,
+} from '../../utils/categoryFilterOptions';
 import { formatLocalDate } from '../../utils/timeSlots';
-import { displayDateToIsoCalendar, isoCalendarDateToDisplay, maskDateDDMMAAAA } from '../../utils/dateDisplay';
+import { displayDateToIsoCalendar, isoCalendarDateToDisplay } from '../../utils/dateDisplay';
 import { maskTimeHHMM, isValidTimeHHMM } from '../../utils/timeDisplay';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 
@@ -37,6 +42,7 @@ export default function NutritionNewConsultScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
   const [categoria, setCategoria] = useState('');
   const [atletaId, setAtletaId] = useState('');
+  const [openFilter, setOpenFilter] = useState(null);
   const [lugarLibre, setLugarLibre] = useState('');
   const [fecha, setFecha] = useState('');
   const [horaInicio, setHoraInicio] = useState('09:00');
@@ -106,24 +112,55 @@ export default function NutritionNewConsultScreen({ navigation }) {
 
   const showInitialLoader = loading && categories.length === 0;
 
-  const onPickCategory = async (id) => {
-    setCategoria(id);
-    setAtletaId('');
-    try {
-      const token = await getToken('userToken');
-      const h = {
-        'x-club-identifier': clubData.urlIdentifier,
-        Authorization: `Bearer ${token}`,
-      };
-      const enr = await clubApi.get(`/enrollments/categoria/${id}`, { headers: h });
-      const list = enr.data || [];
-      setEnrollments(list);
-      const a0 = list[0]?.atleta;
-      setAtletaId(a0?._id || '');
-    } catch (e) {
-      showAlert('Error', e.response?.data?.message || 'No se pudo cargar el plantel.');
-    }
-  };
+  const onPickCategory = useCallback(
+    async (id) => {
+      setCategoria(id);
+      setAtletaId('');
+      try {
+        const token = await getToken('userToken');
+        const h = {
+          'x-club-identifier': clubData.urlIdentifier,
+          Authorization: `Bearer ${token}`,
+        };
+        const enr = await clubApi.get(`/enrollments/categoria/${id}`, { headers: h });
+        const list = enr.data || [];
+        setEnrollments(list);
+        const a0 = list[0]?.atleta;
+        setAtletaId(a0?._id || '');
+      } catch (e) {
+        showAlert('Error', e.response?.data?.message || 'No se pudo cargar el plantel.');
+      }
+    },
+    [clubData?.urlIdentifier],
+  );
+
+  const filterPills = useMemo(() => {
+    const athleteOpts = enrollments
+      .filter((e) => e.atleta?._id)
+      .map((e) => ({
+        value: e.atleta._id,
+        label: `${e.atleta.nombre || ''} ${e.atleta.apellido || ''}`.trim(),
+      }));
+    return [
+      {
+        key: 'categoria',
+        placeholder: 'Categoría',
+        value: categoria,
+        sections: categoriesGroupedByDisciplina(categories),
+        displayLabel: categoryPillLabel(categories, categoria, 'Categoría'),
+        onChange: onPickCategory,
+        searchable: true,
+      },
+      {
+        key: 'atleta',
+        placeholder: 'Atleta',
+        value: atletaId,
+        options: athleteOpts,
+        onChange: setAtletaId,
+        searchable: true,
+      },
+    ];
+  }, [categories, categoria, enrollments, atletaId, onPickCategory]);
 
   const submit = async () => {
     if (!categoria || !atletaId || !fecha) {
@@ -132,7 +169,7 @@ export default function NutritionNewConsultScreen({ navigation }) {
     }
     const fechaIso = displayDateToIsoCalendar(fecha);
     if (!fechaIso) {
-      showAlert('Fecha inválida', 'Usá el formato DD-MM-AAAA con día y mes válidos.');
+      showAlert('Fecha inválida', 'Elegí un día válido en el calendario.');
       return;
     }
     if (!isValidTimeHHMM(horaInicio) || !isValidTimeHHMM(horaFin)) {
@@ -193,105 +230,75 @@ export default function NutritionNewConsultScreen({ navigation }) {
           style={{ flex: 1 }}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
         >
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-          automaticallyAdjustKeyboardInsets
-        >
-          <Text style={[styles.label, { color: theme.textMuted }]}>Categoría</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-            {categories.map((c) => (
-              <TouchableOpacity
-                key={c._id}
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: categoria === c._id ? colorMarca : theme.border,
-                    backgroundColor: categoria === c._id ? colorMarca + '22' : theme.surface,
-                  },
-                ]}
-                onPress={() => onPickCategory(c._id)}
-              >
-                <Text style={{ color: theme.text, fontWeight: '600' }}>{c.nombre}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <Text style={[styles.label, { color: theme.textMuted }]}>Atleta</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-            {enrollments.map((e) => {
-              const a = e.atleta;
-              if (!a?._id) return null;
-              return (
-                <TouchableOpacity
-                  key={e._id}
-                  style={[
-                    styles.chip,
-                    {
-                      borderColor: atletaId === a._id ? colorMarca : theme.border,
-                      backgroundColor: atletaId === a._id ? colorMarca + '22' : theme.surface,
-                    },
-                  ]}
-                  onPress={() => setAtletaId(a._id)}
-                >
-                  <Text style={{ color: theme.text, fontWeight: '600' }}>
-                    {a.nombre} {a.apellido}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-          {enrollments.length === 0 ? (
-            <Text style={[styles.hint, { color: theme.textMuted }]}>No hay atletas activos en esta categoría.</Text>
-          ) : null}
-
-          <Text style={[styles.label, { color: theme.textMuted }]}>Lugar (texto libre)</Text>
-          <TextInput
-            style={[inputStyle, { minHeight: 56 }]}
-            value={lugarLibre}
-            onChangeText={setLugarLibre}
-            placeholder="Ej. Consultorio Av. Siempre Viva 123 · Zoom · Gimnasio club sala 2"
-            placeholderTextColor={theme.textMuted}
-            multiline
-          />
-
-          <Text style={[styles.label, { color: theme.textMuted }]}>Fecha (DD-MM-AAAA)</Text>
-          <TextInput
-            style={inputStyle}
-            value={fecha}
-            onChangeText={(t) => setFecha(maskDateDDMMAAAA(t))}
-            placeholder="DD-MM-AAAA"
-            placeholderTextColor={theme.textMuted}
-            keyboardType="number-pad"
-            maxLength={10}
-          />
-
-          <Text style={[styles.label, { color: theme.textMuted }]}>Hora inicio / fin</Text>
-          <View style={styles.row2}>
-            <TextInput
-              style={[inputStyle, { flex: 1 }]}
-              value={horaInicio}
-              onChangeText={(t) => setHoraInicio(maskTimeHHMM(t))}
-              placeholder="09:00"
-              placeholderTextColor={theme.textMuted}
-              keyboardType="number-pad"
-              maxLength={5}
+          <ScrollView
+            contentContainerStyle={styles.scroll}
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
+          >
+            <Text style={[styles.label, { color: theme.textMuted }]}>Categoría y atleta</Text>
+            <FilterPillSheet
+              pills={filterPills}
+              openKey={openFilter}
+              onOpen={setOpenFilter}
+              onClose={() => setOpenFilter(null)}
+              colorMarca={colorMarca}
+              theme={theme}
             />
-            <TextInput
-              style={[inputStyle, { flex: 1 }]}
-              value={horaFin}
-              onChangeText={(t) => setHoraFin(maskTimeHHMM(t))}
-              placeholder="09:45"
-              placeholderTextColor={theme.textMuted}
-              keyboardType="number-pad"
-              maxLength={5}
-            />
-          </View>
+            {categoria && enrollments.length === 0 ? (
+              <Text style={[styles.hint, { color: theme.textMuted }]}>
+                No hay atletas activos en esta categoría.
+              </Text>
+            ) : null}
 
-          <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colorMarca }]} onPress={submit} disabled={saving}>
-            <Text style={styles.primaryBtnTxt}>{saving ? 'Guardando…' : 'Crear consulta'}</Text>
-          </TouchableOpacity>
-        </ScrollView>
+            <Text style={[styles.label, { color: theme.textMuted }]}>Lugar (texto libre)</Text>
+            <TextInput
+              style={[inputStyle, { minHeight: 56 }]}
+              value={lugarLibre}
+              onChangeText={setLugarLibre}
+              placeholder="Ej. Consultorio Av. Siempre Viva 123 · Zoom · Gimnasio club sala 2"
+              placeholderTextColor={theme.textMuted}
+              multiline
+            />
+
+            <Text style={[styles.label, { color: theme.textMuted }]}>Fecha</Text>
+            <CalendarDateField
+              theme={theme}
+              colorMarca={colorMarca}
+              value={fecha}
+              onChange={setFecha}
+              placeholder="Elegí el día de la consulta"
+            />
+
+            <Text style={[styles.label, { color: theme.textMuted }]}>Hora inicio / fin</Text>
+            <View style={styles.row2}>
+              <TextInput
+                style={[inputStyle, { flex: 1 }]}
+                value={horaInicio}
+                onChangeText={(t) => setHoraInicio(maskTimeHHMM(t))}
+                placeholder="09:00"
+                placeholderTextColor={theme.textMuted}
+                keyboardType="number-pad"
+                maxLength={5}
+              />
+              <TextInput
+                style={[inputStyle, { flex: 1 }]}
+                value={horaFin}
+                onChangeText={(t) => setHoraFin(maskTimeHHMM(t))}
+                placeholder="09:45"
+                placeholderTextColor={theme.textMuted}
+                keyboardType="number-pad"
+                maxLength={5}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.primaryBtn, { backgroundColor: colorMarca }]}
+              onPress={submit}
+              disabled={saving}
+            >
+              <Text style={styles.primaryBtnTxt}>{saving ? 'Guardando…' : 'Crear consulta'}</Text>
+            </TouchableOpacity>
+          </ScrollView>
         </KeyboardAvoidingView>
       )}
     </SafeAreaView>
@@ -303,7 +310,6 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40 },
   label: { fontSize: 12, fontWeight: '700', marginBottom: 6, textTransform: 'uppercase' },
   hint: { fontSize: 13, marginBottom: 12 },
-  chip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, marginRight: 8 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12 },
   row2: { flexDirection: 'row', gap: 10 },
   primaryBtn: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 8 },

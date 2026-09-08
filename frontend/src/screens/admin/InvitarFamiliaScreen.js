@@ -169,7 +169,7 @@ export default function InvitarFamiliaScreen({ navigation }) {
         colorMarca={colorMarca}
         kicker="Usuarios"
         title="Invitar familia"
-        subtitle="Enlace para tutor + atletas, o solo atleta"
+        subtitle={clubData?.nombre || 'Tu club'}
         onBack={() => navigation.goBack()}
       />
 

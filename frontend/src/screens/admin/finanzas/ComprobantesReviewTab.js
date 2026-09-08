@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useContext, useState } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,8 @@ import { clubApi } from '../../../utils/api';
 import { readScreenCache, useCachedFocusLoad } from '../../../hooks/useCachedFocusLoad';
 import { useBadges } from '../../../context/BadgeContext';
 import PaymentPaySummary from '../../../components/PaymentPaySummary';
+import DesignCard from '../../../components/DesignCard';
+import { ThemeContext } from '../../../context/ThemeContext';
 import { MN, fmtMoney } from './finanzasConstants';
 
 function paymentLineLabel(p) {
@@ -30,6 +32,7 @@ function paymentLineLabel(p) {
 }
 
 export default function ComprobantesReviewTab({ clubData, theme, primaryColor, getHeaders, showAlert }) {
+  const { isDarkMode } = useContext(ThemeContext);
   const { refresh: refreshBadges } = useBadges();
   const cacheKey = clubData?.urlIdentifier ? `finanzas-revision:${clubData.urlIdentifier}` : '';
   const [groups, setGroups] = useState(() => readScreenCache(cacheKey)?.groups ?? []);
@@ -118,7 +121,13 @@ export default function ComprobantesReviewTab({ clubData, theme, primaryColor, g
     const cuotaCount = payments.length;
 
     return (
-      <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <DesignCard
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent="#6366f1"
+        contentStyle={styles.cardInner}
+        style={{ marginBottom: 12 }}
+      >
         <View style={styles.cardTop}>
           <View style={{ flex: 1 }}>
             <Text style={[styles.title, { color: theme.text }]}>
@@ -170,7 +179,7 @@ export default function ComprobantesReviewTab({ clubData, theme, primaryColor, g
             )}
           </TouchableOpacity>
         </View>
-      </View>
+      </DesignCard>
     );
   };
 
@@ -258,7 +267,7 @@ export default function ComprobantesReviewTab({ clubData, theme, primaryColor, g
 const styles = StyleSheet.create({
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 },
   list: { padding: 16, paddingBottom: 32 },
-  card: { borderRadius: 8, borderWidth: 1, padding: 14, marginBottom: 12 },
+  cardInner: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 14 },
   cardTop: { flexDirection: 'row', marginBottom: 10 },
   title: { fontSize: 16, fontWeight: '800' },
   sub: { fontSize: 13, marginTop: 4 },

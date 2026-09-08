@@ -5,7 +5,7 @@ import { isYouTubeUrl, normalizeYouTubeWatchUrl } from './youtubeUrl';
 
 /**
  * Detecta tipo de medio según URL de Cloudinary, YouTube o extensión.
- * @returns {'image'|'video'|'pdf'|'youtube'|'unknown'}
+ * @returns {'image'|'video'|'pdf'|'youtube'|'link'|'unknown'}
  */
 export function detectMediaKind(url) {
   if (!url || typeof url !== 'string') return 'unknown';
@@ -16,11 +16,25 @@ export function detectMediaKind(url) {
   if (u.includes('/video/upload') || /\.(mp4|mov|webm|m4v|avi)(\?|$)/.test(u)) return 'video';
   if (u.includes('/image/upload') || /\.(jpe?g|png|gif|webp|bmp)(\?|$)/.test(u)) return 'image';
 
+  try {
+    const parsed = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`);
+    if (['http:', 'https:'].includes(parsed.protocol)) return 'link';
+  } catch {
+    /* ignore */
+  }
+
   return 'unknown';
 }
 
 export function mediaKindLabel(kind) {
-  const map = { image: 'Imagen', video: 'Video', pdf: 'PDF', youtube: 'YouTube', unknown: 'Archivo' };
+  const map = {
+    image: 'Imagen',
+    video: 'Video',
+    pdf: 'PDF',
+    youtube: 'YouTube',
+    link: 'Enlace',
+    unknown: 'Archivo',
+  };
   return map[kind] || 'Archivo';
 }
 
@@ -30,6 +44,7 @@ export function mediaKindIcon(kind) {
     video: 'videocam-outline',
     pdf: 'document-text-outline',
     youtube: 'logo-youtube',
+    link: 'link-outline',
     unknown: 'document-outline',
   };
   return map[kind] || 'document-outline';
@@ -106,7 +121,14 @@ export async function openYouTubeExternal(url) {
   await Linking.openURL(watchUrl);
 }
 
-/** Navega al visor in-app (imagen o video). YouTube se abre fuera de la app. */
+/** Abre un enlace http(s) en el navegador / app externa. */
+export async function openExternalLink(url) {
+  if (!url) throw new Error('No hay enlace.');
+  const withProto = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  await Linking.openURL(withProto);
+}
+
+/** Navega al visor in-app (imagen o video). YouTube / enlaces se abren fuera de la app. */
 export async function openMediaViewer(navigation, { url, title, viewerRoute = 'MemberMediaViewer' }) {
   if (!url) return;
   const kind = detectMediaKind(url);
@@ -114,6 +136,10 @@ export async function openMediaViewer(navigation, { url, title, viewerRoute = 'M
   if (kind === 'youtube') {
     await openYouTubeExternal(url);
     return { kind: 'youtube', external: true };
+  }
+  if (kind === 'link' || kind === 'unknown') {
+    await openExternalLink(url);
+    return { kind, external: true };
   }
   navigation.navigate(viewerRoute, {
     url,
@@ -123,7 +149,7 @@ export async function openMediaViewer(navigation, { url, title, viewerRoute = 'M
   return { kind, external: false };
 }
 
-/** Imagen/video → visor; PDF → descarga; YouTube → app de YouTube. */
+/** Imagen/video → visor; PDF → descarga; YouTube / enlace → externo. */
 export async function openOrDownloadMedia(navigation, { url, title, viewerRoute = 'MemberMediaViewer' }) {
   if (!url) throw new Error('No hay URL del archivo.');
   const kind = detectMediaKind(url);
@@ -134,6 +160,10 @@ export async function openOrDownloadMedia(navigation, { url, title, viewerRoute 
   if (kind === 'youtube') {
     await openYouTubeExternal(url);
     return { kind: 'youtube', downloaded: false, external: true };
+  }
+  if (kind === 'link' || kind === 'unknown') {
+    await openExternalLink(url);
+    return { kind, downloaded: false, external: true };
   }
   await openMediaViewer(navigation, { url, title, viewerRoute });
   return { kind, downloaded: false, external: false };

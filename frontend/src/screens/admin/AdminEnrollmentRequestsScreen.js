@@ -17,6 +17,7 @@ import { clubApi } from '../../utils/api';
 import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
+import DesignCard from '../../components/DesignCard';
 import { useBadges } from '../../context/BadgeContext';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 
@@ -118,7 +119,7 @@ export default function AdminEnrollmentRequestsScreen({ navigation }) {
       .join(', ');
 
     return (
-      <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <DesignCard theme={theme} isDarkMode={isDarkMode} accent={colorMarca} contentStyle={styles.cardInner}>
         <Text style={[styles.cat, { color: colorMarca }]}>{item.categoria?.nombre}</Text>
         <Text style={[styles.meta, { color: theme.textMuted }]}>
           Solicita: {item.solicitante?.nombre} {item.solicitante?.apellido} ({item.solicitante?.rol})
@@ -147,7 +148,7 @@ export default function AdminEnrollmentRequestsScreen({ navigation }) {
             <Text style={{ color: '#ef4444', fontWeight: '700' }}>Rechazar</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </DesignCard>
     );
   };
 
@@ -168,7 +169,7 @@ export default function AdminEnrollmentRequestsScreen({ navigation }) {
         colorMarca={colorMarca}
         theme={theme}
         kicker="Plantel"
-        title="Solicitudes de inscripción"
+        title="Solicitudes"
         subtitle="Pedidos del cuerpo técnico"
         onBack={() => navigation.goBack()}
       />
@@ -195,7 +196,7 @@ export default function AdminEnrollmentRequestsScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   list: { padding: 16, paddingBottom: 40 },
-  card: { borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 12 },
+  cardInner: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 14 },
   cat: { fontSize: 16, fontWeight: '800' },
   meta: { fontSize: 12, marginTop: 6 },
   athletes: { fontSize: 14, marginTop: 8, lineHeight: 20 },

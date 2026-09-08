@@ -4,6 +4,7 @@ import {
   View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Linking, ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ThemeContext } from '../context/ThemeContext';
 import { ClubContext } from '../context/ClubContext';
 import { clubApi } from '../utils/api';
@@ -124,7 +125,7 @@ export default function UserDetailsModal({ visible, user, onClose, onEdit, onDel
                 ) : enrollments.length > 0 ? (
                   enrollments.map((enc) => (
                     <View key={enc._id} style={styles.familyRow}>
-                       <Ionicons name="football" size={16} color={colorMarca} />
+                       <MaterialCommunityIcons name="soccer-field" size={16} color={colorMarca} />
                        <Text style={[styles.familyText, { color: theme.text }]}>
                          {enc.categoria.nombre} <Text style={{ color: theme.textMuted, fontSize: 13 }}>({enc.categoria.disciplina?.nombre || 'General'})</Text>
                        </Text>

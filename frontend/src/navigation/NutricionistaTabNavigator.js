@@ -9,6 +9,7 @@ import { ThemeContext } from '../context/ThemeContext';
 import StaffProfileScreen from '../screens/staff/StaffProfileScreen';
 import { createProfileStack } from './createProfileStack';
 import NutritionAgendaScreen from '../screens/staff/NutritionAgendaScreen';
+import NutritionDashboardScreen from '../screens/staff/NutritionDashboardScreen';
 import NutritionNewConsultScreen from '../screens/staff/NutritionNewConsultScreen';
 import CoachSessionDetailScreen from '../screens/coach/CoachSessionDetailScreen';
 import CoachCancelSessionScreen from '../screens/coach/CoachCancelSessionScreen';
@@ -28,15 +29,24 @@ import ChatThreadScreen from '../screens/chat/ChatThreadScreen';
 import ChatNewScreen from '../screens/chat/ChatNewScreen';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
-import { tabBadgeLabel } from '../utils/tabBadgeLabel';
+import { tabBadgeText } from '../utils/tabBadgeLabel';
 import { NutritionSettingsProvider } from '../context/NutritionSettingsContext';
 import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
 
 const Tab = createSwipeBottomTabNavigator();
+const NutHomeStack = createNativeStackNavigator();
 const NutSessionsStack = createNativeStackNavigator();
 const NutTeamStack = createNativeStackNavigator();
 const NutCommsStack = createNativeStackNavigator();
 const NutProfileStackNav = createProfileStack(StaffProfileScreen);
+
+function NutHomeStackNav() {
+  return (
+    <NutHomeStack.Navigator screenOptions={{ headerShown: false }}>
+      <NutHomeStack.Screen name="NutDashboardMain" component={NutritionDashboardScreen} />
+    </NutHomeStack.Navigator>
+  );
+}
 
 function NutSessionsStackNav() {
   return (
@@ -113,6 +123,7 @@ export default function NutricionistaTabNavigator() {
           tabBottomPad,
           getIcon: (name, focused, color) => {
             const map = {
+              NutInicio: focused ? 'home' : 'home-outline',
               NutSesiones: focused ? 'restaurant' : 'restaurant-outline',
               NutEquipo: focused ? 'people' : 'people-outline',
               NutComunicar: focused ? 'chatbubbles' : 'chatbubbles-outline',
@@ -120,31 +131,45 @@ export default function NutricionistaTabNavigator() {
             };
             return <Ionicons name={map[name] || 'ellipse'} size={22} color={color} />;
           },
+          getBadge: (name) =>
+            ({
+              NutInicio: tabBadgeText(tab('inicio')),
+              NutSesiones: tabBadgeText(tab('sesiones')),
+              NutEquipo: tabBadgeText(tab('equipo')),
+              NutComunicar: tabBadgeText(tab('comunicar')),
+              NutPerfil: tabBadgeText(tab('perfil')),
+            })[name],
+          getLabel: (name) =>
+            ({
+              NutInicio: 'Inicio',
+              NutSesiones: 'Sesiones',
+              NutEquipo: 'Atletas',
+              NutComunicar: 'Social',
+              NutPerfil: 'Perfil',
+            })[name],
         })}
       >
       <Tab.Screen
+        name="NutInicio"
+        component={NutHomeStackNav}
+        listeners={tabPressResetToRoot('NutInicio', 'NutDashboardMain')}
+      />
+      <Tab.Screen
         name="NutSesiones"
         component={NutSessionsStackNav}
-        options={{ tabBarLabel: 'Sesiones', tabBarBadge: tabBadgeLabel(tab('sesiones')) }}
         listeners={tabPressResetToRoot('NutSesiones', 'NutritionAgenda')}
       />
       <Tab.Screen
         name="NutEquipo"
         component={NutTeamStackNav}
-        options={{ tabBarLabel: 'Atletas', tabBarBadge: tabBadgeLabel(tab('equipo')) }}
         listeners={tabPressResetToRoot('NutEquipo', 'NutRoster')}
       />
       <Tab.Screen
         name="NutComunicar"
         component={NutCommsStackNav}
-        options={{ tabBarLabel: 'Social', tabBarBadge: tabBadgeLabel(tab('comunicar')) }}
         listeners={tabPressResetToRoot('NutComunicar', 'CoachCommsHub')}
       />
-      <Tab.Screen
-        name="NutPerfil"
-        component={NutProfileStackNav}
-        options={{ tabBarLabel: 'Perfil', tabBarBadge: tabBadgeLabel(tab('perfil')) }}
-      />
+      <Tab.Screen name="NutPerfil" component={NutProfileStackNav} />
       </Tab.Navigator>
     </NutritionSettingsProvider>
   );

@@ -23,6 +23,7 @@ import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import { clubHeaders } from './athleteApi';
 import MemberChildPicker from '../../components/MemberChildPicker';
+import NewsFeedPost, { formatNewsRelative } from '../../components/NewsFeedPost';
 import { useBadges } from '../../context/BadgeContext';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 
@@ -94,48 +95,16 @@ export default function AthleteNewsScreen({ navigation }) {
     setFullscreenImage({ url, title: title || 'Imagen' });
   };
 
-  const renderItem = ({ item }) => {
-    const imageUrl = item.imagen?.url;
-    return (
-      <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        {imageUrl ? (
-          <TouchableOpacity activeOpacity={0.9} onPress={() => openFullscreen(imageUrl, item.titulo)}>
-            <Image source={{ uri: imageUrl }} style={styles.cardImage} resizeMode="cover" />
-            <View style={styles.cardImageBadge}>
-              <Ionicons name="expand-outline" size={14} color="#fff" />
-            </View>
-          </TouchableOpacity>
-        ) : null}
-        <TouchableOpacity
-          style={styles.cardBody}
-          onPress={() => setSelected(item)}
-          activeOpacity={0.85}
-        >
-          <View style={styles.cardBodyRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.title, { color: theme.text }]} numberOfLines={2}>
-                {item.titulo}
-              </Text>
-              <Text style={[styles.meta, { color: theme.textMuted }]} numberOfLines={2}>
-                {item.autor?.nombre} {item.autor?.apellido} · {formatNewsDate(item.createdAt)}
-              </Text>
-              {!imageUrl && item.contenido ? (
-                <Text style={[styles.preview, { color: theme.textMuted }]} numberOfLines={2}>
-                  {item.contenido}
-                </Text>
-              ) : null}
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={theme.icon} />
-          </View>
-          {imageUrl && item.contenido ? (
-            <Text style={[styles.preview, { color: theme.textMuted, marginTop: 8 }]} numberOfLines={2}>
-              {item.contenido}
-            </Text>
-          ) : null}
-        </TouchableOpacity>
-      </View>
-    );
-  };
+  const renderItem = ({ item }) => (
+    <NewsFeedPost
+      item={item}
+      theme={theme}
+      colorMarca={colorMarca}
+      onPress={() => setSelected(item)}
+      onPressImage={openFullscreen}
+      maxContentLines={4}
+    />
+  );
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
@@ -154,10 +123,10 @@ export default function AthleteNewsScreen({ navigation }) {
         title="Novedades"
         subtitle={
           isTutor
-            ? 'Avisos del club y de tus familiares'
+            ? 'Avisos del club publicados para vos y tus familiares'
             : clubData?.nombre
-              ? `Avisos de ${clubData.nombre} y tus categorías`
-              : 'Avisos del club y de tus categorías'
+              ? `Muro de ${clubData.nombre}`
+              : 'Avisos publicados del club y tus categorías'
         }
         onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
       />
@@ -197,7 +166,10 @@ export default function AthleteNewsScreen({ navigation }) {
             </View>
             <View style={styles.modalBodyWrap}>
               <Text style={[styles.modalMeta, { color: theme.textMuted }]}>
-                {selected?.autor?.nombre} {selected?.autor?.apellido} · {formatNewsDate(selected?.createdAt)}
+                {selected?.autor?.nombre} {selected?.autor?.apellido}
+                {selected?.createdAt
+                  ? ` · ${formatNewsRelative(selected.createdAt) || formatNewsDate(selected.createdAt)}`
+                  : ''}
               </Text>
               <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
               {selected?.imagen?.url ? (
@@ -246,40 +218,9 @@ export default function AthleteNewsScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  list: { padding: 16, paddingBottom: 32 },
+  list: { paddingBottom: 32, flexGrow: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  card: {
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 14,
-    overflow: 'hidden',
-  },
-  cardImage: {
-    width: '100%',
-    height: 148,
-    backgroundColor: '#e5e7eb',
-  },
-  cardImageBadge: {
-    position: 'absolute',
-    right: 10,
-    bottom: 10,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: 8,
-    padding: 6,
-  },
-  cardBody: {
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    minHeight: 72,
-  },
-  cardBodyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  title: { fontSize: 16, fontWeight: '700' },
-  meta: { fontSize: 13, marginTop: 5 },
-  preview: { fontSize: 13, lineHeight: 18, marginTop: 4 },
-  empty: { textAlign: 'center', marginTop: 40, fontSize: 15 },
+  empty: { textAlign: 'center', marginTop: 40, fontSize: 15, paddingHorizontal: 24 },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

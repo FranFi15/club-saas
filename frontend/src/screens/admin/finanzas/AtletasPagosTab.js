@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useRef } from 'react';
+import React, { useCallback, useContext, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,8 +14,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { finanzasStyles as s } from './finanzasStyles';
-import { MN, ESTADO_FILTROS, EST_COLOR, fmtMoney } from './finanzasConstants';
+import { ESTADO_FILTROS, fmtMoney } from './finanzasConstants';
 import UserAvatar from '../../../components/UserAvatar';
+import DesignCard from '../../../components/DesignCard';
+import { ThemeContext } from '../../../context/ThemeContext';
 
 function AthleteActionsMenu({
   visible,
@@ -137,6 +139,7 @@ export default function AtletasPagosTab({
   paymentStats,
   isLoadingStats = false,
 }) {
+  const { isDarkMode } = useContext(ThemeContext);
   const cc = primaryColor;
   const isVencidosView = filtroEstado === 'vencido';
   const isTodosView = filtroEstado === 'todos';
@@ -154,14 +157,29 @@ export default function AtletasPagosTab({
   const clearMenuItem = useCallback(() => setMenuItem(null), []);
 
   const renderCard = ({ item }) => {
-    const { atleta, primary, payments: cuotas } = item;
-    const ec = EST_COLOR[primary?.estado] || '#999';
+    const { atleta, payments: cuotas } = item;
+    const owed = (cuotas || []).filter((p) => ['pendiente', 'vencido'].includes(p.estado));
+    const owedCount = owed.length;
+    const hasVencidas = owed.some((p) => p.estado === 'vencido');
+    const statusColor = owedCount === 0 ? '#10b981' : hasVencidas ? '#ef4444' : '#f59e0b';
+    const statusLabel =
+      owedCount === 0 ? 'Al día' : hasVencidas ? 'Con vencidas' : 'Pendiente';
+    const categorias = [
+      ...new Set(
+        (cuotas || [])
+          .map((p) => p.categoria?.nombre)
+          .filter(Boolean),
+      ),
+    ];
 
     return (
-      <TouchableOpacity
-        style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
-        activeOpacity={0.85}
+      <DesignCard
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent={statusColor}
         onPress={() => openMenu(item)}
+        contentStyle={styles.cardInner}
+        style={{ marginBottom: 10 }}
       >
         <View style={styles.cardTop}>
           <UserAvatar user={atleta} size={44} colorMarca={cc} />
@@ -169,36 +187,27 @@ export default function AtletasPagosTab({
             <Text style={[styles.name, { color: theme.text }]}>
               {atleta?.nombre} {atleta?.apellido}
             </Text>
-            <Text style={{ color: theme.textMuted, fontSize: 12 }} numberOfLines={1}>
-              {primary?.plan?.nombre || 'Sin plan'}
-              {primary?.categoria?.nombre ? ` · ${primary.categoria.nombre}` : ''}
-              {isVencidosView && primary?.mes && primary?.anio
-                ? ` · ${MN[primary.mes - 1]} ${primary.anio}`
-                : ''}
-            </Text>
-            {cuotas.length > 1 ? (
-              <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 2 }}>
-                {isVencidosView
-                  ? `${cuotas.length} cuotas vencidas`
-                  : isTodosView
-                    ? `${cuotas.length} cuota${cuotas.length === 1 ? '' : 's'} en ${MN[mes - 1]}`
-                    : `${cuotas.length} cuota${cuotas.length === 1 ? '' : 's'} en ${MN[mes - 1]}`}
+            {categorias.length ? (
+              <Text style={{ color: theme.textMuted, fontSize: 12 }} numberOfLines={1}>
+                {categorias.join(' · ')}
               </Text>
             ) : null}
           </View>
           <View style={styles.cardAmount}>
-            <Text style={{ color: theme.text, fontWeight: '800', fontSize: 16 }}>{fmtMoney(primary?.montoFinal)}</Text>
-            <View style={[styles.badge, { backgroundColor: ec + '22' }]}>
-              <Text style={{ color: ec, fontSize: 10, fontWeight: '700', textTransform: 'capitalize' }}>
-                {primary?.estado?.replace('_', ' ')}
-              </Text>
+            <Text style={{ color: theme.text, fontWeight: '800', fontSize: 16 }}>
+              {owedCount === 0
+                ? '0 cuotas'
+                : `${owedCount} cuota${owedCount === 1 ? '' : 's'}`}
+            </Text>
+            <View style={[styles.badge, { backgroundColor: statusColor + '22' }]}>
+              <Text style={{ color: statusColor, fontSize: 10, fontWeight: '700' }}>{statusLabel}</Text>
             </View>
           </View>
           <View style={[styles.menuBtn, { borderColor: theme.border }]}>
             <Ionicons name="chevron-down" size={18} color={theme.textMuted} />
           </View>
         </View>
-      </TouchableOpacity>
+      </DesignCard>
     );
   };
 
@@ -252,39 +261,77 @@ export default function AtletasPagosTab({
           ) : (
             <>
               <View style={s.statsRow}>
-                <View style={[s.statBox, { backgroundColor: theme.surface }]}>
-                  <Text style={{ color: cc, fontSize: 18, fontWeight: 'bold' }}>{fmtMoney(stats.totalFacturado)}</Text>
+                <DesignCard
+                  theme={theme}
+                  isDarkMode={isDarkMode}
+                  accent={isVencidosView ? '#ef4444' : cc}
+                  style={s.statCard}
+                  contentStyle={s.statInner}
+                >
+                  <Text style={{ color: isVencidosView ? '#ef4444' : cc, fontSize: 18, fontWeight: 'bold' }}>
+                    {fmtMoney(stats.totalFacturado)}
+                  </Text>
                   <Text style={{ color: theme.textMuted, fontSize: 11 }}>
                     {isVencidosView ? 'Total vencido' : 'Facturado'}
                   </Text>
-                </View>
-                <View style={[s.statBox, { backgroundColor: theme.surface }]}>
+                </DesignCard>
+                <DesignCard
+                  theme={theme}
+                  isDarkMode={isDarkMode}
+                  accent="#10b981"
+                  style={s.statCard}
+                  contentStyle={s.statInner}
+                >
                   <Text style={{ color: '#10b981', fontSize: 18, fontWeight: 'bold' }}>
                     {fmtMoney(stats.totalCobrado)}
                   </Text>
                   <Text style={{ color: theme.textMuted, fontSize: 11 }}>Cobrado</Text>
-                </View>
+                </DesignCard>
               </View>
               {!isVencidosView ? (
                 <View style={s.statsRow}>
-                  <View style={[s.statMini, { backgroundColor: theme.surface }]}>
+                  <DesignCard
+                    theme={theme}
+                    isDarkMode={isDarkMode}
+                    accent="#10b981"
+                    style={s.statCard}
+                    contentStyle={s.statMiniInner}
+                  >
                     <Text style={{ color: '#10b981', fontWeight: 'bold' }}>{stats.pagados || 0}</Text>
                     <Text style={{ color: theme.textMuted, fontSize: 10 }}>Pagados</Text>
-                  </View>
-                  <View style={[s.statMini, { backgroundColor: theme.surface }]}>
+                  </DesignCard>
+                  <DesignCard
+                    theme={theme}
+                    isDarkMode={isDarkMode}
+                    accent="#f59e0b"
+                    style={s.statCard}
+                    contentStyle={s.statMiniInner}
+                  >
                     <Text style={{ color: '#f59e0b', fontWeight: 'bold' }}>{stats.pendientes || 0}</Text>
                     <Text style={{ color: theme.textMuted, fontSize: 10 }}>Pendientes</Text>
-                  </View>
-                  <View style={[s.statMini, { backgroundColor: theme.surface }]}>
+                  </DesignCard>
+                  <DesignCard
+                    theme={theme}
+                    isDarkMode={isDarkMode}
+                    accent="#ef4444"
+                    style={s.statCard}
+                    contentStyle={s.statMiniInner}
+                  >
                     <Text style={{ color: '#ef4444', fontWeight: 'bold' }}>{stats.vencidos || 0}</Text>
                     <Text style={{ color: theme.textMuted, fontSize: 10 }}>Vencidos</Text>
-                  </View>
+                  </DesignCard>
                 </View>
               ) : (
-                <View style={[s.statMini, { backgroundColor: theme.surface, marginBottom: 10, paddingVertical: 12 }]}>
+                <DesignCard
+                  theme={theme}
+                  isDarkMode={isDarkMode}
+                  accent="#ef4444"
+                  style={{ marginBottom: 10 }}
+                  contentStyle={[s.statMiniInner, { paddingVertical: 12 }]}
+                >
                   <Text style={{ color: '#ef4444', fontWeight: 'bold', fontSize: 16 }}>{stats.vencidos || 0}</Text>
                   <Text style={{ color: theme.textMuted, fontSize: 11 }}>Cuotas vencidas (todas)</Text>
-                </View>
+                </DesignCard>
               )}
               {!isVencidosView && stats.porcentajeCobranza != null ? (
                 <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 10 }}>
@@ -415,11 +462,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
   },
-  card: {
-    borderRadius: 5,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 10,
+  cardInner: {
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
   },
   cardTop: { flexDirection: 'row', alignItems: 'center' },
   cardInfo: { flex: 1, marginLeft: 12, minWidth: 0 },

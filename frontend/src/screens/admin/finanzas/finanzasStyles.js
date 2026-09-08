@@ -15,15 +15,46 @@ export const finanzasStyles = StyleSheet.create({
   tabScroll: { flex: 1 },
   sectionTitle: { fontSize: 17, fontWeight: 'bold', marginBottom: 10 },
   sectionSub: { fontSize: 13, lineHeight: 18, marginBottom: 14 },
-  card: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 5, marginBottom: 10, elevation: 1 },
+  /** Legacy layout helpers (shell chrome moved to DesignCard). */
+  card: { flexDirection: 'row', alignItems: 'center' },
+  cardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
+  },
   planIcon: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   planName: { fontSize: 15, fontWeight: '600' },
   planMonto: { fontSize: 16, fontWeight: 'bold' },
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, marginTop: 3 },
-  monthRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, borderRadius: 5, marginTop: 15, marginBottom: 10 },
+  monthRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  monthRowInner: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
+  },
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
-  statBox: { flex: 1, padding: 15, borderRadius: 5, alignItems: 'center', elevation: 1 },
-  statMini: { flex: 1, padding: 10, borderRadius: 5, alignItems: 'center', elevation: 1 },
+  statCard: { flex: 1, marginBottom: 0 },
+  statInner: {
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingTop: 14,
+    paddingBottom: 14,
+  },
+  statMiniInner: {
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingTop: 10,
+    paddingBottom: 10,
+  },
+  /** @deprecated Prefer DesignCard + statInner / statMiniInner */
+  statBox: { flex: 1, alignItems: 'center' },
+  /** @deprecated Prefer DesignCard + statMiniInner */
+  statMini: { flex: 1, alignItems: 'center' },
   generateBtn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 14, borderRadius: 5, marginBottom: 15 },
   filterChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 5, borderWidth: 1, marginRight: 8 },
   empty: { alignItems: 'center', marginTop: 40, paddingHorizontal: 16 },
@@ -42,13 +73,14 @@ export const finanzasStyles = StyleSheet.create({
   actionBtn: { width: 60, justifyContent: 'center', alignItems: 'center', height: '100%' },
   payInfo: { padding: 15, borderRadius: 5, marginBottom: 15, alignItems: 'center' },
 
-  /** List cards for Nómina / Gastos (aligned with Atletas card hierarchy). */
-  financeListCard: {
-    borderRadius: 5,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 10,
+  /** Inner content for Nómina / Gastos DesignCards. */
+  financeCardInner: {
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
   },
+  /** @deprecated Prefer DesignCard + financeCardInner */
+  financeListCard: {},
   financeCardTop: {
     flexDirection: 'row',
     alignItems: 'flex-start',

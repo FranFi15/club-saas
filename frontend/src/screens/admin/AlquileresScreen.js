@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, RefreshControl, Platform, Linking, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import QRCode from 'react-native-qrcode-svg';
 import { clubApi } from '../../utils/api';
 import { ClubContext } from '../../context/ClubContext';
@@ -28,6 +29,7 @@ import {
 } from './alquileres/rentalPaymentUtils';
 import { pickPaginatedRows } from '../../utils/paginatedApi';
 import { copyText } from '../../utils/copyText';
+import DesignCard from '../../components/DesignCard';
 
 const MN = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DN = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
@@ -452,45 +454,51 @@ export default function AlquileresScreen({ navigation }) {
     const cobrado = Number(r.señaPagada) || 0;
     const busy = String(payingRentalId) === String(r._id);
     return (
-      <View style={[styles.reservaCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <TouchableOpacity onPress={() => setDetailRental(r)} activeOpacity={0.75}>
-          <View style={styles.reservaTop}>
-            <Text style={[styles.reservaName, { color: theme.text }]} numberOfLines={1}>
-              {r.nombreCliente}
-            </Text>
-            <View style={{ backgroundColor: pc, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
-              <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{PAGO_LABEL[r.estadoPago]}</Text>
-            </View>
-          </View>
-          <Text style={[styles.reservaMeta, { color: theme.textMuted }]}>
-            {r.espacio?.nombre || 'Espacio'} · {fechaTxt} · {r.horaInicio}–{r.horaFin}
+      <DesignCard
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent={pc}
+        onPress={() => setDetailRental(r)}
+        contentStyle={styles.reservaInner}
+        footer={
+          rentalNeedsFullPayment(r) ? (
+            <TouchableOpacity
+              style={[styles.payTotalBtn, { backgroundColor: cc, opacity: busy ? 0.7 : 1 }]}
+              onPress={() => handlePayTotal(r)}
+              disabled={busy}
+              activeOpacity={0.75}
+            >
+              {busy ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Ionicons name="card-outline" size={16} color="#fff" />
+                  <Text style={styles.payTotalBtnTxt}>Pagar total ({fmtRentalMoney(saldo)})</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          ) : null
+        }
+      >
+        <View style={styles.reservaTop}>
+          <Text style={[styles.reservaName, { color: theme.text }]} numberOfLines={1}>
+            {r.nombreCliente}
           </Text>
-          <View style={styles.reservaMoneyRow}>
-            <Text style={[styles.reservaAmount, { color: theme.text }]}>Total {fmtRentalMoney(r.montoTotal)}</Text>
-            <Text style={[styles.reservaPaid, { color: '#10b981' }]}>Cobrado {fmtRentalMoney(cobrado)}</Text>
-            {saldo > 0 ? (
-              <Text style={[styles.reservaDue, { color: '#ef4444' }]}>Debe {fmtRentalMoney(saldo)}</Text>
-            ) : null}
+          <View style={{ backgroundColor: pc, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
+            <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{PAGO_LABEL[r.estadoPago]}</Text>
           </View>
-        </TouchableOpacity>
-        {rentalNeedsFullPayment(r) ? (
-          <TouchableOpacity
-            style={[styles.payTotalBtn, { backgroundColor: cc, opacity: busy ? 0.7 : 1 }]}
-            onPress={() => handlePayTotal(r)}
-            disabled={busy}
-            activeOpacity={0.75}
-          >
-            {busy ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <>
-                <Ionicons name="card-outline" size={16} color="#fff" />
-                <Text style={styles.payTotalBtnTxt}>Pagar total ({fmtRentalMoney(saldo)})</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        ) : null}
-      </View>
+        </View>
+        <Text style={[styles.reservaMeta, { color: theme.textMuted }]}>
+          {r.espacio?.nombre || 'Espacio'} · {fechaTxt} · {r.horaInicio}–{r.horaFin}
+        </Text>
+        <View style={styles.reservaMoneyRow}>
+          <Text style={[styles.reservaAmount, { color: theme.text }]}>Total {fmtRentalMoney(r.montoTotal)}</Text>
+          <Text style={[styles.reservaPaid, { color: '#10b981' }]}>Cobrado {fmtRentalMoney(cobrado)}</Text>
+          {saldo > 0 ? (
+            <Text style={[styles.reservaDue, { color: '#ef4444' }]}>Debe {fmtRentalMoney(saldo)}</Text>
+          ) : null}
+        </View>
+      </DesignCard>
     );
   };
 
@@ -498,7 +506,7 @@ export default function AlquileresScreen({ navigation }) {
     const fechaPago = isoCalendarDateToDisplay(h.fecha) || formatJsDateToDisplay(h.fecha) || '—';
     const fechaReserva = isoCalendarDateToDisplay(h.fechaReserva) || formatJsDateToDisplay(h.fechaReserva) || '—';
     return (
-      <View style={[styles.historialRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <DesignCard theme={theme} isDarkMode={isDarkMode} accent="#10b981" contentStyle={styles.historialInner}>
         <View style={{ flex: 1 }}>
           <Text style={[styles.historialTitle, { color: theme.text }]} numberOfLines={1}>
             {h.nombreCliente}
@@ -511,7 +519,7 @@ export default function AlquileresScreen({ navigation }) {
           </Text>
         </View>
         <Text style={[styles.historialAmount, { color: '#10b981' }]}>{fmtRentalMoney(h.monto)}</Text>
-      </View>
+      </DesignCard>
     );
   };
 
@@ -521,13 +529,12 @@ export default function AlquileresScreen({ navigation }) {
 
   const renderSlot = ({ item: slot }) => {
     const status = getSlotStatus(slot, sessions, rentals, daySchedules, cancelledSessions);
-    let bg, icon, label, sub, onTap;
+    let icon, label, sub, onTap;
 
     if (status.tipo === 'alquiler') {
       const r = status.data;
       const pc = PAGO_COLOR[r.estadoPago] || '#999';
-      bg = '#f59e0b18';
-      icon = <Ionicons name="football-outline" size={18} color="#d97706" />;
+      icon = <MaterialCommunityIcons name="soccer-field" size={18} color="#d97706" />;
       label = r.nombreCliente;
       sub = <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
         <View style={{backgroundColor:pc,paddingHorizontal:8,paddingVertical:2,borderRadius:10}}>
@@ -538,7 +545,6 @@ export default function AlquileresScreen({ navigation }) {
       onTap = () => setDetailRental(r);
     } else if (status.tipo === 'entrenamiento') {
       const s = status.data;
-      bg = isDarkMode ? '#4b5563' : '#d1d5db';
       icon = <Ionicons name="fitness-outline" size={18} color={isDarkMode ? '#9ca3af' : '#6b7280'} />;
       label = s.categoria?.nombre || 'Entrenamiento';
       sub = (
@@ -546,7 +552,6 @@ export default function AlquileresScreen({ navigation }) {
       );
       onTap = null;
     } else {
-      bg = '#10b98110';
       icon = <Ionicons name="add-circle-outline" size={18} color="#10b981" />;
       label = 'Disponible';
       sub = <Text style={{color:'#10b981',fontSize:12}}>Toque para reservar</Text>;
@@ -554,10 +559,19 @@ export default function AlquileresScreen({ navigation }) {
     }
 
     const isUnavailable = status.tipo === 'entrenamiento';
+    const accent =
+      status.tipo === 'alquiler' ? '#f59e0b' : status.tipo === 'entrenamiento' ? (isDarkMode ? '#9ca3af' : '#6b7280') : '#10b981';
 
     return (
-      <TouchableOpacity disabled={!onTap} onPress={onTap} activeOpacity={0.7}
-        style={[styles.slotRow, { backgroundColor: bg }]}>
+      <DesignCard
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent={accent}
+        muted={isUnavailable}
+        onPress={onTap || undefined}
+        style={styles.slotCardWrap}
+        contentStyle={styles.slotInner}
+      >
         <View style={styles.slotTime}>
           <Text style={{fontWeight:'bold',fontSize:13,color:isUnavailable ? (isDarkMode ? '#e5e7eb' : '#374151') : theme.text}}>{slot.horaInicio}</Text>
           <Text style={{fontSize:10,color:isUnavailable ? (isDarkMode ? '#d1d5db' : '#6b7280') : theme.textMuted}}>{slot.horaFin}</Text>
@@ -569,7 +583,7 @@ export default function AlquileresScreen({ navigation }) {
           {sub}
         </View>
         {status.tipo === 'alquiler' && <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />}
-      </TouchableOpacity>
+      </DesignCard>
     );
   };
 
@@ -1157,12 +1171,12 @@ const styles = StyleSheet.create({
   balanceStatVal:{fontSize:14,fontWeight:'800'},
   balanceStatLbl:{fontSize:10,marginTop:4,textAlign:'center'},
   balanceHint:{fontSize:13,lineHeight:18,marginTop:4},
-  historialRow:{flexDirection:'row',alignItems:'center',gap:12,borderWidth:1,borderRadius:12,padding:14,marginBottom:8},
+  historialInner:{flexDirection:'row',alignItems:'center',gap:12,paddingHorizontal:14,paddingTop:14,paddingBottom:14},
   historialTitle:{fontSize:15,fontWeight:'700'},
   historialMeta:{fontSize:12,marginTop:2},
   historialSub:{fontSize:11,marginTop:4},
   historialAmount:{fontSize:15,fontWeight:'800'},
-  reservaCard:{borderWidth:1,borderRadius:12,padding:14,marginBottom:10},
+  reservaInner:{paddingHorizontal:14,paddingTop:14,paddingBottom:14},
   reservaTop:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10,marginBottom:6},
   reservaName:{fontSize:16,fontWeight:'700',flex:1},
   reservaMeta:{fontSize:13,lineHeight:18},
@@ -1170,7 +1184,7 @@ const styles = StyleSheet.create({
   reservaAmount:{fontSize:13,fontWeight:'700'},
   reservaPaid:{fontSize:13,fontWeight:'600'},
   reservaDue:{fontSize:13,fontWeight:'700'},
-  payTotalBtn:{marginTop:12,height:42,borderRadius:10,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},
+  payTotalBtn:{height:42,borderRadius:10,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},
   payTotalBtnTxt:{color:'#fff',fontWeight:'800',fontSize:13},
   emptyReservas:{textAlign:'center',marginTop:40,fontSize:15,paddingHorizontal:24},
   spaceChip:{paddingHorizontal:15,paddingVertical:10,borderRadius:20,borderWidth:1,marginRight:8,height:40,justifyContent:'center'},
@@ -1180,7 +1194,8 @@ const styles = StyleSheet.create({
   dayHdrTxt:{width:30,textAlign:'center',fontSize:12,fontWeight:'bold'},
   daysGrid:{flexDirection:'row',flexWrap:'wrap',justifyContent:'flex-start'},
   dayCell:{width:'14.28%',height:40,justifyContent:'center',alignItems:'center'},
-  slotRow:{flexDirection:'row',alignItems:'center',padding:12,borderRadius:10,marginBottom:6},
+  slotCardWrap:{marginBottom:8},
+  slotInner:{flexDirection:'row',alignItems:'center',paddingHorizontal:12,paddingTop:12,paddingBottom:12},
   slotTime:{width:50,alignItems:'center'},
   slotDivider:{width:1,height:30,backgroundColor:'rgba(0,0,0,0.1)',marginHorizontal:10},
   fab:{position:'absolute',bottom:20,right:20,width:60,height:60,borderRadius:30,justifyContent:'center',alignItems:'center',elevation:5},

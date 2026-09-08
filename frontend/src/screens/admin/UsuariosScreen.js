@@ -14,6 +14,7 @@ import { getToken } from '../../utils/storage';
 
 import CustomAlert from '../../components/CustomAlert';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
+import DesignCard from '../../components/DesignCard';
 import UserFormModal from '../../components/UserFormModal';
 import UserDetailsModal from '../../components/UserDetailsModal';
 import UserAvatar from '../../components/UserAvatar';
@@ -278,35 +279,40 @@ export default function UsuariosScreen({ navigation }) {
 
     return (
       <Swipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>
-        <TouchableOpacity style={[styles.card, { backgroundColor: theme.surface }]} activeOpacity={0.7} onPress={() => openDetailsModal(item)}>
-          <View style={styles.cardContent}>
-            <UserAvatar user={item} size={46} colorMarca={colorMarca} style={{ marginRight: 15 }} />
+        <DesignCard
+          theme={theme}
+          isDarkMode={isDarkMode}
+          accent={colorMarca}
+          onPress={() => openDetailsModal(item)}
+          style={{ marginBottom: 12 }}
+          contentStyle={styles.cardContent}
+        >
+          <UserAvatar user={item} size={46} colorMarca={colorMarca} style={{ marginRight: 15 }} />
+          
+          <View style={styles.userInfo}>
+            <Text style={[styles.userName, { color: theme.text }]}>
+              {item.nombre} {item.apellido}
+            </Text>
+            <Text style={[styles.userEmail, { color: theme.textMuted }]}>
+              {item.email}
+            </Text>
             
-            <View style={styles.userInfo}>
-              <Text style={[styles.userName, { color: theme.text }]}>
-                {item.nombre} {item.apellido}
-              </Text>
-              <Text style={[styles.userEmail, { color: theme.textMuted }]}>
-                {item.email}
-              </Text>
-              
-              {familyTagText && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                  <Ionicons name={familyIcon} size={14} color={colorMarca} style={{ marginRight: 4 }} />
-                  <Text style={[styles.familyTag, { color: colorMarca }]} numberOfLines={1}>
-                    {familyTagText}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            <View style={[styles.roleBadge, { backgroundColor: theme.background, borderColor: theme.border }]}>
-              <Text style={[styles.roleBadgeText, { color: theme.textMuted }]}>
-                {USER_ROL_LABELS[item.rol] || item.rol || item.role || 'Usuario'}
-              </Text>
-            </View>
+            {familyTagText && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                <Ionicons name={familyIcon} size={14} color={colorMarca} style={{ marginRight: 4 }} />
+                <Text style={[styles.familyTag, { color: colorMarca }]} numberOfLines={1}>
+                  {familyTagText}
+                </Text>
+              </View>
+            )}
           </View>
-        </TouchableOpacity>
+
+          <View style={[styles.roleBadge, { backgroundColor: theme.background, borderColor: theme.border }]}>
+            <Text style={[styles.roleBadgeText, { color: theme.textMuted }]}>
+              {USER_ROL_LABELS[item.rol] || item.rol || item.role || 'Usuario'}
+            </Text>
+          </View>
+        </DesignCard>
       </Swipeable>
     );
   };
@@ -438,7 +444,6 @@ const styles = StyleSheet.create({
   filtersContainer: { marginTop: 12, marginBottom: 10, paddingHorizontal: 20, zIndex: 9, position: 'relative' },
   filterRefreshing: { position: 'absolute', right: 44, top: 14 },
   body: { flex: 1, paddingHorizontal: 20 },
-  card: { padding: 15, borderRadius: 5, marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
   cardContent: { flexDirection: 'row', alignItems: 'center' },
   userInfo: { flex: 1 },
   userName: { fontSize: 16, fontWeight: 'bold', marginBottom: 2 },

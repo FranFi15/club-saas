@@ -15,11 +15,11 @@ import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { sortByNombre, sortUsersByName } from '../../utils/listSort';
 import CoachNewsAthletePicker from '../../components/CoachNewsAthletePicker';
 import NewsMultiSelectList from '../../components/NewsMultiSelectList';
-import { formatJsDateToDisplay } from '../../utils/dateDisplay';
 import { uploadFileToClub } from '../../utils/uploadMedia';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { useBadgesOptional } from '../../context/BadgeContext';
 import { useFocusEffect } from '@react-navigation/native';
+import NewsFeedPost from '../../components/NewsFeedPost';
 
 const ADMIN_ALCANCE_OPTIONS = [
   { value: 'global', label: 'Todo el club', icon: 'globe-outline' },
@@ -468,12 +468,22 @@ export default function NoticiasScreen({ navigation, route }) {
     [categories],
   );
 
-  const formatDate = (d) => formatJsDateToDisplay(new Date(d));
+  const alcanceLabel = (item) => {
+    if (item.alcance === 'global') return 'Global';
+    if (item.alcance === 'rol') {
+      return (item.targetRoles || []).length === 1 && item.targetRoles[0] === 'socio'
+        ? 'Socios'
+        : 'Por Rol';
+    }
+    if (item.alcance === 'usuario') return 'Atletas';
+    if (item.alcance === 'tutor') return 'Tutores';
+    return 'Categoría';
+  };
 
   const renderRightActions = (item) => {
     if (!canSwipeDeleteNews(item)) return null;
     return (
-      <View style={{ flexDirection: 'row', marginBottom: 12, overflow: 'hidden', borderRadius: 12 }}>
+      <View style={styles.swipeActions}>
         <TouchableOpacity
           onPress={() => confirmDelete(item._id)}
           style={[styles.actionBtn, { backgroundColor: '#ef4444' }]}
@@ -487,45 +497,19 @@ export default function NoticiasScreen({ navigation, route }) {
   const renderItem = ({ item }) => {
     return (
       <Swipeable renderRightActions={() => renderRightActions(item)}>
-        <View style={[styles.card, { backgroundColor: theme.surface }]}>
-          {item.imagen?.url ? (
-            <TouchableOpacity
-              activeOpacity={0.9}
-              onPress={() => setFullscreenImage({ url: item.imagen.url, title: item.titulo })}
-            >
-              <Image source={{ uri: item.imagen.url }} style={styles.cardImage} resizeMode="cover" />
-              <View style={styles.cardImageBadge}>
-                <Ionicons name="expand-outline" size={14} color="#fff" />
-              </View>
-            </TouchableOpacity>
-          ) : null}
-          <View style={styles.cardBody}>
-            <Text style={{ color: theme.textMuted, fontSize: 11, marginBottom: 6 }}>{formatDate(item.createdAt)}</Text>
-            <Text style={[styles.cardTitle,{color:theme.text}]} numberOfLines={2}>{item.titulo}</Text>
-            <Text style={{color:theme.textMuted,fontSize:13,marginTop:4}} numberOfLines={3}>{item.contenido}</Text>
-            <View style={{flexDirection:'row',alignItems:'center',marginTop:8}}>
-              <Ionicons name="person-circle-outline" size={16} color={theme.textMuted} />
-              <Text style={{color:theme.textMuted,fontSize:12,marginLeft:4}}>
-                {getAuthorDisplay(item.autor)}
-              </Text>
-              <View style={{marginLeft:'auto',backgroundColor:cc+'15',paddingHorizontal:8,paddingVertical:2,borderRadius:8}}>
-                <Text style={{color:cc,fontSize:10,fontWeight:'bold'}}>
-                  {item.alcance === 'global'
-                    ? 'Global'
-                    : item.alcance === 'rol'
-                      ? (item.targetRoles || []).length === 1 && item.targetRoles[0] === 'socio'
-                        ? 'Socios'
-                        : 'Por Rol'
-                      : item.alcance === 'usuario'
-                      ? 'Atletas'
-                      : item.alcance === 'tutor'
-                        ? 'Tutores'
-                        : 'Categoría'}
-                </Text>
-              </View>
+        <NewsFeedPost
+          item={item}
+          theme={theme}
+          colorMarca={cc}
+          authorName={getAuthorDisplay(item.autor)}
+          onPressImage={(url, title) => setFullscreenImage({ url, title })}
+          maxContentLines={4}
+          metaRight={
+            <View style={[styles.alcanceChip, { backgroundColor: cc + '15' }]}>
+              <Text style={{ color: cc, fontSize: 10, fontWeight: '700' }}>{alcanceLabel(item)}</Text>
             </View>
-          </View>
-        </View>
+          }
+        />
       </Swipeable>
     );
   };
@@ -564,7 +548,7 @@ export default function NoticiasScreen({ navigation, route }) {
       <View style={styles.body}>
         {showInitialLoader ? <ActivityIndicator size="large" color={cc} style={{marginTop:50}} /> : (
           <FlatList data={news} keyExtractor={i=>i._id} renderItem={renderItem}
-            contentContainerStyle={{paddingBottom:80,paddingTop:10}}
+            contentContainerStyle={{paddingBottom:80,flexGrow:1}}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cc} />}
             ListEmptyComponent={
               <View style={styles.emptyState}>
@@ -892,17 +876,14 @@ export default function NoticiasScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container:{flex:1},
-  body:{flex:1,paddingHorizontal:20},
-  card:{borderRadius:12,marginBottom:14,elevation:2,overflow:'hidden'},
-  cardImage:{width:'100%',height:210,backgroundColor:'#e5e7eb'},
-  cardImageBadge:{position:'absolute',right:10,bottom:10,backgroundColor:'rgba(0,0,0,0.55)',borderRadius:8,padding:6},
-  cardBody:{padding:16,paddingTop:14,minHeight:88},
+  body:{flex:1},
+  alcanceChip:{paddingHorizontal:8,paddingVertical:2,borderRadius:8},
+  swipeActions:{flexDirection:'row',alignItems:'stretch'},
   fullscreenBackdrop:{flex:1,backgroundColor:'rgba(0,0,0,0.92)',justifyContent:'center',alignItems:'center',paddingHorizontal:12,paddingVertical:48},
   fullscreenClose:{position:'absolute',top:48,right:20,zIndex:2,padding:8},
   fullscreenImage:{width:'100%',height:'78%'},
   fullscreenCaption:{color:'#fff',fontSize:14,textAlign:'center',marginTop:12,paddingHorizontal:16,opacity:0.9},
-  cardTitle:{fontSize:16,fontWeight:'bold'},
-  emptyState:{alignItems:'center',marginTop:60},
+  emptyState:{alignItems:'center',marginTop:60,paddingHorizontal:24},
   emptyText:{fontSize:18,fontWeight:'bold',marginTop:15},
   fab:{position:'absolute',bottom:20,right:20,width:60,height:60,borderRadius:30,justifyContent:'center',alignItems:'center',elevation:5},
   modalOverlay:{flex:1,backgroundColor:'rgba(0,0,0,0.5)',justifyContent:'flex-end'},
@@ -918,5 +899,5 @@ const styles = StyleSheet.create({
   removeImageBtn:{position:'absolute',top:8,right:8},
   saveBtn:{height:50,borderRadius:5,justifyContent:'center',alignItems:'center',flexDirection:'row'},
   saveBtnText:{color:'#fff',fontSize:16,fontWeight:'bold'},
-  actionBtn:{width:70,justifyContent:'center',alignItems:'center',height:'100%'},
+  actionBtn:{width:70,justifyContent:'center',alignItems:'center',alignSelf:'stretch'},
 });

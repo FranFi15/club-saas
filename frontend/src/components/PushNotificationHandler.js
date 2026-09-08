@@ -1,5 +1,4 @@
 import { useCallback, useContext, useEffect, useRef } from 'react';
-import * as Notifications from 'expo-notifications';
 import { ClubContext } from '../context/ClubContext';
 import { useBadgesOptional } from '../context/BadgeContext';
 import { useMemberOptional } from '../context/MemberContext';
@@ -7,6 +6,9 @@ import { getToken } from '../utils/storage';
 import {
   registerPushTokenWithBackend,
   isPushEnabledByUser,
+  isPushSupportedOnDevice,
+  initPushNotifications,
+  subscribeToNotificationEvents,
 } from '../services/pushNotifications';
 import { navigateFromNotification } from '../utils/notificationNavigation';
 import { navigationRef } from '../navigation/navigationRef';
@@ -48,6 +50,7 @@ export default function PushNotificationHandler() {
   const registeredRef = useRef(false);
 
   const syncPushRegistration = useCallback(async () => {
+    if (!isPushSupportedOnDevice()) return;
     if (!clubData?.urlIdentifier || !sessionActive) return;
     const authToken = await getToken('userToken');
     if (!authToken) return;
@@ -58,42 +61,56 @@ export default function PushNotificationHandler() {
   }, [clubData?.urlIdentifier, sessionActive]);
 
   useEffect(() => {
+    initPushNotifications();
+  }, []);
+
+  useEffect(() => {
     registeredRef.current = false;
     syncPushRegistration();
   }, [syncPushRegistration]);
 
   useEffect(() => {
-    const receivedSub = Notifications.addNotificationReceivedListener((response) => {
-      const tipo = response?.notification?.request?.content?.data?.tipo;
-      if (['consulta_confirmada', 'consulta_rechazada'].includes(tipo)) {
-        clearScreenCacheMatching((key) => key.startsWith('member-agenda:'));
-      }
-      badges?.refresh?.();
-      member?.refresh?.({ background: true });
-    });
+    if (!isPushSupportedOnDevice()) return undefined;
 
-    const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response?.notification?.request?.content?.data;
-      if (data?.atletaId && member?.setActiveAtletaId) {
-        member.setActiveAtletaId(data.atletaId);
-      }
-      const tipo = data?.tipo;
-      if (['consulta_confirmada', 'consulta_rechazada'].includes(tipo)) {
-        clearScreenCacheMatching((key) => key.startsWith('member-agenda:'));
-      }
-      handlePushNavigation(response);
-      badges?.refresh?.();
-      member?.refresh?.({ background: true });
-    });
+    let cleanup = () => {};
+    let cancelled = false;
 
-    Notifications.getLastNotificationResponseAsync().then((response) => {
-      if (!response) return;
-      setTimeout(() => handlePushNavigation(response), 600);
+    subscribeToNotificationEvents({
+      onReceived: (response) => {
+        const tipo = response?.notification?.request?.content?.data?.tipo;
+        if (['consulta_confirmada', 'consulta_rechazada'].includes(tipo)) {
+          clearScreenCacheMatching((key) => key.startsWith('member-agenda:'));
+        }
+        badges?.refresh?.();
+        member?.refresh?.({ background: true });
+      },
+      onResponse: (response) => {
+        const data = response?.notification?.request?.content?.data;
+        if (data?.atletaId && member?.setActiveAtletaId) {
+          member.setActiveAtletaId(data.atletaId);
+        }
+        const tipo = data?.tipo;
+        if (['consulta_confirmada', 'consulta_rechazada'].includes(tipo)) {
+          clearScreenCacheMatching((key) => key.startsWith('member-agenda:'));
+        }
+        handlePushNavigation(response);
+        badges?.refresh?.();
+        member?.refresh?.({ background: true });
+      },
+      onLastResponse: (response) => {
+        setTimeout(() => handlePushNavigation(response), 600);
+      },
+    }).then((fn) => {
+      if (cancelled) {
+        fn?.();
+        return;
+      }
+      cleanup = fn || (() => {});
     });
 
     return () => {
-      receivedSub.remove();
-      responseSub.remove();
+      cancelled = true;
+      cleanup();
     };
   }, [badges, member]);
 

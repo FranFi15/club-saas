@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useContext, useState } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,8 @@ import { clubApi } from '../../../utils/api';
 import { readScreenCache, useCachedFocusLoad } from '../../../hooks/useCachedFocusLoad';
 import { finanzasStyles as s } from './finanzasStyles';
 import { fmtMoney } from './finanzasConstants';
+import DesignCard from '../../../components/DesignCard';
+import { ThemeContext } from '../../../context/ThemeContext';
 
 const ROLES_APLICABLES = [
   { value: 'atleta', label: 'Atletas' },
@@ -45,6 +47,7 @@ export default function CuotaSocialSection({
   anio,
   canEdit = true,
 }) {
+  const { isDarkMode } = useContext(ThemeContext);
   const cc = primaryColor;
   const cacheKey = clubData?.urlIdentifier ? `finanzas-cuota-social:${clubData.urlIdentifier}` : '';
 
@@ -187,11 +190,13 @@ export default function CuotaSocialSection({
       {loading && !config ? (
         <ActivityIndicator color={cc} style={{ marginTop: 16, marginBottom: 16 }} />
       ) : (
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: theme.surface, borderColor: activo ? cc + '55' : theme.border },
-          ]}
+        <DesignCard
+          theme={theme}
+          isDarkMode={isDarkMode}
+          accent={activo ? cc : '#ef4444'}
+          muted={!activo}
+          contentStyle={styles.cardInner}
+          style={{ marginBottom: 8 }}
         >
           <View style={styles.cardTop}>
             <View style={[styles.icon, { backgroundColor: cc + '15' }]}>
@@ -281,7 +286,7 @@ export default function CuotaSocialSection({
               </View>
             </>
           ) : null}
-        </View>
+        </DesignCard>
       )}
 
       <Modal visible={modalOpen} animationType="slide" transparent>
@@ -404,11 +409,10 @@ export default function CuotaSocialSection({
 }
 
 const styles = {
-  card: {
-    borderWidth: 1,
-    borderRadius: 5,
-    padding: 14,
-    marginBottom: 8,
+  cardInner: {
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
   },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   icon: {

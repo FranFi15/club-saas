@@ -21,6 +21,7 @@ import { getToken } from '../utils/storage';
 import { navigateFromNotification, getNotificationTarget } from '../utils/notificationNavigation';
 import { readScreenCache, writeScreenCache } from '../hooks/useCachedFocusLoad';
 import CustomAlert from './CustomAlert';
+import MessageDesignCard from './MessageDesignCard';
 
 function formatWhen(iso) {
   try {
@@ -45,10 +46,33 @@ const TIPO_ICON = {
   general: 'notifications',
 };
 
+/** Accents from kristen17 wBwNEdZ (teal / blue / gold). */
+const MESSAGE_THEMES = [
+  { accent: '#01c3a8', wash: '#107667' },
+  { accent: '#1890ff', wash: '#00458f' },
+  { accent: '#ffb741', wash: '#ffb741' },
+];
+
+function themeForItem(item, index) {
+  if (item.tipo === 'cuota_vencida' || item.tipo === 'consulta_rechazada') {
+    return { accent: '#ef4444', wash: '#ef4444' };
+  }
+  if (item.tipo === 'pago_registrado' || item.tipo === 'consulta_confirmada') {
+    return MESSAGE_THEMES[0];
+  }
+  if (item.tipo === 'noticia' || item.tipo === 'recurso') {
+    return MESSAGE_THEMES[1];
+  }
+  if (item.tipo === 'documentacion' || item.tipo === 'documentacion_entregada') {
+    return MESSAGE_THEMES[2];
+  }
+  return MESSAGE_THEMES[index % MESSAGE_THEMES.length];
+}
+
 export default function NotificationsModal({ visible, onClose }) {
   const navigation = useNavigation();
   const { clubData } = useContext(ClubContext);
-  const { theme } = useContext(ThemeContext);
+  const { theme, isDarkMode } = useContext(ThemeContext);
   const badges = useBadgesOptional();
   const member = useMemberOptional();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
@@ -315,10 +339,11 @@ export default function NotificationsModal({ visible, onClose }) {
     </TouchableOpacity>
   );
 
-  const renderNotificationItem = ({ item }) => {
+  const renderNotificationItem = ({ item, index }) => {
     const icon = TIPO_ICON[item.tipo] || 'notifications-outline';
     const hasTarget = !!getNotificationTarget(item, navCtx);
     const unread = !item.leida;
+    const { accent, wash } = themeForItem(item, index);
 
     return (
       <Swipeable
@@ -335,52 +360,69 @@ export default function NotificationsModal({ visible, onClose }) {
           });
         }}
       >
-        <TouchableOpacity
-          style={[
-            styles.card,
-            {
-              backgroundColor: unread ? colorMarca + '12' : theme.background,
-              borderColor: theme.border,
-            },
-            unread && { borderLeftWidth: 3, borderLeftColor: colorMarca },
-          ]}
-          onPress={() => (hasTarget ? onPressItem(item) : null)}
-          activeOpacity={hasTarget ? 0.75 : 1}
-          disabled={!hasTarget}
+        <MessageDesignCard
+          isDarkMode={isDarkMode}
+          accent={accent}
+          washColor={wash}
+          active={unread}
+          onPress={() => (hasTarget ? onPressItem(item) : markReadInBackground(item))}
+          contentStyle={styles.cardInner}
         >
-          <View style={[styles.iconWrap, { backgroundColor: colorMarca + '1A' }]}>
-            <Ionicons name={icon} size={22} color={colorMarca} />
-          </View>
-
-          <View style={styles.cardBody}>
-            <View style={styles.titleRow}>
-              <Text style={[styles.rowTitle, { color: theme.text, flex: 1 }]} numberOfLines={2}>
-                {item.titulo}
-              </Text>
-              {unread ? <View style={[styles.unreadDot, { backgroundColor: colorMarca }]} /> : null}
+          <View style={styles.messageBody}>
+            <View style={[styles.avatar, { backgroundColor: unread ? `${accent}40` : `${accent}22` }]}>
+              <Ionicons name={icon} size={22} color={accent} />
             </View>
-            <Text style={[styles.rowMsg, { color: theme.textMuted }]} numberOfLines={2}>
-              {item.mensaje}
-            </Text>
-            <Text style={[styles.rowDate, { color: theme.textMuted }]}>{formatWhen(item.createdAt)}</Text>
+            <View style={styles.profile}>
+              <View style={styles.profileName}>
+                <Text
+                  style={[
+                    styles.rowTitle,
+                    { color: isDarkMode ? '#fff' : theme.text, flex: 1 },
+                  ]}
+                  numberOfLines={2}
+                >
+                  {item.titulo}
+                </Text>
+                {unread ? (
+                  <Ionicons name="ellipse" size={8} color={accent} style={{ marginTop: 6 }} />
+                ) : null}
+              </View>
+              <Text
+                style={[
+                  styles.rowMsg,
+                  { color: isDarkMode ? '#c0c0c0' : theme.textMuted },
+                ]}
+                numberOfLines={3}
+              >
+                {item.mensaje}
+              </Text>
+            </View>
           </View>
-
-          {hasTarget ? (
-            <Ionicons name="chevron-forward" size={18} color={theme.textMuted} style={styles.chevron} />
-          ) : null}
-        </TouchableOpacity>
+          <Text
+            style={[
+              styles.rowDate,
+              { color: isDarkMode ? '#c0c0c0' : theme.textMuted },
+            ]}
+          >
+            {formatWhen(item.createdAt)}
+          </Text>
+        </MessageDesignCard>
       </Swipeable>
     );
   };
 
   const bootstrapping = visible && (!cacheKey || (loading && list.length === 0 && !refreshing));
+  const sheetBg = isDarkMode ? '#000000' : theme.surface;
+  const listBg = isDarkMode ? '#000000' : theme.background;
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={[styles.sheet, { backgroundColor: theme.surface }]}>
-          <View style={[styles.header, { borderBottomColor: theme.border }]}>
-            <Text style={[styles.title, { color: theme.text }]}>Notificaciones</Text>
+        <View style={[styles.sheet, { backgroundColor: sheetBg }]}>
+          <View style={[styles.header, { borderBottomColor: isDarkMode ? '#3f3f3f' : theme.border }]}>
+            <Text style={[styles.title, { color: isDarkMode ? '#fff' : theme.text }]}>
+              Notificaciones
+            </Text>
             <View style={styles.headerActions}>
               {list.length > 0 ? (
                 <TouchableOpacity onPress={confirmDismissAll} style={styles.headerBtn}>
@@ -389,18 +431,18 @@ export default function NotificationsModal({ visible, onClose }) {
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity onPress={onClose} hitSlop={12}>
-                <Ionicons name="close" size={26} color={theme.icon} />
+                <Ionicons name="close" size={26} color={isDarkMode ? '#fff' : theme.icon} />
               </TouchableOpacity>
             </View>
           </View>
 
           {bootstrapping ? (
-            <View style={styles.loaderWrap}>
+            <View style={[styles.loaderWrap, { backgroundColor: listBg }]}>
               <ActivityIndicator color={colorMarca} />
             </View>
           ) : (
             <FlatList
-              style={styles.listBody}
+              style={[styles.listBody, { backgroundColor: listBg }]}
               data={list}
               keyExtractor={(item) => String(item.id)}
               refreshControl={
@@ -453,7 +495,7 @@ const styles = StyleSheet.create({
     height: '94%',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    paddingBottom: 24,
+    overflow: 'hidden',
   },
   loaderWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   listBody: { flex: 1 },
@@ -465,49 +507,51 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
   },
-  title: { fontSize: 18, fontWeight: '800' },
+  title: { fontSize: 18, fontWeight: '800', textTransform: 'capitalize' },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4 },
   deleteAllTxt: { fontSize: 13, fontWeight: '700', color: '#ef4444' },
-  list: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24 },
+  list: { paddingHorizontal: 12, paddingTop: 14, paddingBottom: 28 },
   listGrow: { flexGrow: 1 },
   listEmpty: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 32, paddingBottom: 32 },
   emptyWrap: { alignItems: 'center', gap: 12 },
   empty: { textAlign: 'center', fontSize: 15, lineHeight: 22 },
-  card: {
+  cardInner: {
+    paddingHorizontal: 14,
+    paddingTop: 18,
+    paddingBottom: 26,
+  },
+  messageBody: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    gap: 12,
   },
-  iconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 2,
   },
-  cardBody: { flex: 1, minWidth: 0 },
-  titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 4 },
-  rowTitle: { fontSize: 15, fontWeight: '800', lineHeight: 20 },
-  rowMsg: { fontSize: 13, lineHeight: 18 },
-  rowDate: { fontSize: 11, marginTop: 8, fontWeight: '500' },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginTop: 6,
-    flexShrink: 0,
+  profile: { flex: 1, marginLeft: 16, minWidth: 0, paddingRight: 4 },
+  profileName: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 6,
   },
-  chevron: { marginTop: 12, opacity: 0.55 },
+  rowTitle: { fontSize: 16, fontWeight: '600', lineHeight: 21, textTransform: 'capitalize' },
+  rowMsg: { fontSize: 13, lineHeight: 18, letterSpacing: 0.3 },
+  rowDate: {
+    position: 'absolute',
+    right: 14,
+    bottom: 8,
+    fontSize: 12,
+    fontWeight: '500',
+  },
   swipeDelete: {
     width: 88,
     marginBottom: 10,
-    borderRadius: 12,
+    borderRadius: 14,
     backgroundColor: '#ef4444',
     alignItems: 'center',
     justifyContent: 'center',

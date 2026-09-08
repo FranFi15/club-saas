@@ -8,16 +8,19 @@ import { ClubContext } from '../context/ClubContext';
 import { ThemeContext } from '../context/ThemeContext';
 import NoticiasScreen from '../screens/admin/NoticiasScreen';
 import AdminClubEntryScanScreen from '../screens/admin/AdminClubEntryScanScreen';
+import StaffProfileScreen from '../screens/staff/StaffProfileScreen';
 import ChatInboxScreen from '../screens/chat/ChatInboxScreen';
 import ChatThreadScreen from '../screens/chat/ChatThreadScreen';
 import ChatNewScreen from '../screens/chat/ChatNewScreen';
+import { createProfileStack } from './createProfileStack';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
-import { tabBadgeLabel } from '../utils/tabBadgeLabel';
+import { tabBadgeText } from '../utils/tabBadgeLabel';
 import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
 
 const Tab = createSwipeBottomTabNavigator();
 const ChatStack = createNativeStackNavigator();
+const ControlProfileStack = createProfileStack(StaffProfileScreen);
 
 function ControlChatStackNav() {
   return (
@@ -65,41 +68,44 @@ export default function ControlIngresoNavigator() {
         theme,
         tabBarHeight,
         tabBottomPad,
-        paddingHorizontal: 12,
+        paddingHorizontal: 10,
         labelFontSize: 11,
         getIcon: (name, focused, color) => {
           const map = {
             ControlIngresoNoticias: focused ? 'newspaper' : 'newspaper-outline',
             ControlIngresoScan: focused ? 'qr-code' : 'qr-code-outline',
             ControlIngresoChat: focused ? 'chatbubbles' : 'chatbubbles-outline',
+            ControlIngresoPerfil: focused ? 'person' : 'person-outline',
           };
-          return <Ionicons name={map[name] || 'ellipse-outline'} size={24} color={color} />;
+          return <Ionicons name={map[name] || 'ellipse-outline'} size={22} color={color} />;
         },
+        getBadge: (name) =>
+          ({
+            ControlIngresoNoticias: tabBadgeText(tab('noticias')),
+            ControlIngresoChat: tabBadgeText(tab('chat')),
+            ControlIngresoPerfil: tabBadgeText(tab('perfil')),
+          })[name],
+        getLabel: (name) =>
+          ({
+            ControlIngresoNoticias: 'Noticias',
+            ControlIngresoScan: 'Ingreso',
+            ControlIngresoChat: 'Chat',
+            ControlIngresoPerfil: 'Perfil',
+          })[name],
       })}
     >
-      <Tab.Screen
-        name="ControlIngresoNoticias"
-        component={ControlNewsScreen}
-        options={{
-          tabBarLabel: 'Noticias',
-          tabBarBadge: tabBadgeLabel(tab('noticias')),
-        }}
-      />
+      <Tab.Screen name="ControlIngresoNoticias" component={ControlNewsScreen} />
       <Tab.Screen
         name="ControlIngresoScan"
         component={AdminClubEntryScanScreen}
         initialParams={{ standalone: true }}
-        options={{ tabBarLabel: 'Ingreso' }}
       />
       <Tab.Screen
         name="ControlIngresoChat"
         component={ControlChatStackNav}
-        options={{
-          tabBarLabel: 'Chat',
-          tabBarBadge: tabBadgeLabel(tab('chat')),
-        }}
         listeners={tabPressResetToRoot('ControlIngresoChat', 'ChatInbox')}
       />
+      <Tab.Screen name="ControlIngresoPerfil" component={ControlProfileStack} />
     </Tab.Navigator>
   );
 }

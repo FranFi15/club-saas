@@ -15,10 +15,13 @@ import { ClubContext } from '../context/ClubContext';
 import { getToken } from '../utils/storage';
 import { clubApi } from '../utils/api';
 import CustomAlert from './CustomAlert';
+import DesignCard from './DesignCard';
+import { ThemeContext } from '../context/ThemeContext';
 import {
   consultaConfirmacionEstado,
   consultaConfirmacionLabel,
   consultaConfirmacionBorderColor,
+  sessionTipoVisual,
 } from '../utils/sessionDisplay';
 
 function athleteSearchText(a) {
@@ -41,10 +44,13 @@ export default function StaffConsultAgendaCard({
   onUpdated,
 }) {
   const { clubData } = useContext(ClubContext);
+  const { isDarkMode } = useContext(ThemeContext);
   const confirmEstado = consultaConfirmacionEstado(item);
   const confirmTxt = confirmEstado ? consultaConfirmacionLabel(confirmEstado) : 'Pendiente de confirmación';
   const borderAccent = consultaConfirmacionBorderColor(confirmEstado);
   const isRejected = confirmEstado === 'rechazada';
+  const visual = sessionTipoVisual(item, { colorMarca });
+  const cardAccent = borderAccent || visual.accent;
 
   const an = item.atletaIndividual;
   const nombreAtleta =
@@ -156,70 +162,72 @@ export default function StaffConsultAgendaCard({
 
   return (
     <>
-      <View
-        style={[
-          styles.card,
-          {
-            backgroundColor: theme.surface,
-            borderColor: borderAccent || theme.border,
-            borderWidth: borderAccent ? 2 : 1,
-          },
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.mainRow}
-          onPress={() => navigation.navigate('CoachSessionDetail', { sessionId: item._id })}
-          activeOpacity={0.75}
-        >
-          <View
-            style={[
-              styles.dot,
-              {
-                backgroundColor:
-                  confirmEstado === 'confirmada'
-                    ? '#22c55e'
-                    : confirmEstado === 'rechazada'
-                      ? '#ef4444'
-                      : item.estado === 'completada'
-                        ? '#22c55e'
-                        : colorMarca,
-              },
-            ]}
-          />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.rowTitle, { color: theme.text }]}>{sessionLabel(item)}</Text>
-            <Text style={[styles.rowSub, { color: theme.textMuted }]}>
-              {item.horaInicio}–{item.horaFin} · {nombreAtleta}
-            </Text>
-            <Text style={[styles.rowMeta, { color: theme.textMuted }]}>
-              {lugar} · {item.categoria?.nombre || ''} ·{' '}
-              {item.estado === 'completada' ? 'Realizada' : 'Programada'} · {confirmTxt}
-            </Text>
-            {isRejected && item.confirmacionAtleta?.motivoRechazo ? (
-              <Text style={[styles.rejectReason, { color: '#ef4444' }]} numberOfLines={2}>
-                Motivo: {item.confirmacionAtleta.motivoRechazo}
+      <DesignCard
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent={cardAccent}
+        onPress={() => navigation.navigate('CoachSessionDetail', { sessionId: item._id })}
+        contentStyle={styles.mainRow}
+        footer={
+          isRejected ? (
+            <View style={styles.actions}>
+              <TouchableOpacity
+                style={[styles.actionBtn, { borderColor: theme.border }]}
+                onPress={openChangeAthlete}
+              >
+                <Ionicons name="swap-horizontal-outline" size={16} color={theme.text} />
+                <Text style={[styles.actionTxt, { color: theme.text }]}>Cambiar atleta</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.actionBtnDanger]} onPress={confirmCancel}>
+                <Ionicons name="trash-outline" size={16} color="#fff" />
+                <Text style={styles.actionTxtDanger}>Eliminar sesión</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.footerMeta}>
+              <Text style={[styles.rowMeta, { color: theme.textMuted, marginTop: 0 }]} numberOfLines={1}>
+                {lugar} · {confirmTxt}
               </Text>
-            ) : null}
+              <Ionicons name="chevron-forward" size={18} color={theme.icon} />
+            </View>
+          )
+        }
+      >
+        <View
+          style={[
+            styles.dot,
+            {
+              backgroundColor:
+                confirmEstado === 'confirmada'
+                  ? '#22c55e'
+                  : confirmEstado === 'rechazada'
+                    ? '#ef4444'
+                    : item.estado === 'completada'
+                      ? '#22c55e'
+                      : visual.accent,
+            },
+          ]}
+        />
+        <View style={{ flex: 1 }}>
+          <View style={styles.tipoChipRow}>
+            <View style={[styles.tipoChip, { backgroundColor: `${visual.accent}22`, borderColor: visual.accent }]}>
+              <Text style={[styles.tipoChipTxt, { color: visual.accent }]}>{visual.shortLabel}</Text>
+            </View>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.icon} />
-        </TouchableOpacity>
-
-        {isRejected ? (
-          <View style={[styles.actions, { borderTopColor: theme.border }]}>
-            <TouchableOpacity
-              style={[styles.actionBtn, { borderColor: theme.border }]}
-              onPress={openChangeAthlete}
-            >
-              <Ionicons name="swap-horizontal-outline" size={16} color={theme.text} />
-              <Text style={[styles.actionTxt, { color: theme.text }]}>Cambiar atleta</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionBtnDanger]} onPress={confirmCancel}>
-              <Ionicons name="trash-outline" size={16} color="#fff" />
-              <Text style={styles.actionTxtDanger}>Eliminar sesión</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-      </View>
+          <Text style={[styles.rowTitle, { color: theme.text }]}>{sessionLabel(item)}</Text>
+          <Text style={[styles.rowSub, { color: theme.textMuted }]}>
+            {item.horaInicio}–{item.horaFin} · {nombreAtleta}
+          </Text>
+          <Text style={[styles.rowMeta, { color: theme.textMuted }]}>
+            {item.categoria?.nombre || ''} · {item.estado === 'completada' ? 'Realizada' : 'Programada'}
+          </Text>
+          {isRejected && item.confirmacionAtleta?.motivoRechazo ? (
+            <Text style={[styles.rejectReason, { color: '#ef4444' }]} numberOfLines={2}>
+              Motivo: {item.confirmacionAtleta.motivoRechazo}
+            </Text>
+          ) : null}
+        </View>
+      </DesignCard>
 
       <Modal visible={pickerOpen} animationType="slide" transparent onRequestClose={closePicker}>
         <View style={styles.modalOverlay}>
@@ -319,29 +327,38 @@ export default function StaffConsultAgendaCard({
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: 12,
-    marginBottom: 10,
-    overflow: 'hidden',
-  },
   mainRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
-    gap: 10,
-  },
-  dot: { width: 10, height: 10, borderRadius: 5 },
-  rowTitle: { fontSize: 15, fontWeight: '700', textTransform: 'capitalize' },
-  rowSub: { fontSize: 14, marginTop: 4 },
-  rowMeta: { fontSize: 12, marginTop: 4 },
-  rejectReason: { fontSize: 12, marginTop: 6, lineHeight: 17 },
-  actions: {
-    flexDirection: 'row',
     gap: 10,
     paddingHorizontal: 14,
-    paddingBottom: 14,
-    paddingTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 14,
+    paddingBottom: 12,
+  },
+  footerMeta: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  tipoChipRow: { flexDirection: 'row', marginBottom: 4 },
+  tipoChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  tipoChipTxt: { fontSize: 10, fontWeight: '800', letterSpacing: 0.2 },
+  rowTitle: { fontSize: 15, fontWeight: '700', textTransform: 'capitalize' },
+  rowSub: { fontSize: 14, marginTop: 4 },
+  rowMeta: { fontSize: 12, marginTop: 4, flex: 1 },
+  rejectReason: { fontSize: 12, marginTop: 6, lineHeight: 17 },
+  actions: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 10,
   },
   actionBtn: {
     flex: 1,

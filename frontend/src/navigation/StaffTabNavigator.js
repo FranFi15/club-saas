@@ -58,19 +58,23 @@ function DefaultStaffTabs({ clubData, theme, isDarkMode }) {
         labelFontSize: 11,
         getIcon: (name, focused, color) => {
           if (name === 'StaffInicio') {
-            return <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />;
+            return <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />;
           }
-          return <Ionicons name={focused ? 'person' : 'person-outline'} size={24} color={color} />;
+          return <Ionicons name={focused ? 'person' : 'person-outline'} size={22} color={color} />;
         },
+        getLabel: (name) =>
+          ({
+            StaffInicio: 'Inicio',
+            StaffPerfil: 'Perfil',
+          })[name],
       })}
     >
       <Tab.Screen
         name="StaffInicio"
         component={StaffWorkStackNav}
-        options={{ tabBarLabel: 'Inicio' }}
         listeners={tabPressResetToRoot('StaffInicio', 'StaffDashboard')}
       />
-      <Tab.Screen name="StaffPerfil" component={StaffProfileStackNav} options={{ tabBarLabel: 'Perfil' }} />
+      <Tab.Screen name="StaffPerfil" component={StaffProfileStackNav} />
     </Tab.Navigator>
   );
 }

@@ -21,7 +21,15 @@ export const ATHLETE_METRICS_STAFF_FILTERS = [
     label: 'Entrenador',
     subtitle: 'Mediciones del cuerpo técnico',
     roles: ['profe'],
-    icon: 'football-outline',
+    icon: 'soccer-field',
+    iconSet: 'MaterialCommunityIcons',
+  },
+  {
+    id: 'psicologo',
+    label: 'Psicología',
+    subtitle: 'Notas de sesión compartidas',
+    roles: ['psicologo'],
+    icon: 'happy-outline',
   },
 ];
 

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useContext } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { finanzasStyles as s } from './finanzasStyles';
 import { MN, EST_COLOR, fmtMoney } from './finanzasConstants';
+import DesignCard from '../../../components/DesignCard';
+import UserAvatar from '../../../components/UserAvatar';
+import { ThemeContext } from '../../../context/ThemeContext';
 
 export default function FamiliasTab({
   theme,
@@ -41,6 +44,7 @@ export default function FamiliasTab({
   onHistoryAtleta,
   canManageDiscounts = true,
 }) {
+  const { isDarkMode } = useContext(ThemeContext);
   const cc = primaryColor;
   const [expandedGlobalDiscount, setExpandedGlobalDiscount] = useState(false);
   const [expandedAthletes, setExpandedAthletes] = useState({});
@@ -68,10 +72,15 @@ export default function FamiliasTab({
       const inputVal = discountInput[tutorId] ?? (pctActual ? String(pctActual) : '');
       const impagas = g.cuotasImpagas || [];
       const canPayAll = impagas.length > 0;
+      const accent = g.totalImpago > 0 ? '#ef4444' : '#10b981';
 
       return (
-        <View
-          style={[styles.familyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+        <DesignCard
+          theme={theme}
+          isDarkMode={isDarkMode}
+          accent={accent}
+          contentStyle={styles.familyCardInner}
+          style={{ marginBottom: 14 }}
         >
           <View style={styles.familyHeader}>
             <View style={[s.planIcon, { backgroundColor: '#8b5cf620' }]}>
@@ -148,7 +157,8 @@ export default function FamiliasTab({
                 return (
                   <View key={h._id} style={[styles.childBlock, { borderColor: theme.border }]}>
                     <View style={styles.childRow}>
-                      <Text style={{ color: theme.text, flex: 1, fontSize: 14, fontWeight: '600' }}>
+                      <UserAvatar user={h} size={36} colorMarca={cc} />
+                      <Text style={{ color: theme.text, flex: 1, fontSize: 14, fontWeight: '600', marginLeft: 10 }}>
                         {h.nombre} {h.apellido}
                       </Text>
                       {cuota ? (
@@ -250,11 +260,12 @@ export default function FamiliasTab({
               </View>
             </View>
           ) : null}
-        </View>
+        </DesignCard>
       );
     },
     [
       theme,
+      isDarkMode,
       cc,
       mes,
       anio,
@@ -290,7 +301,13 @@ export default function FamiliasTab({
       ) : null}
 
       {canManageDiscounts && expandedGlobalDiscount ? (
-        <View style={[styles.globalBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <DesignCard
+          theme={theme}
+          isDarkMode={isDarkMode}
+          accent={cc}
+          contentStyle={styles.globalBoxInner}
+          style={{ marginBottom: 16 }}
+        >
           <Text style={[styles.discountLabel, { color: theme.text }]}>Descuento por defecto (%)</Text>
           <Text style={[styles.discountHint, { color: theme.textMuted }]}>
             Se aplica a familias nuevas sin descuento personalizado.
@@ -317,7 +334,7 @@ export default function FamiliasTab({
               <Text style={styles.applyBtnTxt}>{isSavingGlobalDiscount ? '...' : 'Guardar'}</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </DesignCard>
       ) : null}
 
       <Text style={[s.sectionTitle, { color: theme.text, marginTop: 12, marginBottom: 8 }]}>Familias</Text>
@@ -415,8 +432,16 @@ const styles = {
     borderWidth: 1,
     marginBottom: 8,
   },
-  globalBox: { borderRadius: 5, borderWidth: 1, padding: 14, marginBottom: 16 },
-  familyCard: { borderRadius: 5, borderWidth: 1, padding: 14, marginBottom: 14 },
+  globalBoxInner: {
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
+  },
+  familyCardInner: {
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
+  },
   familyHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   payBtnFamilia: {
     flexDirection: 'row',

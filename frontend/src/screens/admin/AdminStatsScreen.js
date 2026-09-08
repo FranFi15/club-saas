@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,16 +8,31 @@ import {
   ActivityIndicator,
   RefreshControl,
   StatusBar,
+  LayoutAnimation,
+  Platform,
+  UIManager,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
+import DesignCard from '../../components/DesignCard';
 import { clubApi } from '../../utils/api';
 import { getToken } from '../../utils/storage';
 import { USER_ROL_LABELS } from '../../constants/userRoles';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const ACCORDION_ANIM = LayoutAnimation.create(
+  260,
+  LayoutAnimation.Types.easeInEaseOut,
+  LayoutAnimation.Properties.opacity,
+);
 
 const AGE_ROWS = [
   { key: 'lte10', label: 'Hasta 10' },
@@ -92,10 +107,49 @@ function navigateOps(navigation, nav) {
   }
 }
 
-function AccordionSection({ id, title, summary, openId, onToggle, theme, colorMarca, children }) {
+function AccordionSection({
+  id,
+  title,
+  summary,
+  openId,
+  onToggle,
+  theme,
+  isDarkMode,
+  colorMarca,
+  children,
+}) {
   const open = openId === id;
+  const chevron = useRef(new Animated.Value(open ? 1 : 0)).current;
+  const bodyOpacity = useRef(new Animated.Value(open ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(chevron, {
+        toValue: open ? 1 : 0,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.timing(bodyOpacity, {
+        toValue: open ? 1 : 0,
+        duration: open ? 240 : 160,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [open, chevron, bodyOpacity]);
+
+  const chevronRotate = chevron.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
+  });
+
   return (
-    <View style={[styles.accordion, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <DesignCard
+      theme={theme}
+      isDarkMode={isDarkMode}
+      accent={colorMarca}
+      style={styles.accordionCard}
+      contentStyle={styles.accordionContent}
+    >
       <TouchableOpacity
         style={styles.accordionHeader}
         onPress={() => onToggle(id)}
@@ -111,20 +165,30 @@ function AccordionSection({ id, title, summary, openId, onToggle, theme, colorMa
             </Text>
           ) : null}
         </View>
-        <Ionicons
-          name={open ? 'chevron-up' : 'chevron-down'}
-          size={20}
-          color={colorMarca}
-        />
+        <Animated.View style={{ transform: [{ rotate: chevronRotate }] }}>
+          <Ionicons name="chevron-down" size={20} color={colorMarca} />
+        </Animated.View>
       </TouchableOpacity>
-      {open ? <View style={styles.accordionBody}>{children}</View> : null}
-    </View>
+      {open ? (
+        <Animated.View style={[styles.accordionBody, { opacity: bodyOpacity }]}>
+          {children}
+        </Animated.View>
+      ) : null}
+    </DesignCard>
   );
 }
 
-function StatTile({ label, value, theme, colorMarca }) {
+function StatTile({ label, value, theme, colorMarca, isDarkMode }) {
   return (
-    <View style={[styles.tile, { backgroundColor: theme.background, borderColor: theme.border }]}>
+    <View
+      style={[
+        styles.tile,
+        {
+          backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : theme.background,
+          borderColor: theme.border,
+        },
+      ]}
+    >
       <Text style={[styles.tileValue, { color: colorMarca }]}>{value}</Text>
       <Text style={[styles.tileLabel, { color: theme.textMuted }]} numberOfLines={2}>
         {label}
@@ -192,6 +256,7 @@ export default function AdminStatsScreen({ navigation }) {
   });
 
   const onToggle = useCallback((id) => {
+    LayoutAnimation.configureNext(ACCORDION_ANIM);
     setOpenId((prev) => (prev === id ? null : id));
   }, []);
 
@@ -203,7 +268,7 @@ export default function AdminStatsScreen({ navigation }) {
   const discMax = Math.max(1, ...(stats?.porDisciplina || []).map((d) => d.atletas || 0), 1);
   const opsTotal = OPS_ROWS.reduce((s, r) => s + (stats?.operaciones?.[r.key] || 0), 0);
 
-  const accordionProps = { openId, onToggle, theme, colorMarca };
+  const accordionProps = { openId, onToggle, theme, isDarkMode, colorMarca };
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
@@ -213,7 +278,7 @@ export default function AdminStatsScreen({ navigation }) {
         theme={theme}
         kicker="Estructura"
         title="Estadísticas"
-        subtitle="Demografía, plantel y pendientes del club"
+        subtitle={clubData?.nombre || 'Tu club'}
         onBack={() => navigation.goBack()}
         showNotifications={false}
       />
@@ -234,31 +299,47 @@ export default function AdminStatsScreen({ navigation }) {
             {...accordionProps}
           >
             <View style={styles.tileGrid}>
-              <StatTile label="Atletas" value={String(resumen.atletas ?? 0)} theme={theme} colorMarca={colorMarca} />
+              <StatTile
+                label="Atletas"
+                value={String(resumen.atletas ?? 0)}
+                theme={theme}
+                colorMarca={colorMarca}
+                isDarkMode={isDarkMode}
+              />
               <StatTile
                 label="Sin categoría"
                 value={String(resumen.atletasSinInscripcion ?? 0)}
                 theme={theme}
                 colorMarca={colorMarca}
+                isDarkMode={isDarkMode}
               />
               <StatTile
                 label="Profesionales"
                 value={String(resumen.profesionales ?? 0)}
                 theme={theme}
                 colorMarca={colorMarca}
+                isDarkMode={isDarkMode}
               />
-              <StatTile label="Tutores" value={String(resumen.tutores ?? 0)} theme={theme} colorMarca={colorMarca} />
+              <StatTile
+                label="Tutores"
+                value={String(resumen.tutores ?? 0)}
+                theme={theme}
+                colorMarca={colorMarca}
+                isDarkMode={isDarkMode}
+              />
               <StatTile
                 label="Disciplinas"
                 value={String(resumen.disciplinas ?? 0)}
                 theme={theme}
                 colorMarca={colorMarca}
+                isDarkMode={isDarkMode}
               />
               <StatTile
                 label="Categorías"
                 value={String(resumen.categorias ?? 0)}
                 theme={theme}
                 colorMarca={colorMarca}
+                isDarkMode={isDarkMode}
               />
             </View>
           </AccordionSection>
@@ -388,7 +469,13 @@ export default function AdminStatsScreen({ navigation }) {
               return (
                 <TouchableOpacity
                   key={row.key}
-                  style={[styles.opsRow, { backgroundColor: theme.background, borderColor: theme.border }]}
+                  style={[
+                    styles.opsRow,
+                    {
+                      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : theme.background,
+                      borderColor: theme.border,
+                    },
+                  ]}
                   onPress={() => navigateOps(navigation, row.nav)}
                   activeOpacity={0.75}
                 >
@@ -411,7 +498,15 @@ export default function AdminStatsScreen({ navigation }) {
             summary={`${stats?.finanzas?.porcentajeCobranza ?? 0}% cobranza · ${stats?.finanzas?.vencidosGlobal ?? 0} vencidas`}
             {...accordionProps}
           >
-            <View style={[styles.financeCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+            <View
+              style={[
+                styles.financeCard,
+                {
+                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : theme.background,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
               <Text style={[styles.financeMonth, { color: theme.textMuted }]}>
                 {stats?.finanzas?.mes && stats?.finanzas?.anio
                   ? `${String(stats.finanzas.mes).padStart(2, '0')}/${stats.finanzas.anio}`
@@ -459,11 +554,11 @@ export default function AdminStatsScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { padding: 16, paddingBottom: 40 },
-  accordion: {
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 10,
-    overflow: 'hidden',
+  accordionCard: { marginBottom: 12 },
+  accordionContent: {
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
   },
   accordionHeader: {
     flexDirection: 'row',
@@ -485,7 +580,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     minWidth: '30%',
     borderRadius: 12,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     paddingVertical: 12,
     paddingHorizontal: 10,
   },
@@ -505,7 +600,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderRadius: 12,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 8,
   },
   opsIcon: {
@@ -519,7 +614,7 @@ const styles = StyleSheet.create({
   opsCount: { fontSize: 16, fontWeight: '800', minWidth: 24, textAlign: 'right' },
   financeCard: {
     borderRadius: 12,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     padding: 14,
   },
   financeMonth: { fontSize: 12, fontWeight: '600' },

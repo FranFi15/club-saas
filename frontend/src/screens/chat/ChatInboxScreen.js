@@ -20,6 +20,7 @@ import { useBadges } from '../../context/BadgeContext';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import BadgeDot from '../../components/BadgeDot';
 import UserAvatar from '../../components/UserAvatar';
+import DesignCard from '../../components/DesignCard';
 import { clubApi } from '../../utils/api';
 import { getToken } from '../../utils/storage';
 import {
@@ -161,10 +162,12 @@ export default function ChatInboxScreen({ navigation }) {
     const groupIcon = item.kind === 'staff_group' ? 'briefcase-outline' : 'people';
 
     return (
-      <TouchableOpacity
-        style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}
+      <DesignCard
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent={colorMarca}
         onPress={() => openThread(item)}
-        activeOpacity={0.75}
+        contentStyle={styles.rowInner}
       >
         {isGroup ? (
           <View style={[styles.avatar, { backgroundColor: colorMarca + '22' }]}>
@@ -198,7 +201,7 @@ export default function ChatInboxScreen({ navigation }) {
           </Text>
         </View>
         <BadgeDot count={unread} />
-      </TouchableOpacity>
+      </DesignCard>
     );
   };
 
@@ -341,14 +344,13 @@ const styles = StyleSheet.create({
   },
   search: { flex: 1, fontSize: 15, padding: 0 },
   list: { padding: 16, paddingBottom: 40 },
-  row: {
+  rowInner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 10,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
   },
   avatar: {
     width: 44,

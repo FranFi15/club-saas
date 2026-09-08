@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import { clubApi } from '../../utils/api';
@@ -21,6 +22,7 @@ import { sortByNombre } from '../../utils/listSort';
 import CoachCategoryFilter from '../../components/CoachCategoryFilter';
 import CoachStatsBarChart from '../../components/CoachStatsBarChart';
 import EnfoqueBarChart from '../../components/EnfoqueBarChart';
+import DesignCard from '../../components/DesignCard';
 import {
   formatSessionCalendarWhen,
   isoCalendarDateToDisplay,
@@ -193,7 +195,12 @@ export default function CoachSessionStatsScreen({ navigation, route }) {
             </Text>
           ) : null}
 
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <DesignCard
+            theme={theme}
+            isDarkMode={isDarkMode}
+            accent={colorMarca}
+            contentStyle={styles.cardInner}
+          >
             <View style={styles.cardHead}>
               <Ionicons name="people-outline" size={20} color={colorMarca} />
               <Text style={[styles.cardTitle, { color: theme.text, marginBottom: 0 }]}>
@@ -222,11 +229,16 @@ export default function CoachSessionStatsScreen({ navigation, route }) {
               valueSuffix={isSingleSession ? '' : '%'}
               maxValue={maxAsistencia}
             />
-          </View>
+          </DesignCard>
 
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <DesignCard
+            theme={theme}
+            isDarkMode={isDarkMode}
+            accent={colorMarca}
+            contentStyle={styles.cardInner}
+          >
             <View style={styles.cardHead}>
-              <Ionicons name="football-outline" size={20} color={colorMarca} />
+              <MaterialCommunityIcons name="soccer-field" size={20} color={colorMarca} />
               <Text style={[styles.cardTitle, { color: theme.text, marginBottom: 0 }]}>
                 {isSingleSession ? 'Enfoque (minutos)' : `${current?.etiqueta || 'Período'} — Enfoque`}
               </Text>
@@ -243,7 +255,7 @@ export default function CoachSessionStatsScreen({ navigation, route }) {
               theme={theme}
               colorMarca={colorMarca}
             />
-          </View>
+          </DesignCard>
 
           {!current && !showInitialLoader ? (
             <Text style={[styles.empty, { color: theme.textMuted }]}>No se pudieron cargar las estadísticas.</Text>
@@ -269,12 +281,7 @@ const styles = StyleSheet.create({
   tab: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
   tabTxt: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
   meta: { fontSize: 12, marginBottom: 14 },
-  card: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 14,
-  },
+  cardInner: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 14 },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   cardTitle: { fontSize: 16, fontWeight: '800', marginBottom: 8 },
   kpi: { fontSize: 32, fontWeight: '800', marginBottom: 4 },

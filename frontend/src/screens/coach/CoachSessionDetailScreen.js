@@ -26,9 +26,12 @@ import { getToken } from '../../utils/storage';
 import { clubApi } from '../../utils/api';
 import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
-import { displayDateToIsoCalendar, isoCalendarDateToDisplay, maskDateDDMMAAAA } from '../../utils/dateDisplay';
+import DesignCard from '../../components/DesignCard';
+import UserAvatar from '../../components/UserAvatar';
+import CalendarDateField from '../../components/CalendarDateField';
+import { displayDateToIsoCalendar, isoCalendarDateToDisplay } from '../../utils/dateDisplay';
 import { maskTimeHHMM, isValidTimeHHMM } from '../../utils/timeDisplay';
-import { sessionDisplayName, sessionEsOpcional, sessionTipoLabel, consultaConfirmacionEstado, consultaConfirmacionLabel } from '../../utils/sessionDisplay';
+import { sessionDisplayName, sessionEsOpcional, sessionTipoLabel, consultaConfirmacionEstado, consultaConfirmacionLabel, isSessionReadOnly, isSessionPast } from '../../utils/sessionDisplay';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 
 const ASIST_OPTS = [
@@ -101,7 +104,11 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
   const [sessionMetaOpen, setSessionMetaOpen] = useState(false);
   const [duplicatingLastPlan, setDuplicatingLastPlan] = useState(false);
   const [selectedTimerIndex, setSelectedTimerIndex] = useState(0);
+  /** Epoch ms when the current run segment started; null if idle or paused. */
   const [timerStartedAt, setTimerStartedAt] = useState(null);
+  /** Seconds already counted before the current run segment (pause support). */
+  const [timerBaseSec, setTimerBaseSec] = useState(0);
+  const [timerPaused, setTimerPaused] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
   const tickRef = useRef(null);
 
@@ -381,15 +388,17 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
     if (timerStartedAt == null) {
       if (tickRef.current) clearInterval(tickRef.current);
       tickRef.current = null;
-      return;
+      return undefined;
     }
-    tickRef.current = setInterval(() => {
-      setElapsedSec(Math.floor((Date.now() - timerStartedAt) / 1000));
-    }, 500);
+    const tick = () => {
+      setElapsedSec(timerBaseSec + Math.floor((Date.now() - timerStartedAt) / 1000));
+    };
+    tick();
+    tickRef.current = setInterval(tick, 250);
     return () => {
       if (tickRef.current) clearInterval(tickRef.current);
     };
-  }, [timerStartedAt]);
+  }, [timerStartedAt, timerBaseSec]);
 
   useEffect(() => {
     if (selectedTimerIndex >= executedBlocks.length && executedBlocks.length > 0) {
@@ -398,9 +407,11 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
   }, [executedBlocks.length, selectedTimerIndex]);
 
   const completed = session?.estado === 'completada';
+  const past = isSessionPast(session);
+  const readOnly = isSessionReadOnly(session);
   const needsRelocation = Boolean(session?.reubicacionPendiente);
   const canRestoreHome = useMemo(() => {
-    if (!session?.espacioSuspendido || session.reubicacionPendiente || completed) return false;
+    if (!session?.espacioSuspendido || session.reubicacionPendiente || readOnly) return false;
     if (session.espacioSuspendido.estado && session.espacioSuspendido.estado !== 'disponible') return false;
     const homeId = String(session.espacioSuspendido._id || session.espacioSuspendido);
     const currentId = session.espacio?._id || session.espacio;
@@ -408,7 +419,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
     if (hasExterno) return true;
     if (!currentId) return true;
     return String(currentId) !== homeId;
-  }, [session, completed]);
+  }, [session, readOnly]);
   const availableSpaces = useMemo(() => freeSpaces, [freeSpaces]);
   const plan = session?.planEntrenamiento;
   const hasPlan = !!(plan?.bloques?.length > 0);
@@ -436,7 +447,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
   };
 
   const saveAttendance = async ({ notify = true, nextMap, silent = false } = {}) => {
-    if (!sessionId || completed) return;
+    if (!sessionId || readOnly) return;
     const map = nextMap || attendance;
     const asistencia = roster
       .filter((a) => map[a._id] != null)
@@ -560,7 +571,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
   }, [scrollEntrenoFocusedAboveKeyboard]);
 
   const setAthleteAttendance = (atletaId, estado) => {
-    if (completed) return;
+    if (readOnly) return;
     const next = { ...attendance, [atletaId]: estado };
     setAttendance(next);
     if (attendanceSaveTimerRef.current) clearTimeout(attendanceSaveTimerRef.current);
@@ -570,7 +581,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
   };
 
   const markAllPresent = () => {
-    if (completed || !roster.length) return;
+    if (readOnly || !roster.length) return;
     const next = { ...attendance };
     roster.forEach((a) => {
       next[a._id] = 'presente';
@@ -615,7 +626,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
 
   const duplicateLastCategoryPlan = async () => {
     const catId = session?.categoria?._id || session?.categoria;
-    if (!catId || completed) return;
+    if (!catId || readOnly) return;
     setDuplicatingLastPlan(true);
     try {
       const h = await headers();
@@ -636,7 +647,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
   };
 
   const persistTrainingPlan = async () => {
-    if (!sessionId || completed) return;
+    if (!sessionId || readOnly) return;
     for (let i = 0; i < draftBlocks.length; i++) {
       const d = draftBlocks[i];
       if (!d.tituloBloque?.trim()) {
@@ -700,25 +711,75 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
     });
   };
 
-  const startTimer = () => {
-    if (completed || !hasPlan || editingPlanDraft || executedBlocks.length === 0) return;
-    setTimerStartedAt(Date.now());
+  const resetTimerState = () => {
+    setTimerStartedAt(null);
+    setTimerBaseSec(0);
+    setTimerPaused(false);
     setElapsedSec(0);
   };
 
-  const stopTimerAndAssign = () => {
-    if (timerStartedAt == null || completed) return;
-    const minutes = Math.max(1, Math.round(elapsedSec / 60) || 1);
-    const idx = Math.min(selectedTimerIndex, Math.max(0, executedBlocks.length - 1));
-    setExecutedBlocks((prev) => {
-      const next = [...prev];
-      if (next[idx]) {
-        next[idx] = { ...next[idx], duracionRealMinutos: minutes };
-      }
-      return next;
-    });
-    setTimerStartedAt(null);
+  const startTimer = () => {
+    if (readOnly || !hasPlan || editingPlanDraft || executedBlocks.length === 0) return;
+    setTimerBaseSec(0);
     setElapsedSec(0);
+    setTimerPaused(false);
+    setTimerStartedAt(Date.now());
+  };
+
+  const pauseTimer = () => {
+    if (timerStartedAt == null || readOnly) return;
+    const next = timerBaseSec + Math.floor((Date.now() - timerStartedAt) / 1000);
+    setTimerBaseSec(next);
+    setElapsedSec(next);
+    setTimerStartedAt(null);
+    setTimerPaused(true);
+  };
+
+  const resumeTimer = () => {
+    if (readOnly || !timerPaused) return;
+    setTimerPaused(false);
+    setTimerStartedAt(Date.now());
+  };
+
+  const finishTraining = (blocksOverride) => {
+    if (readOnly) return;
+    const blocks = Array.isArray(blocksOverride) ? blocksOverride : executedBlocks;
+    showAlert('Finalizar', '¿Guardamos los tiempos y cerramos la sesión?', {
+      showCancel: true,
+      onConfirm: () => {
+        (async () => {
+          try {
+            const h = await headers();
+            await clubApi.patch(`/sessions/${sessionId}/finish`, { bloquesEjecutados: blocks }, { headers: h });
+            await reload({ background: true });
+            showAlert('Listo', 'Sesión finalizada. Podés ver el resumen abajo.');
+          } catch (e) {
+            showAlert('Error', e.response?.data?.message || 'No se pudo finalizar.');
+          }
+        })();
+      },
+    });
+  };
+
+  const stopTimerAndAssign = () => {
+    if (readOnly) return;
+    const running =
+      timerStartedAt != null
+        ? timerBaseSec + Math.floor((Date.now() - timerStartedAt) / 1000)
+        : elapsedSec;
+    if (running <= 0 && timerStartedAt == null && !timerPaused) return;
+    const minutes = Math.max(1, Math.round(running / 60) || 1);
+    const idx = Math.min(selectedTimerIndex, Math.max(0, executedBlocks.length - 1));
+    const nextBlocks = executedBlocks.map((b, i) =>
+      i === idx ? { ...b, duracionRealMinutos: minutes } : b,
+    );
+    setExecutedBlocks(nextBlocks);
+    resetTimerState();
+    if (idx < nextBlocks.length - 1) {
+      setSelectedTimerIndex(idx + 1);
+    } else {
+      finishTraining(nextBlocks);
+    }
   };
 
   const setRealMinutesAt = (index, text) => {
@@ -732,10 +793,10 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
   };
 
   const saveSessionMeta = async () => {
-    if (!sessionId || completed) return;
+    if (!sessionId || readOnly) return;
     const fechaIso = displayDateToIsoCalendar(editFecha);
     if (!fechaIso) {
-      showAlert('Fecha inválida', 'Usá el formato DD-MM-AAAA con día y mes válidos.');
+      showAlert('Fecha inválida', 'Elegí un día válido en el calendario.');
       return;
     }
     if (!isValidTimeHHMM(editHoraInicio) || !isValidTimeHHMM(editHoraFin)) {
@@ -815,6 +876,10 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
 
   const savePsychInformeVisibility = async () => {
     if (!sessionId || session?.tipo !== 'consulta_psicologia') return;
+    if (isSessionPast(session)) {
+      showAlert('Sesión finalizada', 'Esta consulta ya pasó. Solo podés ver el resumen.');
+      return;
+    }
     setSavingPsychVis(true);
     try {
       const h = await headers();
@@ -836,6 +901,13 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
   };
 
   const confirmReopenSession = () => {
+    if (isSessionPast(session)) {
+      showAlert(
+        'Sesión finalizada',
+        'Esta sesión ya pasó. Solo podés ver el resumen y las estadísticas; no se puede reabrir.',
+      );
+      return;
+    }
     showAlert(
       'Reabrir sesión',
       'La sesión vuelve a quedar abierta y se borran los tiempos por bloque. El plan y la asistencia se mantienen. ¿Seguimos?',
@@ -863,30 +935,15 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
     );
   };
 
-  const finishTraining = () => {
-    if (completed) return;
-    showAlert('Finalizar', '¿Guardamos los tiempos y cerramos la sesión?', {
-      showCancel: true,
-      onConfirm: () => {
-        (async () => {
-          try {
-            const h = await headers();
-            await clubApi.patch(`/sessions/${sessionId}/finish`, { bloquesEjecutados: executedBlocks }, { headers: h });
-            await reload({ background: true });
-            showAlert('Listo', 'Sesión finalizada. Podés ver el resumen abajo.');
-          } catch (e) {
-            showAlert('Error', e.response?.data?.message || 'No se pudo finalizar.');
-          }
-        })();
-      },
-    });
-  };
-
   const totalPlanMin = executedBlocks.reduce((acc, b) => acc + (Number(b.duracionPlanificada) || 0), 0);
   const totalRealMin = executedBlocks.reduce((acc, b) => acc + (Number(b.duracionRealMinutos) || 0), 0);
 
   const inputStyle = [styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }];
-  const timerLocked = timerStartedAt != null;
+  const timerRunning = timerStartedAt != null;
+  const timerLocked = timerRunning || timerPaused;
+  const isLastTimerBlock =
+    executedBlocks.length > 0 &&
+    selectedTimerIndex >= executedBlocks.length - 1;
 
   if (!session) {
     return (
@@ -910,7 +967,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
     const confirmEstado = consultaConfirmacionEstado(session);
 
     const finishConsulta = () => {
-      if (completed) return;
+      if (readOnly) return;
       showAlert('Finalizar', '¿Marcamos esta consulta como realizada?', {
         showCancel: true,
         onConfirm: () => {
@@ -954,7 +1011,9 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
           kicker={isConsultaPsicologia ? 'Consulta psicología' : 'Consulta nutrición'}
           title={nombreAtleta}
           subtitle={`${isoCalendarDateToDisplay(session.fecha)} · ${session.horaInicio}–${session.horaFin} · ${lugarLine}`}
-          onBack={() => navigation.goBack()}
+          onBack={() => {
+            if (navigation.canGoBack()) navigation.goBack();
+          }}
         />
         <ScrollView contentContainerStyle={styles.scroll}>
           <Text style={[styles.hint, { color: theme.textMuted }]}>
@@ -1001,7 +1060,17 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
               </Text>
             </View>
           ) : null}
-          {completed ? (
+          {readOnly ? (
+            <View style={[styles.reopenBanner, { borderColor: '#6b7280', backgroundColor: theme.surface }]}>
+              <Ionicons name="lock-closed-outline" size={22} color="#6b7280" />
+              <Text style={[styles.reopenBannerTxt, { color: theme.text }]}>
+                {past
+                  ? 'Esta consulta ya pasó. Solo podés ver el resumen de lo realizado.'
+                  : 'Consulta cerrada. Solo lectura del resumen.'}
+              </Text>
+            </View>
+          ) : null}
+          {completed && !past ? (
             <>
               <View style={[styles.reopenBanner, { borderColor: '#f59e0b', backgroundColor: theme.surface }]}>
                 <Ionicons name="information-circle-outline" size={22} color="#f59e0b" />
@@ -1016,54 +1085,57 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
               >
                 <Text style={styles.primaryBtnTxt}>{reopeningSession ? 'Procesando…' : 'Reabrir consulta'}</Text>
               </TouchableOpacity>
-              {isConsultaPsicologia ? (
-                <>
-                  <Text style={[styles.section, { color: theme.text, marginTop: 16 }]}>
-                    Visibilidad del informe
+            </>
+          ) : null}
+          {completed && isConsultaPsicologia ? (
+            <>
+              <Text style={[styles.section, { color: theme.text, marginTop: 16 }]}>
+                Visibilidad del informe
+              </Text>
+              <Text style={[styles.hint, { color: theme.textMuted }]}>
+                Podés ocultar el texto del informe al atleta o al tutor sin reabrir la consulta.
+              </Text>
+              <View style={[styles.switchRow, { borderColor: theme.border }]}>
+                <Text style={{ color: theme.text, flex: 1 }}>Visible para el atleta</Text>
+                <Switch
+                  value={editInformeVisAtleta}
+                  onValueChange={setEditInformeVisAtleta}
+                  trackColor={{ true: `${colorMarca}88` }}
+                  disabled={past}
+                />
+              </View>
+              <View style={[styles.switchRow, { borderColor: theme.border }]}>
+                <Text style={{ color: theme.text, flex: 1 }}>Visible para el tutor</Text>
+                <Switch
+                  value={editInformeVisTutor}
+                  onValueChange={setEditInformeVisTutor}
+                  trackColor={{ true: `${colorMarca}88` }}
+                  disabled={past}
+                />
+              </View>
+              {!past ? (
+                <TouchableOpacity
+                  style={[styles.secondaryOutlineBtn, { borderColor: colorMarca, marginBottom: 8 }]}
+                  onPress={savePsychInformeVisibility}
+                  disabled={savingPsychVis}
+                >
+                  <Text style={{ color: colorMarca, fontWeight: '800' }}>
+                    {savingPsychVis ? 'Guardando…' : 'Guardar visibilidad'}
                   </Text>
-                  <Text style={[styles.hint, { color: theme.textMuted }]}>
-                    Podés ocultar el texto del informe al atleta o al tutor sin reabrir la consulta.
-                  </Text>
-                  <View style={[styles.switchRow, { borderColor: theme.border }]}>
-                    <Text style={{ color: theme.text, flex: 1 }}>Visible para el atleta</Text>
-                    <Switch
-                      value={editInformeVisAtleta}
-                      onValueChange={setEditInformeVisAtleta}
-                      trackColor={{ true: `${colorMarca}88` }}
-                    />
-                  </View>
-                  <View style={[styles.switchRow, { borderColor: theme.border }]}>
-                    <Text style={{ color: theme.text, flex: 1 }}>Visible para el tutor</Text>
-                    <Switch
-                      value={editInformeVisTutor}
-                      onValueChange={setEditInformeVisTutor}
-                      trackColor={{ true: `${colorMarca}88` }}
-                    />
-                  </View>
-                  <TouchableOpacity
-                    style={[styles.secondaryOutlineBtn, { borderColor: colorMarca, marginBottom: 8 }]}
-                    onPress={savePsychInformeVisibility}
-                    disabled={savingPsychVis}
-                  >
-                    <Text style={{ color: colorMarca, fontWeight: '800' }}>
-                      {savingPsychVis ? 'Guardando…' : 'Guardar visibilidad'}
-                    </Text>
-                  </TouchableOpacity>
-                </>
+                </TouchableOpacity>
               ) : null}
             </>
-          ) : (
+          ) : null}
+          {!readOnly ? (
             <>
               <Text style={[styles.section, { color: theme.text }]}>Datos</Text>
-              <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Fecha (DD-MM-AAAA)</Text>
-              <TextInput
-                style={inputStyle}
+              <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Fecha</Text>
+              <CalendarDateField
+                theme={theme}
+                colorMarca={colorMarca}
                 value={editFecha}
-                onChangeText={(t) => setEditFecha(maskDateDDMMAAAA(t))}
-                placeholder="DD-MM-AAAA"
-                placeholderTextColor={theme.textMuted}
-                keyboardType="number-pad"
-                maxLength={10}
+                onChange={setEditFecha}
+                placeholder="Elegí la fecha"
               />
               <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Hora inicio / fin</Text>
               <View style={{ flexDirection: 'row', marginBottom: 12 }}>
@@ -1150,7 +1222,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                 <Text style={{ color: '#ef4444', fontWeight: '800' }}>Cancelar consulta</Text>
               </TouchableOpacity>
             </>
-          )}
+          ) : null}
           {completed && isConsultaPsicologia && (session.informeSesion || '').trim() ? (
             <>
               <Text style={[styles.section, { color: theme.text, marginTop: 16 }]}>Registro de la sesión</Text>
@@ -1193,7 +1265,9 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
             ? 'Lugar pendiente'
             : (session.lugarExterno || '').trim() || session.espacio?.nombre || 'Sin lugar'
         }`}
-        onBack={() => navigation.goBack()}
+        onBack={() => {
+          if (navigation.canGoBack()) navigation.goBack();
+        }}
         rightAccessory={
           <TouchableOpacity
             onPress={() => setSessionMetaOpen(true)}
@@ -1255,15 +1329,17 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
               <Text style={[styles.hint, { color: theme.textMuted }]}>
                 Corregí fecha, horario o espacio si hubo un error. Con la sesión cerrada primero tenés que reabrirla.
               </Text>
-              {completed ? (
-                <View style={[styles.reopenBanner, { borderColor: '#f59e0b', backgroundColor: theme.surface }]}>
-                  <Ionicons name="information-circle-outline" size={22} color="#f59e0b" />
+              {readOnly ? (
+                <View style={[styles.reopenBanner, { borderColor: '#6b7280', backgroundColor: theme.surface }]}>
+                  <Ionicons name="lock-closed-outline" size={22} color="#6b7280" />
                   <Text style={[styles.reopenBannerTxt, { color: theme.text }]}>
-                    Sesión cerrada. Reabrila para poder reprogramar o cargar tiempos otra vez.
+                    {past
+                      ? 'Esta sesión ya pasó. Solo podés ver el resumen y las estadísticas.'
+                      : 'Sesión cerrada. Solo lectura del resumen.'}
                   </Text>
                 </View>
               ) : null}
-              {completed ? (
+              {completed && !past ? (
                 <TouchableOpacity
                   style={[styles.primaryBtn, { backgroundColor: '#b45309', marginBottom: 8 }]}
                   onPress={() => {
@@ -1276,18 +1352,16 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                     {reopeningSession ? 'Procesando…' : 'Reabrir sesión para corregir'}
                   </Text>
                 </TouchableOpacity>
-              ) : (
+              ) : null}
+              {!readOnly ? (
                 <>
-                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Fecha (DD-MM-AAAA)</Text>
-                  <TextInput
-                    style={inputStyle}
+                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Fecha</Text>
+                  <CalendarDateField
+                    theme={theme}
+                    colorMarca={colorMarca}
                     value={editFecha}
-                    onChangeText={(t) => setEditFecha(maskDateDDMMAAAA(t))}
-                    placeholder="DD-MM-AAAA"
-                    placeholderTextColor={theme.textMuted}
-                    keyboardType="number-pad"
-                    maxLength={10}
-                    autoCapitalize="none"
+                    onChange={setEditFecha}
+                    placeholder="Elegí la fecha"
                   />
                   <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Hora inicio / fin (HH:MM)</Text>
                   <View style={{ flexDirection: 'row', marginBottom: 12 }}>
@@ -1405,7 +1479,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                     <Text style={{ color: '#ef4444', fontWeight: '800' }}>Cancelar sesión</Text>
                   </TouchableOpacity>
                 </>
-              )}
+              ) : null}
             </ScrollView>
           </View>
         </View>
@@ -1414,6 +1488,28 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
 
       {detailTab === 'checkin' ? (
         <ScrollView contentContainerStyle={styles.scroll}>
+          {readOnly ? (
+            <View style={[styles.reopenBanner, { borderColor: '#6b7280', backgroundColor: theme.surface, marginBottom: 12 }]}>
+              <Ionicons name="lock-closed-outline" size={22} color="#6b7280" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.reopenBannerTxt, { color: theme.text }]}>
+                  {past
+                    ? 'Esta sesión ya pasó. Solo podés ver el resumen de lo realizado.'
+                    : session?.estado === 'cancelada'
+                      ? 'Sesión cancelada. Solo lectura.'
+                      : 'Sesión cerrada. Solo podés ver el resumen y las estadísticas.'}
+                </Text>
+                {completed || past ? (
+                  <TouchableOpacity
+                    style={{ marginTop: 8 }}
+                    onPress={() => navigation.navigate('CoachSessionStats', { sessionId })}
+                  >
+                    <Text style={{ color: colorMarca, fontWeight: '800' }}>Ver estadísticas / resumen</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
           {needsRelocation ? (
             <View style={[styles.relocationBanner, { backgroundColor: '#f59e0b22', borderColor: '#f59e0b' }]}>
               <Ionicons name="warning-outline" size={20} color="#f59e0b" />
@@ -1459,7 +1555,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
           ) : null}
 
           <Text style={[styles.section, { color: theme.text }]}>Asistencia</Text>
-          {!completed ? (
+          {!readOnly ? (
             <TouchableOpacity
               style={[styles.markAllBtn, { borderColor: '#22c55e', backgroundColor: '#22c55e18' }]}
               onPress={markAllPresent}
@@ -1473,58 +1569,94 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
             const aid = String(a._id);
             const needsWellness = !wellnessPreDoneToday.has(aid);
             const catId = session?.categoria?._id || session?.categoria;
+            const status = attendance[a._id];
+            const statusOpt = ASIST_OPTS.find((o) => o.key === status);
+            const cardAccent = statusOpt?.color || colorMarca;
             return (
-            <View key={a._id} style={[styles.rowAth, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-              <View style={styles.rowAthTop}>
-                <Text style={[styles.athName, { color: theme.text }]} numberOfLines={1}>
-                  {a.nombre} {a.apellido}
-                </Text>
-                {needsWellness ? (
-                  <TouchableOpacity
-                    style={[styles.wellnessBtn, { borderColor: colorMarca, backgroundColor: colorMarca + '18' }]}
-                    onPress={() =>
-                      navigation.navigate('CoachWellness', {
-                        atletaId: a._id,
-                        atletaNombre: `${a.nombre} ${a.apellido}`,
-                        categoriaId: catId,
-                        sesion: sessionId,
-                      })
-                    }
-                    accessibilityLabel="Cargar wellness pre"
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons name="fitness-outline" size={22} color={colorMarca} />
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-              <View style={styles.pills}>
-                {ASIST_OPTS.map((o) => {
-                  const on = attendance[a._id] === o.key;
-                  return (
+              <DesignCard
+                key={a._id}
+                theme={theme}
+                isDarkMode={isDarkMode}
+                accent={cardAccent}
+                muted={!status}
+                style={styles.checkinCard}
+                contentStyle={styles.checkinCardInner}
+              >
+                <View style={styles.rowAthTop}>
+                  <UserAvatar user={a} size={42} colorMarca={cardAccent} />
+                  <View style={styles.athMeta}>
+                    <Text style={[styles.athName, { color: theme.text }]} numberOfLines={1}>
+                      {a.nombre} {a.apellido}
+                    </Text>
+                    {statusOpt ? (
+                      <Text style={[styles.athStatus, { color: statusOpt.color }]}>{statusOpt.label}</Text>
+                    ) : (
+                      <Text style={[styles.athStatus, { color: theme.textMuted }]}>Sin marcar</Text>
+                    )}
+                  </View>
+                  {needsWellness ? (
                     <TouchableOpacity
-                      key={o.key}
-                      disabled={completed || saving}
-                      style={[
-                        styles.pill,
-                        {
-                          borderColor: on ? o.color : theme.border,
-                          backgroundColor: on ? o.color + '22' : 'transparent',
-                          flex: 1,
-                        },
-                      ]}
-                      onPress={() => setAthleteAttendance(a._id, o.key)}
+                      style={[styles.wellnessBtn, { borderColor: colorMarca, backgroundColor: colorMarca + '18' }]}
+                      onPress={() =>
+                        navigation.navigate('CoachWellness', {
+                          atletaId: a._id,
+                          atletaNombre: `${a.nombre} ${a.apellido}`,
+                          categoriaId: catId,
+                          sesion: sessionId,
+                        })
+                      }
+                      accessibilityLabel="Cargar wellness pre"
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                      <Text style={{ color: on ? o.color : theme.textMuted, fontSize: 13, fontWeight: '800', textAlign: 'center' }}>
-                        {o.label}
-                      </Text>
+                      <Ionicons name="fitness-outline" size={20} color={colorMarca} />
                     </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
+                  ) : (
+                    <View style={[styles.wellnessDone, { backgroundColor: '#22c55e18' }]}>
+                      <Ionicons name="checkmark" size={16} color="#22c55e" />
+                    </View>
+                  )}
+                </View>
+                <View style={styles.pills}>
+                  {ASIST_OPTS.map((o) => {
+                    const on = status === o.key;
+                    return (
+                      <TouchableOpacity
+                        key={o.key}
+                        disabled={readOnly || saving}
+                        style={[
+                          styles.pill,
+                          {
+                            borderColor: on ? o.color : theme.border,
+                            backgroundColor: on
+                              ? o.color + '22'
+                              : isDarkMode
+                                ? 'rgba(255,255,255,0.04)'
+                                : theme.background,
+                            flex: 1,
+                            opacity: readOnly ? 0.75 : 1,
+                          },
+                        ]}
+                        onPress={() => setAthleteAttendance(a._id, o.key)}
+                      >
+                        <View style={[styles.pillDot, { backgroundColor: on ? o.color : theme.border }]} />
+                        <Text
+                          style={{
+                            color: on ? o.color : theme.textMuted,
+                            fontSize: 12,
+                            fontWeight: '800',
+                            textAlign: 'center',
+                          }}
+                        >
+                          {o.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </DesignCard>
             );
           })}
-          {!completed ? (
+          {!readOnly ? (
             <TouchableOpacity
               style={[styles.primaryBtn, { backgroundColor: colorMarca, opacity: saving ? 0.7 : 1 }]}
               onPress={() => saveAttendance({ notify: true, silent: false })}
@@ -1601,7 +1733,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                 Título y minutos por bloque. Formato, enfoque y detalle van en «más opciones».
               </Text>
 
-              {!completed ? (
+              {!readOnly ? (
                 <TouchableOpacity
                   style={[
                     styles.secondaryOutlineBtn,
@@ -1625,7 +1757,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                     onChangeText={setPlanNombre}
                     placeholder="Ej. Práctica pre-partido"
                     placeholderTextColor={theme.textMuted}
-                    editable={!completed}
+                    editable={!readOnly}
                     onFocus={ensureEntrenoInputVisible}
                   />
                   <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Objetivo (opcional)</Text>
@@ -1638,7 +1770,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                     onChangeText={setPlanObjetivo}
                     placeholder="Ej. Priorizar salida limpia"
                     placeholderTextColor={theme.textMuted}
-                    editable={!completed}
+                    editable={!readOnly}
                     onFocus={ensureEntrenoInputVisible}
                   />
 
@@ -1654,7 +1786,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                           onChangeText={(v) => updateDraft(i, 'tituloBloque', v)}
                           placeholder={`Bloque ${i + 1}`}
                           placeholderTextColor={theme.textMuted}
-                          editable={!completed}
+                          editable={!readOnly}
                           onFocus={ensureEntrenoInputVisible}
                         />
                         <TextInput
@@ -1664,7 +1796,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                           keyboardType="number-pad"
                           placeholder="min"
                           placeholderTextColor={theme.textMuted}
-                          editable={!completed}
+                          editable={!readOnly}
                           onFocus={ensureEntrenoInputVisible}
                         />
                         <TouchableOpacity
@@ -1689,7 +1821,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                             onChangeText={(v) => updateDraft(i, 'formato', v)}
                             placeholder="Ej. 5vs5, ruedas…"
                             placeholderTextColor={theme.textMuted}
-                            editable={!completed}
+                            editable={!readOnly}
                             onFocus={ensureEntrenoInputVisible}
                           />
                           <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Enfoque</Text>
@@ -1705,7 +1837,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                                   },
                                 ]}
                                 onPress={() => updateDraft(i, 'enfoque', o.key)}
-                                disabled={completed}
+                                disabled={readOnly}
                               >
                                 <Text
                                   style={{
@@ -1729,13 +1861,13 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                             onChangeText={(v) => updateDraft(i, 'descripcionDetallada', v)}
                             placeholder="Ej. A dos toques en campo propio"
                             placeholderTextColor={theme.textMuted}
-                            editable={!completed}
+                            editable={!readOnly}
                             onFocus={ensureEntrenoInputVisible}
                           />
                         </View>
                       ) : null}
 
-                      {draftBlocks.length > 1 && !completed ? (
+                      {draftBlocks.length > 1 && !readOnly ? (
                         <TouchableOpacity
                           style={styles.removeDraftBtn}
                           onPress={() => setDraftBlocks((prev) => prev.filter((_, j) => j !== i))}
@@ -1746,7 +1878,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                     </View>
                   ))}
 
-                  {!completed ? (
+                  {!readOnly ? (
                     <TouchableOpacity
                       style={[styles.secondaryOutlineBtn, { borderColor: colorMarca }]}
                       onPress={() => setDraftBlocks((prev) => [...prev, emptyDraftBlock()])}
@@ -1755,7 +1887,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                     </TouchableOpacity>
                   ) : null}
 
-                  {!completed ? (
+                  {!readOnly ? (
                     <View style={{ flexDirection: 'row', marginTop: 12 }}>
                       {hasPlan && editingPlanDraft ? (
                         <TouchableOpacity
@@ -1784,7 +1916,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                       {(plan.bloques || []).reduce((a, b) => a + (Number(b.duracionMinutos) || 0), 0)} min
                     </Text>
                   </View>
-                  {!completed ? (
+                  {!readOnly ? (
                     <TouchableOpacity
                       style={[styles.secondaryOutlineBtn, { borderColor: theme.border, marginBottom: 12 }]}
                       onPress={startEditingPlan}
@@ -1805,7 +1937,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                       </View>
                     </View>
                   ))}
-                  {!completed ? (
+                  {!readOnly ? (
                     <TouchableOpacity
                       style={[styles.primaryBtn, { backgroundColor: colorMarca, marginTop: 16 }]}
                       onPress={() => setEntrenoMode('vivo')}
@@ -1836,7 +1968,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
 
                   <Text style={[styles.section, { color: theme.text, marginTop: 4 }]}>Cronómetro</Text>
                   <Text style={[styles.hint, { color: theme.textMuted }]}>
-                    Elegí el bloque, iniciá y al detener se cargan los minutos reales.
+                    Elegí el bloque e iniciá. Pausá si hace falta; al detener se cargan los minutos y pasás al siguiente. En el último bloque, Detener cierra el entrenamiento.
                   </Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
                     {executedBlocks.map((_, i) => (
@@ -1849,8 +1981,8 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                             backgroundColor: selectedTimerIndex === i ? colorMarca + '28' : theme.surface,
                           },
                         ]}
-                        onPress={() => !timerLocked && !completed && setSelectedTimerIndex(i)}
-                        disabled={completed || timerLocked}
+                        onPress={() => !timerLocked && !readOnly && setSelectedTimerIndex(i)}
+                        disabled={readOnly || timerLocked}
                       >
                         <Text style={{ color: theme.text, fontWeight: '800', fontSize: 13 }}>{i + 1}</Text>
                       </TouchableOpacity>
@@ -1861,26 +1993,68 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                     <Text style={[styles.timerSub, { color: theme.textMuted }]}>
                       Bloque {selectedTimerIndex + 1}: {executedBlocks[selectedTimerIndex]?.tituloBloque}
                     </Text>
-                    <Text style={[styles.timerTxt, { color: theme.text }]}>
-                      {timerStartedAt == null
+                    {timerPaused ? (
+                      <View style={[styles.timerPausedBadge, { backgroundColor: '#f59e0b22', borderColor: '#f59e0b' }]}>
+                        <Ionicons name="pause" size={14} color="#f59e0b" />
+                        <Text style={{ color: '#f59e0b', fontWeight: '800', fontSize: 12 }}>Pausado</Text>
+                      </View>
+                    ) : null}
+                    <Text style={[styles.timerTxt, { color: timerPaused ? '#f59e0b' : theme.text }]}>
+                      {!timerLocked
                         ? 'Listo para iniciar'
                         : `${String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:${String(elapsedSec % 60).padStart(2, '0')}`}
                     </Text>
-                    {!completed ? (
-                      <View style={{ flexDirection: 'row', marginTop: 12 }}>
+                    {!readOnly ? (
+                      <View style={styles.timerActions}>
+                        {!timerLocked ? (
+                          <TouchableOpacity
+                            style={[styles.secondaryBtn, { borderColor: colorMarca }]}
+                            onPress={startTimer}
+                          >
+                            <Ionicons name="play" size={16} color={colorMarca} />
+                            <Text style={{ color: colorMarca, fontWeight: '700', marginLeft: 6 }}>Iniciar</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                        {timerRunning ? (
+                          <TouchableOpacity
+                            style={[styles.secondaryBtn, { borderColor: '#f59e0b' }]}
+                            onPress={pauseTimer}
+                          >
+                            <Ionicons name="pause" size={16} color="#f59e0b" />
+                            <Text style={{ color: '#f59e0b', fontWeight: '700', marginLeft: 6 }}>Pausar</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                        {timerPaused ? (
+                          <TouchableOpacity
+                            style={[styles.secondaryBtn, { borderColor: colorMarca }]}
+                            onPress={resumeTimer}
+                          >
+                            <Ionicons name="play" size={16} color={colorMarca} />
+                            <Text style={{ color: colorMarca, fontWeight: '700', marginLeft: 6 }}>Continuar</Text>
+                          </TouchableOpacity>
+                        ) : null}
                         <TouchableOpacity
-                          style={[styles.secondaryBtn, { borderColor: colorMarca }]}
-                          onPress={startTimer}
-                          disabled={timerLocked}
-                        >
-                          <Text style={{ color: colorMarca, fontWeight: '700' }}>Iniciar</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.secondaryBtn, { borderColor: theme.border }]}
+                          style={[
+                            styles.secondaryBtn,
+                            { borderColor: isLastTimerBlock ? '#0f766e' : theme.border },
+                          ]}
                           onPress={stopTimerAndAssign}
-                          disabled={timerStartedAt == null}
+                          disabled={!timerLocked}
                         >
-                          <Text style={{ color: theme.text, fontWeight: '700' }}>Detener y asignar</Text>
+                          <Ionicons
+                            name={isLastTimerBlock ? 'checkmark-circle-outline' : 'stop'}
+                            size={16}
+                            color={isLastTimerBlock ? '#0f766e' : theme.text}
+                          />
+                          <Text
+                            style={{
+                              color: isLastTimerBlock ? '#0f766e' : theme.text,
+                              fontWeight: '700',
+                              marginLeft: 6,
+                            }}
+                          >
+                            {isLastTimerBlock ? 'Finalizar' : 'Detener'}
+                          </Text>
                         </TouchableOpacity>
                       </View>
                     ) : null}
@@ -1895,7 +2069,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                           plan {b.duracionPlanificada} min
                         </Text>
                       </View>
-                      {!completed ? (
+                      {!readOnly ? (
                         <View style={styles.realMinWrap}>
                           <Text style={[styles.fieldLabel, { color: theme.textMuted, marginBottom: 4 }]}>Real</Text>
                           <TextInput
@@ -1912,7 +2086,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                     </View>
                   ))}
 
-                  {!completed ? (
+                  {!readOnly ? (
                     <TouchableOpacity
                       style={[styles.primaryBtn, { backgroundColor: '#0f766e', marginTop: 16 }]}
                       onPress={finishTraining}
@@ -1999,24 +2173,47 @@ const styles = StyleSheet.create({
   section: { fontSize: 18, fontWeight: '800', marginBottom: 10 },
   hint: { fontSize: 13, lineHeight: 19, marginBottom: 10 },
   fieldLabel: { fontSize: 12, fontWeight: '700', marginBottom: 6, textTransform: 'uppercase' },
-  rowAth: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 10 },
   rowAthTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
+    gap: 12,
   },
-  athName: { flex: 1, fontSize: 15, fontWeight: '700' },
+  checkinCard: { marginBottom: 10 },
+  checkinCardInner: {
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
+  },
+  athMeta: { flex: 1, minWidth: 0 },
+  athName: { fontSize: 15, fontWeight: '700' },
+  athStatus: { fontSize: 12, fontWeight: '700', marginTop: 2 },
   wellnessBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1.5,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pills: { flexDirection: 'row', flexWrap: 'nowrap', gap: 8, marginTop: 10 },
-  pill: { paddingHorizontal: 8, paddingVertical: 12, borderRadius: 10, borderWidth: 1.5 },
+  wellnessDone: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pills: { flexDirection: 'row', flexWrap: 'nowrap', gap: 8, marginTop: 12 },
+  pill: {
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  pillDot: { width: 8, height: 8, borderRadius: 4 },
   markAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2086,13 +2283,33 @@ const styles = StyleSheet.create({
   timerCard: { borderWidth: 1, borderRadius: 12, padding: 16, marginBottom: 12 },
   timerSub: { fontSize: 13, marginBottom: 8 },
   timerTxt: { fontSize: 28, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  timerPausedBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  timerActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 12,
+    gap: 8,
+  },
   secondaryBtn: {
-    flex: 1,
+    flexGrow: 1,
+    minWidth: '40%',
     paddingVertical: 12,
+    paddingHorizontal: 10,
     borderRadius: 10,
     borderWidth: 2,
     alignItems: 'center',
-    marginHorizontal: 5,
+    justifyContent: 'center',
+    flexDirection: 'row',
   },
   switchRow: {
     flexDirection: 'row',

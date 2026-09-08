@@ -30,7 +30,7 @@ import ChatThreadScreen from '../screens/chat/ChatThreadScreen';
 import ChatNewScreen from '../screens/chat/ChatNewScreen';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
-import { tabBadgeLabel } from '../utils/tabBadgeLabel';
+import { tabBadgeText } from '../utils/tabBadgeLabel';
 import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
 
 const Tab = createSwipeBottomTabNavigator();
@@ -127,37 +127,45 @@ export default function CoachTabNavigator() {
           };
           return <Ionicons name={map[name] || 'ellipse'} size={22} color={color} />;
         },
+        getBadge: (name) =>
+          ({
+            CoachInicio: tabBadgeText(tab('inicio')),
+            CoachSesiones: tabBadgeText(tab('sesiones')),
+            CoachEquipo: tabBadgeText(tab('equipo')),
+            CoachComunicar: tabBadgeText(tab('comunicar')),
+            CoachPerfil: tabBadgeText(tab('perfil')),
+          })[name],
+        getLabel: (name) =>
+          ({
+            CoachInicio: 'Inicio',
+            CoachSesiones: 'Sesiones',
+            CoachEquipo: 'Equipo',
+            CoachComunicar: 'Social',
+            CoachPerfil: 'Perfil',
+          })[name],
       })}
     >
       <Tab.Screen
         name="CoachInicio"
         component={CoachHomeStackNav}
-        options={{ tabBarLabel: 'Inicio', tabBarBadge: tabBadgeLabel(tab('inicio')) }}
         listeners={tabPressResetToRoot('CoachInicio', 'CoachDashboardMain')}
       />
       <Tab.Screen
         name="CoachSesiones"
         component={CoachSessionsStackNav}
-        options={{ tabBarLabel: 'Sesiones', tabBarBadge: tabBadgeLabel(tab('sesiones')) }}
         listeners={tabPressResetToRoot('CoachSesiones', 'CoachAgenda')}
       />
       <Tab.Screen
         name="CoachEquipo"
         component={CoachTeamStackNav}
-        options={{ tabBarLabel: 'Equipo', tabBarBadge: tabBadgeLabel(tab('equipo')) }}
         listeners={tabPressResetToRoot('CoachEquipo', 'CoachCategories')}
       />
       <Tab.Screen
         name="CoachComunicar"
         component={CoachCommsStackNav}
-        options={{ tabBarLabel: 'Social', tabBarBadge: tabBadgeLabel(tab('comunicar')) }}
         listeners={tabPressResetToRoot('CoachComunicar', 'CoachCommsHub')}
       />
-      <Tab.Screen
-        name="CoachPerfil"
-        component={CoachProfileStackNav}
-        options={{ tabBarLabel: 'Perfil', tabBarBadge: tabBadgeLabel(tab('perfil')) }}
-      />
+      <Tab.Screen name="CoachPerfil" component={CoachProfileStackNav} />
     </Tab.Navigator>
   );
 }

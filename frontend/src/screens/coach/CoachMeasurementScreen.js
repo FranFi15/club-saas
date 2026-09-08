@@ -56,6 +56,7 @@ import {
   sortDefsLikePresets,
 } from '../../constants/nutritionMetrics';
 import SearchableDropdown from '../../components/SearchableDropdown';
+import DesignCard from '../../components/DesignCard';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 
 const MEJOR_DIR_OPTS = [
@@ -500,9 +501,12 @@ export default function CoachMeasurementScreen({ navigation, route }) {
   );
 
   const renderHistorialCard = (m) => (
-    <View
+    <DesignCard
       key={m._id}
-      style={[styles.histCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+      theme={theme}
+      isDarkMode={isDarkMode}
+      accent={colorMarca}
+      contentStyle={styles.histCardInner}
     >
       <View style={styles.histTop}>
         <View style={{ flex: 1, minWidth: 0 }}>
@@ -550,7 +554,7 @@ export default function CoachMeasurementScreen({ navigation, route }) {
           <Text style={{ color: colorMarca, fontWeight: '700' }}>Editar o eliminar</Text>
         </TouchableOpacity>
       ) : null}
-    </View>
+    </DesignCard>
   );
 
   if (!atletaId) {
@@ -799,6 +803,7 @@ export default function CoachMeasurementScreen({ navigation, route }) {
                     defs={defs}
                     atleta={atletaMeta}
                     theme={theme}
+                    isDarkMode={isDarkMode}
                     colorMarca={colorMarca}
                     metodoGrasaCorporal={metodoGrasaCorporal}
                   />
@@ -812,6 +817,7 @@ export default function CoachMeasurementScreen({ navigation, route }) {
                       defs={defs}
                       chartLayout={chartLayout}
                       theme={theme}
+                      isDarkMode={isDarkMode}
                       colorMarca={colorMarca}
                       emptyMessage={
                         historialMedidas.length === 0
@@ -841,6 +847,7 @@ export default function CoachMeasurementScreen({ navigation, route }) {
                     onChangeChartMetricId={setChartMetricId}
                     chartLayout={chartLayout}
                     theme={theme}
+                    isDarkMode={isDarkMode}
                     colorMarca={colorMarca}
                     emptyDefsMessage="Todavía no hay mediciones para graficar."
                   />
@@ -982,7 +989,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
   hint: { fontSize: 12, marginBottom: 10 },
   emptyHist: { fontSize: 14, marginBottom: 16, lineHeight: 20 },
-  histCard: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 10 },
+  histCardInner: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 12 },
   histTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
   histMetric: { flex: 1, fontSize: 15, fontWeight: '700' },
   histDate: { fontSize: 12, fontWeight: '600' },

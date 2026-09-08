@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Swipeable } from 'react-native-gesture-handler';
 
 import { clubApi } from '../../utils/api';
@@ -14,6 +15,7 @@ import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
+import DesignCard from '../../components/DesignCard';
 import SearchableDropdown from '../../components/SearchableDropdown';
 import { isoCalendarDateToDisplay, displayDateToIsoCalendar, formatJsDateToDisplay, maskDateDDMMAAAA } from '../../utils/dateDisplay';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
@@ -30,6 +32,8 @@ const SESSION_ACTIONS = [
   { value: 'delegar_coach', label: 'Que el coach elija', hint: 'Cada sesión queda pendiente para que el staff defina lugar.' },
   { value: 'cancelar', label: 'Cancelar sesiones', hint: 'Se cancelan todas las sesiones afectadas.' },
 ];
+
+const DIAS_ALQUILER = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
 export default function EspaciosFisicosScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
@@ -52,6 +56,7 @@ export default function EspaciosFisicosScreen({ navigation }) {
       horaInicio: '08:00',
       horaFin: '22:00',
       duracionSlotMinutos: 60,
+      diasDisponibles: [...DIAS_ALQUILER],
     },
   });
   const [editingSpace, setEditingSpace] = useState(null);
@@ -272,7 +277,18 @@ export default function EspaciosFisicosScreen({ navigation }) {
     horaInicio: '08:00',
     horaFin: '22:00',
     duracionSlotMinutos: 60,
+    diasDisponibles: [...DIAS_ALQUILER],
   });
+
+  const toggleAlquilerDia = (dia) => {
+    const online = formData.alquilerOnline || emptyAlquilerOnline();
+    const current = Array.isArray(online.diasDisponibles) ? online.diasDisponibles : [];
+    const next = current.includes(dia) ? current.filter((d) => d !== dia) : [...current, dia];
+    setFormData({
+      ...formData,
+      alquilerOnline: { ...online, diasDisponibles: next },
+    });
+  };
 
   const handleSaveSpace = async () => {
     if (!formData.nombre.trim()) return showAlert('Error', 'Poné un nombre para el espacio.');
@@ -284,6 +300,9 @@ export default function EspaciosFisicosScreen({ navigation }) {
       }
       if (!(String(online.horaInicio) < String(online.horaFin))) {
         return showAlert('Error', 'La hora de fin debe ser posterior a la de inicio.');
+      }
+      if (!Array.isArray(online.diasDisponibles) || online.diasDisponibles.length === 0) {
+        return showAlert('Error', 'Elegí al menos un día para el alquiler online.');
       }
     }
 
@@ -297,6 +316,7 @@ export default function EspaciosFisicosScreen({ navigation }) {
         horaInicio: online.horaInicio || '08:00',
         horaFin: online.horaFin || '22:00',
         duracionSlotMinutos: Number(online.duracionSlotMinutos) || 60,
+        diasDisponibles: Array.isArray(online.diasDisponibles) ? online.diasDisponibles : [...DIAS_ALQUILER],
       },
     };
     
@@ -324,6 +344,10 @@ export default function EspaciosFisicosScreen({ navigation }) {
     if (space) {
       setEditingSpace(space);
       const online = space.alquilerOnline || {};
+      const dias =
+        Array.isArray(online.diasDisponibles) && online.diasDisponibles.length
+          ? online.diasDisponibles
+          : [...DIAS_ALQUILER];
       setFormData({
         nombre: space.nombre,
         tipo: space.tipo,
@@ -334,6 +358,7 @@ export default function EspaciosFisicosScreen({ navigation }) {
           horaInicio: online.horaInicio || '08:00',
           horaFin: online.horaFin || '22:00',
           duracionSlotMinutos: online.duracionSlotMinutos || 60,
+          diasDisponibles: dias,
         },
       });
     } else {
@@ -357,14 +382,19 @@ export default function EspaciosFisicosScreen({ navigation }) {
     }
   };
 
-  const getIconForType = (tipo) => {
-    switch(tipo) {
-      case 'cancha': return 'football-outline';
-      case 'gimnasio': return 'barbell-outline';
-      case 'pileta': return 'water-outline';
-      case 'salon': return 'home-outline';
-      default: return 'map-outline';
+  const renderSpaceTypeIcon = (tipo, size = 24, color) => {
+    if (tipo === 'cancha') {
+      return <MaterialCommunityIcons name="soccer-field" size={size} color={color} />;
     }
+    const name =
+      tipo === 'gimnasio'
+        ? 'barbell-outline'
+        : tipo === 'pileta'
+          ? 'water-outline'
+          : tipo === 'salon'
+            ? 'home-outline'
+            : 'map-outline';
+    return <Ionicons name={name} size={size} color={color} />;
   };
 
   const renderRightActions = (item) => (
@@ -376,37 +406,43 @@ export default function EspaciosFisicosScreen({ navigation }) {
   );
 
   const renderListItem = ({ item }) => {
+    const statusColor = getStatusColor(item.estado);
     const card = (
-      <TouchableOpacity
-        style={[styles.card, { backgroundColor: theme.surface }]}
+      <DesignCard
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent={statusColor}
         onPress={() => openStatusModal(item)}
+        style={{ marginBottom: canManageSpaces ? 12 : undefined }}
+        contentStyle={styles.cardInner}
       >
           <View style={[styles.avatar, { backgroundColor: colorMarca + '20' }]}>
-            <Ionicons name={getIconForType(item.tipo)} size={24} color={colorMarca} />
+            {renderSpaceTypeIcon(item.tipo, 24, colorMarca)}
           </View>
           <View style={styles.info}>
             <Text style={[styles.name, { color: theme.text }]}>{item.nombre}</Text>
             <Text style={[styles.sub, { color: theme.textMuted, textTransform: 'capitalize' }]}>
               {item.tipo}
-              {item.alquilerOnline?.habilitado
-                ? ` · Online $${Number(item.alquilerOnline.precioPorHora || 0).toLocaleString('es-AR')}/h`
-                : ''}
             </Text>
             
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5, flexWrap: 'wrap' }}>
-              <View style={[styles.badge, { backgroundColor: getStatusColor(item.estado) + '20' }]}>
-                <Text style={{ color: getStatusColor(item.estado), fontSize: 12, fontWeight: 'bold', textTransform: 'capitalize' }}>
+            <View style={styles.badgeRow}>
+              <View style={[styles.badge, { backgroundColor: statusColor + '20' }]}>
+                <Text style={[styles.badgeText, { color: statusColor }]} numberOfLines={1}>
                   {item.estado}
                 </Text>
               </View>
               {item.admiteSubdivision ? (
                 <View style={[styles.badge, { backgroundColor: colorMarca + '15' }]}>
-                  <Text style={{ color: colorMarca, fontSize: 11, fontWeight: '600' }}>Multi-uso</Text>
+                  <Text style={[styles.badgeText, { color: colorMarca }]} numberOfLines={1}>
+                    Multi-uso
+                  </Text>
                 </View>
               ) : null}
               {item.alquilerOnline?.habilitado ? (
                 <View style={[styles.badge, { backgroundColor: '#0ea5e915' }]}>
-                  <Text style={{ color: '#0284c7', fontSize: 11, fontWeight: '600' }}>Alquiler online</Text>
+                  <Text style={[styles.badgeText, { color: '#0284c7' }]} numberOfLines={1}>
+                    Online
+                  </Text>
                 </View>
               ) : null}
             </View>
@@ -416,7 +452,7 @@ export default function EspaciosFisicosScreen({ navigation }) {
               </Text>
             ) : null}
           </View>
-        </TouchableOpacity>
+        </DesignCard>
     );
 
     if (!canManageSpaces) return card;
@@ -555,6 +591,31 @@ export default function EspaciosFisicosScreen({ navigation }) {
                     }
                   />
 
+                  <Text style={[styles.label, { color: theme.textMuted }]}>Días disponibles *</Text>
+                  <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8 }}>
+                    Solo esos días se podrán reservar desde la app.
+                  </Text>
+                  <View style={styles.typesContainer}>
+                    {DIAS_ALQUILER.map((dia) => {
+                      const active = (formData.alquilerOnline.diasDisponibles || []).includes(dia);
+                      return (
+                        <TouchableOpacity
+                          key={dia}
+                          style={[
+                            styles.typeChip,
+                            {
+                              backgroundColor: active ? colorMarca : theme.background,
+                              borderColor: active ? colorMarca : theme.border,
+                            },
+                          ]}
+                          onPress={() => toggleAlquilerDia(dia)}
+                        >
+                          <Text style={{ color: active ? '#fff' : theme.text }}>{dia.substring(0, 3)}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
                   <Text style={[styles.label, { color: theme.textMuted }]}>Horario disponible</Text>
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <View style={{ flex: 1 }}>
@@ -674,17 +735,35 @@ export default function EspaciosFisicosScreen({ navigation }) {
                 Solo se afectan las sesiones hasta esa fecha. Las posteriores siguen en este espacio.
               </Text>
 
-              <TouchableOpacity style={[styles.statusBtn, { backgroundColor: '#10b981' }]} onPress={() => handleChangeStatus('disponible')} disabled={savingStatus || loadingAffected}>
-                <Text style={styles.statusBtnText}>Marcar como Disponible</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={[styles.statusBtn, { backgroundColor: '#f59e0b' }]} onPress={() => beginRestrictedStatusChange('mantenimiento')} disabled={savingStatus || loadingAffected}>
-                {loadingAffected ? <ActivityIndicator color="#fff" /> : <Text style={styles.statusBtnText}>Mandar a Mantenimiento</Text>}
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={[styles.statusBtn, { backgroundColor: '#ef4444' }]} onPress={() => beginRestrictedStatusChange('clausurado')} disabled={savingStatus || loadingAffected}>
-                <Text style={styles.statusBtnText}>Clausurar</Text>
-              </TouchableOpacity>
+              <View style={styles.statusRow}>
+                <TouchableOpacity
+                  style={[styles.statusBtn, { backgroundColor: '#10b981' }]}
+                  onPress={() => handleChangeStatus('disponible')}
+                  disabled={savingStatus || loadingAffected}
+                >
+                  <Text style={styles.statusBtnText} numberOfLines={1}>Disponible</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.statusBtn, { backgroundColor: '#f59e0b' }]}
+                  onPress={() => beginRestrictedStatusChange('mantenimiento')}
+                  disabled={savingStatus || loadingAffected}
+                >
+                  {loadingAffected ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.statusBtnText} numberOfLines={1}>Mantenimiento</Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.statusBtn, { backgroundColor: '#ef4444' }]}
+                  onPress={() => beginRestrictedStatusChange('clausurado')}
+                  disabled={savingStatus || loadingAffected}
+                >
+                  <Text style={styles.statusBtnText} numberOfLines={1}>Clausurado</Text>
+                </TouchableOpacity>
+              </View>
 
               <TouchableOpacity style={{ marginTop: 15, padding: 10 }} onPress={() => setStatusModalVisible(false)}>
                 <Text style={{ color: theme.textMuted, textAlign: 'center', fontWeight: 'bold' }}>Cancelar</Text>
@@ -801,12 +880,29 @@ export default function EspaciosFisicosScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   body: { flex: 1, paddingHorizontal: 20 },
-  card: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 12, marginBottom: 12, elevation: 1 },
+  cardInner: { flexDirection: 'row', alignItems: 'center' },
   avatar: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
   info: { flex: 1 },
   name: { fontSize: 16, fontWeight: '600' },
   sub: { fontSize: 13, marginTop: 2 },
-  badge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, marginTop: 5 },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'nowrap',
+    gap: 6,
+    marginTop: 5,
+  },
+  badge: {
+    flexShrink: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+  },
   swipeActionsContainer: { flexDirection: 'row', marginBottom: 12, overflow: 'hidden', borderRadius: 12 },
   swipeBtn: { width: 70, justifyContent: 'center', alignItems: 'center', height: '100%' },
   emptyState: { alignItems: 'center', marginTop: 60 },
@@ -829,7 +925,8 @@ const styles = StyleSheet.create({
   modalOverlayCenter: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContentCenter: { width: '100%', borderRadius: 25, padding: 25 },
   inputArea: { height: 80, borderWidth: 1, borderRadius: 12, paddingHorizontal: 15, paddingVertical: 10, marginBottom: 15, textAlignVertical: 'top' },
-  statusBtn: { padding: 15, borderRadius: 12, alignItems: 'center', marginBottom: 10 },
-  statusBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+  statusRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8, marginBottom: 4 },
+  statusBtn: { flex: 1, paddingVertical: 12, paddingHorizontal: 4, borderRadius: 12, alignItems: 'center', justifyContent: 'center', minHeight: 48 },
+  statusBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 12, textAlign: 'center' },
   actionOption: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8 },
 });

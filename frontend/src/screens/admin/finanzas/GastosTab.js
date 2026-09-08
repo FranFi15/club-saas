@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,8 @@ import { finanzasStyles as s } from './finanzasStyles';
 import { METODOS, MN, fmtMoney, metodoPagoLabel, metodoPagoIcon, EST_COLOR } from './finanzasConstants';
 import { pickAndUploadAttachment, openAttachmentUrl } from './finanzasUpload';
 import CustomAlert from '../../../components/CustomAlert';
+import DesignCard from '../../../components/DesignCard';
+import { ThemeContext } from '../../../context/ThemeContext';
 
 const ESTADO_FILTROS = [
   { value: 'todos', label: 'Todos' },
@@ -36,6 +38,7 @@ function formatDate(value) {
 }
 
 export default function GastosTab({ clubData, theme, primaryColor, getHeaders, showAlert, mes, anio }) {
+  const { isDarkMode } = useContext(ThemeContext);
   const cc = primaryColor;
   const cacheKey = clubData?.urlIdentifier ? `finanzas-gastos:${clubData.urlIdentifier}` : '';
 
@@ -319,7 +322,13 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
     }
 
     return (
-      <View style={[s.financeListCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <DesignCard
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent={color}
+        contentStyle={s.financeCardInner}
+        style={{ marginBottom: 10 }}
+      >
         <View style={s.financeCardTop}>
           <View style={[s.financeCardLeading, { backgroundColor: `${color}18`, marginRight: 0 }]}>
             <Ionicons
@@ -417,7 +426,7 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
             </Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </DesignCard>
     );
   };
 
@@ -661,7 +670,15 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
                 renderItem={({ item }) => (
                   <TouchableOpacity
                     onPress={() => openPayFor(item)}
-                    style={[s.card, { backgroundColor: theme.background, marginBottom: 8 }]}
+                    style={[
+                      s.card,
+                      {
+                        backgroundColor: theme.background,
+                        marginBottom: 8,
+                        padding: 12,
+                        borderRadius: 5,
+                      },
+                    ]}
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: theme.text, fontWeight: '600' }}>{item.concepto}</Text>

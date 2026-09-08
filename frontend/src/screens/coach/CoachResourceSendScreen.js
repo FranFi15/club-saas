@@ -1,4 +1,4 @@
-import React, { useContext, useState, useCallback } from 'react';
+import React, { useContext, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
@@ -21,10 +23,29 @@ import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
 import { clubApi } from '../../utils/api';
 import { uploadFileToClub, pickWebFile } from '../../utils/uploadMedia';
-import { isYouTubeUrl, normalizeYouTubeWatchUrl } from '../../utils/youtubeUrl';
+import { normalizeYouTubeWatchUrl } from '../../utils/youtubeUrl';
 import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import { sortByNombre } from '../../utils/listSort';
+import {
+  categoriesAsSectionedOptions,
+  categoryPillLabel,
+} from '../../utils/categoryFilterOptions';
+
+function normalizeExternalLink(raw) {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return null;
+  const yt = normalizeYouTubeWatchUrl(trimmed);
+  if (yt) return yt;
+  try {
+    const withProto = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const u = new URL(withProto);
+    if (!['http:', 'https:'].includes(u.protocol)) return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
 
 const TIPO_CHIPS_COACH = [
   { value: 'tactico', label: 'Táctico' },
@@ -37,6 +58,16 @@ const TIPO_CHIPS_NUTRI = [
   { value: 'otro', label: 'Otro' },
 ];
 
+const TIPO_CHIPS_PSI = [
+  { value: 'estudio_medico', label: 'Estudio / informe' },
+  { value: 'otro', label: 'Otro' },
+];
+
+const ALCANCE_OPTIONS = [
+  { value: 'categoria', label: 'Categoría' },
+  { value: 'usuario', label: 'Atletas' },
+];
+
 export default function CoachResourceSendScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
@@ -46,7 +77,7 @@ export default function CoachResourceSendScreen({ navigation }) {
   const [enrollments, setEnrollments] = useState([]);
   const [alcance, setAlcance] = useState('categoria');
   const [targetCategoria, setTargetCategoria] = useState('');
-  const [targetUsuario, setTargetUsuario] = useState('');
+  const [targetUsuarioIds, setTargetUsuarioIds] = useState([]);
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [tipo, setTipo] = useState('tactico');
@@ -54,9 +85,10 @@ export default function CoachResourceSendScreen({ navigation }) {
   const [fileUrl, setFileUrl] = useState('');
   const [pickedLabel, setPickedLabel] = useState('');
   const [attachKind, setAttachKind] = useState(null);
-  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [externalUrl, setExternalUrl] = useState('');
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [openFilter, setOpenFilter] = useState(null);
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
     title: '',
@@ -81,6 +113,12 @@ export default function CoachResourceSendScreen({ navigation }) {
     };
   };
 
+  const tipoOptions = useMemo(() => {
+    if (userRol === 'nutricionista') return TIPO_CHIPS_NUTRI;
+    if (userRol === 'psicologo') return TIPO_CHIPS_PSI;
+    return TIPO_CHIPS_COACH;
+  }, [userRol]);
+
   const loadMeta = useCallback(async () => {
     try {
       const h = await headers();
@@ -88,16 +126,17 @@ export default function CoachResourceSendScreen({ navigation }) {
       setUserRol(rol);
       if (rol === 'nutricionista') {
         setTipo('nutricion');
+      } else if (rol === 'psicologo') {
+        setTipo('estudio_medico');
       }
       const res = await clubApi.get('/categories/mis-categorias', { headers: h });
-      const cats = res.data || [];
-      setCategories(sortByNombre(cats));
+      const cats = sortByNombre(res.data || []);
+      setCategories(cats);
       if (cats[0]?._id) {
         setTargetCategoria(cats[0]._id);
         const enr = await clubApi.get(`/enrollments/categoria/${cats[0]._id}`, { headers: h });
         setEnrollments(enr.data || []);
-        const firstA = enr.data?.[0]?.atleta;
-        if (firstA?._id) setTargetUsuario(firstA._id);
+        setTargetUsuarioIds([]);
       }
     } catch (_) {
       showAlert('Error', 'No se pudieron cargar categorías.');
@@ -114,21 +153,114 @@ export default function CoachResourceSendScreen({ navigation }) {
     try {
       const h = await headers();
       const enr = await clubApi.get(`/enrollments/categoria/${catId}`, { headers: h });
-      setEnrollments(enr.data || []);
-      const firstA = enr.data?.[0]?.atleta;
-      setTargetUsuario(firstA?._id || '');
+      const rows = enr.data || [];
+      setEnrollments(rows);
+      const validIds = new Set(
+        rows.map((e) => e.atleta?._id).filter(Boolean).map((id) => String(id)),
+      );
+      setTargetUsuarioIds((prev) => prev.filter((id) => validIds.has(String(id))));
     } catch (_) {
       setEnrollments([]);
+      setTargetUsuarioIds([]);
     }
   };
 
-  const selectFileMode = () => {
-    setAttachKind('file');
-    setYoutubeUrl('');
+  const toggleAthlete = (athleteId) => {
+    const id = String(athleteId);
+    setTargetUsuarioIds((prev) =>
+      prev.some((x) => String(x) === id) ? prev.filter((x) => String(x) !== id) : [...prev, id],
+    );
   };
 
-  const selectYoutubeMode = () => {
-    setAttachKind('youtube');
+  const athleteOptions = useMemo(
+    () =>
+      enrollments
+        .map((e) => e.atleta)
+        .filter(Boolean)
+        .map((a) => ({
+          value: a._id,
+          label: `${a.nombre || ''} ${a.apellido || ''}`.trim() || 'Atleta',
+        })),
+    [enrollments],
+  );
+
+  const categoryOptions = useMemo(
+    () => categoriesAsSectionedOptions(categories),
+    [categories],
+  );
+
+  const athletePillLabel = useMemo(() => {
+    if (!targetUsuarioIds.length) return null;
+    if (targetUsuarioIds.length === 1) {
+      const one = athleteOptions.find((o) => String(o.value) === String(targetUsuarioIds[0]));
+      return one?.label || '1 atleta';
+    }
+    return `${targetUsuarioIds.length} atletas`;
+  }, [targetUsuarioIds, athleteOptions]);
+
+  const filterPillDefs = useMemo(() => {
+    const pills = [
+      {
+        key: 'tipo',
+        placeholder: 'Tipo',
+        value: tipo,
+        options: tipoOptions,
+        onChange: setTipo,
+        multi: false,
+      },
+      {
+        key: 'alcance',
+        placeholder: 'Alcance',
+        value: alcance,
+        options: ALCANCE_OPTIONS,
+        onChange: setAlcance,
+        multi: false,
+      },
+      {
+        key: 'categoria',
+        placeholder: 'Categoría',
+        value: targetCategoria,
+        options: categoryOptions,
+        displayLabel: categoryPillLabel(categories, targetCategoria, 'Categoría'),
+        onChange: (catId) => {
+          setTargetCategoria(catId);
+          refreshEnrollments(catId);
+        },
+        multi: false,
+      },
+    ];
+    if (alcance === 'usuario') {
+      pills.push({
+        key: 'atleta',
+        placeholder: 'Atletas',
+        value: targetUsuarioIds.length ? targetUsuarioIds[0] : '',
+        displayLabel: athletePillLabel,
+        options: athleteOptions,
+        onChange: toggleAthlete,
+        multi: true,
+        selectedIds: targetUsuarioIds,
+      });
+    }
+    return pills;
+  }, [
+    tipo,
+    tipoOptions,
+    alcance,
+    targetCategoria,
+    categoryOptions,
+    targetUsuarioIds,
+    athleteOptions,
+    athletePillLabel,
+  ]);
+  const activeFilterDef = filterPillDefs.find((f) => f.key === openFilter);
+
+  const selectFileMode = () => {
+    setAttachKind('file');
+    setExternalUrl('');
+  };
+
+  const selectLinkMode = () => {
+    setAttachKind('link');
     setFileUrl('');
     setPickedLabel('');
   };
@@ -148,21 +280,25 @@ export default function CoachResourceSendScreen({ navigation }) {
     }
   };
 
-  const pickMedia = async () => {
+  const pickPhoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       showAlert('Permiso', 'Necesitamos acceso a tus fotos para continuar.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'],
+      mediaTypes: ['images'],
       quality: 0.85,
     });
     if (result.canceled || !result.assets?.[0]) return;
     const asset = result.assets[0];
-    const rawName = asset.fileName || asset.uri.split('/').pop() || 'archivo';
-    const isVideo = asset.type === 'video' || /\.(mp4|mov|webm)$/i.test(rawName);
-    const mime = asset.mimeType || (isVideo ? 'video/mp4' : `image/${(rawName.split('.').pop() || 'jpeg').replace('jpg', 'jpeg')}`);
+    if (asset.type === 'video' || /\.(mp4|mov|webm|m4v|avi)$/i.test(asset.fileName || asset.uri || '')) {
+      showAlert('Solo fotos', 'Por ahora no se pueden subir videos. Usá una foto, un PDF o un enlace externo.');
+      return;
+    }
+    const rawName = asset.fileName || asset.uri.split('/').pop() || 'foto.jpg';
+    const ext = (rawName.split('.').pop() || 'jpeg').toLowerCase().replace('jpg', 'jpeg');
+    const mime = asset.mimeType || `image/${ext}`;
     await uploadFile(asset.uri, rawName, mime, pickWebFile(asset, result));
   };
 
@@ -186,24 +322,23 @@ export default function CoachResourceSendScreen({ navigation }) {
   };
 
   const submit = async () => {
-    const normalizedYoutube =
-      attachKind === 'youtube' ? normalizeYouTubeWatchUrl(youtubeUrl.trim()) : null;
-    const finalUrl = attachKind === 'youtube' ? normalizedYoutube : fileUrl;
+    const normalizedLink = attachKind === 'link' ? normalizeExternalLink(externalUrl) : null;
+    const finalUrl = attachKind === 'link' ? normalizedLink : fileUrl;
 
     if (!titulo.trim() || !finalUrl) {
-      showAlert('Falta algo', 'Título y archivo o enlace de YouTube son obligatorios.');
+      showAlert('Falta algo', 'Título y archivo o enlace externo son obligatorios.');
       return;
     }
-    if (attachKind === 'youtube' && !isYouTubeUrl(youtubeUrl)) {
-      showAlert('Enlace inválido', 'Pegá un enlace válido de YouTube (watch, youtu.be o shorts).');
+    if (attachKind === 'link' && !normalizedLink) {
+      showAlert('Enlace inválido', 'Pegá un enlace http(s) válido (YouTube, Drive, web, etc.).');
       return;
     }
     if (alcance === 'categoria' && !targetCategoria) {
       showAlert('Atención', 'Elegí una categoría.');
       return;
     }
-    if (alcance === 'usuario' && !targetUsuario) {
-      showAlert('Atención', 'Elegí un atleta.');
+    if (alcance === 'usuario' && !targetUsuarioIds.length) {
+      showAlert('Atención', 'Elegí al menos un atleta.');
       return;
     }
     setSaving(true);
@@ -218,7 +353,7 @@ export default function CoachResourceSendScreen({ navigation }) {
           tipo,
           alcance,
           targetCategoria: alcance === 'categoria' ? targetCategoria : undefined,
-          targetUsuario: alcance === 'usuario' ? targetUsuario : undefined,
+          targetUsuarios: alcance === 'usuario' ? targetUsuarioIds : undefined,
         },
         { headers: h },
       );
@@ -246,216 +381,272 @@ export default function CoachResourceSendScreen({ navigation }) {
         colorMarca={colorMarca}
         theme={theme}
         kicker="Material"
-        title={userRol === 'nutricionista' ? 'Enviar PDF o material' : 'Enviar recurso'}
-        subtitle="Se envía por chat (grupal o personal)"
+        title={'Enviar recurso'}
+        subtitle={clubData?.nombre || 'Tu club'}
         onBack={() => navigation.goBack()}
       />
+
+      <Modal
+        visible={!!openFilter}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setOpenFilter(null)}
+      >
+        <View style={styles.filterModalOverlay}>
+          <View style={[styles.filterModalContent, { backgroundColor: theme.surface }]}>
+            <View style={styles.filterModalHeader}>
+              <TouchableOpacity onPress={() => setOpenFilter(null)} hitSlop={8}>
+                <Ionicons name="close" size={26} color={theme.icon} />
+              </TouchableOpacity>
+              <Text style={[styles.filterModalTitle, { color: theme.text }]}>
+                {activeFilterDef?.placeholder || 'Elegir'}
+              </Text>
+              {activeFilterDef?.multi ? (
+                <TouchableOpacity onPress={() => setOpenFilter(null)} hitSlop={8}>
+                  <Text style={{ color: colorMarca, fontWeight: '700', fontSize: 15 }}>Listo</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={{ width: 26 }} />
+              )}
+            </View>
+            {activeFilterDef?.multi && athleteOptions.length > 0 ? (
+              <View style={styles.multiActions}>
+                <TouchableOpacity
+                  onPress={() => setTargetUsuarioIds(athleteOptions.map((o) => String(o.value)))}
+                >
+                  <Text style={{ color: colorMarca, fontWeight: '700', fontSize: 13 }}>Seleccionar todos</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setTargetUsuarioIds([])}>
+                  <Text style={{ color: theme.textMuted, fontWeight: '600', fontSize: 13 }}>Limpiar</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+            <FlatList
+              data={activeFilterDef?.options || []}
+              keyExtractor={(item, index) =>
+                item.value !== undefined && item.value !== '' ? String(item.value) : `opt-${index}`
+              }
+              keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={
+                <Text style={[styles.emptyOpts, { color: theme.textMuted }]}>
+                  No hay opciones disponibles.
+                </Text>
+              }
+              renderItem={({ item }) => {
+                if (item.type === 'header') {
+                  return (
+                    <View style={[styles.sectionHeader, { backgroundColor: theme.background }]}>
+                      <Text style={[styles.sectionHeaderTxt, { color: theme.textMuted }]}>
+                        {item.label}
+                      </Text>
+                    </View>
+                  );
+                }
+                const isMulti = !!activeFilterDef?.multi;
+                const selected = isMulti
+                  ? (activeFilterDef.selectedIds || []).some((id) => String(id) === String(item.value))
+                  : String(item.value) === String(activeFilterDef?.value);
+                return (
+                  <TouchableOpacity
+                    style={[styles.filterOptionRow, { borderBottomColor: theme.border }]}
+                    onPress={() => {
+                      activeFilterDef?.onChange(item.value);
+                      if (!isMulti) setOpenFilter(null);
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: selected ? colorMarca : theme.text,
+                        fontWeight: selected ? '700' : '500',
+                        fontSize: 15,
+                        flex: 1,
+                      }}
+                    >
+                      {item.label}
+                    </Text>
+                    {selected ? (
+                      <Ionicons
+                        name={isMulti ? 'checkbox' : 'checkmark'}
+                        size={22}
+                        color={colorMarca}
+                      />
+                    ) : isMulti ? (
+                      <Ionicons name="square-outline" size={22} color={theme.textMuted} />
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
       >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        automaticallyAdjustKeyboardInsets
-      >
-        <Text style={[styles.label, { color: theme.text }]}>Título</Text>
-        <TextInput style={inputStyle} value={titulo} onChangeText={setTitulo} placeholder="Ej. Video táctico rival" placeholderTextColor={theme.textMuted} />
-
-        <Text style={[styles.label, { color: theme.text }]}>Descripción</Text>
-        <TextInput
-          style={[inputStyle, { minHeight: 72 }]}
-          multiline
-          value={descripcion}
-          onChangeText={setDescripcion}
-          placeholder="Opcional"
-          placeholderTextColor={theme.textMuted}
-        />
-
-        <Text style={[styles.label, { color: theme.text }]}>Tipo de recurso</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {(userRol === 'nutricionista' ? TIPO_CHIPS_NUTRI : TIPO_CHIPS_COACH).map(({ value, label }) => (
-            <TouchableOpacity
-              key={value}
-              style={[
-                styles.chip,
-                {
-                  borderColor: tipo === value ? colorMarca : theme.border,
-                  backgroundColor: tipo === value ? colorMarca + '22' : theme.surface,
-                },
-              ]}
-              onPress={() => setTipo(value)}
-            >
-              <Text style={{ color: theme.text, fontWeight: '600' }}>{label}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        <Text style={[styles.label, { color: theme.text, marginTop: 12 }]}>Alcance</Text>
-        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
-          {[
-            { v: 'categoria', l: 'Categoría' },
-            { v: 'usuario', l: 'Un atleta' },
-          ].map((x) => (
-            <TouchableOpacity
-              key={x.v}
-              style={[
-                styles.chip,
-                { borderColor: alcance === x.v ? colorMarca : theme.border, backgroundColor: alcance === x.v ? colorMarca + '22' : theme.surface },
-              ]}
-              onPress={() => setAlcance(x.v)}
-            >
-              <Text style={{ color: theme.text, fontWeight: '700' }}>{x.l}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <Text style={[styles.hint, { color: theme.textMuted }]}>
-          {alcance === 'categoria'
-            ? 'Va al chat grupal de la categoría. Si no está activo, se manda uno por uno (o al tutor).'
-            : 'Va al chat personal. Si el atleta no tiene chat habilitado, se envía al tutor.'}
-        </Text>
-
-        {alcance === 'categoria' ? (
-          <>
-            <Text style={[styles.label, { color: theme.text }]}>Categoría</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {categories.map((c) => (
-                <TouchableOpacity
-                  key={c._id}
-                  style={[
-                    styles.chip,
-                    {
-                      borderColor: targetCategoria === c._id ? colorMarca : theme.border,
-                      backgroundColor: targetCategoria === c._id ? colorMarca + '22' : theme.surface,
-                    },
-                  ]}
-                  onPress={() => {
-                    setTargetCategoria(c._id);
-                    refreshEnrollments(c._id);
-                  }}
-                >
-                  <Text style={{ color: theme.text, fontWeight: '600' }}>{c.nombre}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </>
-        ) : (
-          <>
-            <Text style={[styles.label, { color: theme.text }]}>Atleta</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {enrollments.map((e) => {
-                const a = e.atleta;
-                if (!a) return null;
-                return (
-                  <TouchableOpacity
-                    key={e._id}
-                    style={[
-                      styles.chip,
-                      {
-                        borderColor: targetUsuario === a._id ? colorMarca : theme.border,
-                        backgroundColor: targetUsuario === a._id ? colorMarca + '22' : theme.surface,
-                      },
-                    ]}
-                    onPress={() => setTargetUsuario(a._id)}
-                  >
-                    <Text style={{ color: theme.text, fontWeight: '600' }}>
-                      {a.nombre} {a.apellido}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </>
-        )}
-
-        <Text style={[styles.label, { color: theme.text, marginTop: 8 }]}>Archivo adjunto</Text>
-        <Text style={[styles.hint, { color: theme.textMuted }]}>
-          PDF, foto/video desde la galería, o un enlace de YouTube.
-        </Text>
-        {uploading ? (
-          <View style={styles.uploadingBox}>
-            <ActivityIndicator color={colorMarca} />
-            <Text style={[styles.uploadingText, { color: theme.textMuted }]}>Subiendo archivo…</Text>
-          </View>
-        ) : (
-          <>
-            <View style={styles.uploadRow}>
-              <TouchableOpacity
-                style={[
-                  styles.uploadBtn,
-                  {
-                    borderColor: attachKind === 'file' && fileUrl ? colorMarca : theme.border,
-                    backgroundColor: theme.surface,
-                  },
-                ]}
-                onPress={pickPdf}
-              >
-                <Ionicons name="document-text-outline" size={26} color={colorMarca} />
-                <Text style={[styles.uploadBtnCaption, { color: theme.text }]}>Elegir PDF</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.uploadBtn,
-                  {
-                    borderColor: attachKind === 'file' && fileUrl ? colorMarca : theme.border,
-                    backgroundColor: theme.surface,
-                  },
-                ]}
-                onPress={pickMedia}
-              >
-                <Ionicons name="images-outline" size={26} color={colorMarca} />
-                <Text style={[styles.uploadBtnCaption, { color: theme.text }]}>Foto o video</Text>
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity
-              style={[
-                styles.uploadBtn,
-                styles.uploadBtnWide,
-                {
-                  borderColor: attachKind === 'youtube' ? colorMarca : theme.border,
-                  backgroundColor: attachKind === 'youtube' ? colorMarca + '18' : theme.surface,
-                },
-              ]}
-              onPress={selectYoutubeMode}
-            >
-              <Ionicons name="logo-youtube" size={26} color="#c4302b" />
-              <Text style={[styles.uploadBtnCaption, { color: theme.text }]}>Enlace de YouTube</Text>
-            </TouchableOpacity>
-          </>
-        )}
-        {attachKind === 'youtube' ? (
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+        >
+          <Text style={[styles.label, { color: theme.text }]}>Título</Text>
           <TextInput
             style={inputStyle}
-            value={youtubeUrl}
-            onChangeText={setYoutubeUrl}
-            placeholder="https://www.youtube.com/watch?v=..."
+            value={titulo}
+            onChangeText={setTitulo}
+            placeholder="Ej. Material táctico rival"
             placeholderTextColor={theme.textMuted}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
           />
-        ) : null}
-        {fileUrl ? (
-          <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 12 }} numberOfLines={2}>
-            Archivo listo ✓{pickedLabel ? ` · ${pickedLabel}` : ''}
-          </Text>
-        ) : null}
-        {attachKind === 'youtube' && youtubeUrl.trim() && isYouTubeUrl(youtubeUrl) ? (
-          <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 12 }} numberOfLines={2}>
-            Enlace de YouTube listo ✓
-          </Text>
-        ) : null}
 
-        <TouchableOpacity
-          style={[styles.primaryBtn, { backgroundColor: colorMarca }]}
-          onPress={submit}
-          disabled={saving || uploading}
-        >
-          {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnTxt}>Enviar recurso</Text>}
-        </TouchableOpacity>
-      </ScrollView>
+          <Text style={[styles.label, { color: theme.text }]}>Descripción</Text>
+          <TextInput
+            style={[inputStyle, { minHeight: 72 }]}
+            multiline
+            value={descripcion}
+            onChangeText={setDescripcion}
+            placeholder="Opcional"
+            placeholderTextColor={theme.textMuted}
+          />
+
+          <Text style={[styles.label, { color: theme.text }]}>Destino</Text>
+          <View style={styles.filterPillsRow}>
+            {filterPillDefs.map((f) => {
+              const selected = (f.options || []).find(
+                (o) => o.type !== 'header' && String(o.value) === String(f.value),
+              );
+              const hasValue = f.multi ? (f.selectedIds || []).length > 0 : f.value !== '';
+              const label = f.multi
+                ? f.displayLabel || f.placeholder
+                : hasValue
+                  ? f.displayLabel || selected?.label || f.placeholder
+                  : f.placeholder;
+              return (
+                <TouchableOpacity
+                  key={f.key}
+                  onPress={() => setOpenFilter(f.key)}
+                  style={[
+                    styles.filterChip,
+                    {
+                      borderColor: hasValue ? colorMarca : theme.border,
+                      backgroundColor: hasValue ? `${colorMarca}18` : theme.surface,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      color: hasValue ? colorMarca : theme.text,
+                      fontSize: 12,
+                      fontWeight: '600',
+                      flexShrink: 1,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {label}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={14}
+                    color={hasValue ? colorMarca : theme.textMuted}
+                    style={{ marginLeft: 4 }}
+                  />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <Text style={[styles.hint, { color: theme.textMuted }]}>
+            {alcance === 'categoria'
+              ? 'Va al chat grupal de la categoría. Si no está activo, se manda uno por uno (o al tutor).'
+              : 'Podés elegir varios atletas. Cada uno lo recibe en su chat (o el tutor si no tiene chat).'}
+          </Text>
+
+          <Text style={[styles.label, { color: theme.text, marginTop: 8 }]}>Archivo adjunto</Text>
+          <Text style={[styles.hint, { color: theme.textMuted }]}>
+            PDF, foto desde la galería, o un enlace externo (YouTube, Drive, web, etc.).
+          </Text>
+          {uploading ? (
+            <View style={styles.uploadingBox}>
+              <ActivityIndicator color={colorMarca} />
+              <Text style={[styles.uploadingText, { color: theme.textMuted }]}>Subiendo archivo…</Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.uploadRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.uploadBtn,
+                    {
+                      borderColor: attachKind === 'file' && fileUrl ? colorMarca : theme.border,
+                      backgroundColor: theme.surface,
+                    },
+                  ]}
+                  onPress={pickPdf}
+                >
+                  <Ionicons name="document-text-outline" size={26} color={colorMarca} />
+                  <Text style={[styles.uploadBtnCaption, { color: theme.text }]}>Elegir PDF</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.uploadBtn,
+                    {
+                      borderColor: attachKind === 'file' && fileUrl ? colorMarca : theme.border,
+                      backgroundColor: theme.surface,
+                    },
+                  ]}
+                  onPress={pickPhoto}
+                >
+                  <Ionicons name="image-outline" size={26} color={colorMarca} />
+                  <Text style={[styles.uploadBtnCaption, { color: theme.text }]}>Elegir foto</Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.uploadBtn,
+                  styles.uploadBtnWide,
+                  {
+                    borderColor: attachKind === 'link' ? colorMarca : theme.border,
+                    backgroundColor: attachKind === 'link' ? colorMarca + '18' : theme.surface,
+                  },
+                ]}
+                onPress={selectLinkMode}
+              >
+                <Ionicons name="link-outline" size={26} color={colorMarca} />
+                <Text style={[styles.uploadBtnCaption, { color: theme.text }]}>Enlace externo</Text>
+              </TouchableOpacity>
+            </>
+          )}
+          {attachKind === 'link' ? (
+            <TextInput
+              style={inputStyle}
+              value={externalUrl}
+              onChangeText={setExternalUrl}
+              placeholder="https://…"
+              placeholderTextColor={theme.textMuted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+            />
+          ) : null}
+          {fileUrl ? (
+            <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 12 }} numberOfLines={2}>
+              Archivo listo ✓{pickedLabel ? ` · ${pickedLabel}` : ''}
+            </Text>
+          ) : null}
+          {attachKind === 'link' && normalizeExternalLink(externalUrl) ? (
+            <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 12 }} numberOfLines={2}>
+              Enlace externo listo ✓
+            </Text>
+          ) : null}
+
+          <TouchableOpacity
+            style={[styles.primaryBtn, { backgroundColor: colorMarca }]}
+            onPress={submit}
+            disabled={saving || uploading}
+          >
+            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnTxt}>Enviar recurso</Text>}
+          </TouchableOpacity>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -467,7 +658,69 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, fontWeight: '700', marginBottom: 8, marginTop: 4 },
   hint: { fontSize: 12, marginBottom: 10, lineHeight: 16 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10 },
-  chip: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, marginRight: 8, marginBottom: 8 },
+  filterPillsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  filterChip: {
+    flexGrow: 1,
+    flexBasis: '30%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 5,
+    borderWidth: 1,
+    minWidth: 0,
+  },
+  filterModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  filterModalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 28,
+    maxHeight: '70%',
+  },
+  filterModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  filterModalTitle: { fontSize: 17, fontWeight: '700' },
+  multiActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+  },
+  filterOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  sectionHeader: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 6,
+  },
+  sectionHeaderTxt: {
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  emptyOpts: { padding: 20, textAlign: 'center', fontSize: 14 },
   uploadRow: { flexDirection: 'row', gap: 10, marginBottom: 4 },
   uploadingBox: {
     alignItems: 'center',

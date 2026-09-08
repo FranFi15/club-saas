@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,8 @@ import { finanzasStyles as s } from './finanzasStyles';
 import { MN, METODOS, fmtMoney, metodoPagoLabel, metodoPagoIcon } from './finanzasConstants';
 import { pickAndUploadAttachment, openAttachmentUrl } from './finanzasUpload';
 import CustomAlert from '../../../components/CustomAlert';
+import DesignCard from '../../../components/DesignCard';
+import { ThemeContext } from '../../../context/ThemeContext';
 
 const ROL_LABEL = {
   admin_club: 'Admin',
@@ -47,6 +49,7 @@ export default function NominaTab({
   mes,
   anio,
 }) {
+  const { isDarkMode } = useContext(ThemeContext);
   const cc = primaryColor;
   const panelBg = theme.surface || '#ffffff';
   const cacheKey = clubData?.urlIdentifier ? `finanzas-nomina:${clubData.urlIdentifier}` : '';
@@ -263,7 +266,13 @@ export default function NominaTab({
     ].filter(Boolean);
 
     return (
-      <View style={[s.financeListCard, { backgroundColor: panelBg, borderColor: theme.border }]}>
+      <DesignCard
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent={cc}
+        contentStyle={s.financeCardInner}
+        style={{ marginBottom: 10 }}
+      >
         <View style={s.financeCardTop}>
           <UserAvatar user={item.staff} size={44} colorMarca={cc} />
           <View style={[s.financeCardBody, { marginLeft: 12 }]}>
@@ -322,7 +331,7 @@ export default function NominaTab({
             </Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </DesignCard>
     );
   };
 

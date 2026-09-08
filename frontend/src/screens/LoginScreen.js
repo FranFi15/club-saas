@@ -21,7 +21,7 @@ import { resolveMainNavigator } from '../constants/appRoles';
 import { needsTermsAcceptance } from '../constants/legal';
 import CustomAlert from '../components/CustomAlert';
 import AuthFormLayout from '../components/AuthFormLayout';
-import { platformCardShadow } from '../utils/platformShadow';
+import DesignCard from '../components/DesignCard';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -221,17 +221,20 @@ export default function LoginScreen({ navigation }) {
         )}
       </View>
 
-      <View
-        style={[styles.card, { backgroundColor: theme.surface }]}
-        importantForAutofill="yes"
-        autoComplete="password"
+      <DesignCard
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent={clubData.primaryColor || '#3b82f6'}
+        contentStyle={styles.cardBody}
+        contentProps={{ importantForAutofill: 'yes', autoComplete: 'password' }}
+        style={styles.cardWrap}
       >
         <Text style={[styles.label, { color: theme.text }]}>Email</Text>
         <TextInput
           style={[
             styles.input,
             {
-              backgroundColor: theme.background,
+              backgroundColor: isDarkMode ? '#1a191f' : theme.background,
               borderColor: theme.border,
               color: theme.text,
             },
@@ -261,7 +264,7 @@ export default function LoginScreen({ navigation }) {
               styles.input,
               styles.passwordInput,
               {
-                backgroundColor: theme.background,
+                backgroundColor: isDarkMode ? '#1a191f' : theme.background,
                 borderColor: theme.border,
                 color: theme.text,
               },
@@ -319,7 +322,7 @@ export default function LoginScreen({ navigation }) {
         >
           <Text style={[styles.backButtonText, { color: theme.textMuted }]}>Cambiar de club</Text>
         </TouchableOpacity>
-      </View>
+      </DesignCard>
     </>
   );
 
@@ -353,12 +356,12 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   placeholderText: { fontSize: 96, color: '#ffffff', fontWeight: 'bold' },
-  card: {
-    borderRadius: 16,
-    padding: 24,
+  cardWrap: { width: '100%', marginBottom: 0 },
+  cardBody: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 20,
     alignItems: 'center',
-    width: '100%',
-    ...platformCardShadow(6),
   },
   label: { fontSize: 16, fontWeight: '600', marginBottom: 12, alignSelf: 'flex-start' },
   input: {

@@ -20,11 +20,16 @@ import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import CoachSpaceAvailabilityPicker from '../../components/CoachSpaceAvailabilityPicker';
 import CoachSessionCalendar from '../../components/CoachSessionCalendar';
+import FilterPillSheet from '../../components/FilterPillSheet';
 import { todayYmd } from '../../utils/timeSlots';
 import { isoCalendarDateToDisplay } from '../../utils/dateDisplay';
 import { maskTimeHHMM, isValidTimeHHMM } from '../../utils/timeDisplay';
 import { sessionTipoLabel } from '../../utils/sessionDisplay';
 import { sortByNombre } from '../../utils/listSort';
+import {
+  categoriesGroupedByDisciplina,
+  categoryPillLabel,
+} from '../../utils/categoryFilterOptions';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 
 export default function CoachNewSessionScreen({ navigation }) {
@@ -43,6 +48,7 @@ export default function CoachNewSessionScreen({ navigation }) {
   );
   const [saving, setSaving] = useState(false);
   const [categoria, setCategoria] = useState('');
+  const [openFilter, setOpenFilter] = useState(null);
   const [selectedYmd, setSelectedYmd] = useState(todayYmd());
   const [espacio, setEspacio] = useState('');
   const [horaInicio, setHoraInicio] = useState('');
@@ -65,6 +71,20 @@ export default function CoachNewSessionScreen({ navigation }) {
   const needsClubSpace =
     tipoSesion === 'entrenamiento' || (tipoSesion === 'partido' && lugarPartidoModo === 'club');
 
+  const categoryPills = useMemo(
+    () => [
+      {
+        key: 'categoria',
+        placeholder: 'Categoría',
+        value: categoria,
+        sections: categoriesGroupedByDisciplina(categories),
+        displayLabel: categoryPillLabel(categories, categoria, 'Categoría'),
+        onChange: setCategoria,
+        searchable: true,
+      },
+    ],
+    [categoria, categories],
+  );
   const selectedSlot = useMemo(() => {
     if (!needsClubSpace || !espacio || !horaInicio || !horaFin) return null;
     return { espacioId: espacio, horaInicio, horaFin, ymd: selectedYmd };
@@ -379,23 +399,14 @@ export default function CoachNewSessionScreen({ navigation }) {
           </Text>
 
           <Text style={[styles.label, { color: theme.textMuted }]}>Categoría</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-            {categories.map((c) => (
-              <TouchableOpacity
-                key={c._id}
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: categoria === c._id ? colorMarca : theme.border,
-                    backgroundColor: categoria === c._id ? colorMarca + '22' : theme.surface,
-                  },
-                ]}
-                onPress={() => setCategoria(c._id)}
-              >
-                <Text style={{ color: theme.text, fontWeight: '600' }}>{c.nombre}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <FilterPillSheet
+            pills={categoryPills}
+            openKey={openFilter}
+            onOpen={setOpenFilter}
+            onClose={() => setOpenFilter(null)}
+            colorMarca={colorMarca}
+            theme={theme}
+          />
 
           {needsClubSpace ? (
             <>

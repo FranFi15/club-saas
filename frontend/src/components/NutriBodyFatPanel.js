@@ -1,5 +1,7 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useContext, useMemo } from 'react';
+import { Text, StyleSheet } from 'react-native';
+import DesignCard from './DesignCard';
+import { ThemeContext } from '../context/ThemeContext';
 import { buildIsakSnapshot, computeIsakResults } from '../utils/nutriIsakCalculations';
 import { activeBodyFatResult, bodyFatMethodLabel, normalizeBodyFatMethod } from '../utils/nutriBodyComposition';
 
@@ -10,9 +12,12 @@ export default function NutriBodyFatPanel({
   formByBlock,
   atleta,
   theme,
+  isDarkMode: isDarkModeProp,
   colorMarca,
   metodoGrasaCorporal = 'durnin_siri',
 }) {
+  const { isDarkMode: isDarkModeCtx } = useContext(ThemeContext);
+  const isDarkMode = isDarkModeProp ?? isDarkModeCtx;
   const sexo = atleta?.sexo || '';
   const edad = atleta?.edad;
   const metodo = normalizeBodyFatMethod(metodoGrasaCorporal);
@@ -47,7 +52,13 @@ export default function NutriBodyFatPanel({
       : !durnin && 'Faltan los 4 pliegues Durnin para calcular el % grasa.';
 
   return (
-    <View style={[styles.wrap, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <DesignCard
+      theme={theme}
+      isDarkMode={isDarkMode}
+      accent={colorMarca}
+      contentStyle={styles.inner}
+      style={styles.card}
+    >
       <Text style={[styles.sectionLbl, { color: theme.textMuted }]}>% grasa corporal</Text>
 
       {activeFat.result ? (
@@ -74,12 +85,13 @@ export default function NutriBodyFatPanel({
           </Text>
         </Text>
       ) : null}
-    </View>
+    </DesignCard>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { borderRadius: 10, borderWidth: 1, padding: 12, marginBottom: 12, gap: 8 },
+  card: { marginBottom: 12 },
+  inner: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 12, gap: 8 },
   sectionLbl: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
   fatLine: { fontSize: 15, lineHeight: 22, fontWeight: '600' },
   hint: { fontSize: 12, lineHeight: 17 },

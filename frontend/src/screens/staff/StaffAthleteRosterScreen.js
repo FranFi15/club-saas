@@ -20,6 +20,7 @@ import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import NutriBodyFatMethodHeaderPicker from '../../components/NutriBodyFatMethodHeaderPicker';
 import UserAvatar from '../../components/UserAvatar';
+import DesignCard from '../../components/DesignCard';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { sortEnrollmentsByAtleta } from '../../utils/listSort';
 
@@ -125,7 +126,86 @@ export default function StaffAthleteRosterScreen({ navigation, route }) {
     const primaryCat = item.categorias?.[0];
 
     return (
-      <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <DesignCard
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent={colorMarca}
+        onPress={
+          userRol === 'psicologo'
+            ? () =>
+                navigation.navigate('PsychologyAthleteNotes', {
+                  atletaId: a._id,
+                  atletaNombre: nombre,
+                })
+            : undefined
+        }
+        contentStyle={styles.cardInner}
+        footer={
+          showMeasurements || userRol === 'psicologo' || showWellness ? (
+            <View style={styles.actions}>
+              {showMeasurements ? (
+                <TouchableOpacity
+                  style={[
+                    styles.actionBtn,
+                    {
+                      borderColor: colorMarca,
+                      backgroundColor: colorMarca + '14',
+                      flex: showWellness ? 1 : undefined,
+                      flexGrow: showWellness ? undefined : 1,
+                    },
+                  ]}
+                  onPress={() =>
+                    navigation.navigate('CoachMeasurement', {
+                      atletaId: a._id,
+                      atletaNombre: nombre,
+                    })
+                  }
+                >
+                  <Ionicons name="analytics-outline" size={18} color={colorMarca} />
+                  <Text style={[styles.actionTxt, { color: colorMarca }]}>Mediciones</Text>
+                </TouchableOpacity>
+              ) : null}
+              {userRol === 'psicologo' ? (
+                <TouchableOpacity
+                  style={[
+                    styles.actionBtn,
+                    {
+                      borderColor: colorMarca,
+                      backgroundColor: colorMarca + '14',
+                      flex: showWellness ? 1 : undefined,
+                      flexGrow: showWellness ? undefined : 1,
+                    },
+                  ]}
+                  onPress={() =>
+                    navigation.navigate('PsychologyAthleteNotes', {
+                      atletaId: a._id,
+                      atletaNombre: nombre,
+                    })
+                  }
+                >
+                  <Ionicons name="document-text-outline" size={18} color={colorMarca} />
+                  <Text style={[styles.actionTxt, { color: colorMarca }]}>Notas</Text>
+                </TouchableOpacity>
+              ) : null}
+              {showWellness ? (
+                <TouchableOpacity
+                  style={[styles.actionBtn, { borderColor: theme.border, flex: 1 }]}
+                  onPress={() =>
+                    navigation.navigate('CoachWellness', {
+                      atletaId: a._id,
+                      atletaNombre: nombre,
+                      categoriaId: primaryCat?._id,
+                    })
+                  }
+                >
+                  <Ionicons name="pulse-outline" size={18} color={theme.text} />
+                  <Text style={[styles.actionTxt, { color: theme.text }]}>Wellness</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : null
+        }
+      >
         <View style={styles.cardTop}>
           <UserAvatar user={a} size={48} colorMarca={colorMarca} />
           <View style={{ flex: 1, minWidth: 0 }}>
@@ -139,48 +219,11 @@ export default function StaffAthleteRosterScreen({ navigation, route }) {
               {categoryLabel(item.categorias)}
             </Text>
           </View>
-        </View>
-
-        <View style={styles.actions}>
-          {showMeasurements ? (
-            <TouchableOpacity
-              style={[
-                styles.actionBtn,
-                {
-                  borderColor: colorMarca,
-                  backgroundColor: colorMarca + '14',
-                  flex: showWellness ? 1 : undefined,
-                  flexGrow: showWellness ? undefined : 1,
-                },
-              ]}
-              onPress={() =>
-                navigation.navigate('CoachMeasurement', {
-                  atletaId: a._id,
-                  atletaNombre: nombre,
-                })
-              }
-            >
-              <Ionicons name="analytics-outline" size={18} color={colorMarca} />
-              <Text style={[styles.actionTxt, { color: colorMarca }]}>Mediciones</Text>
-            </TouchableOpacity>
-          ) : null}
-          {showWellness ? (
-            <TouchableOpacity
-              style={[styles.actionBtn, { borderColor: theme.border, flex: 1 }]}
-              onPress={() =>
-                navigation.navigate('CoachWellness', {
-                  atletaId: a._id,
-                  atletaNombre: nombre,
-                  categoriaId: primaryCat?._id,
-                })
-              }
-            >
-              <Ionicons name="pulse-outline" size={18} color={theme.text} />
-              <Text style={[styles.actionTxt, { color: theme.text }]}>Wellness</Text>
-            </TouchableOpacity>
+          {userRol === 'psicologo' ? (
+            <Ionicons name="chevron-forward" size={20} color={theme.icon} />
           ) : null}
         </View>
-      </View>
+      </DesignCard>
     );
   };
 
@@ -291,13 +334,8 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 15, paddingVertical: 0 },
   listPad: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
   countHint: { fontSize: 12, marginBottom: 8 },
-  card: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 10,
-  },
-  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  cardInner: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 10 },
+  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   name: { fontSize: 17, fontWeight: '800' },
   dni: { fontSize: 12, marginTop: 2 },
   cats: { fontSize: 13, marginTop: 4, lineHeight: 18 },
