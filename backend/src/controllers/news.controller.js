@@ -1,6 +1,10 @@
 import asyncHandler from 'express-async-handler';
 import { v2 as cloudinary } from 'cloudinary';
 import { hijosDelTutorFilter } from '../utils/userQuery.js';
+import {
+    buildNewsFeedOrConditions,
+    buildStaffMuroListFilter,
+} from '../services/notificationFeed.service.js';
 
 const ADMIN_NEWS_VIEW = ['admin_club', 'administrativo'];
 const STAFF_NEWS_AUTHOR_ROLES = ['profe', 'preparador_fisico', 'nutricionista', 'psicologo'];
@@ -184,24 +188,7 @@ const createNews = asyncHandler(async (req, res) => {
 // @desc    Obtener el muro de noticias personalizado para el usuario logueado
 // @route   GET /api/news/feed
 const getMyNewsFeed = asyncHandler(async (req, res) => {
-    const { News, Enrollment } = req.models;
-    const userId = req.user._id;
-    const userRole = req.user.rol;
-
-    let misCategoriasIds = [];
-    let targetUsuarioIds = [userId];
-
-    if (userRole === 'tutor') {
-        const { User } = req.models;
-        const hijos = await User.find(hijosDelTutorFilter(userId)).select('_id');
-        const hijosIds = hijos.map((h) => h._id);
-        targetUsuarioIds = [userId, ...hijosIds];
-        const inscripcionesHijos = await Enrollment.find({ atleta: { $in: hijosIds }, estado: 'activo' });
-        misCategoriasIds = inscripcionesHijos.map((insc) => insc.categoria);
-    } else {
-        const misInscripciones = await Enrollment.find({ atleta: userId, estado: 'activo' });
-        misCategoriasIds = misInscripciones.map((insc) => insc.categoria);
-    }
+    const { News } = req.models;
 
     // Solo el muro (publicados desde Noticias). Avisos de sistema → notificaciones.
     const SISTEMA_TITULOS_LEGACY = [
@@ -216,26 +203,28 @@ const getMyNewsFeed = asyncHandler(async (req, res) => {
         { $set: { origen: 'sistema' } },
     );
 
-    const feed = await News.find({
-        origen: { $ne: 'sistema' },
-        $or: [
-            { alcance: 'global' }, // Avisos para todo el club
-            { alcance: 'rol', targetRoles: userRole }, // Avisos para "todos los atletas"
-            { alcance: 'categoria', targetCategorias: { $in: misCategoriasIds } }, // Avisos de su categoría
-            { alcance: 'usuario', targetUsuarios: { $in: targetUsuarioIds } },
-            { alcance: 'tutor', targetUsuarios: { $in: targetUsuarioIds } },
-        ]
-    })
-    .sort({ createdAt: -1 }) // Las más nuevas arriba
-    .populate('autor', 'nombre apellido rol fotoPerfil')
-    .limit(20); // Paginación básica (traemos las últimas 20)
+    const feedFilter = await buildNewsFeedOrConditions(req.user, req.models);
+    const feed = await News.find(feedFilter)
+        .sort({ createdAt: -1 })
+        .populate('autor', 'nombre apellido rol fotoPerfil')
+        .limit(40);
 
-    res.json(feed);
+    // Defensa: una noticia multi-categoría no debe aparecer duplicada.
+    const seen = new Set();
+    const unique = [];
+    for (const item of feed) {
+        const id = String(item._id);
+        if (seen.has(id)) continue;
+        seen.add(id);
+        unique.push(item);
+    }
+
+    res.json(unique);
 });
 
 const STAFF_AUTHOR_NEWS_VIEW = ['profe', 'nutricionista', 'psicologo', 'preparador_fisico'];
 
-// @desc    Listado admin (todas) o staff autores (solo sus publicaciones)
+// @desc    Listado admin (todas) o staff (muro visible + propias, sin duplicar)
 // @route   GET /api/news
 const getAllNews = asyncHandler(async (req, res) => {
     const { News } = req.models;
@@ -244,7 +233,7 @@ const getAllNews = asyncHandler(async (req, res) => {
     let query = { origen: { $ne: 'sistema' } };
     if (!ADMIN_NEWS_VIEW.includes(rol)) {
         if (STAFF_AUTHOR_NEWS_VIEW.includes(rol)) {
-            query = { autor: req.user._id, origen: { $ne: 'sistema' } };
+            query = await buildStaffMuroListFilter(req.user, req.models);
         } else {
             res.status(403);
             throw new Error('No tenés permiso para este listado de noticias.');
@@ -254,7 +243,17 @@ const getAllNews = asyncHandler(async (req, res) => {
     const news = await News.find(query)
         .sort({ createdAt: -1 })
         .populate('autor', 'nombre apellido rol fotoPerfil');
-    res.json(news);
+
+    const seen = new Set();
+    const unique = [];
+    for (const item of news) {
+        const id = String(item._id);
+        if (seen.has(id)) continue;
+        seen.add(id);
+        unique.push(item);
+    }
+
+    res.json(unique);
 });
 
 // @desc    Editar una noticia

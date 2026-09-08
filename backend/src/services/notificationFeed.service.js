@@ -2,9 +2,26 @@ import { hijosDelTutorFilter } from '../utils/userQuery.js';
 import { atletaCuotasEnApp } from '../utils/ageHelper.js';
 
 const CUOTA_NOTIFICATION_TIPOS = new Set(['cuota_vencida', 'cuota_proxima', 'pago_registrado']);
+const STAFF_NEWS_ROLES = ['profe', 'preparador_fisico', 'nutricionista', 'psicologo'];
 
+async function getStaffCategoryIds(userId, rol, Category) {
+    let query;
+    if (rol === 'profe') query = { profesores: userId };
+    else if (rol === 'preparador_fisico') query = { preparadoresFisicos: userId };
+    else if (rol === 'nutricionista') query = { nutricionistas: userId };
+    else if (rol === 'psicologo') query = { psicologos: userId };
+    else return [];
+
+    const cats = await Category.find(query).select('_id').lean();
+    return cats.map((c) => c._id);
+}
+
+/**
+ * Visibilidad del muro (origen != sistema).
+ * Una sola noticia con varias categorías aparece una vez aunque el staff esté en todas.
+ */
 export async function buildNewsFeedOrConditions(user, models) {
-    const { Enrollment, User } = models;
+    const { Enrollment, User, Category } = models;
     const userId = user._id;
     const userRole = user.rol;
 
@@ -20,6 +37,8 @@ export async function buildNewsFeedOrConditions(user, models) {
     } else if (userRole === 'atleta') {
         const misInscripciones = await Enrollment.find({ atleta: userId, estado: 'activo' });
         misCategoriasIds = misInscripciones.map((insc) => insc.categoria);
+    } else if (STAFF_NEWS_ROLES.includes(userRole)) {
+        misCategoriasIds = await getStaffCategoryIds(userId, userRole, Category);
     }
 
     return {
@@ -31,6 +50,15 @@ export async function buildNewsFeedOrConditions(user, models) {
             { alcance: 'usuario', targetUsuarios: { $in: targetUsuarioIds } },
             { alcance: 'tutor', targetUsuarios: { $in: targetUsuarioIds } },
         ],
+    };
+}
+
+/** Staff: muro visible + propias publicaciones (sin duplicar el mismo _id). */
+export async function buildStaffMuroListFilter(user, models) {
+    const feed = await buildNewsFeedOrConditions(user, models);
+    return {
+        origen: { $ne: 'sistema' },
+        $or: [{ autor: user._id }, ...(feed.$or || [])],
     };
 }
 
