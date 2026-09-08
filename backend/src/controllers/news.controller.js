@@ -1,6 +1,5 @@
 import asyncHandler from 'express-async-handler';
 import { v2 as cloudinary } from 'cloudinary';
-import { hijosDelTutorFilter } from '../utils/userQuery.js';
 import {
     buildNewsFeedOrConditions,
     buildStaffMuroListFilter,
