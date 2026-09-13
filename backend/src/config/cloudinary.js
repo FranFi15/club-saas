@@ -29,15 +29,46 @@ const ALLOWED_MIME = new Set([
     'image/webp',
     'image/heic',
     'image/heif',
+    'image/heic-sequence',
+    'image/heif-sequence',
     'application/pdf',
     'video/mp4',
     'video/quicktime',
     'video/webm',
 ]);
 
+const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
+const HEIC_EXT_RE = /\.hei[cf]$/i;
+const VIDEO_EXT_RE = /\.(mp4|mov|webm|m4v)$/i;
+
 const IMAGE_MAX = 5 * 1024 * 1024;
 const PDF_MAX = 10 * 1024 * 1024;
 const VIDEO_MAX = 25 * 1024 * 1024;
+
+function isHeicLike(mime, name) {
+    const m = (mime || '').toLowerCase();
+    const n = (name || '').toLowerCase();
+    return (
+        m.includes('heic') ||
+        m.includes('heif') ||
+        HEIC_EXT_RE.test(n)
+    );
+}
+
+function isAllowedMime(mime, name) {
+    const m = (mime || '').toLowerCase();
+    const n = (name || '').toLowerCase();
+
+    if (ALLOWED_MIME.has(m)) return true;
+
+    // iOS Photos / DocumentPicker often send HEIC as octet-stream or with an empty type.
+    if ((!m || m === 'application/octet-stream' || m === 'application/heic') && IMAGE_EXT_RE.test(n)) {
+        return true;
+    }
+    if (m === 'application/octet-stream' && n.endsWith('.pdf')) return true;
+
+    return false;
+}
 
 function classifyFile(file) {
     const mime = (file.mimetype || '').toLowerCase();
@@ -49,10 +80,10 @@ function classifyFile(file) {
         (mime === 'application/octet-stream' && name.endsWith('.pdf'));
     if (isPdf) return { kind: 'pdf', resource_type: 'raw', max: PDF_MAX };
 
-    if (mime.startsWith('video/') || /\.(mp4|mov|webm|m4v)$/i.test(name)) {
+    if (mime.startsWith('video/') || VIDEO_EXT_RE.test(name)) {
         return { kind: 'video', resource_type: 'video', max: VIDEO_MAX };
     }
-    if (mime.startsWith('image/') || /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(name)) {
+    if (mime.startsWith('image/') || IMAGE_EXT_RE.test(name) || isHeicLike(mime, name)) {
         return { kind: 'image', resource_type: 'image', max: IMAGE_MAX };
     }
     return null;
@@ -61,14 +92,11 @@ function classifyFile(file) {
 function fileFilter(req, file, cb) {
     const mime = (file.mimetype || '').toLowerCase();
     const name = (file.originalname || '').toLowerCase();
-    const okMime =
-        ALLOWED_MIME.has(mime) ||
-        (mime === 'application/octet-stream' && name.endsWith('.pdf'));
-    if (!okMime) {
-        return cb(new Error('Tipo de archivo no permitido. Usá imagen, PDF o video.'));
+    if (!isAllowedMime(mime, name)) {
+        return cb(new Error('Tipo de archivo no permitido. Usá imagen (incluye fotos de iPhone), PDF o video.'));
     }
     if (!classifyFile(file)) {
-        return cb(new Error('Tipo de archivo no permitido. Usá imagen, PDF o video.'));
+        return cb(new Error('Tipo de archivo no permitido. Usá imagen (incluye fotos de iPhone), PDF o video.'));
     }
     return cb(null, true);
 }
@@ -80,10 +108,13 @@ const storage = new CloudinaryStorage({
         if (!classified) {
             throw new Error('Tipo de archivo no permitido.');
         }
+        const heic = isHeicLike(file.mimetype, file.originalname);
         return {
             folder: 'gpsports_uploads',
             resource_type: classified.resource_type,
             allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'pdf', 'mp4', 'mov', 'webm'],
+            // Normalize iPhone HEIC so noticias / docs display everywhere as JPEG.
+            ...(classified.kind === 'image' && heic ? { format: 'jpg' } : {}),
         };
     },
 });

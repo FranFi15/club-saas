@@ -14,7 +14,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../utils/api';
 import { clubHeaders } from '../screens/athlete/athleteApi';
-import { uploadFileToClub, pickWebFile, imageFromPickerAsset } from '../utils/uploadMedia';
+import { uploadFileToClub, pickWebFile, imageFromPickerAsset, iosCompatiblePhotoOptions } from '../utils/uploadMedia';
 import PaymentPaySummary from './PaymentPaySummary';
 import TransferBankInfo from './TransferBankInfo';
 
@@ -91,6 +91,7 @@ export default function MemberPayFlowModal({
         mediaTypes: ['images'],
         allowsEditing: false,
         quality: 0.85,
+        ...iosCompatiblePhotoOptions(),
         ...(Platform.OS === 'ios' && ImagePicker.UIImagePickerPresentationStyle
           ? { presentationStyle: ImagePicker.UIImagePickerPresentationStyle.FULL_SCREEN }
           : {}),

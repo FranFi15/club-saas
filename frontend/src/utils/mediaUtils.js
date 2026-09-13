@@ -14,7 +14,7 @@ export function detectMediaKind(url) {
 
   if (u.includes('/raw/upload') || /\.pdf(\?|$)/.test(u)) return 'pdf';
   if (u.includes('/video/upload') || /\.(mp4|mov|webm|m4v|avi)(\?|$)/.test(u)) return 'video';
-  if (u.includes('/image/upload') || /\.(jpe?g|png|gif|webp|bmp)(\?|$)/.test(u)) return 'image';
+  if (u.includes('/image/upload') || /\.(jpe?g|png|gif|webp|bmp|heic|heif)(\?|$)/.test(u)) return 'image';
 
   try {
     const parsed = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`);

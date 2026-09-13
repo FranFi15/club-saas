@@ -22,7 +22,7 @@ import CoachScreenHeader from '../../components/CoachScreenHeader';
 import { clubHeaders, memberScopeParams } from './athleteApi';
 import { pickPaginatedRows } from '../../utils/paginatedApi';
 import { detectMediaKind, openMediaViewer, downloadMediaFile } from '../../utils/mediaUtils';
-import { uploadFileToClub, pickWebFile } from '../../utils/uploadMedia';
+import { uploadFileToClub, pickWebFile, imageFromPickerAsset, iosCompatiblePhotoOptions } from '../../utils/uploadMedia';
 import MemberChildPicker from '../../components/MemberChildPicker';
 import DesignCard from '../../components/DesignCard';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
@@ -125,11 +125,20 @@ export default function AthleteDocumentsScreen({ navigation }) {
   const handlePickFor = async (reqItem) => {
     setUploadingId(reqItem._id);
     try {
-      const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['image/*', 'image/heic', 'image/heif', 'application/pdf'],
+        copyToCacheDirectory: true,
+      });
       if (result.canceled || !result.assets?.[0]) return;
       const doc = result.assets[0];
       const name = doc.name || 'documento.pdf';
-      const mime = doc.mimeType || 'application/pdf';
+      const mime =
+        doc.mimeType ||
+        (/\.hei[cf]$/i.test(name)
+          ? 'image/heic'
+          : name.toLowerCase().endsWith('.pdf')
+            ? 'application/pdf'
+            : 'image/jpeg');
       const { url } = await uploadFileToClub(clubData, doc.uri, name, mime, {
         webFile: pickWebFile(doc, result),
       });
@@ -154,12 +163,12 @@ export default function AthleteDocumentsScreen({ navigation }) {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         quality: 0.85,
+        ...iosCompatiblePhotoOptions(),
       });
       if (result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
-      const name = asset.fileName || 'foto.jpg';
-      const mime = asset.mimeType || 'image/jpeg';
-      const { url } = await uploadFileToClub(clubData, asset.uri, name, mime, {
+      const { filename, mime } = imageFromPickerAsset(asset, asset.uri);
+      const { url } = await uploadFileToClub(clubData, asset.uri, filename, mime, {
         webFile: pickWebFile(asset, result),
       });
       await submitForRequirement(reqItem._id, url);

@@ -14,7 +14,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../utils/api';
 import { clubHeaders } from '../screens/athlete/athleteApi';
-import { uploadFileToClub, pickWebFile } from '../utils/uploadMedia';
+import { uploadFileToClub, pickWebFile, imageFromPickerAsset, iosCompatiblePhotoOptions } from '../utils/uploadMedia';
 import PaymentPaySummary from './PaymentPaySummary';
 
 export default function TransferProofModal({
@@ -75,6 +75,7 @@ export default function TransferProofModal({
         mediaTypes: ['images'],
         allowsEditing: false,
         quality: 0.85,
+        ...iosCompatiblePhotoOptions(),
         ...(Platform.OS === 'ios' && ImagePicker.UIImagePickerPresentationStyle
           ? { presentationStyle: ImagePicker.UIImagePickerPresentationStyle.FULL_SCREEN }
           : {}),
@@ -91,11 +92,7 @@ export default function TransferProofModal({
     try {
       const asset = result.assets[0];
       const uri = asset.uri;
-      const filename =
-        asset.fileName ||
-        uri.split('/').pop()?.split('?')[0] ||
-        `comprobante-${Date.now()}.jpg`;
-      const mime = asset.mimeType || (filename.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg');
+      const { filename, mime } = imageFromPickerAsset(asset, uri);
       const { url } = await uploadFileToClub(clubData, uri, filename, mime, {
         webFile: pickWebFile(asset, result),
       });

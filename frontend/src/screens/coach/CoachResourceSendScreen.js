@@ -22,7 +22,7 @@ import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
 import { clubApi } from '../../utils/api';
-import { uploadFileToClub, pickWebFile } from '../../utils/uploadMedia';
+import { uploadFileToClub, pickWebFile, imageFromPickerAsset, iosCompatiblePhotoOptions } from '../../utils/uploadMedia';
 import { normalizeYouTubeWatchUrl } from '../../utils/youtubeUrl';
 import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
@@ -289,6 +289,7 @@ export default function CoachResourceSendScreen({ navigation }) {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 0.85,
+      ...iosCompatiblePhotoOptions(),
     });
     if (result.canceled || !result.assets?.[0]) return;
     const asset = result.assets[0];
@@ -296,10 +297,8 @@ export default function CoachResourceSendScreen({ navigation }) {
       showAlert('Solo fotos', 'Por ahora no se pueden subir videos. Usá una foto, un PDF o un enlace externo.');
       return;
     }
-    const rawName = asset.fileName || asset.uri.split('/').pop() || 'foto.jpg';
-    const ext = (rawName.split('.').pop() || 'jpeg').toLowerCase().replace('jpg', 'jpeg');
-    const mime = asset.mimeType || `image/${ext}`;
-    await uploadFile(asset.uri, rawName, mime, pickWebFile(asset, result));
+    const { filename, mime } = imageFromPickerAsset(asset, asset.uri);
+    await uploadFile(asset.uri, filename, mime, pickWebFile(asset, result));
   };
 
   const pickPdf = async () => {

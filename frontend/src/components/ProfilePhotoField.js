@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'rea
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import UserAvatar from './UserAvatar';
-import { uploadFileToClub } from '../utils/uploadMedia';
+import { uploadFileToClub, imageFromPickerAsset, iosCompatiblePhotoOptions } from '../utils/uploadMedia';
 
 /**
  * Selector y vista previa de foto de perfil (sube a Cloudinary vía /api/upload).
@@ -30,6 +30,7 @@ export default function ProfilePhotoField({
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.85,
+      ...iosCompatiblePhotoOptions(),
     });
 
     if (result.canceled || !result.assets?.[0]) return;
@@ -38,9 +39,7 @@ export default function ProfilePhotoField({
     try {
       const asset = result.assets[0];
       const uri = asset.uri;
-      const filename = uri.split('/').pop() || 'perfil.jpg';
-      const ext = (filename.split('.').pop() || 'jpg').replace('jpg', 'jpeg');
-      const mime = asset.mimeType || `image/${ext}`;
+      const { filename, mime } = imageFromPickerAsset(asset, uri);
       const { url } = await uploadFileToClub(clubData, uri, filename, mime);
       onChange?.(url);
     } catch (e) {

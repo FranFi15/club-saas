@@ -1,7 +1,7 @@
 import { Platform, Linking } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { uploadFileToClub, pickWebFile, imageFromPickerAsset } from '../../../utils/uploadMedia';
+import { uploadFileToClub, pickWebFile, imageFromPickerAsset, iosCompatiblePhotoOptions } from '../../../utils/uploadMedia';
 
 /** Pick image or PDF and upload to club Cloudinary. Returns URL or null if cancelled. */
 export async function pickAndUploadAttachment(clubData, { preferDocument = false } = {}) {
@@ -15,7 +15,7 @@ export async function pickAndUploadAttachment(clubData, { preferDocument = false
       // Document picker covers PDF + images on web
     }
     const result = await DocumentPicker.getDocumentAsync({
-      type: ['image/*', 'application/pdf'],
+      type: ['image/*', 'image/heic', 'image/heif', 'application/pdf'],
       copyToCacheDirectory: true,
       multiple: false,
     });
@@ -23,11 +23,17 @@ export async function pickAndUploadAttachment(clubData, { preferDocument = false
     const asset = result.assets[0];
     uri = asset.uri;
     filename = asset.name || `archivo-${Date.now()}`;
-    mime = asset.mimeType || (filename.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+    mime =
+      asset.mimeType ||
+      (/\.hei[cf]$/i.test(filename)
+        ? 'image/heic'
+        : filename.toLowerCase().endsWith('.pdf')
+          ? 'application/pdf'
+          : 'image/jpeg');
     webFile = pickWebFile(asset, result);
   } else {
     const choice = await DocumentPicker.getDocumentAsync({
-      type: ['image/*', 'application/pdf'],
+      type: ['image/*', 'image/heic', 'image/heif', 'application/pdf'],
       copyToCacheDirectory: true,
       multiple: false,
     });
@@ -35,7 +41,13 @@ export async function pickAndUploadAttachment(clubData, { preferDocument = false
     const asset = choice.assets[0];
     uri = asset.uri;
     filename = asset.name || `archivo-${Date.now()}`;
-    mime = asset.mimeType || (filename.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+    mime =
+      asset.mimeType ||
+      (/\.hei[cf]$/i.test(filename)
+        ? 'image/heic'
+        : filename.toLowerCase().endsWith('.pdf')
+          ? 'application/pdf'
+          : 'image/jpeg');
   }
 
   const { url } = await uploadFileToClub(clubData, uri, filename, mime, { webFile });
@@ -50,6 +62,7 @@ export async function pickAndUploadImage(clubData) {
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
     quality: 0.85,
+    ...iosCompatiblePhotoOptions(),
     ...(Platform.OS === 'ios' && ImagePicker.UIImagePickerPresentationStyle
       ? { presentationStyle: ImagePicker.UIImagePickerPresentationStyle.FULL_SCREEN }
       : {}),

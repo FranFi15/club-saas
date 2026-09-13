@@ -15,7 +15,7 @@ import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { sortByNombre, sortUsersByName } from '../../utils/listSort';
 import CoachNewsAthletePicker from '../../components/CoachNewsAthletePicker';
 import NewsMultiSelectList from '../../components/NewsMultiSelectList';
-import { uploadFileToClub } from '../../utils/uploadMedia';
+import { uploadFileToClub, imageFromPickerAsset, iosCompatiblePhotoOptions } from '../../utils/uploadMedia';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { useBadgesOptional } from '../../context/BadgeContext';
 import { useFocusEffect } from '@react-navigation/native';
@@ -279,19 +279,19 @@ export default function NoticiasScreen({ navigation, route }) {
       allowsEditing: true,
       aspect: [16, 9],
       quality: 0.8,
+      ...iosCompatiblePhotoOptions(),
     });
 
     if (!result.canceled && result.assets[0]) {
-      await uploadImage(result.assets[0].uri);
+      await uploadImage(result.assets[0]);
     }
   };
 
-  const uploadImage = async (uri) => {
+  const uploadImage = async (asset) => {
     setIsUploading(true);
     try {
-      const filename = uri.split('/').pop() || 'imagen.jpg';
-      const ext = (filename.split('.').pop() || 'jpg').replace('jpg', 'jpeg');
-      const mime = `image/${ext}`;
+      const uri = asset.uri;
+      const { filename, mime } = imageFromPickerAsset(asset, uri);
       const { url, publicId } = await uploadFileToClub(clubData, uri, filename, mime);
       setFormData((prev) => ({ ...prev, imagen: { url, publicId } }));
     } catch (e) {

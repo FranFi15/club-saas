@@ -1,8 +1,19 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as ImagePicker from 'expo-image-picker';
 import { clubApi } from './api';
 import { CLUB_API_BASE } from './apiConfig';
 import { clubHeaders } from '../screens/athlete/athleteApi';
+
+/**
+ * On iOS, prefer a JPEG/PNG representation of Photos (HEIC → compatible).
+ * Avoids upload / preview failures with native HEIC.
+ */
+export function iosCompatiblePhotoOptions() {
+  if (Platform.OS !== 'ios') return {};
+  const mode = ImagePicker.UIImagePickerPreferredAssetRepresentationMode?.Compatible;
+  return mode ? { preferredAssetRepresentationMode: mode } : {};
+}
 
 /**
  * En Android, content:// no siempre funciona con FormData; copiamos a caché.
@@ -178,20 +189,34 @@ export function pickWebFile(asset, pickerResult) {
   return undefined;
 }
 
-/** Nombre y MIME correctos para fotos del picker (incluye HEIC de iOS). */
+/** Nombre y MIME correctos para fotos del picker (incluye HEIC/HEIF de iPhone). */
 export function imageFromPickerAsset(asset, uri) {
-  const uriPart = uri?.split('/').pop()?.split('?')[0];
-  const filename = asset?.fileName || uriPart || `imagen-${Date.now()}.jpg`;
-  const lower = filename.toLowerCase();
-  let mime = asset?.mimeType || '';
+  const uriPart = uri?.split('/').pop()?.split('?')[0] || '';
+  let filename = asset?.fileName || asset?.name || uriPart || `imagen-${Date.now()}.jpg`;
+  const lowerName = filename.toLowerCase();
+  const lowerUri = String(uri || '').toLowerCase();
+  let mime = String(asset?.mimeType || '').toLowerCase();
 
-  if (!mime) {
-    if (lower.endsWith('.png')) mime = 'image/png';
-    else if (lower.endsWith('.webp')) mime = 'image/webp';
-    else if (lower.endsWith('.gif')) mime = 'image/gif';
-    else if (lower.endsWith('.heic')) mime = 'image/heic';
-    else if (lower.endsWith('.heif')) mime = 'image/heif';
+  const looksHeic =
+    mime.includes('heic') ||
+    mime.includes('heif') ||
+    lowerName.endsWith('.heic') ||
+    lowerName.endsWith('.heif') ||
+    /\.hei[cf](\?|$)/i.test(lowerUri);
+
+  if (!mime || mime === 'application/octet-stream' || mime === 'application/heic') {
+    if (looksHeic) {
+      mime = lowerName.endsWith('.heif') || lowerUri.includes('.heif') ? 'image/heif' : 'image/heic';
+    } else if (lowerName.endsWith('.png') || lowerUri.includes('.png')) mime = 'image/png';
+    else if (lowerName.endsWith('.webp') || lowerUri.includes('.webp')) mime = 'image/webp';
+    else if (lowerName.endsWith('.gif') || lowerUri.includes('.gif')) mime = 'image/gif';
     else mime = 'image/jpeg';
+  }
+
+  // Backend also keys off the extension when MIME is blank/octet-stream.
+  if (looksHeic && !/\.hei[cf]$/i.test(filename)) {
+    const base = filename.replace(/\.[^.]+$/, '') || 'foto';
+    filename = `${base}.heic`;
   }
 
   return { filename, mime };
