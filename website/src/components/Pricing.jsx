@@ -28,7 +28,7 @@ export default function Pricing() {
         <p className="section__eyebrow">Precios</p>
         <h2 className="section__title">Calculá el abono de tu club</h2>
         <p className="section__lead">
-          Elegí el tramo según la cantidad de atletas: todos se cobran a esa tarifa. Ingresá cuántos
+          Elegí el tramo según la cantidad de atletas/socios: todos se cobran a esa tarifa. Ingresá cuántos
           tenés y ves el total mensual al instante.
         </p>
 
@@ -44,7 +44,7 @@ export default function Pricing() {
                 <p className="pricing__rate-range">{tierRangeLabel(tier, index, PRICING.tiers)}</p>
                 <p className="pricing__rate-value">
                   {formatArs(tier.rate)}
-                  <span> / atleta</span>
+                  <span> / atleta/socio</span>
                 </p>
               </div>
             );
@@ -53,7 +53,7 @@ export default function Pricing() {
 
         <div className="pricing__calc">
           <label className="pricing__label" htmlFor="athlete-count">
-            ¿Cuántos atletas activos tiene tu club?
+            ¿Cuántos atletas/socios activos tiene tu club?
           </label>
           <div className="pricing__controls">
             <input
@@ -74,11 +74,11 @@ export default function Pricing() {
               step={10}
               value={Math.min(athletes, SLIDER_MAX)}
               onChange={(e) => setAthletes(Number(e.target.value))}
-              aria-label="Deslizá para estimar atletas"
+              aria-label="Deslizá para estimar atletas/socios"
             />
           </div>
           <p id="pricing-hint" className="pricing__hint">
-            Se cobran solo atletas activos. Tutores y staff no suman al abono.
+            Se cobran solo atletas/socios activos. Tutores y staff no suman al abono.
             {PRICING.minimumMonthly > 0
               ? ` Mínimo mensual: ${formatArs(PRICING.minimumMonthly)}.`
               : null}

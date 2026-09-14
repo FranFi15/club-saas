@@ -4,10 +4,143 @@ import { buildClubEntryToken, parseClubEntryToken } from '../services/clubEntryT
 import { markOverduePayments } from '../services/overduePayments.service.js';
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const CLIENT_BILLING_ROLES = ['atleta', 'tutor', 'socio'];
 
 function formatCuotaPeriodo(p) {
     const mes = MESES[(Number(p.mes) || 1) - 1] || p.mes;
     return `${mes} ${p.anio}`;
+}
+
+function formatMoney(n) {
+    return Number(n || 0).toLocaleString('es-AR');
+}
+
+/**
+ * Snapshot de planes / cuota social / mora para el escáner de ingreso.
+ */
+async function buildMemberBillingSnapshot(models, member) {
+    const { Enrollment, Payment, SocialFee } = models;
+    const now = new Date();
+    const mes = now.getMonth() + 1;
+    const anio = now.getFullYear();
+    const userId = member._id;
+
+    const isMorosoFlag = member.estado === 'moroso';
+    const exentoSocial = member.exentoCuotaSocial === true;
+
+    let planes = [];
+    if (member.rol === 'atleta') {
+        const enrollments = await Enrollment.find({
+            atleta: userId,
+            estado: 'activo',
+            esFacturacion: true,
+            plan: { $ne: null },
+        })
+            .populate('plan', 'nombre monto')
+            .populate('categoria', 'nombre')
+            .lean();
+        planes = enrollments
+            .filter((e) => e.plan)
+            .map((e) => ({
+                planNombre: e.plan.nombre,
+                planMonto: Number(e.plan.monto) || 0,
+                categoriaNombre: e.categoria?.nombre || '',
+                label: e.categoria?.nombre
+                    ? `${e.plan.nombre} · ${e.categoria.nombre}`
+                    : e.plan.nombre,
+            }));
+    }
+
+    let cuotaSocial = null;
+    if (CLIENT_BILLING_ROLES.includes(member.rol)) {
+        if (exentoSocial) {
+            cuotaSocial = { exento: true, nombre: null, monto: null };
+        } else if (member.cuotaSocialAsignada) {
+            const fee =
+                typeof member.cuotaSocialAsignada === 'object' && member.cuotaSocialAsignada?.nombre
+                    ? member.cuotaSocialAsignada
+                    : await SocialFee.findById(member.cuotaSocialAsignada)
+                          .select('nombre monto activo')
+                          .lean();
+            if (fee) {
+                cuotaSocial = {
+                    exento: false,
+                    nombre: fee.nombre,
+                    monto: Number(fee.monto) || 0,
+                    activo: fee.activo !== false,
+                };
+            }
+        } else {
+            cuotaSocial = { exento: false, nombre: null, monto: null, sinAsignar: true };
+        }
+    }
+
+    const monthPayments = await Payment.find({ atleta: userId, mes, anio })
+        .populate('plan', 'nombre')
+        .populate('cuotaSocial', 'nombre')
+        .select('tipo estado montoFinal plan cuotaSocial')
+        .lean();
+
+    const mesActual = monthPayments.map((p) => ({
+        tipo: p.tipo || 'entrenamiento',
+        estado: p.estado,
+        montoFinal: Number(p.montoFinal) || 0,
+        nombre:
+            p.tipo === 'social'
+                ? p.cuotaSocial?.nombre || 'Cuota social'
+                : p.plan?.nombre || 'Cuota entrenamiento',
+    }));
+
+    const vencidas = await Payment.find({ atleta: userId, estado: 'vencido' })
+        .select('mes anio tipo')
+        .sort({ anio: -1, mes: -1 })
+        .limit(4)
+        .lean();
+    const cuotasVencidasCount = await Payment.countDocuments({ atleta: userId, estado: 'vencido' });
+
+    const hasVencidas = cuotasVencidasCount > 0;
+    const isMoroso = isMorosoFlag || hasVencidas;
+    const alDia = !isMoroso;
+
+    let resumenEstado = 'al_dia';
+    if (isMorosoFlag) resumenEstado = 'moroso';
+    else if (hasVencidas) resumenEstado = 'vencidas';
+    else if (
+        CLIENT_BILLING_ROLES.includes(member.rol) &&
+        !exentoSocial &&
+        !planes.length &&
+        (!cuotaSocial || cuotaSocial.sinAsignar)
+    ) {
+        resumenEstado = 'sin_cuota';
+    }
+
+    return {
+        alDia,
+        isMoroso,
+        resumenEstado,
+        estadoUsuario: member.estado,
+        planes,
+        cuotaSocial,
+        mesActual,
+        mes,
+        anio,
+        cuotasVencidasCount,
+        periodosVencidos: vencidas.map(formatCuotaPeriodo),
+        planLabels: planes.map((p) => p.label),
+        planSummary:
+            planes.length === 0
+                ? member.rol === 'atleta'
+                    ? 'Sin plan de entrenamiento'
+                    : null
+                : planes.map((p) => `${p.label} ($${formatMoney(p.planMonto)})`).join(' · '),
+        socialSummary: !CLIENT_BILLING_ROLES.includes(member.rol)
+            ? null
+            : exentoSocial
+              ? 'Exento de cuota social'
+              : cuotaSocial?.nombre
+                ? `${cuotaSocial.nombre} ($${formatMoney(cuotaSocial.monto)})`
+                : 'Sin cuota social asignada',
+    };
 }
 
 const MEMBER_QR_ROLES = [
@@ -130,10 +263,12 @@ const getMyClubEntryQr = asyncHandler(async (req, res) => {
 // @route POST /api/club-entry/scan
 const scanClubEntryQr = asyncHandler(async (req, res) => {
     const { token } = req.body || {};
-    const { User, ClubEntry, Payment } = req.models;
+    const { User, ClubEntry } = req.models;
 
     const parsed = parseClubEntryToken(token, req.clubIdentifier);
-    const member = await User.findById(parsed.userId).select('-password');
+    const member = await User.findById(parsed.userId)
+        .select('-password')
+        .populate('cuotaSocialAsignada', 'nombre monto activo');
     if (!member) {
         res.status(404);
         throw new Error('Socio no encontrado en este club.');
@@ -149,26 +284,18 @@ const scanClubEntryQr = asyncHandler(async (req, res) => {
     }
 
     // Actualizar cuotas vencidas de este socio y avisar (no bloquea el ingreso).
-    let cuotasVencidasCount = 0;
-    let periodosSample = [];
+    let billing = null;
     try {
         await markOverduePayments(req.models, { atleta: member._id });
-        cuotasVencidasCount = await Payment.countDocuments({ atleta: member._id, estado: 'vencido' });
-        if (cuotasVencidasCount > 0) {
-            const sample = await Payment.find({ atleta: member._id, estado: 'vencido' })
-                .select('mes anio')
-                .sort({ anio: -1, mes: -1 })
-                .limit(4)
-                .lean();
-            periodosSample = sample.map(formatCuotaPeriodo);
-        }
+        billing = await buildMemberBillingSnapshot(req.models, member);
     } catch (e) {
-        console.warn('[club-entry] cuotas vencidas:', e.message);
+        console.warn('[club-entry] billing snapshot:', e.message);
     }
 
+    const cuotasVencidasCount = billing?.cuotasVencidasCount || 0;
     if (cuotasVencidasCount > 0) {
-        let periodos = periodosSample.join(', ');
-        if (cuotasVencidasCount > periodosSample.length) {
+        let periodos = (billing.periodosVencidos || []).join(', ');
+        if (cuotasVencidasCount > (billing.periodosVencidos || []).length) {
             periodos += '…';
         }
         warnings.push(
@@ -222,6 +349,7 @@ const scanClubEntryQr = asyncHandler(async (req, res) => {
         warnings,
         hasCuotasVencidas: cuotasVencidasCount > 0,
         cuotasVencidasCount,
+        billing,
         scannedAt: entry.scannedAt,
         member: entryUserPayload(member),
         visitor: null,
