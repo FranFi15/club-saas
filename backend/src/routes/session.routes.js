@@ -45,7 +45,12 @@ router.get('/reubicacion-pendiente', protect, authorize('profe', 'preparador_fis
 router.patch('/reubicacion/bulk', protect, authorize('profe', 'preparador_fisico', 'admin_club', 'administrativo'), bulkRelocateSessions);
 router.get('/restauracion-disponible', protect, authorize('profe', 'preparador_fisico', 'admin_club', 'administrativo'), getRestorableSessions);
 router.patch('/restauracion/bulk', protect, authorize('profe', 'preparador_fisico', 'admin_club', 'administrativo'), bulkRestoreSessions);
-router.get('/profe/stats', protect, authorize('profe', 'preparador_fisico'), getCoachSessionStats);
+router.get(
+    '/profe/stats',
+    protect,
+    authorize('profe', 'preparador_fisico', 'admin_club', 'administrativo'),
+    getCoachSessionStats,
+);
 router.get('/asistencia/mi-resumen', protect, authorize('atleta'), getMyAttendanceResumen);
 router.get(
     '/categoria/:categoryId/asistencia-resumen',

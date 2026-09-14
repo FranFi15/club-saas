@@ -405,12 +405,19 @@ async function populateSessionDetail(sessDoc) {
 async function resolveCoachCategoriesFilter(req, res) {
     const { Category } = req.models;
     const { categoriaId } = req.query;
+    const rol = req.user.rol;
 
-    const catFilter =
-        req.user.rol === 'preparador_fisico'
-            ? { preparadoresFisicos: req.user._id }
-            : { profesores: req.user._id };
-    const misCats = await Category.find(catFilter).select('_id nombre').sort({ nombre: 1 });
+    let misCats;
+    if (rol === 'admin_club' || rol === 'administrativo') {
+        // Club staff: all categories (tenant-scoped models).
+        misCats = await Category.find({}).select('_id nombre').sort({ nombre: 1 });
+    } else {
+        const catFilter =
+            rol === 'preparador_fisico'
+                ? { preparadoresFisicos: req.user._id }
+                : { profesores: req.user._id };
+        misCats = await Category.find(catFilter).select('_id nombre').sort({ nombre: 1 });
+    }
 
     if (misCats.length === 0) {
         return { misCats, catIds: [], categoriaSeleccionada: null };
