@@ -4,7 +4,7 @@ import { atletasDeTutoresFilter, hijosDelTutorFilter } from '../utils/userQuery.
 import { syncFamilyDiscountForAthlete } from '../services/familyDiscount.service.js';
 import { countDocsPendientesAtleta, tutorAthleteHasAlerts } from '../services/badgeCounts.service.js';
 import { isAssignableUserRole, canAssignUserRole, CLIENT_USER_ROLES } from '../constants/userRoles.js';
-import { ensureCurrentMonthSocialFeeForUser } from '../services/generateSocialFees.service.js';
+import { ensureCurrentMonthSocialFeeForUser, resolveUserSocialFeeAssignment } from '../services/generateSocialFees.service.js';
 import { syncAthleteCountToSuper } from '../services/athleteQuota.service.js';
 import { registerUserPushToken, unregisterUserPushToken } from '../services/pushNotification.service.js';
 import { syncStaffGroupChatSafe } from '../services/staffGroupChat.service.js';
@@ -26,6 +26,7 @@ const registerUser = asyncHandler(async (req, res) => {
         cuotasEnApp,
         sexo,
         exentoCuotaSocial,
+        cuotaSocialAsignada,
     } = req.body;
 
     const { User } = req.models;
@@ -47,6 +48,20 @@ const registerUser = asyncHandler(async (req, res) => {
         throw new Error('Solo el administrador del club puede crear ese tipo de cuenta.');
     }
 
+    let socialAssignment = { exentoCuotaSocial: false, cuotaSocialAsignada: null };
+    if (CLIENT_USER_ROLES.includes(rol)) {
+        try {
+            socialAssignment = await resolveUserSocialFeeAssignment(req.models, {
+                rol,
+                exentoCuotaSocial,
+                cuotaSocialAsignada,
+            });
+        } catch (e) {
+            res.status(e.statusCode || 400);
+            throw e;
+        }
+    }
+
     const user = await User.create({
         nombre,
         apellido,
@@ -59,7 +74,8 @@ const registerUser = asyncHandler(async (req, res) => {
         fechaNacimiento: fechaNacimiento || undefined,
         cuotasEnApp: rol === 'atleta' ? cuotasEnApp !== false : undefined,
         sexo: rol === 'atleta' && (sexo === 'M' || sexo === 'F') ? sexo : '',
-        exentoCuotaSocial: exentoCuotaSocial === true || exentoCuotaSocial === 'true',
+        exentoCuotaSocial: socialAssignment.exentoCuotaSocial,
+        cuotaSocialAsignada: socialAssignment.cuotaSocialAsignada || undefined,
     });
 
     if (user) {
@@ -246,9 +262,32 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
         }
     }
 
-    if (req.body.exentoCuotaSocial !== undefined) {
-        user.exentoCuotaSocial =
-            req.body.exentoCuotaSocial === true || req.body.exentoCuotaSocial === 'true';
+    if (req.body.exentoCuotaSocial !== undefined || req.body.cuotaSocialAsignada !== undefined || req.body.rol) {
+        const nextRol = req.body.rol || user.rol;
+        if (CLIENT_USER_ROLES.includes(nextRol)) {
+            try {
+                const socialAssignment = await resolveUserSocialFeeAssignment(req.models, {
+                    rol: nextRol,
+                    exentoCuotaSocial:
+                        req.body.exentoCuotaSocial !== undefined
+                            ? req.body.exentoCuotaSocial
+                            : user.exentoCuotaSocial,
+                    cuotaSocialAsignada:
+                        req.body.cuotaSocialAsignada !== undefined
+                            ? req.body.cuotaSocialAsignada
+                            : user.cuotaSocialAsignada,
+                });
+                user.exentoCuotaSocial = socialAssignment.exentoCuotaSocial;
+                user.cuotaSocialAsignada = socialAssignment.cuotaSocialAsignada;
+            } catch (e) {
+                res.status(e.statusCode || 400);
+                throw e;
+            }
+        } else if (req.body.exentoCuotaSocial !== undefined) {
+            user.exentoCuotaSocial =
+                req.body.exentoCuotaSocial === true || req.body.exentoCuotaSocial === 'true';
+            if (user.exentoCuotaSocial) user.cuotaSocialAsignada = null;
+        }
     }
 
     const updatedUser = await user.save();
@@ -274,7 +313,17 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
         estado: updatedUser.estado,
         fotoPerfil: updatedUser.fotoPerfil,
         cuotasEnApp: updatedUser.rol === 'atleta' ? atletaCuotasEnApp(updatedUser) : undefined,
+        exentoCuotaSocial: updatedUser.exentoCuotaSocial,
+        cuotaSocialAsignada: updatedUser.cuotaSocialAsignada,
     });
+
+    if (CLIENT_USER_ROLES.includes(updatedUser.rol)) {
+        try {
+            await ensureCurrentMonthSocialFeeForUser(req.models, updatedUser);
+        } catch (e) {
+            console.log('Cuota social al actualizar usuario:', e.message);
+        }
+    }
 
     if (rolAnterior === 'atleta' || updatedUser.rol === 'atleta') {
         await syncAthleteCountToSuper(req.models, req.clubIdentifier);

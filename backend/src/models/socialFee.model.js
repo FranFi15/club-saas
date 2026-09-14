@@ -1,42 +1,48 @@
 import mongoose from 'mongoose';
 
-/** Roles de cliente que pagan cuota social por defecto. */
+/** Roles de cliente que pueden recibir cuota social. */
 export const SOCIAL_FEE_DEFAULT_ROLES = ['atleta', 'tutor', 'socio'];
 
 /** Roles que pueden ser alcanzados por la cuota social. */
 export const SOCIAL_FEE_ELIGIBLE_ROLES = ['atleta', 'tutor', 'socio'];
 
 /**
- * Configuración de la cuota social del club: un único documento por tenant.
- * `singletonKey` garantiza esa unicidad y permite upserts atómicos.
+ * Tipos de cuota social del club (varios por tenant).
+ * `rolesAutoAsignacion`: roles que reciben este tipo automáticamente
+ * (a lo sumo un fee activo por rol).
  */
 const socialFeeSchema = new mongoose.Schema(
     {
-        singletonKey: {
-            type: String,
-            default: 'social-fee',
-            unique: true,
-            immutable: true,
-        },
+        /** Legacy singleton key — kept optional for migration; no longer unique. */
+        singletonKey: { type: String, trim: true, default: undefined },
         nombre: { type: String, default: 'Cuota social', trim: true },
         descripcion: { type: String, trim: true, default: '' },
         monto: { type: Number, default: 0, min: 0 },
         diaVencimiento: { type: Number, default: 10, min: 1, max: 28 },
         /** Recargo % sobre montoFinal al pasar a vencido. */
         porcentajeRecargo: { type: Number, default: 0, min: 0, max: 100 },
-        /** Mientras esté en false no se generan cuotas sociales. */
+        /** Mientras esté en false no se generan cuotas de este tipo. */
         activo: { type: Boolean, default: false },
-        rolesAplicables: { type: [String], default: SOCIAL_FEE_DEFAULT_ROLES },
+        /** Roles que auto-asignan este fee a usuarios no exentos. */
+        rolesAutoAsignacion: { type: [String], default: [] },
+        /** @deprecated Prefer rolesAutoAsignacion — kept for legacy reads. */
+        rolesAplicables: { type: [String], default: undefined },
     },
     { timestamps: true },
 );
 
+socialFeeSchema.index({ activo: 1, rolesAutoAsignacion: 1 });
+
 export const getSocialFeeModel = (tenantDB) =>
     tenantDB.models.SocialFee || tenantDB.model('SocialFee', socialFeeSchema);
 
-/** Devuelve la configuración del club, creándola con valores por defecto si no existe. */
-export async function getOrCreateSocialFee(SocialFee) {
-    const existing = await SocialFee.findOne({ singletonKey: 'social-fee' });
-    if (existing) return existing;
-    return SocialFee.create({ singletonKey: 'social-fee' });
+export function feeAutoRoles(fee) {
+    if (!fee) return [];
+    if (Array.isArray(fee.rolesAutoAsignacion) && fee.rolesAutoAsignacion.length) {
+        return fee.rolesAutoAsignacion;
+    }
+    if (Array.isArray(fee.rolesAplicables) && fee.rolesAplicables.length) {
+        return fee.rolesAplicables;
+    }
+    return [];
 }

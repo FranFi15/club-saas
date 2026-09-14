@@ -5,8 +5,11 @@ import { generateMonthlyPaymentsForTenant } from '../services/generateMonthlyPay
 import {
     generateSocialFeesForTenant,
     sanitizeSocialFeeRoles,
+    ensureSocialFeesMigrated,
+    applyRoleAutoAssignment,
+    assignSocialFeeToUsers,
 } from '../services/generateSocialFees.service.js';
-import { getOrCreateSocialFee } from '../models/socialFee.model.js';
+import { feeAutoRoles } from '../models/socialFee.model.js';
 import { markOverduePayments, clampRecargoPct } from '../services/overduePayments.service.js';
 import {
     applyDiscountToFamilyEnrollments,
@@ -71,21 +74,43 @@ const generarCuotasMes = asyncHandler(async (req, res) => {
     });
 });
 
-// @desc    Configuración de la cuota social del club
+// @desc    Listado de tipos de cuota social
+// @route   GET /api/financial/social-fees
+const listSocialFees = asyncHandler(async (req, res) => {
+    const { SocialFee } = req.models;
+    await ensureSocialFeesMigrated(req.models);
+    const fees = await SocialFee.find({}).sort({ activo: -1, nombre: 1 }).lean();
+    res.json(
+        fees.map((f) => ({
+            ...f,
+            rolesAutoAsignacion: sanitizeSocialFeeRoles(feeAutoRoles(f), { allowEmpty: true }),
+        })),
+    );
+});
+
+// @desc    Compat: devolver el primer tipo (o crear vacío) — legacy UI
 // @route   GET /api/financial/social-fee
 const getSocialFee = asyncHandler(async (req, res) => {
     const { SocialFee } = req.models;
-    const config = await getOrCreateSocialFee(SocialFee);
-    res.json(config);
+    await ensureSocialFeesMigrated(req.models);
+    let config = await SocialFee.findOne({}).sort({ createdAt: 1 });
+    if (!config) {
+        config = await SocialFee.create({
+            nombre: 'Cuota social',
+            rolesAutoAsignacion: [],
+            activo: false,
+            monto: 0,
+        });
+    }
+    const json = config.toObject();
+    json.rolesAutoAsignacion = sanitizeSocialFeeRoles(feeAutoRoles(json), { allowEmpty: true });
+    json.rolesAplicables = json.rolesAutoAsignacion;
+    res.json(json);
 });
 
-// @desc    Actualizar la cuota social del club
-// @route   PATCH /api/financial/social-fee
-const updateSocialFee = asyncHandler(async (req, res) => {
-    const { SocialFee } = req.models;
-    const config = await getOrCreateSocialFee(SocialFee);
-    const { nombre, descripcion, monto, diaVencimiento, porcentajeRecargo, activo, rolesAplicables } =
-        req.body || {};
+function applySocialFeeBody(config, body, res) {
+    const { nombre, descripcion, monto, diaVencimiento, porcentajeRecargo, activo, rolesAutoAsignacion, rolesAplicables } =
+        body || {};
 
     if (nombre !== undefined) config.nombre = String(nombre).trim() || 'Cuota social';
     if (descripcion !== undefined) config.descripcion = String(descripcion).trim();
@@ -111,8 +136,11 @@ const updateSocialFee = asyncHandler(async (req, res) => {
     if (porcentajeRecargo !== undefined) {
         config.porcentajeRecargo = clampRecargoPct(porcentajeRecargo);
     }
-    if (rolesAplicables !== undefined) {
-        config.rolesAplicables = sanitizeSocialFeeRoles(rolesAplicables);
+
+    const rolesIn = rolesAutoAsignacion !== undefined ? rolesAutoAsignacion : rolesAplicables;
+    if (rolesIn !== undefined) {
+        config.rolesAutoAsignacion = sanitizeSocialFeeRoles(rolesIn, { allowEmpty: true });
+        config.rolesAplicables = config.rolesAutoAsignacion;
     }
 
     if (activo !== undefined) {
@@ -123,13 +151,81 @@ const updateSocialFee = asyncHandler(async (req, res) => {
         }
         config.activo = on;
     }
+}
 
-    await config.save();
-    res.json(config);
+// @desc    Crear tipo de cuota social
+// @route   POST /api/financial/social-fees
+const createSocialFee = asyncHandler(async (req, res) => {
+    const { SocialFee } = req.models;
+    await ensureSocialFeesMigrated(req.models);
+    const config = new SocialFee({
+        nombre: 'Cuota social',
+        rolesAutoAsignacion: [],
+        activo: false,
+        monto: 0,
+    });
+    applySocialFeeBody(config, req.body, res);
+    await applyRoleAutoAssignment(req.models, config);
+    const json = config.toObject();
+    json.rolesAutoAsignacion = sanitizeSocialFeeRoles(feeAutoRoles(json), { allowEmpty: true });
+    json.rolesAplicables = json.rolesAutoAsignacion;
+    res.status(201).json(json);
+});
+
+// @desc    Actualizar tipo de cuota social
+// @route   PATCH /api/financial/social-fees/:id
+const updateSocialFeeById = asyncHandler(async (req, res) => {
+    const { SocialFee } = req.models;
+    await ensureSocialFeesMigrated(req.models);
+    const config = await SocialFee.findById(req.params.id);
+    if (!config) {
+        res.status(404);
+        throw new Error('Tipo de cuota social no encontrado.');
+    }
+    applySocialFeeBody(config, req.body, res);
+    await applyRoleAutoAssignment(req.models, config);
+    const json = config.toObject();
+    json.rolesAutoAsignacion = sanitizeSocialFeeRoles(feeAutoRoles(json), { allowEmpty: true });
+    json.rolesAplicables = json.rolesAutoAsignacion;
+    res.json(json);
+});
+
+// @desc    Compat PATCH singleton-style (actualiza el primer fee)
+// @route   PATCH /api/financial/social-fee
+const updateSocialFee = asyncHandler(async (req, res) => {
+    const { SocialFee } = req.models;
+    await ensureSocialFeesMigrated(req.models);
+    let config = await SocialFee.findOne({}).sort({ createdAt: 1 });
+    if (!config) {
+        config = new SocialFee({ nombre: 'Cuota social', rolesAutoAsignacion: [], activo: false, monto: 0 });
+    }
+    applySocialFeeBody(config, req.body, res);
+    await applyRoleAutoAssignment(req.models, config);
+    const json = config.toObject();
+    json.rolesAutoAsignacion = sanitizeSocialFeeRoles(feeAutoRoles(json), { allowEmpty: true });
+    json.rolesAplicables = json.rolesAutoAsignacion;
+    res.json(json);
+});
+
+// @desc    Asignar un tipo a usuarios concretos
+// @route   POST /api/financial/social-fees/:id/assign
+const assignSocialFee = asyncHandler(async (req, res) => {
+    try {
+        const result = await assignSocialFeeToUsers(req.models, req.params.id, req.body?.userIds || []);
+        res.json({
+            message: `Asignado a ${result.assigned} usuario(s).`,
+            assigned: result.assigned,
+            fee: result.fee,
+        });
+    } catch (e) {
+        res.status(e.statusCode || 500);
+        throw e;
+    }
 });
 
 // @desc    Generar la cuota social de un período (sin tocar las de entrenamiento)
 // @route   POST /api/financial/social-fee/generate
+// @route   POST /api/financial/social-fees/generate
 const generarCuotaSocialMes = asyncHandler(async (req, res) => {
     const now = new Date();
     const mes = Number(req.body?.mes) || now.getMonth() + 1;
@@ -1392,6 +1488,10 @@ export {
     createPlan,
     getPlans,
     generarCuotasMes,
+    listSocialFees,
+    createSocialFee,
+    updateSocialFeeById,
+    assignSocialFee,
     getSocialFee,
     updateSocialFee,
     generarCuotaSocialMes,

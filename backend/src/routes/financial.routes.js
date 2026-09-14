@@ -9,6 +9,10 @@ import {
     getSocialFee,
     updateSocialFee,
     generarCuotaSocialMes,
+    listSocialFees,
+    createSocialFee,
+    updateSocialFeeById,
+    assignSocialFee,
     getAllPayments,
     getPaymentStats,
     registerManualPayment,
@@ -57,7 +61,14 @@ router.put('/plans/:id', protect, authorize('admin_club'), updatePlan); // Para 
 router.delete('/plans/:id', protect, authorize('admin_club'), deletePlan); // Baja lógica (activo: false)
 router.patch('/plans/:id/reactivate', protect, authorize('admin_club'), reactivatePlan);
 
-// Cuota social del club (independiente del plan de inscripción)
+// Cuotas sociales (múltiples tipos + asignación)
+router.get('/social-fees', protect, authorize('admin_club', 'administrativo'), listSocialFees);
+router.post('/social-fees/generate', protect, authorize('admin_club', 'administrativo'), generarCuotaSocialMes);
+router.post('/social-fees', protect, authorize('admin_club'), createSocialFee);
+router.patch('/social-fees/:id', protect, authorize('admin_club'), updateSocialFeeById);
+router.post('/social-fees/:id/assign', protect, authorize('admin_club', 'administrativo'), assignSocialFee);
+
+// Legacy single-config endpoints (compat)
 router.get('/social-fee', protect, authorize('admin_club', 'administrativo'), getSocialFee);
 router.patch('/social-fee', protect, authorize('admin_club'), updateSocialFee);
 router.post('/social-fee/generate', protect, authorize('admin_club', 'administrativo'), generarCuotaSocialMes);

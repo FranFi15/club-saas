@@ -62,6 +62,9 @@ const userSchema = new mongoose.Schema({
     /** Clientes (atleta/tutor/socio) exceptuados de la cuota social del club. */
     exentoCuotaSocial: { type: Boolean, default: false },
 
+    /** Tipo de cuota social asignado (uno solo). Null si exento o sin asignar. */
+    cuotaSocialAsignada: { type: mongoose.Schema.Types.ObjectId, ref: 'SocialFee', default: null },
+
     /** Para badges de novedades / recursos en la app del miembro. */
     lastSeenNewsAt: { type: Date, default: null },
     lastSeenResourcesAt: { type: Date, default: null },
