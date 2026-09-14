@@ -12,6 +12,10 @@ const requirementSchema = new mongoose.Schema({
     targetCategoria: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
     targetUsuario: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 
+    /** Archivo de referencia (plantilla / ejemplo) que el atleta puede descargar. */
+    archivoAdjuntoUrl: { type: String, default: '', trim: true },
+    archivoAdjuntoNombre: { type: String, default: '', trim: true },
+
     creadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     
     activo: { type: Boolean, default: true }

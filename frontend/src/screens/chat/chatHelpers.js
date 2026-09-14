@@ -122,6 +122,8 @@ export function getDeliveryPresentation(message) {
     bodyText: bodyLines.join('\n'),
     ctaLabel: message?.action?.label || DELIVERY_CTA[kind],
     showCta: true,
+    fileUrl: String(message?.action?.fileUrl || '').trim(),
+    fileName: String(message?.action?.fileName || '').trim(),
   };
 }
 

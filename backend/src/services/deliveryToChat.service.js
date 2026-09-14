@@ -29,6 +29,9 @@ export function buildRequirementChatBody(requirement, { athleteName } = {}) {
     if (requirement.descripcion?.trim()) lines.push(requirement.descripcion.trim());
     const due = formatDueDate(requirement.fechaVencimiento);
     if (due) lines.push(`Vence: ${due}`);
+    if (requirement.archivoAdjuntoUrl?.trim()) {
+        lines.push('Hay un archivo de referencia para descargar en Documentación.');
+    }
     return clip(lines.join('\n'));
 }
 
@@ -42,12 +45,20 @@ export function buildResourceChatBody(resource, sender, { athleteName } = {}) {
 }
 
 function requirementMeta(requirement) {
+    const fileUrl = String(requirement.archivoAdjuntoUrl || '').trim();
+    const fileName = String(requirement.archivoAdjuntoNombre || '').trim();
     return {
         kind: 'requirement',
         action: {
             type: 'requirement',
             requirementId: requirement._id,
-            label: 'Ir a Documentación',
+            label: fileUrl ? 'Ver / descargar archivo' : 'Ir a Documentación',
+            ...(fileUrl
+                ? {
+                      fileUrl,
+                      fileName: fileName || 'Archivo de referencia',
+                  }
+                : {}),
         },
     };
 }

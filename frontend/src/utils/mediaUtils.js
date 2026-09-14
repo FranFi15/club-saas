@@ -69,12 +69,30 @@ function sanitizeFilename(name) {
 }
 
 /**
- * Descarga un PDF (o abre el menú compartir / guardar en el dispositivo).
+ * Descarga un archivo (PDF o imagen) y abre el menú compartir / guardar.
  */
 export async function downloadMediaFile(url, title = 'archivo') {
   if (!url) throw new Error('No hay URL del archivo.');
 
-  const filename = sanitizeFilename(mediaFilenameFromUrl(url, title));
+  const kind = detectMediaKind(url);
+  let filename = sanitizeFilename(mediaFilenameFromUrl(url, title));
+  if (kind === 'image' && !/\.(jpe?g|png|gif|webp|heic|heif)$/i.test(filename)) {
+    filename = `${filename.replace(/\.[^.]+$/, '') || 'imagen'}.jpg`;
+  }
+  if (kind === 'pdf' && !/\.pdf$/i.test(filename)) {
+    filename = `${filename.replace(/\.[^.]+$/, '') || 'archivo'}.pdf`;
+  }
+
+  const mimeType =
+    kind === 'image'
+      ? filename.toLowerCase().endsWith('.png')
+        ? 'image/png'
+        : filename.toLowerCase().endsWith('.webp')
+          ? 'image/webp'
+          : 'image/jpeg'
+      : kind === 'pdf'
+        ? 'application/pdf'
+        : 'application/octet-stream';
 
   if (Platform.OS === 'web') {
     const res = await fetch(url);
@@ -101,9 +119,9 @@ export async function downloadMediaFile(url, title = 'archivo') {
 
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(result.uri, {
-      mimeType: 'application/pdf',
-      dialogTitle: title || 'PDF',
-      UTI: 'com.adobe.pdf',
+      mimeType,
+      dialogTitle: title || 'Archivo',
+      UTI: kind === 'pdf' ? 'com.adobe.pdf' : undefined,
     });
   } else {
     const canOpen = await Linking.canOpenURL(result.uri);

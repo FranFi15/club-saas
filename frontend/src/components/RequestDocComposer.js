@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import { getToken } from '../utils/storage';
 import { clubApi } from '../utils/api';
 import CustomAlert from './CustomAlert';
@@ -23,6 +25,12 @@ import CalendarDateField from './CalendarDateField';
 import { sortByNombre, sortUsersByName } from '../utils/listSort';
 import { displayDateToIsoCalendar } from '../utils/dateDisplay';
 import { USER_FILTER_ROLES, USER_ROL_LABELS, userRoleFilterLabel } from '../constants/userRoles';
+import {
+  uploadFileToClub,
+  pickWebFile,
+  imageFromPickerAsset,
+  iosCompatiblePhotoOptions,
+} from '../utils/uploadMedia';
 
 const DOC_ADMIN_ALCANCE = [
   { value: 'global', label: 'Todo el club', icon: 'globe-outline', hint: 'Se envía por chat a cada atleta (o a su tutor si no hay chat con el atleta)' },
@@ -59,6 +67,9 @@ export default function RequestDocComposer({
   const [descripcion, setDescripcion] = useState('');
   const [fechaVencimiento, setFechaVencimiento] = useState('');
   const [obligatorio, setObligatorio] = useState(true);
+  const [adjuntoUrl, setAdjuntoUrl] = useState('');
+  const [adjuntoNombre, setAdjuntoNombre] = useState('');
+  const [uploadingAdjunto, setUploadingAdjunto] = useState(false);
   const [saving, setSaving] = useState(false);
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
@@ -93,6 +104,8 @@ export default function RequestDocComposer({
     setDescripcion('');
     setFechaVencimiento('');
     setObligatorio(true);
+    setAdjuntoUrl('');
+    setAdjuntoNombre('');
   }, [isAdmin]);
 
   const loadMeta = useCallback(async () => {
@@ -235,6 +248,64 @@ export default function RequestDocComposer({
     [adminUsers],
   );
 
+  const uploadAdjunto = async (uri, filename, mime, webFile) => {
+    setUploadingAdjunto(true);
+    try {
+      const { url } = await uploadFileToClub(clubData, uri, filename, mime, { webFile });
+      setAdjuntoUrl(url);
+      setAdjuntoNombre(filename || 'Archivo de referencia');
+    } catch (e) {
+      showAlert('Error', e.message || e.response?.data?.message || 'No se pudo subir el archivo.');
+    } finally {
+      setUploadingAdjunto(false);
+    }
+  };
+
+  const pickAdjuntoPdf = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*', 'image/heic', 'image/heif'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const doc = result.assets[0];
+      const name = doc.name || 'referencia.pdf';
+      const mime =
+        doc.mimeType ||
+        (/\.hei[cf]$/i.test(name)
+          ? 'image/heic'
+          : name.toLowerCase().endsWith('.pdf')
+            ? 'application/pdf'
+            : 'image/jpeg');
+      await uploadAdjunto(doc.uri, name, mime, pickWebFile(doc, result));
+    } catch (e) {
+      showAlert('Error', e.message || 'No se pudo elegir el archivo.');
+    }
+  };
+
+  const pickAdjuntoPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      showAlert('Permiso', 'Necesitamos acceso a tus fotos para continuar.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.85,
+      ...iosCompatiblePhotoOptions(),
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    const { filename, mime } = imageFromPickerAsset(asset, asset.uri);
+    await uploadAdjunto(asset.uri, filename, mime, pickWebFile(asset, result));
+  };
+
+  const clearAdjunto = () => {
+    setAdjuntoUrl('');
+    setAdjuntoNombre('');
+  };
+
   const submit = async () => {
     if (!titulo.trim()) {
       showAlert('Atención', 'Indicá un título para el pedido.');
@@ -267,6 +338,12 @@ export default function RequestDocComposer({
         obligatorio,
         fechaVencimiento: fechaIso || undefined,
         alcance,
+        ...(adjuntoUrl
+          ? {
+              archivoAdjuntoUrl: adjuntoUrl,
+              archivoAdjuntoNombre: adjuntoNombre || 'Archivo de referencia',
+            }
+          : {}),
       };
 
       if (alcance === 'global') {
@@ -341,6 +418,44 @@ export default function RequestDocComposer({
           placeholder="Instrucciones para quien debe subir el archivo"
           placeholderTextColor={theme.textMuted}
         />
+
+        <Text style={[styles.label, { color: theme.textMuted }]}>Archivo de referencia (opcional)</Text>
+        <Text style={[styles.hint, { color: theme.textMuted }]}>
+          Plantilla, formulario o ejemplo que el atleta puede descargar antes de enviar su documentación.
+        </Text>
+        {uploadingAdjunto ? (
+          <View style={styles.uploadingBox}>
+            <ActivityIndicator color={colorMarca} />
+            <Text style={[styles.uploadingText, { color: theme.textMuted }]}>Subiendo archivo…</Text>
+          </View>
+        ) : adjuntoUrl ? (
+          <View style={[styles.adjuntoCard, { borderColor: colorMarca, backgroundColor: theme.surface }]}>
+            <Ionicons name="document-attach-outline" size={22} color={colorMarca} />
+            <Text style={[styles.adjuntoName, { color: theme.text }]} numberOfLines={2}>
+              {adjuntoNombre || 'Archivo de referencia'}
+            </Text>
+            <TouchableOpacity onPress={clearAdjunto} hitSlop={10} accessibilityLabel="Quitar archivo">
+              <Ionicons name="close-circle" size={22} color={theme.textMuted} />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.uploadRow}>
+            <TouchableOpacity
+              style={[styles.uploadBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
+              onPress={pickAdjuntoPdf}
+            >
+              <Ionicons name="document-text-outline" size={22} color={colorMarca} />
+              <Text style={[styles.uploadBtnCaption, { color: theme.text }]}>PDF / archivo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.uploadBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
+              onPress={pickAdjuntoPhoto}
+            >
+              <Ionicons name="image-outline" size={22} color={colorMarca} />
+              <Text style={[styles.uploadBtnCaption, { color: theme.text }]}>Foto</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <Text style={[styles.label, { color: theme.textMuted }]}>Vencimiento (opcional)</Text>
         <CalendarDateField
@@ -512,9 +627,12 @@ export default function RequestDocComposer({
         ) : null}
 
         <TouchableOpacity
-          style={[styles.saveBtn, { backgroundColor: colorMarca, opacity: saving ? 0.7 : 1 }]}
+          style={[
+            styles.saveBtn,
+            { backgroundColor: colorMarca, opacity: saving || uploadingAdjunto ? 0.7 : 1 },
+          ]}
           onPress={submit}
-          disabled={saving}
+          disabled={saving || uploadingAdjunto}
         >
           {saving ? (
             <ActivityIndicator color="#fff" />
@@ -561,6 +679,37 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   textArea: { minHeight: 88 },
+  uploadRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  uploadBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+  },
+  uploadBtnCaption: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
+  uploadingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 14,
+    paddingVertical: 12,
+  },
+  uploadingText: { fontSize: 13, fontWeight: '600' },
+  adjuntoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 14,
+  },
+  adjuntoName: { flex: 1, fontSize: 14, fontWeight: '600' },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',

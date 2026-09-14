@@ -51,6 +51,7 @@ export default function AthleteDocumentsScreen({ navigation }) {
   const [loadingMoreDocs, setLoadingMoreDocs] = useState(false);
   const [uploadingId, setUploadingId] = useState(null);
   const [downloadingViewId, setDownloadingViewId] = useState(null);
+  const [downloadingAdjuntoId, setDownloadingAdjuntoId] = useState(null);
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
     title: '',
@@ -181,6 +182,27 @@ export default function AthleteDocumentsScreen({ navigation }) {
     }
   };
 
+  const openOrDownloadUrl = async (url, title, busyKey, setBusy, mode = 'auto') => {
+    const kind = detectMediaKind(url);
+    const wantsDownload = mode === 'download' || (mode === 'auto' && kind === 'pdf');
+    if (wantsDownload) {
+      setBusy(busyKey);
+      try {
+        await downloadMediaFile(url, title);
+      } catch (e) {
+        showAlert('Error', e.message || 'No se pudo descargar el archivo.');
+      } finally {
+        setBusy(null);
+      }
+      return;
+    }
+    try {
+      await openMediaViewer(navigation, { url, title });
+    } catch (e) {
+      showAlert('Error', e.message || 'No se pudo abrir el archivo.');
+    }
+  };
+
   const renderItem = ({ item }) => {
     const st = estadoEntrega(item.miEntrega);
     const busy = uploadingId === item._id;
@@ -188,6 +210,12 @@ export default function AthleteDocumentsScreen({ navigation }) {
       !item.miEntrega ||
       item.miEntrega.estado === 'rechazado' ||
       item.miEntrega.estado === 'revision';
+    const adjuntoUrl = (item.archivoAdjuntoUrl || '').trim();
+    const adjuntoNombre = (item.archivoAdjuntoNombre || '').trim() || 'Archivo de referencia';
+    const adjuntoKind = adjuntoUrl ? detectMediaKind(adjuntoUrl) : null;
+    const adjuntoBusy = downloadingAdjuntoId === item._id;
+    const adjuntoIsPdf = adjuntoKind === 'pdf';
+    const canViewAdjunto = adjuntoUrl && !adjuntoIsPdf;
 
     return (
       <DesignCard theme={theme} isDarkMode={isDarkMode} accent={st.color} contentStyle={styles.cardInner}>
@@ -206,50 +234,97 @@ export default function AthleteDocumentsScreen({ navigation }) {
         {item.obligatorio ? (
           <Text style={[styles.oblig, { color: theme.textMuted }]}>Obligatorio</Text>
         ) : null}
+
+        {adjuntoUrl ? (
+          <View style={[styles.refBox, { borderColor: colorMarca, backgroundColor: `${colorMarca}10` }]}>
+            <Text style={[styles.refLabel, { color: theme.text }]}>Archivo del club</Text>
+            <Text style={[styles.refName, { color: theme.textMuted }]} numberOfLines={2}>
+              {adjuntoNombre}
+            </Text>
+            <View style={styles.refActions}>
+              {canViewAdjunto ? (
+                <TouchableOpacity
+                  style={[styles.refBtn, { borderColor: colorMarca }]}
+                  onPress={() =>
+                    openOrDownloadUrl(adjuntoUrl, adjuntoNombre, item._id, setDownloadingAdjuntoId, 'view')
+                  }
+                  disabled={adjuntoBusy}
+                >
+                  <Ionicons name="eye-outline" size={18} color={colorMarca} />
+                  <Text style={[styles.refBtnTxt, { color: colorMarca }]}>Ver</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                style={[styles.refBtn, { borderColor: colorMarca, opacity: adjuntoBusy ? 0.65 : 1 }]}
+                onPress={() =>
+                  openOrDownloadUrl(adjuntoUrl, adjuntoNombre, item._id, setDownloadingAdjuntoId, 'download')
+                }
+                disabled={adjuntoBusy}
+              >
+                {adjuntoBusy ? (
+                  <ActivityIndicator size="small" color={colorMarca} />
+                ) : (
+                  <>
+                    <Ionicons name="download-outline" size={18} color={colorMarca} />
+                    <Text style={[styles.refBtnTxt, { color: colorMarca }]}>Descargar</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
+
         {item.miEntrega?.fileUrl ? (() => {
-          const isPdf = detectMediaKind(item.miEntrega.fileUrl) === 'pdf';
+          const sentKind = detectMediaKind(item.miEntrega.fileUrl);
+          const isPdf = sentKind === 'pdf';
           const viewBusy = downloadingViewId === item._id;
           return (
-            <TouchableOpacity
-              style={[styles.viewBtn, { borderColor: colorMarca, opacity: viewBusy ? 0.65 : 1 }]}
-              onPress={async () => {
-                if (isPdf) {
-                  setDownloadingViewId(item._id);
-                  try {
-                    await downloadMediaFile(item.miEntrega.fileUrl, item.titulo);
-                  } catch (e) {
-                    showAlert('Error', e.message || 'No se pudo descargar el PDF.');
-                  } finally {
-                    setDownloadingViewId(null);
+            <View style={styles.sentActions}>
+              {!isPdf ? (
+                <TouchableOpacity
+                  style={[styles.viewBtn, { borderColor: colorMarca, flex: 1 }]}
+                  onPress={() =>
+                    openOrDownloadUrl(
+                      item.miEntrega.fileUrl,
+                      item.titulo,
+                      item._id,
+                      setDownloadingViewId,
+                      'view',
+                    )
                   }
-                  return;
+                >
+                  <Ionicons name="eye-outline" size={18} color={colorMarca} />
+                  <Text style={[styles.viewBtnTxt, { color: colorMarca }]}>Ver enviado</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                style={[
+                  styles.viewBtn,
+                  { borderColor: colorMarca, flex: 1, opacity: viewBusy ? 0.65 : 1 },
+                ]}
+                onPress={() =>
+                  openOrDownloadUrl(
+                    item.miEntrega.fileUrl,
+                    item.titulo,
+                    item._id,
+                    setDownloadingViewId,
+                    'download',
+                  )
                 }
-                try {
-                  await openMediaViewer(navigation, {
-                    url: item.miEntrega.fileUrl,
-                    title: item.titulo,
-                  });
-                } catch (e) {
-                  showAlert('Error', e.message || 'No se pudo abrir el recurso.');
-                }
-              }}
-              disabled={viewBusy}
-            >
-              {viewBusy ? (
-                <ActivityIndicator size="small" color={colorMarca} />
-              ) : (
-                <>
-                  <Ionicons
-                    name={isPdf ? 'download-outline' : 'eye-outline'}
-                    size={18}
-                    color={colorMarca}
-                  />
-                  <Text style={[styles.viewBtnTxt, { color: colorMarca }]}>
-                    {isPdf ? 'Descargar PDF' : 'Ver archivo enviado'}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
+                disabled={viewBusy}
+              >
+                {viewBusy ? (
+                  <ActivityIndicator size="small" color={colorMarca} />
+                ) : (
+                  <>
+                    <Ionicons name="download-outline" size={18} color={colorMarca} />
+                    <Text style={[styles.viewBtnTxt, { color: colorMarca }]}>
+                      {isPdf ? 'Descargar enviado' : 'Descargar'}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
           );
         })() : null}
         {canUpload ? (
@@ -355,6 +430,28 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   viewBtnTxt: { fontSize: 14, fontWeight: '600' },
+  refBox: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    gap: 6,
+  },
+  refLabel: { fontSize: 13, fontWeight: '800' },
+  refName: { fontSize: 13, lineHeight: 18 },
+  refActions: { flexDirection: 'row', gap: 8, marginTop: 6 },
+  refBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+  },
+  refBtnTxt: { fontSize: 13, fontWeight: '700' },
+  sentActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 14 },
   btn: {
     flex: 1,

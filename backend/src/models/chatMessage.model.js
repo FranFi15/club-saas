@@ -33,6 +33,9 @@ const chatMessageSchema = new mongoose.Schema(
             requirementId: { type: mongoose.Schema.Types.ObjectId },
             resourceId: { type: mongoose.Schema.Types.ObjectId },
             label: { type: String, trim: true, maxlength: 80 },
+            /** Archivo de referencia del pedido (para ver/descargar desde el chat). */
+            fileUrl: { type: String, trim: true, maxlength: 2000 },
+            fileName: { type: String, trim: true, maxlength: 200 },
         },
     },
     { timestamps: true }

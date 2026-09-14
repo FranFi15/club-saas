@@ -11,7 +11,17 @@ import { parsePageLimit, paginationMeta } from '../utils/pagination.js';
 // @desc    Crear un nuevo requerimiento de documentos
 // @route   POST /api/requirements
 const createRequirement = asyncHandler(async (req, res) => {
-    const { titulo, descripcion, obligatorio, fechaVencimiento, alcance, targetCategoria, targetUsuario } = req.body;
+    const {
+        titulo,
+        descripcion,
+        obligatorio,
+        fechaVencimiento,
+        alcance,
+        targetCategoria,
+        targetUsuario,
+        archivoAdjuntoUrl,
+        archivoAdjuntoNombre,
+    } = req.body;
     const { Requirement } = req.models;
 
     try {
@@ -21,6 +31,9 @@ const createRequirement = asyncHandler(async (req, res) => {
         throw e;
     }
 
+    const adjuntoUrl = typeof archivoAdjuntoUrl === 'string' ? archivoAdjuntoUrl.trim() : '';
+    const adjuntoNombre = typeof archivoAdjuntoNombre === 'string' ? archivoAdjuntoNombre.trim() : '';
+
     const requirement = await Requirement.create({
         titulo,
         descripcion,
@@ -29,6 +42,8 @@ const createRequirement = asyncHandler(async (req, res) => {
         alcance,
         targetCategoria,
         targetUsuario,
+        archivoAdjuntoUrl: adjuntoUrl,
+        archivoAdjuntoNombre: adjuntoNombre || (adjuntoUrl ? 'Archivo de referencia' : ''),
         creadoPor: req.user._id,
     });
 
@@ -344,7 +359,7 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
         const total = await Submission.countDocuments(subFilter);
         const submissions = await Submission.find(subFilter)
             .populate('atleta', 'nombre apellido')
-            .populate('requerimiento', 'titulo descripcion alcance targetCategoria fechaVencimiento obligatorio creadoPor')
+            .populate('requerimiento', 'titulo descripcion alcance targetCategoria fechaVencimiento obligatorio creadoPor archivoAdjuntoUrl archivoAdjuntoNombre')
             .sort({ updatedAt: -1 })
             .skip(skip)
             .limit(limit)

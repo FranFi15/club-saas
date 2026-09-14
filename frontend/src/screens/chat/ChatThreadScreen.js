@@ -34,6 +34,8 @@ import {
   rolLabel,
   CHAT_POLL_MS,
 } from './chatHelpers';
+import { openOrDownloadMedia } from '../../utils/mediaUtils';
+import CustomAlert from '../../components/CustomAlert';
 
 export default function ChatThreadScreen({ navigation, route }) {
   const conversationId = route.params?.conversationId;
@@ -57,6 +59,12 @@ export default function ChatThreadScreen({ navigation, route }) {
   const [text, setText] = useState('');
   const [myId, setMyId] = useState(null);
   const [sendError, setSendError] = useState('');
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
   const listRef = useRef(null);
   const pollRef = useRef(null);
   const lastMsgIdRef = useRef(null);
@@ -163,6 +171,31 @@ export default function ChatThreadScreen({ navigation, route }) {
     }
   };
 
+  const showAlert = (title, message) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      onConfirm: () => setAlertConfig((p) => ({ ...p, visible: false })),
+    });
+  };
+
+  const handleDeliveryCta = async (delivery) => {
+    if (delivery?.fileUrl) {
+      try {
+        await openOrDownloadMedia(navigation, {
+          url: delivery.fileUrl,
+          title: delivery.fileName || delivery.title || 'Archivo',
+          viewerRoute: 'MemberMediaViewer',
+        });
+      } catch (e) {
+        showAlert('Error', e.message || 'No se pudo abrir el archivo.');
+      }
+      return;
+    }
+    navigateChatDeliveryAction(navigation, delivery.kind);
+  };
+
   const renderItem = ({ item }) => {
     const mine = myId && String(item.sender?._id || item.sender) === String(myId);
     const showSender = isGroup && !mine;
@@ -200,14 +233,26 @@ export default function ChatThreadScreen({ navigation, route }) {
                 <Text style={[styles.bubbleText, { color: textColor }]}>{delivery.bodyText}</Text>
               ) : null}
               {delivery.showCta ? (
-                <TouchableOpacity
-                  style={[styles.deliveryCta, { backgroundColor: ctaBg }]}
-                  onPress={() => navigateChatDeliveryAction(navigation, delivery.kind)}
-                  activeOpacity={0.75}
-                >
-                  <Text style={[styles.deliveryCtaText, { color: ctaFg }]}>{delivery.ctaLabel}</Text>
-                  <Ionicons name="chevron-forward" size={16} color={ctaFg} />
-                </TouchableOpacity>
+                <>
+                  <TouchableOpacity
+                    style={[styles.deliveryCta, { backgroundColor: ctaBg }]}
+                    onPress={() => handleDeliveryCta(delivery)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[styles.deliveryCtaText, { color: ctaFg }]}>{delivery.ctaLabel}</Text>
+                    <Ionicons name="chevron-forward" size={16} color={ctaFg} />
+                  </TouchableOpacity>
+                  {delivery.fileUrl && delivery.kind === 'requirement' ? (
+                    <TouchableOpacity
+                      style={[styles.deliveryCta, { backgroundColor: ctaBg, marginTop: 8 }]}
+                      onPress={() => navigateChatDeliveryAction(navigation, delivery.kind)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[styles.deliveryCtaText, { color: ctaFg }]}>Ir a Documentación</Text>
+                      <Ionicons name="chevron-forward" size={16} color={ctaFg} />
+                    </TouchableOpacity>
+                  ) : null}
+                </>
               ) : null}
             </>
           ) : (
@@ -249,6 +294,12 @@ export default function ChatThreadScreen({ navigation, route }) {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onConfirm={alertConfig.onConfirm}
+      />
       <CoachScreenHeader
         colorMarca={colorMarca}
         theme={theme}
