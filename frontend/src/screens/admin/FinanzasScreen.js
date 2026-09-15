@@ -1043,19 +1043,15 @@ export default function FinanzasScreen({ route }) {
             ? 'Comprobantes pendientes'
             : showPlanesHeader
               ? 'Planes de cuota'
-              : showSponsorsHeader
-                ? 'Patrocinadores y beneficios'
-                : showVencidosHeader
-                  ? 'Todas las cuotas vencidas'
-                  : undefined
+              : showVencidosHeader
+                ? 'Todas las cuotas vencidas'
+                : undefined
         }
         onBack={
-          showRevisionHeader || showPlanesHeader || showSponsorsHeader
+          showRevisionHeader || showPlanesHeader
             ? showPlanesHeader
               ? leavePlanes
-              : showSponsorsHeader
-                ? leaveSponsors
-                : leaveRevision
+              : leaveRevision
             : undefined
         }
         rightAccessory={
@@ -1404,6 +1400,7 @@ export default function FinanzasScreen({ route }) {
           showAlert={showAlert}
           mes={mes}
           anio={anio}
+          onBack={leaveSponsors}
         />
       )}
 

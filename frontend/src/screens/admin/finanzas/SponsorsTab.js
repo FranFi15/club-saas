@@ -13,6 +13,7 @@ import {
   Platform,
   Image,
   StyleSheet,
+  Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
@@ -32,7 +33,6 @@ const ROLE_OPTIONS = [
 
 const emptyForm = () => ({
   nombre: '',
-  registro: '',
   fotoUrl: '',
   montoMensual: '',
   beneficios: '',
@@ -48,7 +48,7 @@ function benefitLines(text) {
     .filter(Boolean);
 }
 
-export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders, showAlert, mes, anio }) {
+export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders, showAlert, mes, anio, onBack }) {
   const { isDarkMode } = useContext(ThemeContext);
   const cc = primaryColor;
   const periodMes = mes || new Date().getMonth() + 1;
@@ -129,7 +129,6 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
     setEditingId(item._id);
     setForm({
       nombre: item.nombre || '',
-      registro: item.registro || '',
       fotoUrl: item.fotoUrl || '',
       montoMensual: item.montoMensual != null ? String(item.montoMensual) : '',
       beneficios: item.beneficios || '',
@@ -191,7 +190,6 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
       const h = await getHeaders();
       const payload = {
         nombre: form.nombre.trim(),
-        registro: form.registro.trim(),
         fotoUrl: form.fotoUrl.trim(),
         montoMensual: form.montoMensual === '' ? 0 : Number(String(form.montoMensual).replace(',', '.')),
         beneficios: form.beneficios,
@@ -325,7 +323,7 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
         style={{ marginBottom: 12, opacity: inactive ? 0.75 : 1 }}
         contentStyle={styles.cardInner}
       >
-        <TouchableOpacity style={styles.cardMain} onPress={() => openEdit(item)} activeOpacity={0.85}>
+        <View style={styles.cardMain}>
           {item.fotoUrl ? (
             <Image source={{ uri: item.fotoUrl }} style={styles.logo} />
           ) : (
@@ -335,9 +333,6 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
           )}
           <View style={{ flex: 1 }}>
             <Text style={[styles.name, { color: theme.text }]}>{item.nombre}</Text>
-            {item.registro ? (
-              <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>{item.registro}</Text>
-            ) : null}
             <Text style={{ color: cc, fontWeight: '700', marginTop: 4 }}>{fmtMoney(expected)} · {MN[periodMes - 1]}</Text>
             <View
               style={[
@@ -356,9 +351,16 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
               <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '700', marginTop: 4 }}>Inactivo</Text>
             ) : null}
           </View>
-        </TouchableOpacity>
+        </View>
 
         <View style={[styles.actionsRow, { borderTopColor: theme.border }]}>
+          <TouchableOpacity
+            style={[styles.actionBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+            onPress={() => openEdit(item)}
+          >
+            <Ionicons name="pencil-outline" size={15} color={theme.text} />
+            <Text style={[styles.actionTxt, { color: theme.text }]}>Editar</Text>
+          </TouchableOpacity>
           {!paid ? (
             <TouchableOpacity
               style={[styles.actionBtn, { borderColor: '#a7f3d0', backgroundColor: '#ecfdf5' }]}
@@ -385,18 +387,11 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity
-                style={[styles.actionBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+                style={[styles.actionBtn, { borderColor: '#fde68a', backgroundColor: '#fffbeb' }]}
                 onPress={() => openPay(item)}
               >
-                <Ionicons name="create-outline" size={15} color={theme.text} />
-                <Text style={[styles.actionTxt, { color: theme.text }]}>Actualizar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionBtn, { borderColor: '#fde68a', backgroundColor: '#fffbeb' }]}
-                onPress={() => revertPay(item)}
-              >
-                <Ionicons name="arrow-undo-outline" size={15} color="#d97706" />
-                <Text style={[styles.actionTxt, { color: '#d97706' }]}>Revertir</Text>
+                <Ionicons name="create-outline" size={15} color="#d97706" />
+                <Text style={[styles.actionTxt, { color: '#d97706' }]}>Actualizar</Text>
               </TouchableOpacity>
             </>
           )}
@@ -426,6 +421,16 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
       />
 
       <View style={styles.topBar}>
+        {onBack ? (
+          <TouchableOpacity
+            style={[styles.backBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
+            onPress={onBack}
+            accessibilityLabel="Volver"
+            hitSlop={8}
+          >
+            <Ionicons name="arrow-back" size={18} color={theme.text} />
+          </TouchableOpacity>
+        ) : null}
         <View style={{ flex: 1 }}>
           <Text style={{ color: theme.text, fontWeight: '800', fontSize: 15 }}>
             Aportes · {MN[periodMes - 1]} {periodAnio}
@@ -464,7 +469,9 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
         >
           <View style={[s.modalContent, { backgroundColor: theme.surface, maxHeight: '90%' }]}>
             <View style={s.modalHeader}>
-              <Text style={[s.modalTitle, { color: theme.text }]}>Confirmar pago</Text>
+              <Text style={[s.modalTitle, { color: theme.text }]}>
+                {payTarget?.pagoMes?.estado === 'pagado' ? 'Actualizar pago' : 'Confirmar pago'}
+              </Text>
               <TouchableOpacity onPress={() => setPayOpen(false)}>
                 <Ionicons name="close" size={24} color={theme.textMuted} />
               </TouchableOpacity>
@@ -553,183 +560,203 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
                 {saving ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={s.saveBtnTxt}>Confirmar pago</Text>
+                  <Text style={s.saveBtnTxt}>
+                    {payTarget?.pagoMes?.estado === 'pagado' ? 'Guardar cambios' : 'Confirmar pago'}
+                  </Text>
                 )}
               </TouchableOpacity>
+
+              {payTarget?.pagoMes?.estado === 'pagado' ? (
+                <TouchableOpacity
+                  style={[
+                    s.saveBtn,
+                    {
+                      marginTop: 10,
+                      borderWidth: 1,
+                      borderColor: '#f59e0b',
+                      backgroundColor: '#fffbeb',
+                    },
+                  ]}
+                  onPress={() => {
+                    setPayOpen(false);
+                    revertPay(payTarget);
+                  }}
+                  disabled={saving}
+                >
+                  <Text style={[s.saveBtnTxt, { color: '#d97706' }]}>Revertir a pendiente</Text>
+                </TouchableOpacity>
+              ) : null}
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={formOpen} animationType="slide" onRequestClose={() => setFormOpen(false)}>
+      <Modal visible={formOpen} animationType="slide" transparent onRequestClose={() => setFormOpen(false)}>
         <KeyboardAvoidingView
-          style={{ flex: 1, backgroundColor: theme.background }}
+          style={s.modalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
-            <TouchableOpacity onPress={() => setFormOpen(false)} hitSlop={10}>
-              <Ionicons name="close" size={24} color={theme.text} />
-            </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>
-              {editingId ? 'Editar sponsor' : 'Nuevo sponsor'}
-            </Text>
-            <View style={{ width: 24 }} />
-          </View>
-
-          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-            <TouchableOpacity style={styles.photoBtn} onPress={uploadPhoto} disabled={uploading}>
-              {form.fotoUrl ? (
-                <Image source={{ uri: form.fotoUrl }} style={styles.photoPreview} />
-              ) : (
-                <View style={[styles.photoPlaceholder, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-                  {uploading ? (
-                    <ActivityIndicator color={cc} />
-                  ) : (
-                    <>
-                      <Ionicons name="camera-outline" size={28} color={theme.textMuted} />
-                      <Text style={{ color: theme.textMuted, marginTop: 6, fontSize: 13 }}>Foto / logo</Text>
-                    </>
-                  )}
-                </View>
-              )}
-            </TouchableOpacity>
-            {form.fotoUrl ? (
-              <TouchableOpacity onPress={() => setForm((p) => ({ ...p, fotoUrl: '' }))} style={{ alignSelf: 'center', marginBottom: 12 }}>
-                <Text style={{ color: '#ef4444', fontWeight: '600' }}>Quitar foto</Text>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setFormOpen(false)} />
+          <View style={[s.modalContent, { backgroundColor: theme.surface, maxHeight: '88%' }]}>
+            <View style={s.modalHeader}>
+              <Text style={[s.modalTitle, { color: theme.text }]}>
+                {editingId ? 'Editar sponsor' : 'Nuevo sponsor'}
+              </Text>
+              <TouchableOpacity onPress={() => setFormOpen(false)} hitSlop={12} accessibilityLabel="Cerrar">
+                <Ionicons name="close" size={24} color={theme.textMuted} />
               </TouchableOpacity>
-            ) : null}
-
-            <Text style={[s.label, { color: theme.textMuted }]}>Nombre</Text>
-            <TextInput
-              style={[s.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
-              value={form.nombre}
-              onChangeText={(t) => setForm((p) => ({ ...p, nombre: t }))}
-              placeholder="Nombre del sponsor"
-              placeholderTextColor={theme.textMuted}
-            />
-
-            <Text style={[s.label, { color: theme.textMuted }]}>Registro / CUIT</Text>
-            <TextInput
-              style={[s.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
-              value={form.registro}
-              onChangeText={(t) => setForm((p) => ({ ...p, registro: t }))}
-              placeholder="Ej. 30-12345678-9"
-              placeholderTextColor={theme.textMuted}
-            />
-
-            <Text style={[s.label, { color: theme.textMuted }]}>Aporte mensual</Text>
-            <TextInput
-              style={[s.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
-              value={form.montoMensual}
-              onChangeText={(t) => setForm((p) => ({ ...p, montoMensual: t.replace(/[^0-9.,]/g, '') }))}
-              keyboardType="decimal-pad"
-              placeholder="0"
-              placeholderTextColor={theme.textMuted}
-            />
-
-            <Text style={[s.label, { color: theme.textMuted }]}>Beneficios (una línea por beneficio)</Text>
-            <TextInput
-              style={[
-                s.input,
-                styles.beneficiosInput,
-                { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface },
-              ]}
-              value={form.beneficios}
-              onChangeText={(t) => setForm((p) => ({ ...p, beneficios: t }))}
-              placeholder={'Ej.\n10% en indumentaria\nEntrada libre a eventos'}
-              placeholderTextColor={theme.textMuted}
-              multiline
-              textAlignVertical="top"
-            />
-
-            <Text style={[s.label, { color: theme.textMuted }]}>Tipos de usuario</Text>
-            <View style={styles.chipRow}>
-              {ROLE_OPTIONS.map((opt) => {
-                const on = form.rolesAplicables.includes(opt.value);
-                return (
-                  <TouchableOpacity
-                    key={opt.value}
-                    style={[
-                      styles.chip,
-                      {
-                        borderColor: on ? cc : theme.border,
-                        backgroundColor: on ? cc + '22' : theme.surface,
-                      },
-                    ]}
-                    onPress={() => toggleRole(opt.value)}
-                  >
-                    <Text style={{ color: on ? cc : theme.text, fontWeight: '600', fontSize: 13 }}>{opt.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
             </View>
 
-            <Text style={[s.label, { color: theme.textMuted }]}>Cuotas sociales</Text>
-            {socialFees.length === 0 ? (
-              <Text style={{ color: theme.textMuted, marginBottom: 12, fontSize: 13 }}>
-                No hay cuotas sociales cargadas.
-              </Text>
-            ) : (
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 12 }}
+            >
+              <TouchableOpacity style={styles.photoBtn} onPress={uploadPhoto} disabled={uploading}>
+                {form.fotoUrl ? (
+                  <Image source={{ uri: form.fotoUrl }} style={styles.photoPreview} />
+                ) : (
+                  <View style={[styles.photoPlaceholder, { borderColor: theme.border, backgroundColor: theme.background }]}>
+                    {uploading ? (
+                      <ActivityIndicator color={cc} />
+                    ) : (
+                      <>
+                        <Ionicons name="camera-outline" size={24} color={theme.textMuted} />
+                        <Text style={{ color: theme.textMuted, marginTop: 4, fontSize: 12 }}>Foto / logo</Text>
+                      </>
+                    )}
+                  </View>
+                )}
+              </TouchableOpacity>
+              {form.fotoUrl ? (
+                <TouchableOpacity onPress={() => setForm((p) => ({ ...p, fotoUrl: '' }))} style={{ alignSelf: 'center', marginBottom: 8 }}>
+                  <Text style={{ color: '#ef4444', fontWeight: '600', fontSize: 13 }}>Quitar foto</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              <Text style={[s.label, { color: theme.textMuted }]}>Nombre</Text>
+              <TextInput
+                style={[s.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
+                value={form.nombre}
+                onChangeText={(t) => setForm((p) => ({ ...p, nombre: t }))}
+                placeholder="Nombre del sponsor"
+                placeholderTextColor={theme.textMuted}
+              />
+
+              <Text style={[s.label, { color: theme.textMuted }]}>Aporte mensual</Text>
+              <TextInput
+                style={[s.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
+                value={form.montoMensual}
+                onChangeText={(t) => setForm((p) => ({ ...p, montoMensual: t.replace(/[^0-9.,]/g, '') }))}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                placeholderTextColor={theme.textMuted}
+              />
+
+              <Text style={[s.label, { color: theme.textMuted }]}>Beneficios (una línea por beneficio)</Text>
+              <TextInput
+                style={[
+                  s.input,
+                  styles.beneficiosInput,
+                  { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
+                ]}
+                value={form.beneficios}
+                onChangeText={(t) => setForm((p) => ({ ...p, beneficios: t }))}
+                placeholder={'Ej.\n10% en indumentaria\nEntrada libre a eventos'}
+                placeholderTextColor={theme.textMuted}
+                multiline
+                textAlignVertical="top"
+              />
+
+              <Text style={[s.label, { color: theme.textMuted }]}>Tipos de usuario</Text>
               <View style={styles.chipRow}>
-                {socialFees.map((fee) => {
-                  const id = String(fee._id);
-                  const on = form.cuotasSociales.includes(id);
+                {ROLE_OPTIONS.map((opt) => {
+                  const on = form.rolesAplicables.includes(opt.value);
                   return (
                     <TouchableOpacity
-                      key={id}
+                      key={opt.value}
                       style={[
                         styles.chip,
                         {
                           borderColor: on ? cc : theme.border,
-                          backgroundColor: on ? cc + '22' : theme.surface,
+                          backgroundColor: on ? cc + '22' : theme.background,
                         },
                       ]}
-                      onPress={() => toggleFee(id)}
+                      onPress={() => toggleRole(opt.value)}
                     >
-                      <Text style={{ color: on ? cc : theme.text, fontWeight: '600', fontSize: 13 }}>
-                        {fee.nombre || 'Cuota'}
-                      </Text>
+                      <Text style={{ color: on ? cc : theme.text, fontWeight: '600', fontSize: 13 }}>{opt.label}</Text>
                     </TouchableOpacity>
                   );
                 })}
               </View>
-            )}
 
-            {editingId ? (
-              <TouchableOpacity
-                style={[styles.activeToggle, { borderColor: theme.border, backgroundColor: theme.surface }]}
-                onPress={() => setForm((p) => ({ ...p, activo: !p.activo }))}
-              >
-                <Ionicons
-                  name={form.activo ? 'checkmark-circle' : 'pause-circle-outline'}
-                  size={20}
-                  color={form.activo ? '#10b981' : theme.textMuted}
-                />
-                <Text style={{ color: theme.text, fontWeight: '600', marginLeft: 8 }}>
-                  {form.activo ? 'Activo' : 'Inactivo'}
+              <Text style={[s.label, { color: theme.textMuted }]}>Cuotas sociales</Text>
+              {socialFees.length === 0 ? (
+                <Text style={{ color: theme.textMuted, marginBottom: 12, fontSize: 13 }}>
+                  No hay cuotas sociales cargadas.
                 </Text>
+              ) : (
+                <View style={styles.chipRow}>
+                  {socialFees.map((fee) => {
+                    const id = String(fee._id);
+                    const on = form.cuotasSociales.includes(id);
+                    return (
+                      <TouchableOpacity
+                        key={id}
+                        style={[
+                          styles.chip,
+                          {
+                            borderColor: on ? cc : theme.border,
+                            backgroundColor: on ? cc + '22' : theme.background,
+                          },
+                        ]}
+                        onPress={() => toggleFee(id)}
+                      >
+                        <Text style={{ color: on ? cc : theme.text, fontWeight: '600', fontSize: 13 }}>
+                          {fee.nombre || 'Cuota'}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+
+              {editingId ? (
+                <TouchableOpacity
+                  style={[styles.activeToggle, { borderColor: theme.border, backgroundColor: theme.background }]}
+                  onPress={() => setForm((p) => ({ ...p, activo: !p.activo }))}
+                >
+                  <Ionicons
+                    name={form.activo ? 'checkmark-circle' : 'pause-circle-outline'}
+                    size={20}
+                    color={form.activo ? '#10b981' : theme.textMuted}
+                  />
+                  <Text style={{ color: theme.text, fontWeight: '600', marginLeft: 8 }}>
+                    {form.activo ? 'Activo' : 'Inactivo'}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+
+              <TouchableOpacity
+                style={[s.saveBtn, { backgroundColor: cc, marginTop: 12 }]}
+                onPress={saveForm}
+                disabled={saving}
+              >
+                {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.saveBtnTxt}>Guardar</Text>}
               </TouchableOpacity>
-            ) : null}
 
-            <TouchableOpacity
-              style={[s.saveBtn, { backgroundColor: cc, marginTop: 16 }]}
-              onPress={saveForm}
-              disabled={saving}
-            >
-              {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.saveBtnTxt}>Guardar</Text>}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                s.saveBtn,
-                contrastOutlineBtn(theme, isDarkMode),
-                { marginTop: 10, borderWidth: 1 },
-              ]}
-              onPress={() => setFormOpen(false)}
-            >
-              <Text style={[s.saveBtnTxt, { color: theme.text }]}>Cancelar</Text>
-            </TouchableOpacity>
-          </ScrollView>
+              <TouchableOpacity
+                style={[
+                  s.saveBtn,
+                  contrastOutlineBtn(theme, isDarkMode),
+                  { marginTop: 10, borderWidth: 1 },
+                ]}
+                onPress={() => setFormOpen(false)}
+              >
+                <Text style={[s.saveBtnTxt, { color: theme.text }]}>Cancelar</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
     </View>
@@ -745,6 +772,14 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     gap: 12,
   },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -754,7 +789,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   addBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  cardInner: { paddingBottom: 0 },
+  cardInner: { paddingBottom: 10 },
   cardMain: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   logo: { width: 52, height: 52, borderRadius: 10 },
   logoPlaceholder: {
@@ -792,27 +827,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   actionTxt: { fontSize: 12, fontWeight: '700' },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  modalTitle: { fontSize: 17, fontWeight: '700' },
-  photoBtn: { alignSelf: 'center', marginBottom: 8 },
-  photoPreview: { width: 96, height: 96, borderRadius: 16 },
+  photoBtn: { alignSelf: 'center', marginBottom: 6 },
+  photoPreview: { width: 72, height: 72, borderRadius: 14 },
   photoPlaceholder: {
-    width: 96,
-    height: 96,
-    borderRadius: 16,
+    width: 72,
+    height: 72,
+    borderRadius: 14,
     borderWidth: 1,
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  beneficiosInput: { minHeight: 100, paddingTop: 12 },
+  beneficiosInput: { minHeight: 72, paddingTop: 10 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   chip: {
     paddingHorizontal: 12,

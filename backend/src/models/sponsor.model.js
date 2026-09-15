@@ -21,6 +21,9 @@ const sponsorSchema = new mongoose.Schema(
         /** Tipos de cuota social alcanzados. */
         cuotasSociales: [{ type: mongoose.Schema.Types.ObjectId, ref: 'SocialFee' }],
         activo: { type: Boolean, default: true },
+        /** Primer mes con control de aportes (no se generan pagos en meses anteriores). */
+        desdeMes: { type: Number, min: 1, max: 12 },
+        desdeAnio: { type: Number, min: 2000, max: 2100 },
     },
     { timestamps: true },
 );

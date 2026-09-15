@@ -119,16 +119,43 @@ function serializePago(p) {
     };
 }
 
-/** Crea filas pendientes del mes para sponsors activos que aún no tienen pago. */
+function periodKey(mes, anio) {
+    return Number(anio) * 12 + Number(mes);
+}
+
+/** Primer mes vigente del sponsor (desdeMes/Anio o createdAt). */
+function sponsorStartPeriod(sponsor) {
+    if (sponsor.desdeMes && sponsor.desdeAnio) {
+        return { mes: Number(sponsor.desdeMes), anio: Number(sponsor.desdeAnio) };
+    }
+    if (sponsor.createdAt) {
+        const d = new Date(sponsor.createdAt);
+        return { mes: d.getMonth() + 1, anio: d.getFullYear() };
+    }
+    return null;
+}
+
+function sponsorActiveInPeriod(sponsor, mes, anio) {
+    const start = sponsorStartPeriod(sponsor);
+    if (!start) return true;
+    return periodKey(mes, anio) >= periodKey(start.mes, start.anio);
+}
+
+/** Crea filas pendientes del mes solo para sponsors vigentes desde ese mes. */
 async function ensureSponsorPaymentsForMonth(models, mes, anio) {
     const { Sponsor, SponsorPayment } = models;
-    const sponsors = await Sponsor.find({ activo: true }).select('_id montoMensual').lean();
+    const sponsors = await Sponsor.find({ activo: true })
+        .select('_id montoMensual desdeMes desdeAnio createdAt')
+        .lean();
     if (!sponsors.length) return;
+
+    const eligible = sponsors.filter((s) => sponsorActiveInPeriod(s, mes, anio));
+    if (!eligible.length) return;
 
     const existing = await SponsorPayment.find({ mes, anio }).select('sponsor').lean();
     const have = new Set(existing.map((e) => String(e.sponsor)));
 
-    const toInsert = sponsors
+    const toInsert = eligible
         .filter((s) => !have.has(String(s._id)))
         .map((s) => ({
             sponsor: s._id,
@@ -142,7 +169,6 @@ async function ensureSponsorPaymentsForMonth(models, mes, anio) {
         try {
             await SponsorPayment.insertMany(toInsert, { ordered: false });
         } catch (e) {
-            // Duplicate key races are fine.
             if (e?.code !== 11000 && !String(e?.message || '').includes('duplicate')) {
                 throw e;
             }
@@ -174,10 +200,14 @@ const listSponsors = asyncHandler(async (req, res) => {
         pagoBySponsor = new Map(pagos.map((p) => [String(p.sponsor), p]));
     }
 
+    const visible = period
+        ? sponsors.filter((s) => sponsorActiveInPeriod(s, period.mes, period.anio))
+        : sponsors;
+
     res.json({
         mes: period?.mes ?? null,
         anio: period?.anio ?? null,
-        sponsors: sponsors.map((s) => ({
+        sponsors: visible.map((s) => ({
             ...s,
             pagoMes: period ? serializePago(pagoBySponsor.get(String(s._id))) : null,
         })),
@@ -211,13 +241,17 @@ const createSponsor = asyncHandler(async (req, res) => {
     }
     await doc.save();
 
-    // Alta inmediata del pago pendiente del mes actual (o el indicado).
+    // Aportes solo desde el mes de alta (el que se está viendo al crear, o el actual).
     const now = new Date();
     let mes = now.getMonth() + 1;
     let anio = now.getFullYear();
     if (req.body?.mes != null && req.body?.anio != null) {
         ({ mes, anio } = parsePeriod(req.body.mes, req.body.anio));
     }
+    doc.desdeMes = mes;
+    doc.desdeAnio = anio;
+    await doc.save();
+
     let pagoMes = null;
     try {
         pagoMes = await SponsorPayment.create({
@@ -297,6 +331,10 @@ const paySponsorMonth = asyncHandler(async (req, res) => {
     }
 
     const { mes, anio } = parsePeriod(req.body?.mes, req.body?.anio);
+    if (!sponsorActiveInPeriod(sponsor, mes, anio)) {
+        res.status(400);
+        throw new Error('Este sponsor todavía no estaba activo en ese mes.');
+    }
     await ensureSponsorPaymentsForMonth(req.models, mes, anio);
 
     let pago = await SponsorPayment.findOne({ sponsor: sponsor._id, mes, anio });
