@@ -31,6 +31,7 @@ import ComprobantesReviewTab from './finanzas/ComprobantesReviewTab';
 import NominaTab from './finanzas/NominaTab';
 import GastosTab from './finanzas/GastosTab';
 import PaymentHistoryModal from './finanzas/PaymentHistoryModal';
+import SponsorsTab from './finanzas/SponsorsTab';
 import SelectPaymentsModal from '../../components/SelectPaymentsModal';
 import PaymentPaySummary from '../../components/PaymentPaySummary';
 import { useBadges } from '../../context/BadgeContext';
@@ -104,6 +105,8 @@ export default function FinanzasScreen({ route }) {
   const leaveRevision = () => selectMainTab('atletas');
   const openPlanes = () => setTab('planes');
   const leavePlanes = () => selectMainTab('atletas');
+  const openSponsors = () => setTab('sponsors');
+  const leaveSponsors = () => selectMainTab('atletas');
   const [viewerRol, setViewerRol] = useState('');
   const canManageClubFinances = isClubOwnerRole(viewerRol);
   const canRunPeriodActions = ADMIN_APP_ROLES.includes(viewerRol);
@@ -143,7 +146,7 @@ export default function FinanzasScreen({ route }) {
 
   useEffect(() => {
     if (canManageClubFinances) return;
-    if (tab === 'planes' || tab === 'nomina' || tab === 'gastos') selectMainTab('atletas');
+    if (tab === 'planes' || tab === 'sponsors' || tab === 'nomina' || tab === 'gastos') selectMainTab('atletas');
   }, [canManageClubFinances, tab, selectMainTab]);
 
   const now = new Date();
@@ -170,7 +173,8 @@ export default function FinanzasScreen({ route }) {
     showMonthNav && canRunPeriodActions && tab !== 'nomina' && tab !== 'gastos';
   const showRevisionHeader = tab === 'revision';
   const showPlanesHeader = tab === 'planes';
-  const hideMainTabs = showRevisionHeader || showPlanesHeader;
+  const showSponsorsHeader = tab === 'sponsors';
+  const hideMainTabs = showRevisionHeader || showPlanesHeader || showSponsorsHeader;
 
   const [athletes, setAthletes] = useState(() => readScreenCache(paymentsCacheKey)?.athletes ?? []);
   const PAYMENTS_PAGE_SIZE = 50;
@@ -1024,21 +1028,33 @@ export default function FinanzasScreen({ route }) {
         theme={theme}
         colorMarca={cc}
         kicker="Finanzas"
-        title={showRevisionHeader ? 'Revisión' : showPlanesHeader ? 'Planes' : 'Pagos'}
+        title={
+          showRevisionHeader
+            ? 'Revisión'
+            : showPlanesHeader
+              ? 'Planes'
+              : showSponsorsHeader
+                ? 'Sponsors'
+                : 'Pagos'
+        }
         subtitle={
           showRevisionHeader
             ? 'Comprobantes pendientes'
             : showPlanesHeader
               ? 'Planes de cuota'
-              : showVencidosHeader
-                ? 'Todas las cuotas vencidas'
-                : undefined
+              : showSponsorsHeader
+                ? 'Patrocinadores y beneficios'
+                : showVencidosHeader
+                  ? 'Todas las cuotas vencidas'
+                  : undefined
         }
         onBack={
-          showRevisionHeader || showPlanesHeader
+          showRevisionHeader || showPlanesHeader || showSponsorsHeader
             ? showPlanesHeader
               ? leavePlanes
-              : leaveRevision
+              : showSponsorsHeader
+                ? leaveSponsors
+                : leaveRevision
             : undefined
         }
         rightAccessory={
@@ -1120,6 +1136,18 @@ export default function FinanzasScreen({ route }) {
               >
                 <Ionicons name="document-text-outline" size={20} color={theme.text} />
                 <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Planes de cuota</Text>
+              </TouchableOpacity>
+            ) : null}
+            {canManageClubFinances && !showSponsorsHeader ? (
+              <TouchableOpacity
+                style={financeHeader.menuItem}
+                onPress={() => {
+                  setMoreOpen(false);
+                  openSponsors();
+                }}
+              >
+                <Ionicons name="ribbon-outline" size={20} color={theme.text} />
+                <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Sponsors</Text>
               </TouchableOpacity>
             ) : null}
             {canRunPeriodActions && (showCuotaPeriodActions || showVencidosHeader) ? (
@@ -1363,6 +1391,16 @@ export default function FinanzasScreen({ route }) {
           onReactivatePlan={reactivatePlan}
           onAssignPlan={assignPlan}
           isSavingAssignment={isSavingAssignment}
+        />
+      )}
+
+      {tab === 'sponsors' && (
+        <SponsorsTab
+          clubData={clubData}
+          theme={theme}
+          primaryColor={cc}
+          getHeaders={getHeaders}
+          showAlert={showAlert}
         />
       )}
 

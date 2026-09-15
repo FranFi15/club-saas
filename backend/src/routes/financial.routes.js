@@ -51,6 +51,13 @@ import {
     payBill,
     deleteBill,
 } from '../controllers/payrollBills.controller.js';
+import {
+    listSponsors,
+    createSponsor,
+    updateSponsor,
+    deleteSponsor,
+    getMySponsorBenefits,
+} from '../controllers/sponsor.controller.js';
 import { protect, authorize } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
@@ -121,5 +128,12 @@ router.post('/bills', protect, authorize('admin_club'), createBill);
 router.patch('/bills/:id/pay', protect, authorize('admin_club'), payBill);
 router.patch('/bills/:id', protect, authorize('admin_club'), updateBill);
 router.delete('/bills/:id', protect, authorize('admin_club'), deleteBill);
+
+// Sponsors
+router.get('/sponsors/my-benefits', protect, authorize('atleta', 'tutor', 'socio'), getMySponsorBenefits);
+router.get('/sponsors', protect, authorize('admin_club', 'administrativo'), listSponsors);
+router.post('/sponsors', protect, authorize('admin_club'), createSponsor);
+router.patch('/sponsors/:id', protect, authorize('admin_club'), updateSponsor);
+router.delete('/sponsors/:id', protect, authorize('admin_club'), deleteSponsor);
 
 export default router;

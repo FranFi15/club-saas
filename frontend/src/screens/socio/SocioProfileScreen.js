@@ -15,6 +15,7 @@ import ProfileNotificationToggle from '../../components/ProfileNotificationToggl
 import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
 import ProfileInfoRow, { profileCardStyles } from '../../components/ProfileInfoRow';
 import ProfileLinkRow from '../../components/ProfileLinkRow';
+import ProfileBenefitsSection from '../../components/ProfileBenefitsSection';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { useBadges } from '../../context/BadgeContext';
 import { tabBadgeText } from '../../utils/tabBadgeLabel';
@@ -105,6 +106,8 @@ export default function SocioProfileScreen({ navigation }) {
           <ProfileInfoRow icon="location-outline" label="Dirección" value={profile?.direccion} theme={theme} />
           <ProfileInfoRow icon="mail-outline" label="Email" value={emailHint || profile?.email} theme={theme} isLast />
         </View>
+
+        <ProfileBenefitsSection clubData={clubData} theme={theme} colorMarca={colorMarca} />
 
         <View style={[profileCardStyles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <ProfileLinkRow

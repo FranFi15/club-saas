@@ -26,6 +26,7 @@ import ProfileLogoutButton from '../../components/ProfileLogoutButton';
 import ProfileNotificationToggle from '../../components/ProfileNotificationToggle';
 import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
 import ProfileLinkRow from '../../components/ProfileLinkRow';
+import ProfileBenefitsSection from '../../components/ProfileBenefitsSection';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { useBadges } from '../../context/BadgeContext';
 import { tabBadgeText } from '../../utils/tabBadgeLabel';
@@ -162,6 +163,8 @@ export default function TutorProfileScreen({ navigation }) {
             </Text>
           </View>
         </View>
+
+        <ProfileBenefitsSection clubData={clubData} theme={theme} colorMarca={colorMarca} />
 
         <View style={styles.actions}>
           <View style={[styles.linkCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>

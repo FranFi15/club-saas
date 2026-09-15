@@ -26,6 +26,7 @@ import ProfileNotificationToggle from '../../components/ProfileNotificationToggl
 import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
 import ProfileInfoRow, { profileCardStyles } from '../../components/ProfileInfoRow';
 import ProfileLinkRow from '../../components/ProfileLinkRow';
+import ProfileBenefitsSection from '../../components/ProfileBenefitsSection';
 import TrialDecisionCard from '../../components/TrialDecisionCard';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { useBadges } from '../../context/BadgeContext';
@@ -192,6 +193,8 @@ export default function AthleteProfileScreen({ navigation }) {
             </Text>
           )}
         </View>
+
+        <ProfileBenefitsSection clubData={clubData} theme={theme} colorMarca={colorMarca} />
 
         {cuotasEnApp ? (
           <View style={[profileCardStyles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
