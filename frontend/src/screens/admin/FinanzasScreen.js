@@ -79,6 +79,34 @@ const financeHeader = StyleSheet.create({
   },
   menuItemTxt: { flex: 1, fontSize: 15, fontWeight: '600' },
   menuDivider: { height: StyleSheet.hairlineWidth, marginHorizontal: 12, marginVertical: 4 },
+  tabSwitcher: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  tabArrowBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabCenter: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 8,
+  },
+  tabCenterLabel: {
+    fontSize: 16,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
 });
 
 export default function FinanzasScreen({ route }) {
@@ -105,8 +133,6 @@ export default function FinanzasScreen({ route }) {
   const leaveRevision = () => selectMainTab('atletas');
   const openPlanes = () => setTab('planes');
   const leavePlanes = () => selectMainTab('atletas');
-  const openSponsors = () => setTab('sponsors');
-  const leaveSponsors = () => selectMainTab('atletas');
   const [viewerRol, setViewerRol] = useState('');
   const canManageClubFinances = isClubOwnerRole(viewerRol);
   const canRunPeriodActions = ADMIN_APP_ROLES.includes(viewerRol);
@@ -131,6 +157,18 @@ export default function FinanzasScreen({ route }) {
       }
     },
     [visibleTabs],
+  );
+
+  const goAdjacentTab = useCallback(
+    (delta) => {
+      if (!visibleTabs.length) return;
+      const idx = visibleTabs.findIndex((t) => t.key === tab);
+      const current = idx >= 0 ? idx : 0;
+      const next = current + delta;
+      if (next < 0 || next >= visibleTabs.length) return;
+      selectMainTab(visibleTabs[next].key);
+    },
+    [visibleTabs, tab, selectMainTab],
   );
   const [periodBusy, setPeriodBusy] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -174,8 +212,7 @@ export default function FinanzasScreen({ route }) {
     showMonthNav && canRunPeriodActions && tab !== 'nomina' && tab !== 'gastos' && tab !== 'sponsors';
   const showRevisionHeader = tab === 'revision';
   const showPlanesHeader = tab === 'planes';
-  const showSponsorsHeader = tab === 'sponsors';
-  const hideMainTabs = showRevisionHeader || showPlanesHeader || showSponsorsHeader;
+  const hideMainTabs = showRevisionHeader || showPlanesHeader;
 
   const [athletes, setAthletes] = useState(() => readScreenCache(paymentsCacheKey)?.athletes ?? []);
   const PAYMENTS_PAGE_SIZE = 50;
@@ -1029,15 +1066,7 @@ export default function FinanzasScreen({ route }) {
         theme={theme}
         colorMarca={cc}
         kicker="Finanzas"
-        title={
-          showRevisionHeader
-            ? 'Revisión'
-            : showPlanesHeader
-              ? 'Planes'
-              : showSponsorsHeader
-                ? 'Sponsors'
-                : 'Pagos'
-        }
+        title={showRevisionHeader ? 'Revisión' : showPlanesHeader ? 'Planes' : 'Pagos'}
         subtitle={
           showRevisionHeader
             ? 'Comprobantes pendientes'
@@ -1135,18 +1164,6 @@ export default function FinanzasScreen({ route }) {
                 <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Planes de cuota</Text>
               </TouchableOpacity>
             ) : null}
-            {canManageClubFinances && !showSponsorsHeader ? (
-              <TouchableOpacity
-                style={financeHeader.menuItem}
-                onPress={() => {
-                  setMoreOpen(false);
-                  openSponsors();
-                }}
-              >
-                <Ionicons name="ribbon-outline" size={20} color={theme.text} />
-                <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Sponsors</Text>
-              </TouchableOpacity>
-            ) : null}
             {canRunPeriodActions && (showCuotaPeriodActions || showVencidosHeader) ? (
               <View style={[financeHeader.menuDivider, { backgroundColor: theme.border }]} />
             ) : null}
@@ -1217,42 +1234,45 @@ export default function FinanzasScreen({ route }) {
 
       {!hideMainTabs ? (
         <>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={{ borderBottomWidth: 1, borderBottomColor: theme.border, flexGrow: 0 }}
-            contentContainerStyle={{
-              paddingHorizontal: 8,
-              flexGrow: 1,
-              justifyContent: visibleTabs.length <= 2 ? 'center' : 'flex-start',
-            }}
-          >
-            {visibleTabs.map((t) => (
+          <View style={[financeHeader.tabSwitcher, { borderBottomColor: theme.border }]}>
+            {mainTabIndex > 0 ? (
               <TouchableOpacity
-                key={t.key}
-                style={[
-                  s.tab,
-                  { flex: 0, paddingHorizontal: 14, minWidth: 88 },
-                  tab === t.key && { borderBottomColor: cc, borderBottomWidth: 2 },
-                ]}
-                onPress={() => selectMainTab(t.key)}
+                style={[financeHeader.tabArrowBtn, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }]}
+                onPress={() => goAdjacentTab(-1)}
+                accessibilityLabel="Sección anterior"
+                hitSlop={6}
               >
-                <Ionicons name={t.icon} size={18} color={tab === t.key ? cc : theme.textMuted} />
-                <Text
-                  style={[
-                    s.tabLabel,
-                    {
-                      color: tab === t.key ? cc : theme.textMuted,
-                      fontWeight: tab === t.key ? 'bold' : 'normal',
-                    },
-                  ]}
-                >
-                  {t.label}
-                </Text>
-                <BadgeDot count={finanzasTabBadge(t.key)} style={{ marginLeft: 4 }} />
+                <Ionicons name="chevron-back" size={22} color={theme.text} />
               </TouchableOpacity>
-            ))}
-          </ScrollView>
+            ) : (
+              <View style={financeHeader.tabArrowBtn} />
+            )}
+
+            <View style={financeHeader.tabCenter}>
+              <Ionicons
+                name={visibleTabs[mainTabIndex]?.icon || 'ellipse-outline'}
+                size={20}
+                color={cc}
+              />
+              <Text style={[financeHeader.tabCenterLabel, { color: theme.text }]} numberOfLines={1}>
+                {visibleTabs[mainTabIndex]?.label || ''}
+              </Text>
+              <BadgeDot count={finanzasTabBadge(visibleTabs[mainTabIndex]?.key)} />
+            </View>
+
+            {mainTabIndex < visibleTabs.length - 1 ? (
+              <TouchableOpacity
+                style={[financeHeader.tabArrowBtn, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }]}
+                onPress={() => goAdjacentTab(1)}
+                accessibilityLabel="Sección siguiente"
+                hitSlop={6}
+              >
+                <Ionicons name="chevron-forward" size={22} color={theme.text} />
+              </TouchableOpacity>
+            ) : (
+              <View style={financeHeader.tabArrowBtn} />
+            )}
+          </View>
 
           <PagerView
             key={visibleTabs.map((t) => t.key).join('-')}
@@ -1349,6 +1369,17 @@ export default function FinanzasScreen({ route }) {
                     anio={anio}
                   />
                 ) : null}
+                {t.key === 'sponsors' ? (
+                  <SponsorsTab
+                    clubData={clubData}
+                    theme={theme}
+                    primaryColor={cc}
+                    getHeaders={getHeaders}
+                    showAlert={showAlert}
+                    mes={mes}
+                    anio={anio}
+                  />
+                ) : null}
               </View>
             ))}
           </PagerView>
@@ -1388,19 +1419,6 @@ export default function FinanzasScreen({ route }) {
           onReactivatePlan={reactivatePlan}
           onAssignPlan={assignPlan}
           isSavingAssignment={isSavingAssignment}
-        />
-      )}
-
-      {tab === 'sponsors' && (
-        <SponsorsTab
-          clubData={clubData}
-          theme={theme}
-          primaryColor={cc}
-          getHeaders={getHeaders}
-          showAlert={showAlert}
-          mes={mes}
-          anio={anio}
-          onBack={leaveSponsors}
         />
       )}
 

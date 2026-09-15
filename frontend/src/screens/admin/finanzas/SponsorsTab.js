@@ -48,7 +48,7 @@ function benefitLines(text) {
     .filter(Boolean);
 }
 
-export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders, showAlert, mes, anio, onBack }) {
+export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders, showAlert, mes, anio }) {
   const { isDarkMode } = useContext(ThemeContext);
   const cc = primaryColor;
   const periodMes = mes || new Date().getMonth() + 1;
@@ -367,7 +367,7 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
               onPress={() => openPay(item)}
             >
               <Ionicons name="checkmark-circle-outline" size={15} color="#10b981" />
-              <Text style={[styles.actionTxt, { color: '#10b981' }]}>Confirmar pago</Text>
+              <Text style={[styles.actionTxt, { color: '#10b981' }]}>Confirmar</Text>
             </TouchableOpacity>
           ) : (
             <>
@@ -421,22 +421,9 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
       />
 
       <View style={styles.topBar}>
-        {onBack ? (
-          <TouchableOpacity
-            style={[styles.backBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
-            onPress={onBack}
-            accessibilityLabel="Volver"
-            hitSlop={8}
-          >
-            <Ionicons name="arrow-back" size={18} color={theme.text} />
-          </TouchableOpacity>
-        ) : null}
         <View style={{ flex: 1 }}>
-          <Text style={{ color: theme.text, fontWeight: '800', fontSize: 15 }}>
-            Aportes · {MN[periodMes - 1]} {periodAnio}
-          </Text>
-          <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
-            Confirmá el pago mes a mes y adjuntá el comprobante
+          <Text style={{ color: theme.textMuted, fontSize: 13 }}>
+            Confirmá el pago y adjuntá el comprobante
           </Text>
         </View>
         <TouchableOpacity style={[styles.addBtn, { backgroundColor: cc }]} onPress={openCreate}>
@@ -771,14 +758,6 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 4,
     gap: 12,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   addBtn: {
     flexDirection: 'row',

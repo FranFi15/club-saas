@@ -7,6 +7,7 @@ export const TABS = [
   { key: 'familias', label: 'Familias', icon: 'home-outline' },
   { key: 'nomina', label: 'Nómina', icon: 'wallet-outline' },
   { key: 'gastos', label: 'Gastos', icon: 'receipt-outline' },
+  { key: 'sponsors', label: 'Sponsors', icon: 'ribbon-outline' },
 ];
 
 const ESTADO_FILTROS_BASE = [
