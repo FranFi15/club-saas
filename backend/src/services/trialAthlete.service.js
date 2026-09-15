@@ -225,6 +225,7 @@ function assertCanDecideTrial(actor, atleta) {
         err.statusCode = 401;
         throw err;
     }
+    // Admin may still convert from Usuarios (backoffice), but alerts go to tutor/athlete.
     if (actor.rol === 'admin_club' || actor.rol === 'administrativo') return;
     if (
         actor.rol === 'tutor' &&
@@ -233,35 +234,35 @@ function assertCanDecideTrial(actor, atleta) {
     ) {
         return;
     }
+    if (actor.rol === 'atleta' && String(atleta._id) === String(actor._id)) {
+        return;
+    }
     const err = new Error('No tenés permiso para decidir sobre este atleta de prueba.');
     err.statusCode = 403;
     throw err;
 }
 
 async function notifyTrialExpired(models, atleta) {
-    const { User } = models;
     const nombre = `${atleta.nombre || ''} ${atleta.apellido || ''}`.trim() || 'Atleta';
     const titulo = 'Prueba vencida';
-    const mensaje = `La prueba de ${nombre} terminó. ¿Continúan en el club? Si confirman, se activan cuotas y planes.`;
+    // Tutor decides for kids; solo-atleta decides for themselves. Admins are not notified.
+    const destinatarioId = atleta.tutorPrincipal
+        ? String(atleta.tutorPrincipal)
+        : String(atleta._id);
+    const mensaje = atleta.tutorPrincipal
+        ? `La prueba de ${nombre} terminó. ¿Continúan en el club? Si confirman, se activan cuotas y planes.`
+        : 'Tu período de prueba terminó. ¿Querés seguir en el club? Si confirmás, se activan cuotas y planes.';
 
-    const destinatarios = new Set();
-    if (atleta.tutorPrincipal) destinatarios.add(String(atleta.tutorPrincipal));
-
-    const admins = await User.find({ rol: 'admin_club', estado: { $ne: 'inactivo' } }).select('_id');
-    for (const a of admins) destinatarios.add(String(a._id));
-
-    for (const userId of destinatarios) {
-        try {
-            await createAppNotification(models, {
-                usuario: userId,
-                tipo: 'prueba_expirada',
-                titulo,
-                mensaje,
-                referencia: atleta._id,
-            });
-        } catch (e) {
-            console.warn('[trial] notify:', e.message);
-        }
+    try {
+        await createAppNotification(models, {
+            usuario: destinatarioId,
+            tipo: 'prueba_expirada',
+            titulo,
+            mensaje,
+            referencia: atleta._id,
+        });
+    } catch (e) {
+        console.warn('[trial] notify:', e.message);
     }
 }
 

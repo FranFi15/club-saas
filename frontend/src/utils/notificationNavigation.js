@@ -141,9 +141,7 @@ export function getNotificationTarget(item, { rol, cuotasEnApp, isTutor }) {
 
   if (tipo === 'prueba_expirada') {
     if (isTutor || rol === 'tutor') return { tab: 'TutorInicio' };
-    if (rol === 'admin_club' || rol === 'administrativo') {
-      return { tab: 'Estructura', screen: 'Usuarios' };
-    }
+    if (rol === 'atleta') return { tab: 'AthleteAgenda' };
     return null;
   }
 

@@ -19,7 +19,6 @@ import UserFormModal from '../../components/UserFormModal';
 import UserDetailsModal from '../../components/UserDetailsModal';
 import UserAvatar from '../../components/UserAvatar';
 import SearchableDropdown from '../../components/SearchableDropdown';
-import TrialDecisionCard from '../../components/TrialDecisionCard';
 import { USER_ROL_LABELS, USER_ROLE_FILTROS } from '../../constants/userRoles';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { sortUsersByName } from '../../utils/listSort';
@@ -42,7 +41,6 @@ export default function UsuariosScreen({ navigation }) {
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [viewerRol, setViewerRol] = useState('');
-  const [pruebaPendiente, setPruebaPendiente] = useState([]);
   const [convertingTrial, setConvertingTrial] = useState(false);
 
   useEffect(() => {
@@ -97,21 +95,6 @@ export default function UsuariosScreen({ navigation }) {
     };
   }, [clubData?.urlIdentifier]);
 
-  const loadPruebaPendiente = useCallback(async () => {
-    if (!clubData?.urlIdentifier) return;
-    try {
-      const headers = await getHeaders();
-      const { data } = await clubApi.get('/users/me', { headers });
-      setPruebaPendiente(Array.isArray(data?.pruebaPendiente) ? data.pruebaPendiente : []);
-    } catch {
-      setPruebaPendiente([]);
-    }
-  }, [clubData?.urlIdentifier, getHeaders]);
-
-  useEffect(() => {
-    loadPruebaPendiente();
-  }, [loadPruebaPendiente]);
-
   // Debounce para el buscador
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -153,8 +136,7 @@ export default function UsuariosScreen({ navigation }) {
 
   const onRefresh = useCallback(() => {
     refreshUsers();
-    loadPruebaPendiente();
-  }, [refreshUsers, loadPruebaPendiente]);
+  }, [refreshUsers]);
 
   const handleConvertTrial = async () => {
     if (!selectedUser?._id) return;
@@ -447,26 +429,6 @@ export default function UsuariosScreen({ navigation }) {
             keyExtractor={(item) => item._id || Math.random().toString()}
             renderItem={renderItem}
             contentContainerStyle={{ paddingBottom: 80 }}
-            ListHeaderComponent={
-              pruebaPendiente.length ? (
-                <View style={{ marginBottom: 8 }}>
-                  {pruebaPendiente.map((a) => (
-                    <TrialDecisionCard
-                      key={a._id}
-                      athlete={a}
-                      theme={theme}
-                      isDarkMode={isDarkMode}
-                      colorMarca={colorMarca}
-                      getHeaders={getHeaders}
-                      onResolved={() => {
-                        loadPruebaPendiente();
-                        onRefresh();
-                      }}
-                    />
-                  ))}
-                </View>
-              ) : null
-            }
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
             onEndReached={handleLoadMore}
             onEndReachedThreshold={0.5}

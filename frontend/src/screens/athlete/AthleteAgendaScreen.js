@@ -21,6 +21,7 @@ import CoachScreenHeader from '../../components/CoachScreenHeader';
 import CoachSessionCalendar from '../../components/CoachSessionCalendar';
 import DesignCard from '../../components/DesignCard';
 import MemberChildPicker from '../../components/MemberChildPicker';
+import TrialDecisionCard from '../../components/TrialDecisionCard';
 import { calendarPartsToYmd, todayYmd } from '../../utils/timeSlots';
 import {
   compareIsoCalendarDates,
@@ -63,7 +64,8 @@ function defaultSelectedForMonth(monthDate) {
 export default function AthleteAgendaScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
-  const { isTutor, memberId, activeHijo, loading: memberLoading, refresh: refreshMember } = useMember();
+  const { isTutor, memberId, activeHijo, loading: memberLoading, refresh: refreshMember, profile } = useMember();
+  const pruebaPendiente = Array.isArray(profile?.pruebaPendiente) ? profile.pruebaPendiente : [];
   const badges = useBadgesOptional();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -176,7 +178,7 @@ export default function AthleteAgendaScreen({ navigation }) {
     return { sessions: merged };
   }, [clubData?.urlIdentifier, memberId, currentMonth]);
 
-  const { loading, refreshing, onRefresh } = useCachedFocusLoad({
+  const { loading, refreshing, onRefresh: refreshAgenda } = useCachedFocusLoad({
     cacheKey: agendaCacheKey,
     enabled: !!agendaCacheKey && (!!memberId || !isTutor),
     fetchData: fetchAgenda,
@@ -186,6 +188,11 @@ export default function AthleteAgendaScreen({ navigation }) {
       applyAgenda({ sessions: [] });
     },
   });
+
+  const onRefresh = useCallback(() => {
+    refreshAgenda();
+    refreshMember({ background: true });
+  }, [refreshAgenda, refreshMember]);
 
   const respondConsult = async (sessionId, accion, motivoRechazo = '') => {
     if (!clubData?.urlIdentifier || respondingId) return;
@@ -335,6 +342,17 @@ export default function AthleteAgendaScreen({ navigation }) {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
           showsVerticalScrollIndicator={false}
         >
+          {pruebaPendiente.map((a) => (
+            <TrialDecisionCard
+              key={a._id}
+              athlete={a}
+              theme={theme}
+              isDarkMode={isDarkMode}
+              colorMarca={colorMarca}
+              getHeaders={() => clubHeaders(clubData)}
+              onResolved={() => refreshMember({ background: true })}
+            />
+          ))}
           <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Calendario</Text>
 
           <CoachSessionCalendar

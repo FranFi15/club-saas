@@ -47,13 +47,13 @@ router.patch('/atletas/:id/deactivate', protect, authorize('admin_club', 'admini
 router.post(
     '/atletas/:id/prueba/continuar',
     protect,
-    authorize('admin_club', 'administrativo', 'tutor'),
+    authorize('admin_club', 'administrativo', 'tutor', 'atleta'),
     continueTrialAthlete,
 );
 router.post(
     '/atletas/:id/prueba/baja',
     protect,
-    authorize('admin_club', 'administrativo', 'tutor'),
+    authorize('admin_club', 'administrativo', 'tutor', 'atleta'),
     leaveTrialAthleteHandler,
 );
 
