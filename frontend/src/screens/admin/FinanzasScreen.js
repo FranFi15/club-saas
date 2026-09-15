@@ -167,10 +167,11 @@ export default function FinanzasScreen({ route }) {
     (tab === 'atletas' && filtroEstado !== 'vencido') ||
     tab === 'familias' ||
     tab === 'nomina' ||
-    tab === 'gastos';
+    tab === 'gastos' ||
+    tab === 'sponsors';
   const showVencidosHeader = tab === 'atletas' && filtroEstado === 'vencido';
   const showCuotaPeriodActions =
-    showMonthNav && canRunPeriodActions && tab !== 'nomina' && tab !== 'gastos';
+    showMonthNav && canRunPeriodActions && tab !== 'nomina' && tab !== 'gastos' && tab !== 'sponsors';
   const showRevisionHeader = tab === 'revision';
   const showPlanesHeader = tab === 'planes';
   const showSponsorsHeader = tab === 'sponsors';
@@ -1401,6 +1402,8 @@ export default function FinanzasScreen({ route }) {
           primaryColor={cc}
           getHeaders={getHeaders}
           showAlert={showAlert}
+          mes={mes}
+          anio={anio}
         />
       )}
 

@@ -27,6 +27,7 @@ import { getMpProcessedPaymentModel } from '../models/mpProcessedPayment.model.j
 import { getPayrollEntryModel } from '../models/payroll.model.js';
 import { getBillModel } from '../models/bill.model.js';
 import { getSponsorModel } from '../models/sponsor.model.js';
+import { getSponsorPaymentModel } from '../models/sponsorPayment.model.js';
 
 export const getTenantModels = (tenantDB) => {
     // Al llamar a todas estas funciones acá, Mongoose registra TODOS los esquemas 
@@ -66,5 +67,6 @@ export const getTenantModels = (tenantDB) => {
         PayrollEntry: getPayrollEntryModel(tenantDB),
         Bill: getBillModel(tenantDB),
         Sponsor: getSponsorModel(tenantDB),
+        SponsorPayment: getSponsorPaymentModel(tenantDB),
     };
 };

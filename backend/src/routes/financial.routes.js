@@ -56,6 +56,8 @@ import {
     createSponsor,
     updateSponsor,
     deleteSponsor,
+    paySponsorMonth,
+    unpaySponsorMonth,
     getMySponsorBenefits,
 } from '../controllers/sponsor.controller.js';
 import { protect, authorize } from '../middlewares/auth.middleware.js';
@@ -133,6 +135,8 @@ router.delete('/bills/:id', protect, authorize('admin_club'), deleteBill);
 router.get('/sponsors/my-benefits', protect, authorize('atleta', 'tutor', 'socio'), getMySponsorBenefits);
 router.get('/sponsors', protect, authorize('admin_club', 'administrativo'), listSponsors);
 router.post('/sponsors', protect, authorize('admin_club'), createSponsor);
+router.patch('/sponsors/:id/pay-month', protect, authorize('admin_club', 'administrativo'), paySponsorMonth);
+router.patch('/sponsors/:id/unpay-month', protect, authorize('admin_club'), unpaySponsorMonth);
 router.patch('/sponsors/:id', protect, authorize('admin_club'), updateSponsor);
 router.delete('/sponsors/:id', protect, authorize('admin_club'), deleteSponsor);
 

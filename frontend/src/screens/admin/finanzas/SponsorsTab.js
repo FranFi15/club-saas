@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -18,8 +18,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
 import { readScreenCache, useCachedFocusLoad } from '../../../hooks/useCachedFocusLoad';
 import { finanzasStyles as s } from './finanzasStyles';
-import { fmtMoney, contrastOutlineBtn } from './finanzasConstants';
-import { pickAndUploadImage } from './finanzasUpload';
+import { METODOS, MN, fmtMoney, contrastOutlineBtn } from './finanzasConstants';
+import { pickAndUploadImage, pickAndUploadAttachment, openAttachmentUrl } from './finanzasUpload';
 import CustomAlert from '../../../components/CustomAlert';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
@@ -48,10 +48,14 @@ function benefitLines(text) {
     .filter(Boolean);
 }
 
-export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders, showAlert }) {
+export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders, showAlert, mes, anio }) {
   const { isDarkMode } = useContext(ThemeContext);
   const cc = primaryColor;
-  const cacheKey = clubData?.urlIdentifier ? `finanzas-sponsors:${clubData.urlIdentifier}` : '';
+  const periodMes = mes || new Date().getMonth() + 1;
+  const periodAnio = anio || new Date().getFullYear();
+  const cacheKey = clubData?.urlIdentifier
+    ? `finanzas-sponsors:${clubData.urlIdentifier}:${periodMes}-${periodAnio}`
+    : '';
 
   const [sponsors, setSponsors] = useState(() => readScreenCache(cacheKey)?.sponsors ?? []);
   const [socialFees, setSocialFees] = useState(() => readScreenCache(cacheKey)?.socialFees ?? []);
@@ -60,17 +64,28 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [payOpen, setPayOpen] = useState(false);
+  const [payTarget, setPayTarget] = useState(null);
+  const [payMetodo, setPayMetodo] = useState('transferencia');
+  const [payComprobante, setPayComprobante] = useState('');
+  const [payNotas, setPayNotas] = useState('');
+  const [payUploading, setPayUploading] = useState(false);
   const [confirmCfg, setConfirmCfg] = useState({
     visible: false,
     title: '',
     message: '',
+    isDanger: true,
+    confirmText: 'Eliminar',
     onConfirm: () => {},
   });
 
   const fetchData = useCallback(async () => {
     const h = await getHeaders();
     const [spRes, feeRes] = await Promise.all([
-      clubApi.get('/financial/sponsors', { headers: h, params: { includeInactive: true } }),
+      clubApi.get('/financial/sponsors', {
+        headers: h,
+        params: { includeInactive: true, mes: periodMes, anio: periodAnio },
+      }),
       clubApi.get('/financial/social-fees', { headers: h }).catch(() => ({ data: [] })),
     ]);
     const feesRaw = feeRes.data;
@@ -78,7 +93,7 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
       sponsors: spRes.data?.sponsors || [],
       socialFees: Array.isArray(feesRaw) ? feesRaw : feesRaw?.fees || [],
     };
-  }, [getHeaders]);
+  }, [getHeaders, periodMes, periodAnio]);
 
   const { loading, refreshing, onRefresh, reload } = useCachedFocusLoad({
     cacheKey,
@@ -96,6 +111,9 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
       [...sponsors].sort((a, b) => {
         if (a.activo === false && b.activo !== false) return 1;
         if (a.activo !== false && b.activo === false) return -1;
+        const aPaid = a.pagoMes?.estado === 'pagado';
+        const bPaid = b.pagoMes?.estado === 'pagado';
+        if (aPaid !== bPaid) return aPaid ? 1 : -1;
         return String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es');
       }),
     [sponsors],
@@ -175,11 +193,13 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
         nombre: form.nombre.trim(),
         registro: form.registro.trim(),
         fotoUrl: form.fotoUrl.trim(),
-        montoMensual: form.montoMensual === '' ? 0 : Number(form.montoMensual),
+        montoMensual: form.montoMensual === '' ? 0 : Number(String(form.montoMensual).replace(',', '.')),
         beneficios: form.beneficios,
         rolesAplicables: form.rolesAplicables,
         cuotasSociales: form.cuotasSociales,
         activo: form.activo,
+        mes: periodMes,
+        anio: periodAnio,
       };
       if (editingId) {
         await clubApi.patch(`/financial/sponsors/${editingId}`, payload, { headers: h });
@@ -202,6 +222,8 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
       visible: true,
       title: 'Eliminar sponsor',
       message: `¿Eliminar a ${item.nombre}? Esta acción no se puede deshacer.`,
+      isDanger: true,
+      confirmText: 'Eliminar',
       onConfirm: async () => {
         setConfirmCfg((p) => ({ ...p, visible: false }));
         try {
@@ -216,58 +238,176 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
     });
   };
 
+  const openPay = (item) => {
+    setPayTarget(item);
+    setPayMetodo('transferencia');
+    setPayComprobante(item.pagoMes?.comprobanteUrl || '');
+    setPayNotas(item.pagoMes?.notas || '');
+    setPayOpen(true);
+  };
+
+  const uploadPayComprobante = async () => {
+    setPayUploading(true);
+    try {
+      const url = await pickAndUploadAttachment(clubData);
+      if (url) setPayComprobante(url);
+    } catch (e) {
+      showAlert('Error', e.message || 'No se pudo subir el comprobante.');
+    } finally {
+      setPayUploading(false);
+    }
+  };
+
+  const savePay = async () => {
+    if (!payTarget?._id) return;
+    setSaving(true);
+    try {
+      const h = await getHeaders();
+      await clubApi.patch(
+        `/financial/sponsors/${payTarget._id}/pay-month`,
+        {
+          mes: periodMes,
+          anio: periodAnio,
+          metodoPago: payMetodo,
+          comprobanteUrl: payComprobante,
+          notas: payNotas,
+          monto: payTarget.pagoMes?.monto ?? payTarget.montoMensual,
+        },
+        { headers: h },
+      );
+      setPayOpen(false);
+      showAlert('Listo', `Pago de ${MN[periodMes - 1]} ${periodAnio} confirmado.`);
+      reload({ background: true });
+    } catch (e) {
+      showAlert('Error', e.response?.data?.message || 'No se pudo confirmar el pago.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const revertPay = (item) => {
+    setConfirmCfg({
+      visible: true,
+      title: 'Revertir pago',
+      message: `¿Marcar el aporte de ${item.nombre} en ${MN[periodMes - 1]} ${periodAnio} como pendiente?`,
+      isDanger: false,
+      confirmText: 'Revertir',
+      onConfirm: async () => {
+        setConfirmCfg((p) => ({ ...p, visible: false }));
+        try {
+          const h = await getHeaders();
+          await clubApi.patch(
+            `/financial/sponsors/${item._id}/unpay-month`,
+            { mes: periodMes, anio: periodAnio },
+            { headers: h },
+          );
+          showAlert('Listo', 'Pago revertido a pendiente.');
+          reload({ background: true });
+        } catch (e) {
+          showAlert('Error', e.response?.data?.message || 'No se pudo revertir.');
+        }
+      },
+    });
+  };
+
   const renderItem = ({ item }) => {
     const inactive = item.activo === false;
-    const roles = (item.rolesAplicables || [])
-      .map((r) => ROLE_OPTIONS.find((o) => o.value === r)?.label || r)
-      .join(', ');
-    const fees = (item.cuotasSociales || [])
-      .map((f) => (typeof f === 'object' ? f.nombre : null))
-      .filter(Boolean)
-      .join(', ');
-    const lines = benefitLines(item.beneficios);
+    const pago = item.pagoMes;
+    const paid = pago?.estado === 'pagado';
+    const expected = pago?.monto ?? item.montoMensual;
 
     return (
       <DesignCard
         theme={theme}
         isDarkMode={isDarkMode}
-        accent={inactive ? '#9ca3af' : cc}
+        accent={inactive ? '#9ca3af' : paid ? '#10b981' : '#f59e0b'}
         muted={inactive}
         style={{ marginBottom: 12, opacity: inactive ? 0.75 : 1 }}
         contentStyle={styles.cardInner}
-        onPress={() => openEdit(item)}
       >
-        {item.fotoUrl ? (
-          <Image source={{ uri: item.fotoUrl }} style={styles.logo} />
-        ) : (
-          <View style={[styles.logoPlaceholder, { backgroundColor: theme.background, borderColor: theme.border }]}>
-            <Ionicons name="ribbon-outline" size={22} color={theme.textMuted} />
+        <TouchableOpacity style={styles.cardMain} onPress={() => openEdit(item)} activeOpacity={0.85}>
+          {item.fotoUrl ? (
+            <Image source={{ uri: item.fotoUrl }} style={styles.logo} />
+          ) : (
+            <View style={[styles.logoPlaceholder, { backgroundColor: theme.background, borderColor: theme.border }]}>
+              <Ionicons name="ribbon-outline" size={22} color={theme.textMuted} />
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.name, { color: theme.text }]}>{item.nombre}</Text>
+            {item.registro ? (
+              <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>{item.registro}</Text>
+            ) : null}
+            <Text style={{ color: cc, fontWeight: '700', marginTop: 4 }}>{fmtMoney(expected)} · {MN[periodMes - 1]}</Text>
+            <View
+              style={[
+                styles.statusPill,
+                {
+                  backgroundColor: paid ? '#10b98118' : '#f59e0b18',
+                  borderColor: paid ? '#10b981' : '#f59e0b',
+                },
+              ]}
+            >
+              <Text style={{ color: paid ? '#10b981' : '#f59e0b', fontSize: 11, fontWeight: '800' }}>
+                {paid ? 'Pagado' : 'Pendiente'}
+              </Text>
+            </View>
+            {inactive ? (
+              <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '700', marginTop: 4 }}>Inactivo</Text>
+            ) : null}
           </View>
-        )}
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.name, { color: theme.text }]}>{item.nombre}</Text>
-          {item.registro ? (
-            <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>{item.registro}</Text>
-          ) : null}
-          <Text style={{ color: cc, fontWeight: '700', marginTop: 4 }}>{fmtMoney(item.montoMensual)} / mes</Text>
-          {roles ? (
-            <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 4 }}>Usuarios: {roles}</Text>
-          ) : null}
-          {fees ? (
-            <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>Cuotas: {fees}</Text>
-          ) : null}
-          {lines.length ? (
-            <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 4 }} numberOfLines={2}>
-              {lines.join(' · ')}
-            </Text>
-          ) : null}
-          {inactive ? (
-            <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '700', marginTop: 4 }}>Inactivo</Text>
-          ) : null}
-        </View>
-        <TouchableOpacity onPress={() => confirmDelete(item)} hitSlop={10} style={{ padding: 6 }}>
-          <Ionicons name="trash-outline" size={20} color="#ef4444" />
         </TouchableOpacity>
+
+        <View style={[styles.actionsRow, { borderTopColor: theme.border }]}>
+          {!paid ? (
+            <TouchableOpacity
+              style={[styles.actionBtn, { borderColor: '#a7f3d0', backgroundColor: '#ecfdf5' }]}
+              onPress={() => openPay(item)}
+            >
+              <Ionicons name="checkmark-circle-outline" size={15} color="#10b981" />
+              <Text style={[styles.actionTxt, { color: '#10b981' }]}>Confirmar pago</Text>
+            </TouchableOpacity>
+          ) : (
+            <>
+              {pago?.comprobanteUrl ? (
+                <TouchableOpacity
+                  style={[styles.actionBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+                  onPress={async () => {
+                    try {
+                      await openAttachmentUrl(pago.comprobanteUrl);
+                    } catch (e) {
+                      showAlert('Error', e.message || 'No se pudo abrir el comprobante.');
+                    }
+                  }}
+                >
+                  <Ionicons name="image-outline" size={15} color={theme.text} />
+                  <Text style={[styles.actionTxt, { color: theme.text }]}>Comprobante</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                style={[styles.actionBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+                onPress={() => openPay(item)}
+              >
+                <Ionicons name="create-outline" size={15} color={theme.text} />
+                <Text style={[styles.actionTxt, { color: theme.text }]}>Actualizar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, { borderColor: '#fde68a', backgroundColor: '#fffbeb' }]}
+                onPress={() => revertPay(item)}
+              >
+                <Ionicons name="arrow-undo-outline" size={15} color="#d97706" />
+                <Text style={[styles.actionTxt, { color: '#d97706' }]}>Revertir</Text>
+              </TouchableOpacity>
+            </>
+          )}
+          <TouchableOpacity
+            style={[styles.actionBtn, { borderColor: '#fecaca', backgroundColor: '#fef2f2' }]}
+            onPress={() => confirmDelete(item)}
+          >
+            <Ionicons name="trash-outline" size={15} color="#ef4444" />
+            <Text style={[styles.actionTxt, { color: '#ef4444' }]}>Eliminar</Text>
+          </TouchableOpacity>
+        </View>
       </DesignCard>
     );
   };
@@ -279,16 +419,21 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
         title={confirmCfg.title}
         message={confirmCfg.message}
         showCancel
-        isDanger
-        confirmText="Eliminar"
+        isDanger={confirmCfg.isDanger}
+        confirmText={confirmCfg.confirmText}
         onConfirm={confirmCfg.onConfirm}
         onCancel={() => setConfirmCfg((p) => ({ ...p, visible: false }))}
       />
 
       <View style={styles.topBar}>
-        <Text style={{ color: theme.textMuted, flex: 1, fontSize: 13 }}>
-          Sponsors con beneficios para miembros al día
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: theme.text, fontWeight: '800', fontSize: 15 }}>
+            Aportes · {MN[periodMes - 1]} {periodAnio}
+          </Text>
+          <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
+            Confirmá el pago mes a mes y adjuntá el comprobante
+          </Text>
+        </View>
         <TouchableOpacity style={[styles.addBtn, { backgroundColor: cc }]} onPress={openCreate}>
           <Ionicons name="add" size={18} color="#fff" />
           <Text style={styles.addBtnTxt}>Nuevo</Text>
@@ -311,6 +456,110 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
           renderItem={renderItem}
         />
       )}
+
+      <Modal visible={payOpen} animationType="slide" transparent onRequestClose={() => setPayOpen(false)}>
+        <KeyboardAvoidingView
+          style={s.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={[s.modalContent, { backgroundColor: theme.surface, maxHeight: '90%' }]}>
+            <View style={s.modalHeader}>
+              <Text style={[s.modalTitle, { color: theme.text }]}>Confirmar pago</Text>
+              <TouchableOpacity onPress={() => setPayOpen(false)}>
+                <Ionicons name="close" size={24} color={theme.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              {payTarget ? (
+                <View style={[s.payInfo, { backgroundColor: `${cc}14` }]}>
+                  <Text style={{ color: theme.text, fontWeight: '700', fontSize: 16 }}>{payTarget.nombre}</Text>
+                  <Text style={{ color: theme.textMuted, marginTop: 4 }}>
+                    {MN[periodMes - 1]} {periodAnio}
+                  </Text>
+                  <Text style={{ color: theme.text, fontWeight: '800', fontSize: 22, marginTop: 6 }}>
+                    {fmtMoney(payTarget.pagoMes?.monto ?? payTarget.montoMensual)}
+                  </Text>
+                </View>
+              ) : null}
+
+              <Text style={[s.label, { color: theme.textMuted }]}>Método de pago</Text>
+              <View style={styles.chipRow}>
+                {METODOS.map((m) => {
+                  const on = payMetodo === m.value;
+                  return (
+                    <TouchableOpacity
+                      key={m.value}
+                      style={[
+                        styles.chip,
+                        {
+                          borderColor: on ? cc : theme.border,
+                          backgroundColor: on ? cc + '22' : theme.background,
+                        },
+                      ]}
+                      onPress={() => setPayMetodo(m.value)}
+                    >
+                      <Text style={{ color: on ? cc : theme.text, fontWeight: '600', fontSize: 13 }}>
+                        {m.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={[s.label, { color: theme.textMuted }]}>Comprobante (imagen o PDF)</Text>
+              <TouchableOpacity
+                onPress={uploadPayComprobante}
+                disabled={payUploading}
+                style={[
+                  s.input,
+                  {
+                    borderColor: theme.border,
+                    backgroundColor: theme.background,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  },
+                ]}
+              >
+                <Text style={{ color: payComprobante ? cc : theme.textMuted, flex: 1 }} numberOfLines={1}>
+                  {payUploading ? 'Subiendo…' : payComprobante ? 'Comprobante subido ✓' : 'Subir comprobante'}
+                </Text>
+                <Ionicons name="cloud-upload-outline" size={20} color={cc} />
+              </TouchableOpacity>
+              {payComprobante ? (
+                <TouchableOpacity onPress={() => setPayComprobante('')} style={{ marginBottom: 12 }}>
+                  <Text style={{ color: '#ef4444', fontWeight: '600' }}>Quitar comprobante</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              <Text style={[s.label, { color: theme.textMuted }]}>Notas</Text>
+              <TextInput
+                style={[
+                  s.input,
+                  { borderColor: theme.border, color: theme.text, backgroundColor: theme.background, minHeight: 70 },
+                ]}
+                multiline
+                value={payNotas}
+                onChangeText={setPayNotas}
+                placeholderTextColor={theme.textMuted}
+                textAlignVertical="top"
+              />
+
+              <TouchableOpacity
+                style={[s.saveBtn, { backgroundColor: '#10b981', opacity: saving ? 0.7 : 1 }]}
+                onPress={savePay}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={s.saveBtnTxt}>Confirmar pago</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       <Modal visible={formOpen} animationType="slide" onRequestClose={() => setFormOpen(false)}>
         <KeyboardAvoidingView
@@ -505,7 +754,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   addBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  cardInner: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  cardInner: { paddingBottom: 0 },
+  cardMain: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   logo: { width: 52, height: 52, borderRadius: 10 },
   logoPlaceholder: {
     width: 52,
@@ -516,6 +766,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   name: { fontSize: 16, fontWeight: '800' },
+  statusPill: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  actionTxt: { fontSize: 12, fontWeight: '700' },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
