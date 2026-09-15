@@ -228,7 +228,7 @@ export default function AdminStatsScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
-  const cacheKey = clubData?.urlIdentifier ? `admin-club-stats:v3:${clubData.urlIdentifier}` : '';
+  const cacheKey = clubData?.urlIdentifier ? `admin-club-stats:v5:${clubData.urlIdentifier}` : '';
 
   const [stats, setStats] = useState(() => readScreenCache(cacheKey) ?? null);
   const [openId, setOpenId] = useState(null);
@@ -264,6 +264,52 @@ export default function AdminStatsScreen({ navigation }) {
   const edadTotal = AGE_ROWS.reduce((s, r) => s + (stats?.edad?.[r.key] || 0), 0);
   const discMax = Math.max(1, ...(stats?.porDisciplina || []).map((d) => d.atletas || 0), 1);
   const opsTotal = OPS_ROWS.reduce((s, r) => s + (stats?.operaciones?.[r.key] || 0), 0);
+  const socialPorRol = stats?.cuotasSociales?.porRol || {};
+  const socialRolTotal =
+    (socialPorRol.atleta || 0) +
+    (socialPorRol.tutor || 0) +
+    (socialPorRol.socio || 0) +
+    (socialPorRol.otro || 0);
+
+  const renderFinanceCard = (bundle) => (
+    <View
+      style={[
+        styles.financeCard,
+        {
+          backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : theme.background,
+          borderColor: theme.border,
+        },
+      ]}
+    >
+      <Text style={[styles.financeMonth, { color: theme.textMuted }]}>
+        {bundle?.mes && bundle?.anio
+          ? `${String(bundle.mes).padStart(2, '0')}/${bundle.anio}`
+          : 'Mes actual'}
+      </Text>
+      <Text style={[styles.financePct, { color: colorMarca }]}>
+        {bundle?.porcentajeCobranza ?? 0}% cobranza
+      </Text>
+      <Text style={[styles.financeLine, { color: theme.text }]}>
+        Facturado ${formatMoney(bundle?.facturado)} · Cobrado ${formatMoney(bundle?.cobrado)}
+      </Text>
+      <View style={styles.financeRow}>
+        <Text style={{ color: theme.textMuted }}>Pendientes</Text>
+        <Text style={{ color: theme.text, fontWeight: '700' }}>{bundle?.pendiente ?? 0}</Text>
+      </View>
+      <View style={styles.financeRow}>
+        <Text style={{ color: theme.textMuted }}>Vencidas (mes)</Text>
+        <Text style={{ color: theme.text, fontWeight: '700' }}>{bundle?.vencido ?? 0}</Text>
+      </View>
+      <View style={styles.financeRow}>
+        <Text style={{ color: theme.textMuted }}>Pagadas</Text>
+        <Text style={{ color: theme.text, fontWeight: '700' }}>{bundle?.pagado ?? 0}</Text>
+      </View>
+      <View style={[styles.financeRow, styles.financeRowLast]}>
+        <Text style={{ color: theme.textMuted }}>Vencidas (global)</Text>
+        <Text style={{ color: '#ef4444', fontWeight: '700' }}>{bundle?.vencidosGlobal ?? 0}</Text>
+      </View>
+    </View>
+  );
 
   const accordionProps = { openId, onToggle, theme, isDarkMode, colorMarca };
 
@@ -292,13 +338,20 @@ export default function AdminStatsScreen({ navigation }) {
           <AccordionSection
             id="resumen"
             title="Resumen"
-            summary={`${resumen.atletas ?? 0} atletas · ${resumen.profesionales ?? 0} profesionales`}
+            summary={`${resumen.atletas ?? 0} atletas · ${resumen.socios ?? 0} socios · ${resumen.profesionales ?? 0} profesionales`}
             {...accordionProps}
           >
             <View style={styles.tileGrid}>
               <StatTile
                 label="Atletas"
                 value={String(resumen.atletas ?? 0)}
+                theme={theme}
+                colorMarca={colorMarca}
+                isDarkMode={isDarkMode}
+              />
+              <StatTile
+                label="Socios"
+                value={String(resumen.socios ?? 0)}
                 theme={theme}
                 colorMarca={colorMarca}
                 isDarkMode={isDarkMode}
@@ -325,15 +378,25 @@ export default function AdminStatsScreen({ navigation }) {
                 isDarkMode={isDarkMode}
               />
               <StatTile
-                label="Disciplinas"
-                value={String(resumen.disciplinas ?? 0)}
+                label="Disc. · Cat."
+                value={`${resumen.disciplinas ?? 0} · ${resumen.categorias ?? 0}`}
                 theme={theme}
                 colorMarca={colorMarca}
                 isDarkMode={isDarkMode}
               />
+            </View>
+          </AccordionSection>
+
+          <AccordionSection
+            id="socios"
+            title="Socios"
+            summary={`${stats?.socios?.total ?? resumen.socios ?? 0} activo(s)`}
+            {...accordionProps}
+          >
+            <View style={styles.tileGrid}>
               <StatTile
-                label="Categorías"
-                value={String(resumen.categorias ?? 0)}
+                label="Socios activos"
+                value={String(stats?.socios?.total ?? resumen.socios ?? 0)}
                 theme={theme}
                 colorMarca={colorMarca}
                 isDarkMode={isDarkMode}
@@ -491,56 +554,39 @@ export default function AdminStatsScreen({ navigation }) {
 
           <AccordionSection
             id="finanzas"
-            title="Finanzas del mes"
+            title="Cuotas de entrenamiento"
             summary={`${stats?.finanzas?.porcentajeCobranza ?? 0}% cobranza · ${stats?.finanzas?.vencidosGlobal ?? 0} vencidas`}
             {...accordionProps}
           >
-            <View
-              style={[
-                styles.financeCard,
-                {
-                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : theme.background,
-                  borderColor: theme.border,
-                },
-              ]}
-            >
-              <Text style={[styles.financeMonth, { color: theme.textMuted }]}>
-                {stats?.finanzas?.mes && stats?.finanzas?.anio
-                  ? `${String(stats.finanzas.mes).padStart(2, '0')}/${stats.finanzas.anio}`
-                  : 'Mes actual'}
-              </Text>
-              <Text style={[styles.financePct, { color: colorMarca }]}>
-                {stats?.finanzas?.porcentajeCobranza ?? 0}% cobranza
-              </Text>
-              <Text style={[styles.financeLine, { color: theme.text }]}>
-                Facturado ${formatMoney(stats?.finanzas?.facturado)} · Cobrado $
-                {formatMoney(stats?.finanzas?.cobrado)}
-              </Text>
-              <View style={styles.financeRow}>
-                <Text style={{ color: theme.textMuted }}>Pendientes</Text>
-                <Text style={{ color: theme.text, fontWeight: '700' }}>
-                  {stats?.finanzas?.pendiente ?? 0}
-                </Text>
-              </View>
-              <View style={styles.financeRow}>
-                <Text style={{ color: theme.textMuted }}>Vencidas (mes)</Text>
-                <Text style={{ color: theme.text, fontWeight: '700' }}>
-                  {stats?.finanzas?.vencido ?? 0}
-                </Text>
-              </View>
-              <View style={styles.financeRow}>
-                <Text style={{ color: theme.textMuted }}>Pagadas</Text>
-                <Text style={{ color: theme.text, fontWeight: '700' }}>
-                  {stats?.finanzas?.pagado ?? 0}
-                </Text>
-              </View>
-              <View style={[styles.financeRow, styles.financeRowLast]}>
-                <Text style={{ color: theme.textMuted }}>Vencidas (global)</Text>
-                <Text style={{ color: '#ef4444', fontWeight: '700' }}>
-                  {stats?.finanzas?.vencidosGlobal ?? 0}
-                </Text>
-              </View>
-            </View>
+            {renderFinanceCard(stats?.finanzas)}
+          </AccordionSection>
+
+          <AccordionSection
+            id="cuotasSociales"
+            title="Cuotas sociales"
+            summary={`${stats?.cuotasSociales?.porcentajeCobranza ?? 0}% cobranza · ${stats?.cuotasSociales?.totalMes ?? 0} del mes`}
+            {...accordionProps}
+          >
+            {renderFinanceCard(stats?.cuotasSociales)}
+            <Text style={[styles.subHead, { color: theme.textMuted }]}>
+              Titulares del mes (atleta, tutor o socio)
+            </Text>
+            {[
+              { key: 'atleta', label: 'Atletas' },
+              { key: 'tutor', label: 'Tutores' },
+              { key: 'socio', label: 'Socios' },
+              ...(socialPorRol.otro ? [{ key: 'otro', label: 'Otros' }] : []),
+            ].map((r) => (
+              <BarRow
+                key={r.key}
+                label={r.label}
+                count={socialPorRol[r.key] || 0}
+                total={Math.max(1, socialRolTotal)}
+                theme={theme}
+                colorMarca={colorMarca}
+                showPct={false}
+              />
+            ))}
           </AccordionSection>
         </ScrollView>
       )}

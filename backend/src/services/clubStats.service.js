@@ -24,6 +24,7 @@ export async function buildClubStats(models, adminUserId) {
     const [
         activeAthletes,
         tutors,
+        socios,
         disciplines,
         categories,
         enrollments,
@@ -36,6 +37,7 @@ export async function buildClubStats(models, adminUserId) {
             .select('_id sexo fechaNacimiento')
             .lean(),
         User.countDocuments({ rol: 'tutor', estado: 'activo' }),
+        User.countDocuments({ rol: 'socio', estado: 'activo' }),
         Discipline.find({ estado: 'activa' }).select('_id nombre').lean(),
         Category.find().select('_id nombre disciplina').lean(),
         Enrollment.find({ estado: 'activo' }).select('atleta categoria').lean(),
@@ -56,37 +58,78 @@ export async function buildClubStats(models, adminUserId) {
             const now = new Date();
             const mes = now.getMonth() + 1;
             const anio = now.getFullYear();
-            const [cuotasMes, vencidosGlobal] = await Promise.all([
-                Payment.find({ mes, anio }).select('estado montoFinal').lean(),
-                Payment.countDocuments({ estado: 'vencido' }),
+            const [cuotasMes, vencidosEntrenamiento, vencidosSocial] = await Promise.all([
+                Payment.find({ mes, anio }).select('estado montoFinal tipo atleta').lean(),
+                Payment.countDocuments({
+                    estado: 'vencido',
+                    $or: [{ tipo: 'entrenamiento' }, { tipo: { $exists: false } }, { tipo: null }],
+                }),
+                Payment.countDocuments({ estado: 'vencido', tipo: 'social' }),
             ]);
-            let pendiente = 0;
-            let vencido = 0;
-            let pagado = 0;
-            let facturado = 0;
-            let cobrado = 0;
+
+            const emptyBucket = () => ({
+                pendiente: 0,
+                vencido: 0,
+                pagado: 0,
+                facturado: 0,
+                cobrado: 0,
+                porcentajeCobranza: 0,
+            });
+
+            const entrenamiento = emptyBucket();
+            const social = emptyBucket();
+            const socialTitularIds = new Set();
+
             for (const p of cuotasMes) {
+                const isSocial = p.tipo === 'social';
+                const bucket = isSocial ? social : entrenamiento;
                 const m = Number(p.montoFinal) || 0;
-                facturado += m;
-                if (p.estado === 'pendiente') pendiente += 1;
-                else if (p.estado === 'vencido') vencido += 1;
+                bucket.facturado += m;
+                if (p.estado === 'pendiente') bucket.pendiente += 1;
+                else if (p.estado === 'vencido') bucket.vencido += 1;
                 else if (p.estado === 'pagado') {
-                    pagado += 1;
-                    cobrado += m;
+                    bucket.pagado += 1;
+                    bucket.cobrado += m;
+                } else if (p.estado === 'en_revision') {
+                    bucket.pendiente += 1;
+                }
+                if (isSocial && p.atleta) socialTitularIds.add(idStr(p.atleta));
+            }
+
+            for (const bucket of [entrenamiento, social]) {
+                bucket.porcentajeCobranza =
+                    bucket.facturado > 0
+                        ? Math.round((bucket.cobrado / bucket.facturado) * 100)
+                        : 0;
+            }
+
+            const porRol = { atleta: 0, tutor: 0, socio: 0, otro: 0 };
+            if (socialTitularIds.size > 0) {
+                const titulares = await User.find({ _id: { $in: [...socialTitularIds] } })
+                    .select('rol')
+                    .lean();
+                const rolById = new Map(titulares.map((u) => [idStr(u._id), u.rol]));
+                for (const p of cuotasMes) {
+                    if (p.tipo !== 'social' || !p.atleta) continue;
+                    const rol = rolById.get(idStr(p.atleta));
+                    if (rol === 'atleta' || rol === 'tutor' || rol === 'socio') porRol[rol] += 1;
+                    else porRol.otro += 1;
                 }
             }
-            const porcentajeCobranza =
-                facturado > 0 ? Math.round((cobrado / facturado) * 100) : 0;
+
             return {
                 mes,
                 anio,
-                pendiente,
-                vencido,
-                pagado,
-                facturado,
-                cobrado,
-                porcentajeCobranza,
-                vencidosGlobal,
+                finanzas: {
+                    ...entrenamiento,
+                    vencidosGlobal: vencidosEntrenamiento,
+                },
+                cuotasSociales: {
+                    ...social,
+                    vencidosGlobal: vencidosSocial,
+                    porRol,
+                    totalMes: social.pendiente + social.vencido + social.pagado,
+                },
             };
         })(),
     ]);
@@ -174,12 +217,14 @@ export async function buildClubStats(models, adminUserId) {
 
     const staffTotal = staffCounts.reduce((s, r) => s + r.count, 0);
     const gestionTotal = gestionCounts.reduce((s, r) => s + r.count, 0);
+    const { finanzas, cuotasSociales, mes, anio } = financeBundle;
 
     return {
         resumen: {
             atletas: activeAthletes.length,
             atletasSinInscripcion: activeAthletes.length - athletesWithEnrollment.size,
             tutores: tutors,
+            socios,
             profesionales: staffTotal,
             gestion: gestionTotal,
             disciplinas: disciplines.length,
@@ -190,7 +235,9 @@ export async function buildClubStats(models, adminUserId) {
         edad,
         profesionales: staffCounts,
         gestion: gestionCounts,
+        socios: { total: socios },
         operaciones,
-        finanzas: financeBundle,
+        finanzas: { ...finanzas, mes, anio },
+        cuotasSociales: { ...cuotasSociales, mes, anio },
     };
 }
