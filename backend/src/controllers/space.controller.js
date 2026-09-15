@@ -9,6 +9,7 @@ import {
     expireExpiredSpaceRestrictions,
     findSpacesFreeForSession,
     findSpacesFreeForAllSessions,
+    startOfTodayUtc,
 } from '../services/spaceSessionRelocation.service.js';
 import { sanitizeAlquilerOnline } from '../services/onlineRental.service.js';
 
@@ -258,4 +259,56 @@ const updateSpace = asyncHandler(async (req, res) => {
     res.json(space);
 });
 
-export { createSpace, getSpaces, getAffectedSessions, getFreeSpacesForSlot, getFreeSpacesForSessions, updateSpaceStatus, updateSpace };
+// @desc    Eliminar un espacio (solo si no tiene sesiones/alquileres/horarios activos)
+// @route   DELETE /api/spaces/:id
+const deleteSpace = asyncHandler(async (req, res) => {
+    const { Space, Session, Rental, Schedule } = req.models;
+
+    const space = await Space.findById(req.params.id);
+    if (!space) {
+        res.status(404);
+        throw new Error('Espacio no encontrado');
+    }
+
+    const futureSessions = await findFutureProgrammedSessions(Session, space._id);
+    if (futureSessions.length > 0) {
+        res.status(400);
+        throw new Error(
+            `No se puede eliminar: hay ${futureSessions.length} sesión(es) futura(s) en este espacio. Reubicá o cancelá esas sesiones antes.`,
+        );
+    }
+
+    const activeRentals = await Rental.countDocuments({
+        espacio: space._id,
+        fecha: { $gte: startOfTodayUtc() },
+        estadoReserva: { $ne: 'cancelada' },
+    });
+    if (activeRentals > 0) {
+        res.status(400);
+        throw new Error(
+            `No se puede eliminar: hay ${activeRentals} alquiler(es) activo(s) en este espacio.`,
+        );
+    }
+
+    const scheduleCount = await Schedule.countDocuments({ espacio: space._id });
+    if (scheduleCount > 0) {
+        res.status(400);
+        throw new Error(
+            `No se puede eliminar: está asignado en ${scheduleCount} horario(s) de la grilla. Sacalo de ahí primero.`,
+        );
+    }
+
+    await space.deleteOne();
+    res.json({ message: 'Espacio eliminado.' });
+});
+
+export {
+    createSpace,
+    getSpaces,
+    getAffectedSessions,
+    getFreeSpacesForSlot,
+    getFreeSpacesForSessions,
+    updateSpaceStatus,
+    updateSpace,
+    deleteSpace,
+};
