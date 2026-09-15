@@ -26,14 +26,17 @@ import ProfileNotificationToggle from '../../components/ProfileNotificationToggl
 import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
 import ProfileInfoRow, { profileCardStyles } from '../../components/ProfileInfoRow';
 import ProfileLinkRow from '../../components/ProfileLinkRow';
+import TrialDecisionCard from '../../components/TrialDecisionCard';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { useBadges } from '../../context/BadgeContext';
 import { tabBadgeText } from '../../utils/tabBadgeLabel';
+import { clubHeaders } from './athleteApi';
 
 export default function AthleteProfileScreen({ navigation }) {
   const { clubData, setClubData, clearSession } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const { profile, puedePagar, cuotasEnApp, refresh } = useMember();
+  const pruebaPendiente = Array.isArray(profile?.pruebaPendiente) ? profile.pruebaPendiente : [];
   const { tab } = useBadges();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const profileCacheKey = clubData?.urlIdentifier ? `athlete-profile-view:${clubData.urlIdentifier}` : '';
@@ -130,6 +133,17 @@ export default function AthleteProfileScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
       >
+        {pruebaPendiente.map((a) => (
+          <TrialDecisionCard
+            key={a._id}
+            athlete={a}
+            theme={theme}
+            isDarkMode={isDarkMode}
+            colorMarca={colorMarca}
+            getHeaders={() => clubHeaders(clubData)}
+            onResolved={() => refresh({ background: true })}
+          />
+        ))}
         <View style={[profileCardStyles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <ProfileInfoRow icon="business-outline" label="Club" value={clubData?.nombre} theme={theme} />
           <ProfileInfoRow

@@ -45,6 +45,21 @@ export function isAthleteOnTrial(user) {
     return Boolean(user?.esPrueba) && user?.rol === 'atleta';
 }
 
+/** True when the athlete has a living tutor who should decide on trial expiry. */
+export async function athleteHasDecisionTutor(models, atleta) {
+    if (!atleta?.tutorPrincipal) return false;
+    const { User } = models;
+    const tutor = await User.findById(atleta.tutorPrincipal).select('rol estado').lean();
+    return Boolean(tutor && tutor.rol === 'tutor' && tutor.estado !== 'inactivo');
+}
+
+export function trialNeedsMemberDecision(user) {
+    if (!user || user.rol !== 'atleta' || user.estado === 'inactivo') return false;
+    if (user.pruebaDecision === 'pendiente') return true;
+    if (!user.esPrueba || !user.pruebaHasta) return false;
+    return new Date(user.pruebaHasta) < startOfTodayUtc();
+}
+
 /**
  * Asigna plan vía billing pero nunca factura mientras el atleta está en prueba.
  */
@@ -109,7 +124,7 @@ export async function convertTrialAthleteToPermanent(models, atletaId, { actor }
         throw err;
     }
 
-    assertCanDecideTrial(actor, atleta);
+    await assertCanDecideTrial(models, actor, atleta);
 
     atleta.esPrueba = false;
     atleta.pruebaHasta = null;
@@ -204,7 +219,7 @@ export async function leaveTrialAthlete(models, atletaId, { actor, desactivarTut
         throw err;
     }
 
-    assertCanDecideTrial(actor, atleta);
+    await assertCanDecideTrial(models, actor, atleta);
 
     const info = await deactivateAthleteInternal(models, atleta, { desactivarTutorTambien });
 
@@ -219,7 +234,7 @@ export async function leaveTrialAthlete(models, atletaId, { actor, desactivarTut
     return { atleta, ...info };
 }
 
-function assertCanDecideTrial(actor, atleta) {
+async function assertCanDecideTrial(models, actor, atleta) {
     if (!actor) {
         const err = new Error('No autorizado.');
         err.statusCode = 401;
@@ -234,8 +249,10 @@ function assertCanDecideTrial(actor, atleta) {
     ) {
         return;
     }
+    // Solo-athlete (no active tutor): they confirm continue / leave themselves.
     if (actor.rol === 'atleta' && String(atleta._id) === String(actor._id)) {
-        return;
+        const hasTutor = await athleteHasDecisionTutor(models, atleta);
+        if (!hasTutor) return;
     }
     const err = new Error('No tenés permiso para decidir sobre este atleta de prueba.');
     err.statusCode = 403;
@@ -245,11 +262,10 @@ function assertCanDecideTrial(actor, atleta) {
 async function notifyTrialExpired(models, atleta) {
     const nombre = `${atleta.nombre || ''} ${atleta.apellido || ''}`.trim() || 'Atleta';
     const titulo = 'Prueba vencida';
-    // Tutor decides for kids; solo-atleta decides for themselves. Admins are not notified.
-    const destinatarioId = atleta.tutorPrincipal
-        ? String(atleta.tutorPrincipal)
-        : String(atleta._id);
-    const mensaje = atleta.tutorPrincipal
+    const hasTutor = await athleteHasDecisionTutor(models, atleta);
+    // Tutor decides for kids; athletes without an active tutor decide themselves.
+    const destinatarioId = hasTutor ? String(atleta.tutorPrincipal) : String(atleta._id);
+    const mensaje = hasTutor
         ? `La prueba de ${nombre} terminó. ¿Continúan en el club? Si confirman, se activan cuotas y planes.`
         : 'Tu período de prueba terminó. ¿Querés seguir en el club? Si confirmás, se activan cuotas y planes.';
 

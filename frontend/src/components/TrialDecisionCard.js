@@ -56,8 +56,8 @@ export default function TrialDecisionCard({
           <Text style={[styles.title, { color: theme.text }]}>Prueba vencida — {name}</Text>
           <Text style={[styles.hint, { color: theme.textMuted }]}>
             {compact
-              ? '¿Continúan en el club? Si confirman, se activan cuotas y planes.'
-              : 'La prueba terminó. Si continúan, se activan cuotas y planes asignados. Si no, se da de baja este atleta (el tutor solo si no quedan otros hijos activos).'}
+              ? '¿Querés seguir en el club? Si confirmás, se activan cuotas y planes.'
+              : 'La prueba terminó. Si continúan, se activan cuotas y planes. Si no, se da de baja esta cuenta.'}
           </Text>
         </View>
       </View>

@@ -332,16 +332,8 @@ export default function AthleteAgendaScreen({ navigation }) {
 
       {isTutor ? <MemberChildPicker theme={theme} colorMarca={colorMarca} /> : null}
 
-      {memberLoading || !showBody ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={colorMarca} />
-        </View>
-      ) : (
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
-          showsVerticalScrollIndicator={false}
-        >
+      {pruebaPendiente.length > 0 ? (
+        <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
           {pruebaPendiente.map((a) => (
             <TrialDecisionCard
               key={a._id}
@@ -353,6 +345,19 @@ export default function AthleteAgendaScreen({ navigation }) {
               onResolved={() => refreshMember({ background: true })}
             />
           ))}
+        </View>
+      ) : null}
+
+      {memberLoading || !showBody ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colorMarca} />
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
+          showsVerticalScrollIndicator={false}
+        >
           <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Calendario</Text>
 
           <CoachSessionCalendar

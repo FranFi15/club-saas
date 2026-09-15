@@ -16,6 +16,8 @@ import {
     convertTrialAthleteToPermanent,
     leaveTrialAthlete,
     ensureTrialExpiryProcessed,
+    athleteHasDecisionTutor,
+    trialNeedsMemberDecision,
 } from '../services/trialAthlete.service.js';
 
 const registerUser = asyncHandler(async (req, res) => {
@@ -583,9 +585,15 @@ const getMe = asyncHandler(async (req, res) => {
             esPrueba: true,
             pruebaDecision: 'pendiente',
         }).select('_id nombre apellido esPrueba pruebaHasta pruebaDecision');
-    } else if (user.rol === 'atleta' && user.esPrueba && user.pruebaDecision === 'pendiente') {
-        // Solo atletas sin tutor deciden por sí mismos; con tutor decide el tutor.
-        if (!user.tutorPrincipal) {
+    } else if (user.rol === 'atleta' && trialNeedsMemberDecision(user)) {
+        // Athletes without an active tutor confirm continue / leave themselves.
+        const hasTutor = await athleteHasDecisionTutor(req.models, user);
+        if (!hasTutor) {
+            if (user.pruebaDecision !== 'pendiente' && user.esPrueba) {
+                user.pruebaDecision = 'pendiente';
+                if (!user.pruebaAvisoEnviadoAt) user.pruebaAvisoEnviadoAt = new Date();
+                await user.save();
+            }
             pruebaPendiente = [user];
         }
     }
