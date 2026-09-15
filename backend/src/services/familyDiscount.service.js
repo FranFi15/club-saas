@@ -34,7 +34,13 @@ export function buildMotivoDescuento(cantidadHijos, porcentaje) {
 
 async function countHijosDelTutor(models, tutorId) {
     const { User } = models;
-    return User.countDocuments({ rol: 'atleta', tutorPrincipal: tutorId });
+    // Solo hermanos permanentes (no inactivos ni de prueba) cuentan para el descuento.
+    return User.countDocuments({
+        rol: 'atleta',
+        tutorPrincipal: tutorId,
+        estado: { $ne: 'inactivo' },
+        esPrueba: { $ne: true },
+    });
 }
 
 async function clearFamilyDiscountOnEnrollments(models, tutorId) {
@@ -64,15 +70,20 @@ export async function getFamilyDiscountPctForTutor(models, tutorId) {
 
 export async function applyDiscountToFamilyEnrollments(models, tutorId, porcentaje, { updateTutor = true } = {}) {
     const { User, Enrollment } = models;
-    const hijos = await User.find({ rol: 'atleta', tutorPrincipal: tutorId });
+    const hijosPermanentes = await User.find({
+        rol: 'atleta',
+        tutorPrincipal: tutorId,
+        estado: { $ne: 'inactivo' },
+        esPrueba: { $ne: true },
+    });
 
-    if (hijos.length < MIN_ATHLETES_FOR_FAMILY_DISCOUNT) {
+    if (hijosPermanentes.length < MIN_ATHLETES_FOR_FAMILY_DISCOUNT) {
         const cleared = await clearFamilyDiscountOnEnrollments(models, tutorId);
         if (updateTutor) {
             await User.findByIdAndUpdate(tutorId, { descuentoFamiliar: null });
         }
         return {
-            hijos: hijos.length,
+            hijos: hijosPermanentes.length,
             actualizados: cleared.actualizados,
             porcentaje: 0,
             skipped: true,
@@ -81,10 +92,10 @@ export async function applyDiscountToFamilyEnrollments(models, tutorId, porcenta
     }
 
     const pct = Math.min(100, Math.max(0, Number(porcentaje) || 0));
-    const motivo = buildMotivoDescuento(hijos.length, pct);
+    const motivo = buildMotivoDescuento(hijosPermanentes.length, pct);
 
     let actualizados = 0;
-    for (const hijo of hijos) {
+    for (const hijo of hijosPermanentes) {
         const result = await Enrollment.updateMany(
             { atleta: hijo._id, estado: 'activo' },
             { descuentoPorcentaje: pct, motivoDescuento: motivo },
@@ -96,7 +107,7 @@ export async function applyDiscountToFamilyEnrollments(models, tutorId, porcenta
         await User.findByIdAndUpdate(tutorId, { descuentoFamiliar: pct });
     }
 
-    return { hijos: hijos.length, actualizados, porcentaje: pct };
+    return { hijos: hijosPermanentes.length, actualizados, porcentaje: pct };
 }
 
 /**

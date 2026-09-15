@@ -133,9 +133,18 @@ function ResultCard({ result, onDismiss, theme }) {
   }
 
   const person = entryPerson(result);
+  const billing = result.billing;
   const hasWarnings = (result.warnings || []).length > 0;
-  const tone = result.duplicate || hasWarnings ? 'warn' : 'ok';
+  const tone = result.duplicate || hasWarnings || billing?.isMoroso ? 'warn' : 'ok';
   const isVisitor = result.entryType === 'visitor' || !!result.visitor;
+
+  const statusLabel = billing?.isMoroso
+    ? billing.estadoUsuario === 'moroso'
+      ? 'Moroso'
+      : 'Con cuotas vencidas'
+    : billing?.alDia
+      ? 'Al día'
+      : null;
 
   return (
     <View
@@ -156,7 +165,7 @@ function ResultCard({ result, onDismiss, theme }) {
           <Text style={styles.resultTitle}>
             {result.duplicate
               ? 'Ingreso duplicado'
-              : hasWarnings
+              : hasWarnings || billing?.isMoroso
                 ? 'Ingreso con alerta'
                 : isVisitor
                   ? 'Visitante registrado'
@@ -170,6 +179,57 @@ function ResultCard({ result, onDismiss, theme }) {
             {person?.dni ? ` · DNI ${person.dni}` : ''}
           </Text>
           {person?.nota ? <Text style={styles.resultNote}>{person.nota}</Text> : null}
+
+          {!isVisitor && billing ? (
+            <View style={styles.billingBlock}>
+              {statusLabel ? (
+                <View
+                  style={[
+                    styles.billingBadge,
+                    {
+                      backgroundColor: billing.isMoroso ? '#fecaca' : '#bbf7d0',
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name={billing.isMoroso ? 'alert-circle' : 'checkmark-circle'}
+                    size={14}
+                    color={billing.isMoroso ? '#b91c1c' : '#15803d'}
+                  />
+                  <Text
+                    style={{
+                      color: billing.isMoroso ? '#b91c1c' : '#15803d',
+                      fontWeight: '800',
+                      fontSize: 12,
+                    }}
+                  >
+                    {statusLabel}
+                  </Text>
+                </View>
+              ) : null}
+              {billing.planSummary ? (
+                <Text style={styles.billingLine}>
+                  <Text style={styles.billingKey}>Plan: </Text>
+                  {billing.planSummary}
+                </Text>
+              ) : null}
+              {billing.socialSummary ? (
+                <Text style={styles.billingLine}>
+                  <Text style={styles.billingKey}>Cuota social: </Text>
+                  {billing.socialSummary}
+                </Text>
+              ) : null}
+              {(billing.mesActual || []).length > 0 ? (
+                <Text style={styles.billingLine}>
+                  <Text style={styles.billingKey}>Mes actual: </Text>
+                  {billing.mesActual
+                    .map((p) => `${p.nombre} (${p.estado})`)
+                    .join(' · ')}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+
           {result.duplicate && result.duplicateMinutesAgo ? (
             <Text style={styles.resultWarn}>Ya ingresó hace {result.duplicateMinutesAgo} min</Text>
           ) : null}
@@ -846,6 +906,19 @@ const styles = StyleSheet.create({
   resultName: { fontSize: 20, fontWeight: '800', color: '#111827', marginTop: 2 },
   resultMeta: { fontSize: 13, color: '#4b5563', marginTop: 2 },
   resultNote: { fontSize: 12, color: '#4b5563', marginTop: 4, fontStyle: 'italic' },
+  billingBlock: { marginTop: 8, gap: 4 },
+  billingBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginBottom: 2,
+  },
+  billingLine: { fontSize: 12, color: '#374151', lineHeight: 17 },
+  billingKey: { fontWeight: '800', color: '#111827' },
   resultWarn: { fontSize: 12, color: '#b45309', marginTop: 4, fontWeight: '600' },
   logHeader: {
     flexDirection: 'row',

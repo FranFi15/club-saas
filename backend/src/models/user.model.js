@@ -59,6 +59,19 @@ const userSchema = new mongoose.Schema({
     /** Atletas: si es false, no ven la pestaña Cuotas ni pueden pagar en la app. */
     cuotasEnApp: { type: Boolean, default: true },
 
+    /** Atletas de prueba: acceso temporal sin facturar hasta confirmar. */
+    esPrueba: { type: Boolean, default: false },
+    /** Fin inclusive del período de prueba (UTC fin de día). */
+    pruebaHasta: { type: Date, default: null },
+    /** Idempotencia del aviso de vencimiento a tutor/admins. */
+    pruebaAvisoEnviadoAt: { type: Date, default: null },
+    /** Decisión post-vencimiento: null mientras no aplica / aún vigente. */
+    pruebaDecision: {
+        type: String,
+        enum: ['pendiente', 'continuar', 'baja'],
+        default: null,
+    },
+
     /** Clientes (atleta/tutor/socio) exceptuados de la cuota social del club. */
     exentoCuotaSocial: { type: Boolean, default: false },
 
@@ -98,6 +111,7 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ tutorPrincipal: 1, rol: 1 });
 userSchema.index({ rol: 1, estado: 1 });
+userSchema.index({ esPrueba: 1, pruebaHasta: 1, pruebaDecision: 1 });
 
 // Encriptamos la contraseña antes de guardar
 userSchema.pre('save', async function() {

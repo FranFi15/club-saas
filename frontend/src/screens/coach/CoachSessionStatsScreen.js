@@ -18,6 +18,7 @@ import { ThemeContext } from '../../context/ThemeContext';
 import { clubApi } from '../../utils/api';
 import { clubHeaders } from '../athlete/athleteApi';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
+import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { sortByNombre } from '../../utils/listSort';
 import CoachCategoryFilter from '../../components/CoachCategoryFilter';
 import CoachStatsBarChart from '../../components/CoachStatsBarChart';
@@ -41,6 +42,7 @@ export default function CoachSessionStatsScreen({ navigation, route }) {
   const sessionId = route.params?.sessionId;
   const isSingleSession = Boolean(sessionId);
   const initialCategoryId = route.params?.categoriaId ?? null;
+  const isAdminVariant = route.params?.variant === 'admin';
 
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
@@ -52,7 +54,7 @@ export default function CoachSessionStatsScreen({ navigation, route }) {
   const statsCacheKey = clubData?.urlIdentifier
     ? isSingleSession
       ? `coach-session-stats:${clubData.urlIdentifier}:session:${sessionId}`
-      : `coach-session-stats:${clubData.urlIdentifier}:cat:${selectedCategoryId || 'all'}`
+      : `coach-session-stats:${clubData.urlIdentifier}:cat:${selectedCategoryId || 'all'}${isAdminVariant ? ':admin' : ''}`
     : '';
 
   const cachedStats = readScreenCache(statsCacheKey);
@@ -124,22 +126,41 @@ export default function CoachSessionStatsScreen({ navigation, route }) {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <CoachScreenHeader
-        colorMarca={colorMarca}
-        theme={theme}
-        kicker="Sesiones"
-        title={isSingleSession ? 'Estadísticas de la sesión' : 'Estadísticas generales'}
-        subtitle={
-          isSingleSession
-            ? `${singleStats?.sesion?.categoria?.nombre || ''}${sessionSubtitle ? ` · ${sessionSubtitle}` : ''}`.trim() ||
-              'Sesión'
-            : selectedCategoryId
-              ? categories.find((c) => String(c._id) === String(selectedCategoryId))?.nombre ||
-                'Categoría seleccionada'
-              : 'Todas las categorías · semana, mes e histórico'
-        }
-        onBack={() => navigation.goBack()}
-      />
+      {isAdminVariant ? (
+        <AdminScreenHeader
+          colorMarca={colorMarca}
+          theme={theme}
+          kicker="Categoría"
+          title={isSingleSession ? 'Estadísticas de la sesión' : 'Estadísticas de sesiones'}
+          subtitle={
+            isSingleSession
+              ? `${singleStats?.sesion?.categoria?.nombre || ''}${sessionSubtitle ? ` · ${sessionSubtitle}` : ''}`.trim() ||
+                'Sesión'
+              : selectedCategoryId
+                ? categories.find((c) => String(c._id) === String(selectedCategoryId))?.nombre ||
+                  'Categoría seleccionada'
+                : 'Todas las categorías · semana, mes e histórico'
+          }
+          onBack={() => navigation.goBack()}
+        />
+      ) : (
+        <CoachScreenHeader
+          colorMarca={colorMarca}
+          theme={theme}
+          kicker="Sesiones"
+          title={isSingleSession ? 'Estadísticas de la sesión' : 'Estadísticas generales'}
+          subtitle={
+            isSingleSession
+              ? `${singleStats?.sesion?.categoria?.nombre || ''}${sessionSubtitle ? ` · ${sessionSubtitle}` : ''}`.trim() ||
+                'Sesión'
+              : selectedCategoryId
+                ? categories.find((c) => String(c._id) === String(selectedCategoryId))?.nombre ||
+                  'Categoría seleccionada'
+                : 'Todas las categorías · semana, mes e histórico'
+          }
+          onBack={() => navigation.goBack()}
+        />
+      )}
 
       {showInitialLoader ? (
         <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />

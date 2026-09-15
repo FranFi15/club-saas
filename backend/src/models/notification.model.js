@@ -18,6 +18,7 @@ const notificationSchema = new mongoose.Schema({
             'consulta_pendiente',
             'consulta_confirmada',
             'consulta_rechazada',
+            'prueba_expirada',
         ],
         default: 'general',
     },

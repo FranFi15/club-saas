@@ -152,7 +152,7 @@ export default function ComprobantesReviewTab({ clubData, theme, primaryColor, g
         {group.comprobante ? (
           <TouchableOpacity onPress={() => setViewerUrl(group.comprobante)} activeOpacity={0.9}>
             <Image source={{ uri: group.comprobante }} style={styles.thumb} resizeMode="cover" />
-            <Text style={[styles.viewTxt, { color: primaryColor }]}>Ver comprobante</Text>
+            <Text style={[styles.viewTxt, { color: theme.text }]}>Ver comprobante</Text>
           </TouchableOpacity>
         ) : null}
 

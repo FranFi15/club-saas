@@ -9,6 +9,7 @@ import {
     clearEnrollmentBilling,
     resolveNewEnrollmentBilling,
 } from './disciplineBilling.service.js';
+import { enrollmentBillingForTrial, isAthleteOnTrial } from './trialAthlete.service.js';
 
 async function applyPreviousBillingClear(models, previousBillingId) {
     if (!previousBillingId) return;
@@ -205,30 +206,34 @@ export async function syncCategoryAthletes(models, categoryId, atletaIds) {
     for (const aid of ids) {
         if (activosIds.has(aid)) continue;
 
+        const athleteDoc = await User.findById(aid).select('esPrueba rol').lean();
+        const onTrial = isAthleteOnTrial(athleteDoc);
+
         const billing = await resolveNewEnrollmentBilling(models, {
             atletaId: aid,
             category,
             autoKeepOnConflict: true,
         });
+        const trialBilling = enrollmentBillingForTrial(billing, onTrial);
 
         let enr = await Enrollment.findOne({ atleta: aid, categoria: categoryId });
         if (enr) {
             enr.estado = 'activo';
             enr.fechaBaja = undefined;
-            enr.esFacturacion = Boolean(billing.esFacturacion);
-            enr.plan = billing.plan || null;
+            enr.esFacturacion = Boolean(trialBilling.esFacturacion);
+            enr.plan = trialBilling.plan || null;
             await enr.save();
-            await applyPreviousBillingClear(models, billing.previousBillingId);
+            await applyPreviousBillingClear(models, trialBilling.previousBillingId);
             enr = await applyFamilyDiscountToEnrollment(models, aid, enr);
         } else {
             enr = await Enrollment.create({
                 atleta: aid,
                 categoria: categoryId,
                 aptoMedico: false,
-                plan: billing.plan || undefined,
-                esFacturacion: Boolean(billing.esFacturacion),
+                plan: trialBilling.plan || undefined,
+                esFacturacion: Boolean(trialBilling.esFacturacion),
             });
-            await applyPreviousBillingClear(models, billing.previousBillingId);
+            await applyPreviousBillingClear(models, trialBilling.previousBillingId);
             enr = await applyFamilyDiscountToEnrollment(models, aid, enr);
         }
         if (enr.esFacturacion && enr.plan) {

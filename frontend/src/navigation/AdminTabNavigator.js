@@ -11,6 +11,7 @@ import EstructuraHubScreen from '../screens/admin/EstructuraHubScreen';
 import EstructuraScreen from '../screens/admin/EstructuraScreen';
 import CategoriasScreen from '../screens/admin/CategoriasScreen';
 import DetalleCategoriaScreen from '../screens/admin/DetalleCategoriaScreen';
+import CoachSessionStatsScreen from '../screens/coach/CoachSessionStatsScreen';
 import UsuariosScreen from '../screens/admin/UsuariosScreen';
 import InvitarFamiliaScreen from '../screens/admin/InvitarFamiliaScreen';
 import EspaciosFisicosScreen from '../screens/admin/EspaciosFisicosScreen';
@@ -56,6 +57,7 @@ function EstructuraStackNavigator() {
       <EstructuraStack.Screen name="EstructuraDeportiva" component={EstructuraScreen} />
       <EstructuraStack.Screen name="Categorias" component={CategoriasScreen} />
       <EstructuraStack.Screen name="DetalleCategoria" component={DetalleCategoriaScreen} />
+      <EstructuraStack.Screen name="CoachSessionStats" component={CoachSessionStatsScreen} />
       <EstructuraStack.Screen name="Espacios" component={EspaciosFisicosScreen} />
       <EstructuraStack.Screen name="Grilla" component={GrillaEntrenamientosScreen} />
       <EstructuraStack.Screen name="EscanearIngreso" component={AdminClubEntryScanScreen} />

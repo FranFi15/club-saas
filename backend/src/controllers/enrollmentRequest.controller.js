@@ -9,6 +9,7 @@ import {
     clearEnrollmentBilling,
     resolveNewEnrollmentBilling,
 } from '../services/disciplineBilling.service.js';
+import { enrollmentBillingForTrial, isAthleteOnTrial } from '../services/trialAthlete.service.js';
 
 async function applyPreviousBillingClear(models, previousBillingId) {
     if (!previousBillingId) return;
@@ -295,14 +296,15 @@ const resolveEnrollmentRequest = asyncHandler(async (req, res) => {
             category,
             autoKeepOnConflict: true,
         });
+        const trialBilling = enrollmentBillingForTrial(billing, isAthleteOnTrial(user));
 
         if (exists) {
             exists.estado = 'activo';
             exists.fechaBaja = undefined;
-            exists.esFacturacion = Boolean(billing.esFacturacion);
-            exists.plan = billing.plan || null;
+            exists.esFacturacion = Boolean(trialBilling.esFacturacion);
+            exists.plan = trialBilling.plan || null;
             await exists.save();
-            await applyPreviousBillingClear(req.models, billing.previousBillingId);
+            await applyPreviousBillingClear(req.models, trialBilling.previousBillingId);
             let enr = await applyFamilyDiscountToEnrollment(req.models, atletaId, exists);
             if (enr.esFacturacion && enr.plan) {
                 try {
@@ -317,10 +319,10 @@ const resolveEnrollmentRequest = asyncHandler(async (req, res) => {
                 atleta: atletaId,
                 categoria: request.categoria,
                 aptoMedico: false,
-                plan: billing.plan || undefined,
-                esFacturacion: Boolean(billing.esFacturacion),
+                plan: trialBilling.plan || undefined,
+                esFacturacion: Boolean(trialBilling.esFacturacion),
             });
-            await applyPreviousBillingClear(req.models, billing.previousBillingId);
+            await applyPreviousBillingClear(req.models, trialBilling.previousBillingId);
             enrollment = await applyFamilyDiscountToEnrollment(req.models, atletaId, enrollment);
             if (enrollment.esFacturacion && enrollment.plan) {
                 try {

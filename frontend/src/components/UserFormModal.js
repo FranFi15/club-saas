@@ -14,7 +14,16 @@ import { sortUsersByName } from '../utils/listSort';
 import { displayDateToIsoCalendar, isoCalendarDateToDisplay, maskDateDDMMAAAA } from '../utils/dateDisplay';
 import ProfilePhotoField from './ProfilePhotoField';
 
-export default function UserFormModal({ visible, onClose, onSave, initialData, isSaving, viewerRol = '' }) {
+export default function UserFormModal({
+  visible,
+  onClose,
+  onSave,
+  initialData,
+  isSaving,
+  viewerRol = '',
+  onConvertTrial,
+  convertingTrial = false,
+}) {
   const { theme } = useContext(ThemeContext);
   const { clubData } = useContext(ClubContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
@@ -22,7 +31,8 @@ export default function UserFormModal({ visible, onClose, onSave, initialData, i
   const [formData, setFormData] = useState({
     nombre: '', apellido: '', email: '', password: '', 
     dni: '', telefono: '', rol: 'atleta', tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
-    cuotasEnApp: true, sexo: '',
+    cuotasEnApp: true, sexo: '', exentoCuotaSocial: false, cuotaSocialAsignada: null,
+    esPrueba: false, diasPrueba: '15',
   });
 
   const [tutors, setTutors] = useState([]);
@@ -30,6 +40,9 @@ export default function UserFormModal({ visible, onClose, onSave, initialData, i
   const [tutorSearchQuery, setTutorSearchQuery] = useState('');
   const [debouncedTutorSearch, setDebouncedTutorSearch] = useState('');
   const [showRoleSelect, setShowRoleSelect] = useState(false);
+  const [socialFees, setSocialFees] = useState([]);
+  const [loadingSocialFees, setLoadingSocialFees] = useState(false);
+  const [showFeeSelect, setShowFeeSelect] = useState(false);
 
   const CLIENT_ROLES_WITH_SOCIAL_FEE = ['atleta', 'tutor', 'socio'];
 
@@ -67,14 +80,71 @@ export default function UserFormModal({ visible, onClose, onSave, initialData, i
         cuotasEnApp: initialData.cuotasEnApp !== false,
         sexo: initialData.sexo === 'M' || initialData.sexo === 'F' ? initialData.sexo : '',
         exentoCuotaSocial: initialData.exentoCuotaSocial === true,
+        cuotaSocialAsignada:
+          initialData.cuotaSocialAsignada?._id || initialData.cuotaSocialAsignada || null,
+        esPrueba: initialData.esPrueba === true,
+        diasPrueba: initialData.pruebaHasta
+          ? String(
+              Math.max(
+                1,
+                Math.ceil(
+                  (new Date(initialData.pruebaHasta).getTime() - Date.now()) / (24 * 60 * 60 * 1000),
+                ),
+              ),
+            )
+          : '15',
       });
     } else {
       setFormData({
         nombre: '', apellido: '', email: '', password: '', dni: '', telefono: '', rol: 'atleta', tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
-        cuotasEnApp: true, sexo: '', exentoCuotaSocial: false,
+        cuotasEnApp: true, sexo: '', exentoCuotaSocial: false, cuotaSocialAsignada: null,
+        esPrueba: false, diasPrueba: '15',
       });
     }
   }, [initialData, visible]);
+
+  useEffect(() => {
+    if (!visible || !clubData?.urlIdentifier) return undefined;
+    let cancelled = false;
+    (async () => {
+      setLoadingSocialFees(true);
+      try {
+        const token = await getToken('userToken');
+        const { data } = await clubApi.get('/financial/social-fees', {
+          headers: {
+            'x-club-identifier': clubData.urlIdentifier,
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!cancelled) {
+          const list = (Array.isArray(data) ? data : []).filter(
+            (f) => f.activo && Number(f.monto) > 0,
+          );
+          setSocialFees(list);
+        }
+      } catch {
+        if (!cancelled) setSocialFees([]);
+      } finally {
+        if (!cancelled) setLoadingSocialFees(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, clubData?.urlIdentifier]);
+
+  useEffect(() => {
+    if (!CLIENT_ROLES_WITH_SOCIAL_FEE.includes(formData.rol) || formData.exentoCuotaSocial) return;
+    if (formData.cuotaSocialAsignada) return;
+    const def = socialFees.find((f) =>
+      (f.rolesAutoAsignacion || f.rolesAplicables || []).includes(formData.rol),
+    );
+    if (def?._id) {
+      setFormData((prev) =>
+        prev.cuotaSocialAsignada ? prev : { ...prev, cuotaSocialAsignada: def._id },
+      );
+    }
+  }, [formData.rol, formData.exentoCuotaSocial, formData.cuotaSocialAsignada, socialFees]);
 
   // Debounce para búsqueda de tutor
   useEffect(() => {
@@ -114,9 +184,24 @@ export default function UserFormModal({ visible, onClose, onSave, initialData, i
 
   const handleChange = (name, value) => {
     if (name === 'rol' && value !== 'atleta') {
-       setFormData(prev => ({ ...prev, rol: value, tutorPrincipal: null, cuotasEnApp: true, sexo: '' }));
+      setFormData((prev) => ({
+        ...prev,
+        rol: value,
+        tutorPrincipal: null,
+        cuotasEnApp: true,
+        sexo: '',
+        cuotaSocialAsignada: null,
+        esPrueba: false,
+        diasPrueba: '15',
+      }));
+    } else if (name === 'exentoCuotaSocial') {
+      setFormData((prev) => ({
+        ...prev,
+        exentoCuotaSocial: value,
+        cuotaSocialAsignada: value ? null : prev.cuotaSocialAsignada,
+      }));
     } else {
-       setFormData(prev => ({ ...prev, [name]: value }));
+      setFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
 
@@ -145,11 +230,30 @@ export default function UserFormModal({ visible, onClose, onSave, initialData, i
     if (payload.rol !== 'atleta') {
       delete payload.cuotasEnApp;
       delete payload.sexo;
+      delete payload.esPrueba;
+      delete payload.diasPrueba;
     } else if (payload.sexo !== 'M' && payload.sexo !== 'F') {
       payload.sexo = '';
     }
+    if (payload.rol === 'atleta') {
+      if (initialData) {
+        // Trial flags are set at create; edit uses Convertir ahora.
+        delete payload.esPrueba;
+        delete payload.diasPrueba;
+      } else if (payload.esPrueba) {
+        const days = Math.floor(Number(String(payload.diasPrueba).replace(',', '.')));
+        payload.diasPrueba = days;
+        payload.esPrueba = true;
+      } else {
+        payload.esPrueba = false;
+        delete payload.diasPrueba;
+      }
+    }
     if (!CLIENT_ROLES_WITH_SOCIAL_FEE.includes(payload.rol)) {
       delete payload.exentoCuotaSocial;
+      delete payload.cuotaSocialAsignada;
+    } else if (payload.exentoCuotaSocial) {
+      payload.cuotaSocialAsignada = null;
     }
     onSave(payload);
   };
@@ -355,21 +459,144 @@ export default function UserFormModal({ visible, onClose, onSave, initialData, i
                 </View>
               )}
 
-              {CLIENT_ROLES_WITH_SOCIAL_FEE.includes(formData.rol) && (
-                <View style={[styles.switchRow, { borderColor: theme.border, backgroundColor: theme.background }]}>
+              {formData.rol === 'atleta' && !initialData ? (
+                <>
+                  <View style={[styles.switchRow, { borderColor: theme.border, backgroundColor: theme.background }]}>
+                    <View style={{ flex: 1, paddingRight: 12 }}>
+                      <Text style={[styles.switchTitle, { color: theme.text }]}>Atleta de prueba</Text>
+                      <Text style={[styles.switchHint, { color: theme.textMuted }]}>
+                        Acceso temporal sin facturar. Al vencer, tutor y admin deciden si continúan.
+                      </Text>
+                    </View>
+                    <Switch
+                      value={!!formData.esPrueba}
+                      onValueChange={(v) => handleChange('esPrueba', v)}
+                      trackColor={{ false: theme.border, true: colorMarca + '88' }}
+                      thumbColor={formData.esPrueba ? colorMarca : theme.textMuted}
+                    />
+                  </View>
+                  {formData.esPrueba ? (
+                    <View style={{ marginBottom: 15 }}>
+                      <Text style={[styles.label, { color: theme.textMuted }]}>Días de prueba *</Text>
+                      <TextInput
+                        style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                        placeholder="Ej: 15"
+                        placeholderTextColor={theme.textMuted}
+                        keyboardType="number-pad"
+                        value={String(formData.diasPrueba ?? '')}
+                        onChangeText={(v) => handleChange('diasPrueba', v.replace(/[^\d]/g, '').slice(0, 3))}
+                        maxLength={3}
+                      />
+                    </View>
+                  ) : null}
+                </>
+              ) : null}
+
+              {formData.rol === 'atleta' && initialData?.esPrueba ? (
+                <View style={[styles.switchRow, { borderColor: '#f59e0b55', backgroundColor: '#f59e0b12' }]}>
                   <View style={{ flex: 1, paddingRight: 12 }}>
-                    <Text style={[styles.switchTitle, { color: theme.text }]}>Exento de cuota social</Text>
+                    <Text style={[styles.switchTitle, { color: theme.text }]}>
+                      {initialData.pruebaDecision === 'pendiente' ? 'Prueba vencida' : 'Atleta de prueba'}
+                    </Text>
                     <Text style={[styles.switchHint, { color: theme.textMuted }]}>
-                      Si está activo, no se le factura la cuota social del club.
+                      {initialData.pruebaHasta
+                        ? `Hasta ${new Date(initialData.pruebaHasta).toLocaleDateString('es-AR')}`
+                        : 'Sin fecha de fin'}
                     </Text>
                   </View>
-                  <Switch
-                    value={!!formData.exentoCuotaSocial}
-                    onValueChange={(v) => handleChange('exentoCuotaSocial', v)}
-                    trackColor={{ false: theme.border, true: colorMarca + '88' }}
-                    thumbColor={formData.exentoCuotaSocial ? colorMarca : theme.textMuted}
-                  />
+                  {typeof onConvertTrial === 'function' ? (
+                    <TouchableOpacity
+                      onPress={onConvertTrial}
+                      disabled={convertingTrial}
+                      style={{
+                        backgroundColor: colorMarca,
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                        borderRadius: 10,
+                      }}
+                    >
+                      {convertingTrial ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>Convertir</Text>
+                      )}
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
+              ) : null}
+
+              {CLIENT_ROLES_WITH_SOCIAL_FEE.includes(formData.rol) && (
+                <>
+                  <View style={[styles.switchRow, { borderColor: theme.border, backgroundColor: theme.background }]}>
+                    <View style={{ flex: 1, paddingRight: 12 }}>
+                      <Text style={[styles.switchTitle, { color: theme.text }]}>No paga cuota social</Text>
+                      <Text style={[styles.switchHint, { color: theme.textMuted }]}>
+                        Si está activo, no se le factura ningún tipo de cuota social.
+                      </Text>
+                    </View>
+                    <Switch
+                      value={!!formData.exentoCuotaSocial}
+                      onValueChange={(v) => handleChange('exentoCuotaSocial', v)}
+                      trackColor={{ false: theme.border, true: colorMarca + '88' }}
+                      thumbColor={formData.exentoCuotaSocial ? colorMarca : theme.textMuted}
+                    />
+                  </View>
+
+                  {!formData.exentoCuotaSocial ? (
+                    <View style={{ marginBottom: 15 }}>
+                      <Text style={[styles.label, { color: theme.textMuted }]}>Tipo de cuota social</Text>
+                      <TouchableOpacity
+                        style={[styles.roleSelectBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+                        onPress={() => setShowFeeSelect((v) => !v)}
+                      >
+                        <Text style={[styles.roleSelectText, { color: theme.text }]} numberOfLines={1}>
+                          {loadingSocialFees
+                            ? 'Cargando…'
+                            : socialFees.find((f) => String(f._id) === String(formData.cuotaSocialAsignada))
+                                ?.nombre || 'Automático según rol / sin tipo'}
+                        </Text>
+                        <Ionicons
+                          name={showFeeSelect ? 'chevron-up' : 'chevron-down'}
+                          size={18}
+                          color={theme.icon}
+                        />
+                      </TouchableOpacity>
+                      {showFeeSelect ? (
+                        <View style={[styles.dropdown, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+                          <TouchableOpacity
+                            style={[styles.dropdownItem, { borderBottomColor: theme.border }]}
+                            onPress={() => {
+                              handleChange('cuotaSocialAsignada', null);
+                              setShowFeeSelect(false);
+                            }}
+                          >
+                            <Text style={{ color: theme.text }}>Automático según rol</Text>
+                          </TouchableOpacity>
+                          {socialFees.map((f) => (
+                            <TouchableOpacity
+                              key={f._id}
+                              style={[styles.dropdownItem, { borderBottomColor: theme.border }]}
+                              onPress={() => {
+                                handleChange('cuotaSocialAsignada', f._id);
+                                setShowFeeSelect(false);
+                              }}
+                            >
+                              <Text style={{ color: theme.text, fontWeight: '600' }}>{f.nombre}</Text>
+                              <Text style={{ color: theme.textMuted, fontSize: 12 }}>
+                                ${Number(f.monto || 0).toLocaleString('es-AR')}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                          {!loadingSocialFees && socialFees.length === 0 ? (
+                            <Text style={{ color: theme.textMuted, padding: 12, fontSize: 13 }}>
+                              No hay tipos activos. Creá uno en Finanzas → Planes.
+                            </Text>
+                          ) : null}
+                        </View>
+                      ) : null}
+                    </View>
+                  ) : null}
+                </>
               )}
 
               <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colorMarca }]} onPress={handleSave} disabled={isSaving}>

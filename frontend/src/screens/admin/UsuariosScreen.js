@@ -19,6 +19,7 @@ import UserFormModal from '../../components/UserFormModal';
 import UserDetailsModal from '../../components/UserDetailsModal';
 import UserAvatar from '../../components/UserAvatar';
 import SearchableDropdown from '../../components/SearchableDropdown';
+import TrialDecisionCard from '../../components/TrialDecisionCard';
 import { USER_ROL_LABELS, USER_ROLE_FILTROS } from '../../constants/userRoles';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { sortUsersByName } from '../../utils/listSort';
@@ -41,6 +42,8 @@ export default function UsuariosScreen({ navigation }) {
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [viewerRol, setViewerRol] = useState('');
+  const [pruebaPendiente, setPruebaPendiente] = useState([]);
+  const [convertingTrial, setConvertingTrial] = useState(false);
 
   useEffect(() => {
     if (!usersCacheKey) return;
@@ -86,6 +89,29 @@ export default function UsuariosScreen({ navigation }) {
   };
   const closeAlert = () => setAlertConfig(prev => ({ ...prev, visible: false }));
 
+  const getHeaders = useCallback(async () => {
+    const token = await getToken('userToken');
+    return {
+      'x-club-identifier': clubData.urlIdentifier,
+      Authorization: `Bearer ${token}`,
+    };
+  }, [clubData?.urlIdentifier]);
+
+  const loadPruebaPendiente = useCallback(async () => {
+    if (!clubData?.urlIdentifier) return;
+    try {
+      const headers = await getHeaders();
+      const { data } = await clubApi.get('/users/me', { headers });
+      setPruebaPendiente(Array.isArray(data?.pruebaPendiente) ? data.pruebaPendiente : []);
+    } catch {
+      setPruebaPendiente([]);
+    }
+  }, [clubData?.urlIdentifier, getHeaders]);
+
+  useEffect(() => {
+    loadPruebaPendiente();
+  }, [loadPruebaPendiente]);
+
   // Debounce para el buscador
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -115,7 +141,7 @@ export default function UsuariosScreen({ navigation }) {
     setPage(data.page ?? 1);
   }, []);
 
-  const { loading: isLoading, refreshing, onRefresh } = useCachedFocusLoad({
+  const { loading: isLoading, refreshing, onRefresh: refreshUsers } = useCachedFocusLoad({
     cacheKey: usersCacheKey,
     enabled: !!usersCacheKey,
     fetchData: fetchUsersPage1,
@@ -124,6 +150,27 @@ export default function UsuariosScreen({ navigation }) {
       Alert.alert('Error', 'No se pudieron cargar los usuarios.');
     },
   });
+
+  const onRefresh = useCallback(() => {
+    refreshUsers();
+    loadPruebaPendiente();
+  }, [refreshUsers, loadPruebaPendiente]);
+
+  const handleConvertTrial = async () => {
+    if (!selectedUser?._id) return;
+    setConvertingTrial(true);
+    try {
+      const headers = await getHeaders();
+      await clubApi.post(`/users/atletas/${selectedUser._id}/prueba/continuar`, {}, { headers });
+      setIsFormVisible(false);
+      showAlert('Listo', 'El atleta quedó como permanente. Se activaron cuotas y planes.');
+      onRefresh();
+    } catch (e) {
+      showAlert('Error', e.response?.data?.message || 'No se pudo convertir el atleta.');
+    } finally {
+      setConvertingTrial(false);
+    }
+  };
 
   const showInitialLoader = isLoading && users.length === 0;
   const isRefreshingUsers = isLoading && users.length > 0;
@@ -305,6 +352,25 @@ export default function UsuariosScreen({ navigation }) {
                 </Text>
               </View>
             )}
+            {item.esPrueba ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                <Ionicons
+                  name="hourglass-outline"
+                  size={14}
+                  color={item.pruebaDecision === 'pendiente' ? '#ef4444' : '#f59e0b'}
+                  style={{ marginRight: 4 }}
+                />
+                <Text
+                  style={{
+                    color: item.pruebaDecision === 'pendiente' ? '#ef4444' : '#f59e0b',
+                    fontSize: 12,
+                    fontWeight: '700',
+                  }}
+                >
+                  {item.pruebaDecision === 'pendiente' ? 'Prueba vencida' : 'Prueba'}
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           <View style={[styles.roleBadge, { backgroundColor: theme.background, borderColor: theme.border }]}>
@@ -381,6 +447,26 @@ export default function UsuariosScreen({ navigation }) {
             keyExtractor={(item) => item._id || Math.random().toString()}
             renderItem={renderItem}
             contentContainerStyle={{ paddingBottom: 80 }}
+            ListHeaderComponent={
+              pruebaPendiente.length ? (
+                <View style={{ marginBottom: 8 }}>
+                  {pruebaPendiente.map((a) => (
+                    <TrialDecisionCard
+                      key={a._id}
+                      athlete={a}
+                      theme={theme}
+                      isDarkMode={isDarkMode}
+                      colorMarca={colorMarca}
+                      getHeaders={getHeaders}
+                      onResolved={() => {
+                        loadPruebaPendiente();
+                        onRefresh();
+                      }}
+                    />
+                  ))}
+                </View>
+              ) : null
+            }
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
             onEndReached={handleLoadMore}
             onEndReachedThreshold={0.5}
@@ -414,6 +500,8 @@ export default function UsuariosScreen({ navigation }) {
         initialData={selectedUser} 
         isSaving={isSaving}
         viewerRol={viewerRol}
+        onConvertTrial={selectedUser?.esPrueba ? handleConvertTrial : undefined}
+        convertingTrial={convertingTrial}
       />
 
       <UserDetailsModal 

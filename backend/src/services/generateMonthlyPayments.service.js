@@ -69,6 +69,15 @@ export async function ensurePaymentForEnrollment(models, enrollment, mes, anio) 
         return { created: false, omitted: true, reason: 'no_facturacion' };
     }
 
+    const { User } = models;
+    const atletaIdEarly = inscripcion.atleta?._id || inscripcion.atleta;
+    if (atletaIdEarly) {
+        const trialUser = await User.findById(atletaIdEarly).select('esPrueba rol').lean();
+        if (trialUser?.esPrueba && trialUser.rol === 'atleta') {
+            return { created: false, omitted: true, reason: 'atleta_prueba' };
+        }
+    }
+
     const amounts = paymentAmountsFromEnrollment(inscripcion);
     if (!amounts) return { created: false, omitted: true, reason: 'sin_plan' };
 

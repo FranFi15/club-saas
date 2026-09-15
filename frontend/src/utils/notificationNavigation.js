@@ -139,6 +139,14 @@ export function getNotificationTarget(item, { rol, cuotasEnApp, isTutor }) {
     }
   }
 
+  if (tipo === 'prueba_expirada') {
+    if (isTutor || rol === 'tutor') return { tab: 'TutorInicio' };
+    if (rol === 'admin_club' || rol === 'administrativo') {
+      return { tab: 'Estructura', screen: 'Usuarios' };
+    }
+    return null;
+  }
+
   if (tipo === 'chat') {
     const params = item?.conversationId
       ? { conversationId: item.conversationId }
@@ -192,7 +200,7 @@ export function navigateFromNotification(navigation, item, ctx) {
 
   const { tab, screen, params } = target;
   if (screen) {
-    navigation.navigate(tab, { screen, params });
+    navigation.navigate(tab, { screen, params, initial: false });
   } else {
     navigation.navigate(tab, params);
   }

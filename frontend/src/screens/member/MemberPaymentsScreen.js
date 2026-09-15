@@ -549,7 +549,22 @@ export default function MemberPaymentsScreen({ navigation }) {
         kicker="Finanzas"
         title={isSocio ? 'Cuota social' : 'Cuotas'}
         subtitle={subtitle}
-        onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
+        onBack={() => {
+          // Prefer stack history inside Perfil. If Cuotas is the nested root
+          // (cross-tab navigate without initial:false), goBack() would leave the
+          // tab and leave Perfil stuck on Cuotas — navigate to ProfileMain instead.
+          const stackIndex = navigation.getState?.()?.index ?? 0;
+          if (stackIndex > 0) {
+            navigation.goBack();
+            return;
+          }
+          const names = navigation.getState?.()?.routeNames || [];
+          if (names.includes('ProfileMain')) {
+            navigation.navigate('ProfileMain');
+            return;
+          }
+          if (navigation.canGoBack()) navigation.goBack();
+        }}
       />
 
       {isTutor && tutorHijos.length > 0 ? (

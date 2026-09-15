@@ -2,7 +2,7 @@ import React, { useContext } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { finanzasStyles as s } from './finanzasStyles';
-import { MN, ESTADO_FILTROS, EST_COLOR, fmtMoney } from './finanzasConstants';
+import { MN, ESTADO_FILTROS, EST_COLOR, fmtMoney, contrastOutlineBtn } from './finanzasConstants';
 import SearchableDropdown from '../../../components/SearchableDropdown';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
@@ -87,23 +87,23 @@ export default function CuotasTab({
           style={{ marginTop: 15, marginBottom: 10 }}
         >
           <TouchableOpacity onPress={onPrevMonth} accessibilityLabel="Mes anterior">
-            <Ionicons name="chevron-back" size={24} color={cc} />
+            <Ionicons name="chevron-back" size={24} color={theme.text} />
           </TouchableOpacity>
           <Text style={{ color: theme.text, fontWeight: 'bold', fontSize: 16 }}>
             {MN[mes - 1]} {anio}
           </Text>
           <TouchableOpacity onPress={onNextMonth} accessibilityLabel="Mes siguiente">
-            <Ionicons name="chevron-forward" size={24} color={cc} />
+            <Ionicons name="chevron-forward" size={24} color={theme.text} />
           </TouchableOpacity>
         </DesignCard>
 
         <View style={styles.resumenToggleRow}>
           <Text style={[s.sectionTitle, { color: theme.text, marginTop: 8, marginBottom: 0 }]}>Resumen</Text>
           <TouchableOpacity
-            style={[styles.toggleBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
+            style={[styles.toggleBtn, contrastOutlineBtn(theme, isDarkMode)]}
             onPress={onToggleResumen}
           >
-            <Ionicons name={showResumen ? 'eye-off-outline' : 'eye-outline'} size={16} color={cc} />
+            <Ionicons name={showResumen ? 'eye-off-outline' : 'eye-outline'} size={16} color={theme.text} />
             <Text style={{ color: theme.text, fontSize: 12, fontWeight: '600', marginLeft: 6 }}>
               {showResumen ? 'Ocultar' : 'Mostrar'}
             </Text>
@@ -120,7 +120,7 @@ export default function CuotasTab({
                 style={s.statCard}
                 contentStyle={s.statInner}
               >
-                <Text style={{ color: cc, fontSize: 18, fontWeight: 'bold' }}>{fmtMoney(stats.totalFacturado)}</Text>
+                <Text style={{ color: theme.text, fontSize: 18, fontWeight: 'bold' }}>{fmtMoney(stats.totalFacturado)}</Text>
                 <Text style={{ color: theme.textMuted, fontSize: 11 }}>Facturado</Text>
               </DesignCard>
               <DesignCard

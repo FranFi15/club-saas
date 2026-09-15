@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
 import { readScreenCache, useCachedFocusLoad } from '../../../hooks/useCachedFocusLoad';
 import { finanzasStyles as s } from './finanzasStyles';
-import { METODOS, MN, fmtMoney, metodoPagoLabel, metodoPagoIcon, EST_COLOR } from './finanzasConstants';
+import { METODOS, MN, fmtMoney, metodoPagoLabel, metodoPagoIcon, EST_COLOR, contrastOutlineBtn } from './finanzasConstants';
 import { pickAndUploadAttachment, openAttachmentUrl } from './finanzasUpload';
 import CustomAlert from '../../../components/CustomAlert';
 import DesignCard from '../../../components/DesignCard';
@@ -363,22 +363,22 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
             )}
           </View>
           <View style={s.financeCardAmountCol}>
-            <Text style={[s.financeCardAmount, { color: cc }]}>{fmtMoney(item.monto)}</Text>
+            <Text style={[s.financeCardAmount, { color: theme.text }]}>{fmtMoney(item.monto)}</Text>
           </View>
         </View>
 
         <View style={[s.financeCardActions, { borderTopColor: theme.border }]}>
           <TouchableOpacity
-            style={[s.financeCardActionBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+            style={[s.financeCardActionBtn, contrastOutlineBtn(theme, isDarkMode)]}
             onPress={() => openEdit(item)}
             hitSlop={6}
           >
-            <Ionicons name="create-outline" size={15} color={cc} />
-            <Text style={[s.financeCardActionTxt, { color: cc }]}>Editar</Text>
+            <Ionicons name="create-outline" size={15} color={theme.text} />
+            <Text style={[s.financeCardActionTxt, { color: theme.text }]}>Editar</Text>
           </TouchableOpacity>
           {!!item.facturaUrl && (
             <TouchableOpacity
-              style={[s.financeCardActionBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+              style={[s.financeCardActionBtn, contrastOutlineBtn(theme, isDarkMode)]}
               onPress={() =>
                 openAttachmentUrl(item.facturaUrl).catch((e) =>
                   showAlert('Error', e.message || 'No se pudo abrir.'),
@@ -386,13 +386,13 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
               }
               hitSlop={6}
             >
-              <Ionicons name="document-text-outline" size={15} color={cc} />
-              <Text style={[s.financeCardActionTxt, { color: cc }]}>Factura</Text>
+              <Ionicons name="document-text-outline" size={15} color={theme.text} />
+              <Text style={[s.financeCardActionTxt, { color: theme.text }]}>Factura</Text>
             </TouchableOpacity>
           )}
           {!!item.pagoComprobanteUrl && (
             <TouchableOpacity
-              style={[s.financeCardActionBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+              style={[s.financeCardActionBtn, contrastOutlineBtn(theme, isDarkMode)]}
               onPress={() =>
                 openAttachmentUrl(item.pagoComprobanteUrl).catch((e) =>
                   showAlert('Error', e.message || 'No se pudo abrir.'),
@@ -400,8 +400,8 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
               }
               hitSlop={6}
             >
-              <Ionicons name="document-attach-outline" size={15} color={cc} />
-              <Text style={[s.financeCardActionTxt, { color: cc }]}>Comprobante</Text>
+              <Ionicons name="document-attach-outline" size={15} color={theme.text} />
+              <Text style={[s.financeCardActionTxt, { color: theme.text }]}>Comprobante</Text>
             </TouchableOpacity>
           )}
           {!isPaid && (
@@ -684,7 +684,7 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
                       <Text style={{ color: theme.text, fontWeight: '600' }}>{item.concepto}</Text>
                       <Text style={{ color: theme.textMuted, fontSize: 12 }}>{formatDate(item.fecha)}</Text>
                     </View>
-                    <Text style={{ color: cc, fontWeight: '700' }}>{fmtMoney(item.monto)}</Text>
+                    <Text style={{ color: theme.text, fontWeight: '700' }}>{fmtMoney(item.monto)}</Text>
                   </TouchableOpacity>
                 )}
                 ListEmptyComponent={
@@ -715,7 +715,7 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
               {payTarget && (
                 <View style={[s.payInfo, { backgroundColor: `${cc}14` }]}>
                   <Text style={{ color: theme.text, fontWeight: '700', fontSize: 16 }}>{payTarget.concepto}</Text>
-                  <Text style={{ color: cc, fontWeight: '800', fontSize: 22, marginTop: 6 }}>
+                  <Text style={{ color: theme.text, fontWeight: '800', fontSize: 22, marginTop: 6 }}>
                     {fmtMoney(payTarget.monto)}
                   </Text>
                 </View>

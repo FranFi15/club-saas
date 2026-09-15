@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { finanzasStyles as s } from './finanzasStyles';
-import { MN, EST_COLOR, fmtMoney } from './finanzasConstants';
+import { MN, EST_COLOR, fmtMoney, contrastOutlineBtn } from './finanzasConstants';
 import DesignCard from '../../../components/DesignCard';
 import UserAvatar from '../../../components/UserAvatar';
 import { ThemeContext } from '../../../context/ThemeContext';
@@ -114,13 +114,13 @@ export default function FamiliasTab({
 
           <View style={styles.toggleRow}>
             <TouchableOpacity
-              style={[styles.toggleBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+              style={[styles.toggleBtn, contrastOutlineBtn(theme, isDarkMode)]}
               onPress={() => toggleSection(setExpandedAthletes, tutorId)}
             >
               <Ionicons
                 name={expandedAthletes[tutorId] ? 'chevron-up' : 'chevron-down'}
                 size={16}
-                color={cc}
+                color={theme.text}
               />
               <Text style={[styles.toggleBtnTxt, { color: theme.text }]}>
                 Atletas ({g.hijos.length})
@@ -128,13 +128,13 @@ export default function FamiliasTab({
             </TouchableOpacity>
             {canManageDiscounts ? (
               <TouchableOpacity
-                style={[styles.toggleBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+                style={[styles.toggleBtn, contrastOutlineBtn(theme, isDarkMode)]}
                 onPress={() => toggleSection(setExpandedDiscount, tutorId)}
               >
                 <Ionicons
                   name={expandedDiscount[tutorId] ? 'chevron-up' : 'chevron-down'}
                   size={16}
-                  color="#8b5cf6"
+                  color={theme.text}
                 />
                 <Text style={[styles.toggleBtnTxt, { color: theme.text }]}>
                   Descuento{pctActual > 0 ? ` (${pctActual}%)` : ''}
@@ -217,10 +217,10 @@ export default function FamiliasTab({
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        style={[styles.childBtn, styles.childBtnOutline, { borderColor: cc }]}
+                        style={[styles.childBtn, styles.childBtnOutline, contrastOutlineBtn(theme, isDarkMode)]}
                         onPress={() => onHistoryAtleta(h)}
                       >
-                        <Text style={{ color: cc, fontWeight: '700', fontSize: 12 }}>Historial</Text>
+                        <Text style={{ color: theme.text, fontWeight: '700', fontSize: 12 }}>Historial</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -286,13 +286,13 @@ export default function FamiliasTab({
     <>
       {canManageDiscounts ? (
         <TouchableOpacity
-          style={[styles.globalToggleBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
+          style={[styles.globalToggleBtn, contrastOutlineBtn(theme, isDarkMode)]}
           onPress={() => setExpandedGlobalDiscount((v) => !v)}
         >
           <Ionicons
             name={expandedGlobalDiscount ? 'chevron-up' : 'chevron-down'}
             size={18}
-            color={cc}
+            color={theme.text}
           />
           <Text style={[styles.toggleBtnTxt, { color: theme.text, flex: 1 }]}>
             Descuento global{globalDiscount > 0 ? ` (${globalDiscount}%)` : ''}

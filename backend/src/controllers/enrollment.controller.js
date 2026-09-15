@@ -12,6 +12,7 @@ import {
     resolveNewEnrollmentBilling,
     setEnrollmentAsDisciplineBilling,
 } from '../services/disciplineBilling.service.js';
+import { enrollmentBillingForTrial, isAthleteOnTrial } from '../services/trialAthlete.service.js';
 
 async function applyPreviousBillingClear(models, previousBillingId) {
     if (!previousBillingId) return;
@@ -94,16 +95,17 @@ const enrollAthlete = asyncHandler(async (req, res) => {
         preferencia,
         autoKeepOnConflict: false,
     });
+    const trialBilling = enrollmentBillingForTrial(billing, isAthleteOnTrial(user));
 
     let enrollment = await Enrollment.create({
         atleta: atletaId,
         categoria: categoriaId,
         aptoMedico,
-        plan: billing.plan || undefined,
-        esFacturacion: Boolean(billing.esFacturacion),
+        plan: trialBilling.plan,
+        esFacturacion: Boolean(trialBilling.esFacturacion),
     });
 
-    await applyPreviousBillingClear(req.models, billing.previousBillingId);
+    await applyPreviousBillingClear(req.models, trialBilling.previousBillingId);
 
     enrollment = await applyFamilyDiscountToEnrollment(req.models, atletaId, enrollment);
 

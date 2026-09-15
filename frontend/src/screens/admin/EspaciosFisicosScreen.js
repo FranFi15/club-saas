@@ -96,6 +96,13 @@ export default function EspaciosFisicosScreen({ navigation }) {
   };
   const closeAlert = () => setAlertConfig(prev => ({ ...prev, visible: false }));
 
+  // RN freezes touches if CustomAlert (Modal) opens while another Modal is still mounted.
+  const alertAfterSheetsClose = (title, message, options = {}) => {
+    setStatusModalVisible(false);
+    setSessionActionModalVisible(false);
+    setTimeout(() => showAlert(title, message, options), 350);
+  };
+
   const getHeaders = async () => {
     const token = await getToken('userToken');
     return {
@@ -189,20 +196,20 @@ export default function EspaciosFisicosScreen({ navigation }) {
 
       const response = await clubApi.patch(`/spaces/${selectedSpaceForStatus._id}/estado`, payload, { headers });
 
-      setSpaces(spaces.map((s) => (s._id === selectedSpaceForStatus._id ? response.data.space : s)));
+      setSpaces((prev) =>
+        prev.map((s) => (s._id === selectedSpaceForStatus._id ? response.data.space : s)),
+      );
 
-      showAlert('Estado actualizado', response.data.message || 'Cambio guardado.');
-      setStatusModalVisible(false);
       setNotasMantenimiento('');
       setIndisponibleHastaDisplay('');
       resetSessionActionFlow();
+      alertAfterSheetsClose('Estado actualizado', response.data.message || 'Cambio guardado.');
     } catch (error) {
-      showAlert('Error', error.response?.data?.message || 'No se pudo cambiar el estado.');
+      alertAfterSheetsClose('Error', error.response?.data?.message || 'No se pudo cambiar el estado.');
     } finally {
       setSavingStatus(false);
     }
   };
-
   const beginRestrictedStatusChange = async (nuevoEstado) => {
     if (!selectedSpaceForStatus) return;
 
@@ -252,7 +259,10 @@ export default function EspaciosFisicosScreen({ navigation }) {
       setStatusModalVisible(false);
       setSessionActionModalVisible(true);
     } catch (error) {
-      showAlert('Error', error.response?.data?.message || 'No se pudieron cargar las sesiones afectadas.');
+      alertAfterSheetsClose(
+        'Error',
+        error.response?.data?.message || 'No se pudieron cargar las sesiones afectadas.',
+      );
     } finally {
       setLoadingAffected(false);
     }
@@ -325,16 +335,21 @@ export default function EspaciosFisicosScreen({ navigation }) {
       const headers = await getHeaders();
       if (editingSpace) {
         const response = await clubApi.put(`/spaces/${editingSpace._id}`, payload, { headers });
-        setSpaces(spaces.map(s => s._id === response.data._id ? response.data : s));
-        showAlert('Éxito', 'Espacio actualizado correctamente');
+        setSpaces((prev) => prev.map((s) => (s._id === response.data._id ? response.data : s)));
+        setIsModalVisible(false);
+        setTimeout(() => showAlert('Éxito', 'Espacio actualizado correctamente'), 350);
       } else {
         const response = await clubApi.post('/spaces', payload, { headers });
-        setSpaces([...spaces, response.data]);
-        showAlert('Éxito', 'Espacio creado correctamente');
+        setSpaces((prev) => [...prev, response.data]);
+        setIsModalVisible(false);
+        setTimeout(() => showAlert('Éxito', 'Espacio creado correctamente'), 350);
       }
-      setIsModalVisible(false);
     } catch (error) {
-      showAlert('Error', error.response?.data?.message || 'No se pudo guardar el espacio');
+      // Keep the form open; avoid stacking Modals by delaying the alert briefly.
+      setTimeout(
+        () => showAlert('Error', error.response?.data?.message || 'No se pudo guardar el espacio'),
+        50,
+      );
     } finally {
       setIsSaving(false);
     }
@@ -373,6 +388,25 @@ export default function EspaciosFisicosScreen({ navigation }) {
     setIsModalVisible(true);
   };
 
+  const handleDelete = (item) => {
+    showAlert('Eliminar espacio', `¿Querés eliminar "${item.nombre}"?`, {
+      showCancel: true,
+      isDanger: true,
+      confirmText: 'Eliminar',
+      onConfirm: async () => {
+        closeAlert();
+        try {
+          await clubApi.delete(`/spaces/${item._id}`, { headers: await getHeaders() });
+          setSpaces((prev) => prev.filter((s) => s._id !== item._id));
+        } catch (error) {
+          setTimeout(() => {
+            showAlert('Error', error.response?.data?.message || 'No se pudo eliminar el espacio.');
+          }, 50);
+        }
+      },
+    });
+  };
+
   const getStatusColor = (estado) => {
     switch(estado) {
       case 'disponible': return '#10b981';
@@ -401,6 +435,9 @@ export default function EspaciosFisicosScreen({ navigation }) {
     <View style={styles.swipeActionsContainer}>
       <TouchableOpacity style={[styles.swipeBtn, { backgroundColor: '#f59e0b' }]} onPress={() => openForm(item)}>
         <Ionicons name="pencil" size={24} color="#ffffff" />
+      </TouchableOpacity>
+      <TouchableOpacity style={[styles.swipeBtn, { backgroundColor: '#ef4444' }]} onPress={() => handleDelete(item)}>
+        <Ionicons name="trash" size={24} color="#ffffff" />
       </TouchableOpacity>
     </View>
   );

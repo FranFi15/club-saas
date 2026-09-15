@@ -15,7 +15,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   LayoutAnimation,
-  UIManager,
   Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -37,6 +36,9 @@ import { sortEnrollmentsByAtleta, sortUsersByName } from '../../utils/listSort';
 import CategoryRosterModal from '../../components/CategoryRosterModal';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { pickPaginatedRows } from '../../utils/paginatedApi';
+import { enableLayoutAnimationsIfNeeded } from '../../utils/layoutAnimation';
+
+enableLayoutAnimationsIfNeeded();
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const CHART_WIDTH = Math.min(SCREEN_W - 64, 360);
@@ -83,10 +85,6 @@ function matchesRosterSearch(enrollment, query) {
   const full = `${a.nombre || ''} ${a.apellido || ''}`.toLowerCase();
   const dni = String(a.dni || '').toLowerCase();
   return full.includes(q) || dni.includes(q);
-}
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
 const ATHLETE_PANEL_ANIM = LayoutAnimation.create(

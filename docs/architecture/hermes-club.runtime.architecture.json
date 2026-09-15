@@ -1,0 +1,255 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Hermes Club Runtime Architecture",
+    "locale": "en",
+    "output": "hermes-club.runtime.architecture.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "primary-path",
+        "label": "Primary request path",
+        "focus": ["fe-expo", "sec-jwt", "be-club", "db-tenant"],
+        "note": "Club app authenticates with JWT and x-club-identifier, then Club API reads the tenant MongoDB."
+      },
+      {
+        "id": "tenant-resolution",
+        "label": "Tenant resolution",
+        "focus": ["be-club", "be-super", "db-super"],
+        "note": "Club API resolveTenant calls Super internal db-info against the superadmin MongoDB."
+      },
+      {
+        "id": "integrations",
+        "label": "Club API integrations",
+        "focus": ["be-club", "ext-mp", "ext-cloudinary", "ext-push"],
+        "note": "Payments, media, and push notifications leave Club API toward external services."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "fe-website",
+      "type": "frontend",
+      "label": "Marketing Site",
+      "sublabel": "website · family signup",
+      "pos": [40, 40],
+      "size": [150, 56]
+    },
+    {
+      "id": "fe-superfront",
+      "type": "frontend",
+      "label": "Super Admin UI",
+      "sublabel": "superfront · Vite",
+      "pos": [250, 40],
+      "size": [150, 56]
+    },
+    {
+      "id": "be-super",
+      "type": "backend",
+      "label": "Tenant Registry",
+      "sublabel": "super · Express · Render",
+      "pos": [480, 40],
+      "size": [150, 56]
+    },
+    {
+      "id": "db-super",
+      "type": "database",
+      "label": "MongoDB Superadmin",
+      "sublabel": "Atlas · registry",
+      "brand": "mongodb",
+      "pos": [700, 40],
+      "size": [150, 56]
+    },
+    {
+      "id": "fe-expo",
+      "type": "frontend",
+      "label": "Hermes Club App",
+      "sublabel": "Expo · iOS / Android / web",
+      "pos": [40, 200],
+      "size": [150, 56]
+    },
+    {
+      "id": "sec-jwt",
+      "type": "security",
+      "label": "JWT + Club Header",
+      "sublabel": "JWT · x-club-identifier",
+      "tag": "tenant auth",
+      "pos": [250, 200],
+      "size": [150, 56]
+    },
+    {
+      "id": "be-club",
+      "type": "backend",
+      "label": "Club API",
+      "sublabel": "backend · Express · Render",
+      "pos": [480, 200],
+      "size": [150, 56]
+    },
+    {
+      "id": "db-tenant",
+      "type": "database",
+      "label": "MongoDB Per-Club",
+      "sublabel": "Atlas · tenant DB",
+      "brand": "mongodb",
+      "pos": [700, 200],
+      "size": [150, 56]
+    },
+    {
+      "id": "cloud-host",
+      "type": "cloud",
+      "label": "Render / Vercel / EAS",
+      "sublabel": "APIs · web · app builds",
+      "brand": "render",
+      "pos": [40, 340],
+      "size": [150, 56]
+    },
+    {
+      "id": "ext-mp",
+      "type": "external",
+      "label": "Mercado Pago",
+      "sublabel": "payments",
+      "pos": [400, 340],
+      "size": [130, 56]
+    },
+    {
+      "id": "ext-cloudinary",
+      "type": "external",
+      "label": "Cloudinary",
+      "sublabel": "media",
+      "brand": "cloudinary",
+      "pos": [560, 340],
+      "size": [130, 56]
+    },
+    {
+      "id": "ext-push",
+      "type": "messagebus",
+      "label": "Expo Push",
+      "sublabel": "notifications",
+      "pos": [720, 340],
+      "size": [130, 56]
+    }
+  ],
+  "connections": [
+    {
+      "id": "app-to-auth",
+      "from": "fe-expo",
+      "to": "sec-jwt",
+      "label": "JWT + club header",
+      "variant": "emphasis",
+      "labelDy": -24
+    },
+    {
+      "id": "auth-to-club",
+      "from": "sec-jwt",
+      "to": "be-club",
+      "label": "authorized request",
+      "variant": "emphasis",
+      "labelAt": [440, 270]
+    },
+    {
+      "id": "club-to-tenant-db",
+      "from": "be-club",
+      "to": "db-tenant",
+      "label": "per-club data",
+      "variant": "emphasis",
+      "labelDy": -24
+    },
+    {
+      "id": "website-to-club",
+      "from": "fe-website",
+      "to": "be-club",
+      "label": "signup / API",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [[115, 150], [555, 150]],
+      "labelAt": [200, 138]
+    },
+    {
+      "id": "superfront-to-super",
+      "from": "fe-superfront",
+      "to": "be-super",
+      "label": "admin API",
+      "labelDy": -24
+    },
+    {
+      "id": "club-to-super",
+      "from": "be-club",
+      "to": "be-super",
+      "label": "resolveTenant",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelDx": 70
+    },
+    {
+      "id": "super-to-super-db",
+      "from": "be-super",
+      "to": "db-super",
+      "label": "registry",
+      "labelDy": -24
+    },
+    {
+      "id": "club-to-mp",
+      "from": "be-club",
+      "to": "ext-mp",
+      "label": "payments",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 28
+    },
+    {
+      "id": "club-to-cloudinary",
+      "from": "be-club",
+      "to": "ext-cloudinary",
+      "label": "media",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 28
+    },
+    {
+      "id": "club-to-push",
+      "from": "be-club",
+      "to": "ext-push",
+      "label": "push",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 28
+    },
+    {
+      "id": "host-to-app",
+      "from": "cloud-host",
+      "to": "fe-expo",
+      "label": "hosts app / web",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelDx": 70
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Clients",
+      "items": [
+        "Expo app, marketing signup site, and Vite superfront"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Auth & tenancy",
+      "items": [
+        "JWT + x-club-identifier; resolveTenant → Super db-info → per-club MongoDB"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Integrations & hosting",
+      "items": [
+        "Mercado Pago, Cloudinary, Expo Push; APIs on Render, app/web via Vercel and EAS"
+      ]
+    }
+  ]
+}

@@ -20,6 +20,7 @@ import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusL
 import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScreenHeader';
 import MemberChildPicker from '../../components/MemberChildPicker';
 import DesignCard from '../../components/DesignCard';
+import TrialDecisionCard from '../../components/TrialDecisionCard';
 
 function fmtMoney(n) {
   return `$${(n || 0).toLocaleString('es-AR')}`;
@@ -31,6 +32,7 @@ export default function TutorHomeScreen({ navigation }) {
   const { profile, hijos, activeHijo, activeAtletaId, loading, loadError, refresh } = useMember();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const dashboardCacheKey = clubData?.urlIdentifier ? `tutor-dashboard:${clubData.urlIdentifier}` : '';
+  const pruebaPendiente = Array.isArray(profile?.pruebaPendiente) ? profile.pruebaPendiente : [];
 
   const [dashboard, setDashboard] = useState(() => readScreenCache(dashboardCacheKey) ?? []);
 
@@ -96,6 +98,17 @@ export default function TutorHomeScreen({ navigation }) {
           contentContainerStyle={styles.scroll}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
         >
+          {pruebaPendiente.map((a) => (
+            <TrialDecisionCard
+              key={a._id}
+              athlete={a}
+              theme={theme}
+              isDarkMode={isDarkMode}
+              colorMarca={colorMarca}
+              getHeaders={() => clubHeaders(clubData)}
+              onResolved={() => refresh({ background: true })}
+            />
+          ))}
           {!hijos.length ? (
             <DesignCard theme={theme} isDarkMode={isDarkMode} accent={colorMarca} contentStyle={styles.emptyInner}>
               <Ionicons name="alert-circle-outline" size={40} color={theme.icon} />
@@ -157,7 +170,13 @@ export default function TutorHomeScreen({ navigation }) {
                       {activeSummary.cuotasPendientes > 0 ? (
                         <TouchableOpacity
                           style={[styles.alertRow, { borderColor: '#ef444444' }]}
-                          onPress={() => navigation.navigate('TutorProfile', { screen: 'TutorPayments' })}
+                          onPress={() =>
+                            navigation.navigate('TutorProfile', {
+                              screen: 'TutorPayments',
+                              // Keep ProfileMain under Cuotas so Back returns to Perfil, not Inicio.
+                              initial: false,
+                            })
+                          }
                         >
                           <Ionicons name="wallet-outline" size={20} color="#ef4444" />
                           <Text style={[styles.alertTxt, { color: theme.text }]}>

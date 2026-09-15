@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Share,
   Platform,
+  Switch,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,6 +37,8 @@ export default function InvitarFamiliaScreen({ navigation }) {
   const [categories, setCategories] = useState([]);
   const [slots, setSlots] = useState([emptySlot(), emptySlot()]);
   const [includeTutor, setIncludeTutor] = useState(true);
+  const [esPrueba, setEsPrueba] = useState(false);
+  const [diasPrueba, setDiasPrueba] = useState('15');
   const [loadingMeta, setLoadingMeta] = useState(true);
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState(null);
@@ -124,6 +128,12 @@ export default function InvitarFamiliaScreen({ navigation }) {
         return showAlert('Faltan datos', `Completá disciplina y categoría del atleta ${i + 1}.`);
       }
     }
+    if (esPrueba) {
+      const days = Math.floor(Number(diasPrueba));
+      if (!days || days < 1 || days > 365) {
+        return showAlert('Días de prueba', 'Indicá entre 1 y 365 días de prueba.');
+      }
+    }
     setSaving(true);
     try {
       const h = await getHeaders();
@@ -132,6 +142,8 @@ export default function InvitarFamiliaScreen({ navigation }) {
         {
           includeTutor,
           athleteSlots: slots.map((s) => ({ categoria: s.categoria })),
+          esPrueba: !!esPrueba,
+          diasPrueba: esPrueba ? Math.floor(Number(diasPrueba)) : undefined,
         },
         { headers: h },
       );
@@ -216,6 +228,8 @@ export default function InvitarFamiliaScreen({ navigation }) {
                 onPress={() => {
                   setCreated(null);
                   setIncludeTutor(true);
+                  setEsPrueba(false);
+                  setDiasPrueba('15');
                   setSlots([emptySlot(), emptySlot()]);
                 }}
                 style={{ marginTop: 12 }}
@@ -264,6 +278,56 @@ export default function InvitarFamiliaScreen({ navigation }) {
                   </Text>
                 </TouchableOpacity>
               </View>
+
+              <View
+                style={[
+                  styles.slotCard,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    marginTop: 4,
+                  },
+                ]}
+              >
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={[styles.slotTitle, { color: theme.text }]}>Atletas de prueba</Text>
+                  <Text style={[styles.sectionHint, { color: theme.textMuted, marginBottom: 0 }]}>
+                    Se inscriben a categoría/plan sin generar cuotas hasta confirmar.
+                  </Text>
+                </View>
+                <Switch
+                  value={esPrueba}
+                  onValueChange={setEsPrueba}
+                  trackColor={{ false: theme.border, true: colorMarca + '88' }}
+                  thumbColor={esPrueba ? colorMarca : theme.textMuted}
+                />
+              </View>
+              {esPrueba ? (
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={[styles.sectionHint, { color: theme.textMuted, marginBottom: 6 }]}>
+                    Días de prueba
+                  </Text>
+                  <TextInput
+                    style={{
+                      height: 48,
+                      borderWidth: 1,
+                      borderColor: theme.border,
+                      borderRadius: 12,
+                      paddingHorizontal: 14,
+                      color: theme.text,
+                      backgroundColor: theme.surface,
+                    }}
+                    placeholder="15"
+                    placeholderTextColor={theme.textMuted}
+                    keyboardType="number-pad"
+                    value={diasPrueba}
+                    onChangeText={(v) => setDiasPrueba(v.replace(/[^\d]/g, '').slice(0, 3))}
+                    maxLength={3}
+                  />
+                </View>
+              ) : null}
 
               <Text style={[styles.sectionLabel, { color: theme.text }]}>
                 {includeTutor ? 'Atletas a registrar' : 'Atleta a registrar'}

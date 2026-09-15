@@ -62,7 +62,7 @@ export default function PaymentPaySummary({
       {showTotal ? (
         <View style={[styles.totalRow, { borderTopColor: theme.border }]}>
           <Text style={{ color: theme.text, fontWeight: '800', fontSize: 15 }}>Total</Text>
-          <Text style={{ color: primaryColor, fontWeight: '800', fontSize: 20 }}>{fmtMoney(total)}</Text>
+          <Text style={{ color: theme.text, fontWeight: '800', fontSize: 20 }}>{fmtMoney(total)}</Text>
         </View>
       ) : null}
     </View>

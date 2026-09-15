@@ -92,7 +92,11 @@ function TutorTabs() {
         component={MemberCommsStack}
         listeners={tabPressResetToRoot('TutorComunicar', 'MemberCommsHub')}
       />
-      <Tab.Screen name="TutorProfile" component={TutorProfileStackNav} />
+      <Tab.Screen
+        name="TutorProfile"
+        component={TutorProfileStackNav}
+        listeners={tabPressResetToRoot('TutorProfile', 'ProfileMain')}
+      />
     </Tab.Navigator>
   );
 }

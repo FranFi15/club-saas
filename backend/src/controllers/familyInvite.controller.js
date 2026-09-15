@@ -6,6 +6,7 @@ import { syncCategoryGroupChatSafe } from '../services/categoryGroupChat.service
 import { syncAthleteCountToSuper } from '../services/athleteQuota.service.js';
 import { categorySexoError, applyCategorySexoToAthlete } from '../utils/atletaSexo.js';
 import { resolveNewEnrollmentBilling } from '../services/disciplineBilling.service.js';
+import { parseTrialCreateFields, enrollmentBillingForTrial } from '../services/trialAthlete.service.js';
 
 const CURRENT_TERMS_VERSION = '2026-08-15';
 const INVITE_TTL_MS = 72 * 60 * 60 * 1000;
@@ -122,7 +123,15 @@ async function loadInviteOrThrow(FamilyInvite, token, { forRedeem = false } = {}
 // @route   POST /api/family-invites
 const createFamilyInvite = asyncHandler(async (req, res) => {
     const { FamilyInvite, Category } = req.models;
-    const { athleteSlots, notas, expiresInHours, includeTutor, tutorCount: tutorCountRaw } = req.body;
+    const {
+        athleteSlots,
+        notas,
+        expiresInHours,
+        includeTutor,
+        tutorCount: tutorCountRaw,
+        esPrueba,
+        diasPrueba,
+    } = req.body;
 
     if (!Array.isArray(athleteSlots) || athleteSlots.length < 1 || athleteSlots.length > 10) {
         res.status(400);
@@ -134,6 +143,18 @@ const createFamilyInvite = asyncHandler(async (req, res) => {
         tutorCount = includeTutor ? 1 : 0;
     } else if (tutorCountRaw !== undefined && tutorCountRaw !== null && tutorCountRaw !== '') {
         tutorCount = Number(tutorCountRaw) > 0 ? 1 : 0;
+    }
+
+    let trialInvite = { esPrueba: false, diasPrueba: null };
+    if (esPrueba === true || esPrueba === 'true') {
+        try {
+            const parsed = parseTrialCreateFields({ esPrueba: true, diasPrueba, rol: 'atleta' });
+            trialInvite = { esPrueba: true, diasPrueba: Math.min(365, Math.max(1, Math.floor(Number(diasPrueba)))) };
+            void parsed;
+        } catch (e) {
+            res.status(e.statusCode || 400);
+            throw e;
+        }
     }
 
     const normalized = [];
@@ -162,6 +183,8 @@ const createFamilyInvite = asyncHandler(async (req, res) => {
         creadoPor: req.user._id,
         expiresAt: new Date(Date.now() + hours * 60 * 60 * 1000),
         tutorCount,
+        esPrueba: trialInvite.esPrueba,
+        diasPrueba: trialInvite.diasPrueba,
         athleteSlots: normalized,
         notas: typeof notas === 'string' ? notas.trim().slice(0, 300) : '',
     });
@@ -176,6 +199,8 @@ const createFamilyInvite = asyncHandler(async (req, res) => {
         url: invitePublicUrl(req.clubIdentifier, invite.token),
         expiresAt: invite.expiresAt,
         tutorCount,
+        esPrueba: invite.esPrueba,
+        diasPrueba: invite.diasPrueba,
         preview: serializeInvitePreview(populated, req.clubIdentifier),
     });
 });
@@ -200,6 +225,8 @@ const listFamilyInvites = asyncHandler(async (req, res) => {
             expired: inv.expiresAt < new Date() && inv.estado === 'pendiente',
             athleteCount: inv.athleteSlots?.length || 0,
             tutorCount: Number(inv.tutorCount) || 0,
+            esPrueba: Boolean(inv.esPrueba),
+            diasPrueba: inv.diasPrueba ?? null,
             requiereTutor: (Number(inv.tutorCount) || 0) > 0,
             slots: (inv.athleteSlots || []).map((s) => ({
                 disciplina: s.disciplina?.nombre,
@@ -341,6 +368,14 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
                 'planDefault nombre',
             );
 
+            const trialFields = invite.esPrueba
+                ? parseTrialCreateFields({
+                      esPrueba: true,
+                      diasPrueba: invite.diasPrueba,
+                      rol: 'atleta',
+                  })
+                : parseTrialCreateFields({ esPrueba: false, rol: 'atleta' });
+
             const atleta = await User.create({
                 nombre: String(a.nombre).trim(),
                 apellido: String(a.apellido).trim(),
@@ -353,6 +388,9 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
                 rol: 'atleta',
                 tutorPrincipal: createdTutor?._id || undefined,
                 cuotasEnApp: true,
+                esPrueba: trialFields.esPrueba,
+                pruebaHasta: trialFields.pruebaHasta || undefined,
+                exentoCuotaSocial: trialFields.esPrueba ? true : false,
                 acceptedTermsVersion: CURRENT_TERMS_VERSION,
                 acceptedTermsAt: termsAt,
             });
@@ -364,15 +402,16 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
                 category,
                 autoKeepOnConflict: true,
             });
+            const trialBilling = enrollmentBillingForTrial(billing, trialFields.esPrueba);
             const enrollment = await Enrollment.create({
                 atleta: atleta._id,
                 categoria: category._id,
                 aptoMedico: false,
-                plan: billing.plan || undefined,
-                esFacturacion: Boolean(billing.esFacturacion),
+                plan: trialBilling.plan,
+                esFacturacion: trialBilling.esFacturacion,
             });
-            if (billing.previousBillingId) {
-                const prev = await Enrollment.findById(billing.previousBillingId);
+            if (trialBilling.previousBillingId) {
+                const prev = await Enrollment.findById(trialBilling.previousBillingId);
                 if (prev) {
                     prev.esFacturacion = false;
                     prev.plan = null;

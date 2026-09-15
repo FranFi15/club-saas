@@ -4,6 +4,8 @@ import {
     updateMyProfile,
     updateUserAsAdmin,
     deactivateAthlete,
+    continueTrialAthlete,
+    leaveTrialAthleteHandler,
     getUsers,
     getMe,
     getMisHijos,
@@ -42,5 +44,17 @@ router.patch('/profile', protect, updateMyProfile);
 // Ruta Administrativa: Solo el staff de alto rango
 router.patch('/:id', protect, authorize('admin_club', 'administrativo'), updateUserAsAdmin);
 router.patch('/atletas/:id/deactivate', protect, authorize('admin_club', 'administrativo'), deactivateAthlete);
+router.post(
+    '/atletas/:id/prueba/continuar',
+    protect,
+    authorize('admin_club', 'administrativo', 'tutor'),
+    continueTrialAthlete,
+);
+router.post(
+    '/atletas/:id/prueba/baja',
+    protect,
+    authorize('admin_club', 'administrativo', 'tutor'),
+    leaveTrialAthleteHandler,
+);
 
 export default router;

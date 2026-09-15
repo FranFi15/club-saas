@@ -44,3 +44,12 @@ export function metodoPagoIcon(value) {
 export const EST_COLOR = { pendiente: '#f59e0b', pagado: '#10b981', vencido: '#ef4444', en_revision: '#6366f1' };
 
 export const fmtMoney = (n) => `$${(n || 0).toLocaleString('es-AR')}`;
+
+/** High-contrast outline control (readable regardless of club brand color). */
+export function contrastOutlineBtn(theme, isDarkMode) {
+  return {
+    borderColor: theme.text,
+    backgroundColor: isDarkMode ? 'transparent' : '#ffffff',
+    color: theme.text,
+  };
+}

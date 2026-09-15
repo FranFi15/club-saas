@@ -17,7 +17,7 @@ import { clubApi } from '../../../utils/api';
 import { readScreenCache, useCachedFocusLoad } from '../../../hooks/useCachedFocusLoad';
 import UserAvatar from '../../../components/UserAvatar';
 import { finanzasStyles as s } from './finanzasStyles';
-import { MN, METODOS, fmtMoney, metodoPagoLabel, metodoPagoIcon } from './finanzasConstants';
+import { MN, METODOS, fmtMoney, metodoPagoLabel, metodoPagoIcon, contrastOutlineBtn } from './finanzasConstants';
 import { pickAndUploadAttachment, openAttachmentUrl } from './finanzasUpload';
 import CustomAlert from '../../../components/CustomAlert';
 import DesignCard from '../../../components/DesignCard';
@@ -292,22 +292,22 @@ export default function NominaTab({
             )}
           </View>
           <View style={s.financeCardAmountCol}>
-            <Text style={[s.financeCardAmount, { color: cc }]}>{fmtMoney(item.monto)}</Text>
+            <Text style={[s.financeCardAmount, { color: theme.text }]}>{fmtMoney(item.monto)}</Text>
           </View>
         </View>
 
         <View style={[s.financeCardActions, { borderTopColor: theme.border }]}>
           <TouchableOpacity
-            style={[s.financeCardActionBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+            style={[s.financeCardActionBtn, contrastOutlineBtn(theme, isDarkMode)]}
             onPress={() => openEdit(item)}
             hitSlop={6}
           >
-            <Ionicons name="create-outline" size={15} color={cc} />
-            <Text style={[s.financeCardActionTxt, { color: cc }]}>Editar</Text>
+            <Ionicons name="create-outline" size={15} color={theme.text} />
+            <Text style={[s.financeCardActionTxt, { color: theme.text }]}>Editar</Text>
           </TouchableOpacity>
           {!!item.comprobanteUrl && (
             <TouchableOpacity
-              style={[s.financeCardActionBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+              style={[s.financeCardActionBtn, contrastOutlineBtn(theme, isDarkMode)]}
               onPress={() =>
                 openAttachmentUrl(item.comprobanteUrl).catch((e) =>
                   showAlert('Error', e.message || 'No se pudo abrir.'),
@@ -315,8 +315,8 @@ export default function NominaTab({
               }
               hitSlop={6}
             >
-              <Ionicons name="document-attach-outline" size={15} color={cc} />
-              <Text style={[s.financeCardActionTxt, { color: cc }]}>Comprobante</Text>
+              <Ionicons name="document-attach-outline" size={15} color={theme.text} />
+              <Text style={[s.financeCardActionTxt, { color: theme.text }]}>Comprobante</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity

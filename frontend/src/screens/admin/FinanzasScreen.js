@@ -1097,7 +1097,7 @@ export default function FinanzasScreen({ route }) {
                   openRevision();
                 }}
               >
-                <Ionicons name="document-attach-outline" size={20} color={cc} />
+                <Ionicons name="document-attach-outline" size={20} color={theme.text} />
                 <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Revisión de comprobantes</Text>
                 <BadgeDot count={revisionBadge} />
               </TouchableOpacity>
@@ -1110,7 +1110,7 @@ export default function FinanzasScreen({ route }) {
                   openPlanes();
                 }}
               >
-                <Ionicons name="document-text-outline" size={20} color={cc} />
+                <Ionicons name="document-text-outline" size={20} color={theme.text} />
                 <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Planes de cuota</Text>
               </TouchableOpacity>
             ) : null}
@@ -1127,7 +1127,7 @@ export default function FinanzasScreen({ route }) {
                     runGenerateMonth();
                   }}
                 >
-                  <Ionicons name="flash-outline" size={20} color={cc} />
+                  <Ionicons name="flash-outline" size={20} color={theme.text} />
                   <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Generar cuotas del mes</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -1138,7 +1138,7 @@ export default function FinanzasScreen({ route }) {
                     runCheckOverdue();
                   }}
                 >
-                  <Ionicons name="alert-circle-outline" size={20} color={cc} />
+                  <Ionicons name="alert-circle-outline" size={20} color={theme.text} />
                   <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Chequear vencidos</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -1149,7 +1149,7 @@ export default function FinanzasScreen({ route }) {
                     runAvisarMorosos();
                   }}
                 >
-                  <Ionicons name="notifications-outline" size={20} color={cc} />
+                  <Ionicons name="notifications-outline" size={20} color={theme.text} />
                   <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Avisar morosos</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -1160,7 +1160,7 @@ export default function FinanzasScreen({ route }) {
                     runReconcileMp();
                   }}
                 >
-                  <Ionicons name="sync-outline" size={20} color={cc} />
+                  <Ionicons name="sync-outline" size={20} color={theme.text} />
                   <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Sincronizar Mercado Pago</Text>
                 </TouchableOpacity>
               </>
@@ -1174,7 +1174,7 @@ export default function FinanzasScreen({ route }) {
                   runAvisarMorosos();
                 }}
               >
-                <Ionicons name="notifications-outline" size={20} color={cc} />
+                <Ionicons name="notifications-outline" size={20} color={theme.text} />
                 <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Avisar morosos</Text>
               </TouchableOpacity>
             ) : null}

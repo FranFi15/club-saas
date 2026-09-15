@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
 import { downloadPaymentReceipt } from '../../../utils/paymentReceipt';
-import { MN, EST_COLOR, fmtMoney, metodoPagoLabel, metodoPagoIcon } from './finanzasConstants';
+import { MN, EST_COLOR, fmtMoney, metodoPagoLabel, metodoPagoIcon, contrastOutlineBtn } from './finanzasConstants';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
 
@@ -148,18 +148,18 @@ export default function PaymentHistoryModal({
           <View style={styles.actionsRow}>
             {showRecibo ? (
               <TouchableOpacity
-                style={[styles.reciboBtn, { borderColor: primaryColor }]}
+                style={[styles.reciboBtn, contrastOutlineBtn(theme, isDarkMode)]}
                 onPress={() => downloadRecibo(p)}
                 disabled={busyRecibo}
                 accessibilityRole="button"
                 accessibilityLabel="Descargar comprobante"
               >
                 {busyRecibo ? (
-                  <ActivityIndicator color={primaryColor} size="small" />
+                  <ActivityIndicator color={theme.text} size="small" />
                 ) : (
                   <>
-                    <Ionicons name="download-outline" size={16} color={primaryColor} />
-                    <Text style={[styles.reciboBtnTxt, { color: primaryColor }]}>Comprobante</Text>
+                    <Ionicons name="download-outline" size={16} color={theme.text} />
+                    <Text style={[styles.reciboBtnTxt, { color: theme.text }]}>Comprobante</Text>
                   </>
                 )}
               </TouchableOpacity>

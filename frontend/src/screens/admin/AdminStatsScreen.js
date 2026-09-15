@@ -9,8 +9,6 @@ import {
   RefreshControl,
   StatusBar,
   LayoutAnimation,
-  Platform,
-  UIManager,
   Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,10 +21,9 @@ import { clubApi } from '../../utils/api';
 import { getToken } from '../../utils/storage';
 import { USER_ROL_LABELS } from '../../constants/userRoles';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { enableLayoutAnimationsIfNeeded } from '../../utils/layoutAnimation';
 
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
+enableLayoutAnimationsIfNeeded();
 
 const ACCORDION_ANIM = LayoutAnimation.create(
   260,

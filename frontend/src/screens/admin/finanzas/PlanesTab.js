@@ -189,7 +189,7 @@ export default function PlanesTab({
             ) : null}
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={[s.planMonto, { color: cc }]}>{fmtMoney(item.monto)}</Text>
+            <Text style={[s.planMonto, { color: theme.text }]}>{fmtMoney(item.monto)}</Text>
             <View style={[s.badge, { backgroundColor: active ? '#10b98120' : '#ef444420' }]}>
               <Text style={{ color: active ? '#10b981' : '#ef4444', fontSize: 10, fontWeight: 'bold' }}>
                 {active ? 'Activo' : 'Archivado'}
@@ -342,7 +342,7 @@ export default function PlanesTab({
                   style={[styles.discHeader, { backgroundColor: theme.surface, borderColor: theme.border }]}
                   onPress={() => toggleDisc(did)}
                 >
-                  <Ionicons name={open ? 'chevron-down' : 'chevron-forward'} size={18} color={cc} />
+                  <Ionicons name={open ? 'chevron-down' : 'chevron-forward'} size={18} color={theme.text} />
                   <Text style={[styles.discTitle, { color: theme.text, flex: 1 }]}>{disc.nombre}</Text>
                   <Text style={{ color: theme.textMuted, fontSize: 12 }}>
                     {cats.length} cat.{assignQuery ? ' · filtrado' : ''}

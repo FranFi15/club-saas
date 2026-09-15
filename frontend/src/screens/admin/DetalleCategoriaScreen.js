@@ -46,6 +46,10 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
   const [activeTab, setActiveTab] = useState('atletas'); // 'atletas' | 'profesores' | 'preparadores' | 'nutricionistas' | 'psicologos'
 
   const [enrollments, setEnrollments] = useState(() => readScreenCache(plantelCacheKey)?.enrollments ?? []);
+  const [attendanceStats, setAttendanceStats] = useState(
+    () => readScreenCache(plantelCacheKey)?.attendanceStats ?? {},
+  );
+  const [expandedAttendance, setExpandedAttendance] = useState({});
   const [profesores, setProfesores] = useState(categoria.profesores || []);
   const [preparadoresFisicos, setPreparadoresFisicos] = useState(categoria.preparadoresFisicos || []);
   const [nutricionistas, setNutricionistas] = useState(categoria.nutricionistas || []);
@@ -109,14 +113,18 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
 
   const fetchPlantelData = useCallback(async () => {
     const h = await getHeaders();
-    const [enrRes, plantelRes] = await Promise.all([
+    const [enrRes, plantelRes, attRes] = await Promise.all([
       clubApi.get(`/enrollments/categoria/${categoria._id}`, { headers: h }),
       clubApi.get(`/categories/${categoria._id}/plantel?metaOnly=true`, { headers: h }).catch(() => ({ data: {} })),
+      clubApi
+        .get(`/sessions/categoria/${categoria._id}/asistencia-resumen?dias=90`, { headers: h })
+        .catch(() => ({ data: { porAtleta: {} } })),
     ]);
     return {
       enrollments: sortEnrollmentsByAtleta(enrRes.data),
       plantelEdicionEstado: plantelRes.data?.plantelEdicion?.estado || null,
       totalInscriptosPlantel: plantelRes.data?.totalInscriptos ?? 0,
+      attendanceStats: attRes.data?.porAtleta || {},
     };
   }, [categoria._id, clubData?.urlIdentifier]);
 
@@ -124,6 +132,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
     setEnrollments(data.enrollments ?? []);
     setPlantelEdicionEstado(data.plantelEdicionEstado ?? null);
     setTotalInscriptosPlantel(data.totalInscriptosPlantel ?? 0);
+    setAttendanceStats(data.attendanceStats ?? {});
   }, []);
 
   const { loading: isLoading, refreshing, onRefresh, reload } = useCachedFocusLoad({
@@ -213,14 +222,29 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
   };
 
   const headerPlantelBtn = (
-    <TouchableOpacity
-      style={styles.headerIconBtn}
-      onPress={() => setPlantelModalOpen(true)}
-      accessibilityRole="button"
-      accessibilityLabel="Actualizar plantel"
-    >
-      <Ionicons name="people-outline" size={20} color="#fff" />
-    </TouchableOpacity>
+    <View style={styles.headerActions}>
+      <TouchableOpacity
+        style={styles.headerIconBtn}
+        onPress={() =>
+          navigation.navigate('CoachSessionStats', {
+            categoriaId: categoria._id,
+            variant: 'admin',
+          })
+        }
+        accessibilityRole="button"
+        accessibilityLabel="Estadísticas de sesiones"
+      >
+        <Ionicons name="stats-chart-outline" size={20} color="#fff" />
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.headerIconBtn}
+        onPress={() => setPlantelModalOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel="Actualizar plantel"
+      >
+        <Ionicons name="people-outline" size={20} color="#fff" />
+      </TouchableOpacity>
+    </View>
   );
 
   const fetchPlans = async () => {
@@ -471,9 +495,57 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
     setIsDetailsModalVisible(true);
   };
 
+  const toggleAttendance = (atletaId) => {
+    const key = String(atletaId);
+    setExpandedAttendance((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const renderAttendanceSummary = (atletaId) => {
+    const st = attendanceStats[String(atletaId)] || {
+      presente: 0,
+      tarde: 0,
+      ausente: 0,
+      total: 0,
+      asistenciaPct: null,
+    };
+    return (
+      <View style={styles.attendanceBlock}>
+        <View style={styles.attendanceRow}>
+          <View style={[styles.attendanceChip, { backgroundColor: theme.background, borderColor: theme.border }]}>
+            <Text style={[styles.attendanceLbl, { color: theme.textMuted }]}>Presente</Text>
+            <Text style={[styles.attendanceVal, { color: '#22c55e' }]}>{st.presente}</Text>
+          </View>
+          <View style={[styles.attendanceChip, { backgroundColor: theme.background, borderColor: theme.border }]}>
+            <Text style={[styles.attendanceLbl, { color: theme.textMuted }]}>Tarde</Text>
+            <Text style={[styles.attendanceVal, { color: '#f59e0b' }]}>{st.tarde}</Text>
+          </View>
+          <View style={[styles.attendanceChip, { backgroundColor: theme.background, borderColor: theme.border }]}>
+            <Text style={[styles.attendanceLbl, { color: theme.textMuted }]}>Ausente</Text>
+            <Text style={[styles.attendanceVal, { color: '#ef4444' }]}>{st.ausente}</Text>
+          </View>
+          {st.total > 0 ? (
+            <View style={[styles.attendanceChip, { backgroundColor: theme.background, borderColor: theme.border }]}>
+              <Text style={[styles.attendanceLbl, { color: theme.textMuted }]}>% asist.</Text>
+              <Text style={[styles.attendanceVal, { color: theme.text }]}>{st.asistenciaPct}%</Text>
+            </View>
+          ) : null}
+        </View>
+        <Text style={[styles.attendanceHint, { color: theme.textMuted }]}>
+          Últimos 90 días · se actualiza al guardar asistencia en cada sesión.
+        </Text>
+      </View>
+    );
+  };
+
   const renderListItem = ({ item }) => {
     const user = activeTab === 'atletas' ? item.atleta : item;
     const planName = activeTab === 'atletas' ? (item.plan?.nombre || 'Sin plan') : null;
+    const atletaId = user?._id;
+    const attKey = atletaId ? String(atletaId) : '';
+    const attExpanded = !!expandedAttendance[attKey];
+    const attSt = atletaId
+      ? attendanceStats[attKey] || { total: 0, asistenciaPct: null }
+      : null;
 
     return (
       <Swipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>
@@ -490,36 +562,87 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
           onPress={() => handleUserClick(user)}
           style={{ marginBottom: 12 }}
           contentStyle={styles.cardInner}
+          footer={
+            activeTab === 'atletas' && atletaId ? (
+              <View>
+                <TouchableOpacity
+                  style={[
+                    styles.attendanceToggle,
+                    {
+                      borderColor: theme.text,
+                      backgroundColor: attExpanded ? (isDarkMode ? '#ffffff' : '#111111') : (isDarkMode ? 'transparent' : '#ffffff'),
+                    },
+                  ]}
+                  onPress={() => toggleAttendance(atletaId)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ver asistencias"
+                >
+                  <Ionicons
+                    name="checkbox-outline"
+                    size={16}
+                    color={attExpanded ? (isDarkMode ? '#111111' : '#ffffff') : theme.text}
+                  />
+                  <Text
+                    style={{
+                      color: attExpanded ? (isDarkMode ? '#111111' : '#ffffff') : theme.text,
+                      fontWeight: '700',
+                      fontSize: 13,
+                    }}
+                  >
+                    Asistencias
+                  </Text>
+                  <Ionicons
+                    name={attExpanded ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color={attExpanded ? (isDarkMode ? '#111111' : '#ffffff') : theme.text}
+                  />
+                </TouchableOpacity>
+                {attExpanded ? renderAttendanceSummary(atletaId) : null}
+              </View>
+            ) : null
+          }
         >
-          <UserAvatar user={user} size={44} colorMarca={colorMarca} style={{ marginRight: 15 }} />
-          <View style={styles.info}>
-            <Text style={[styles.name, { color: theme.text }]}>{user.nombre} {user.apellido}</Text>
-            {(activeTab === 'profesores' ||
-              activeTab === 'preparadores' ||
-              activeTab === 'nutricionistas' ||
-              activeTab === 'psicologos') && (
-               <Text style={[styles.sub, { color: theme.textMuted }]}>
-                  {user.email}
-               </Text>
-            )}
-            {activeTab === 'atletas' && (
-              <>
-                <View style={[styles.badge, { backgroundColor: item.estado === 'activo' ? '#10b98120' : '#ef444420' }]}>
-                  <Text style={{ color: item.estado === 'activo' ? '#10b981' : '#ef4444', fontSize: 12, fontWeight: 'bold' }}>
-                    {item.estado === 'activo' ? 'Inscrito' : 'Inactivo'}
-                  </Text>
-                </View>
-                <View style={[styles.planRow, { borderTopColor: theme.border }]}>
-                  <Text style={[styles.planText, { color: theme.textMuted }]} numberOfLines={1}>
-                    Plan: {planName}
-                  </Text>
-                  <TouchableOpacity style={[styles.planBtn, { borderColor: colorMarca }]} onPress={() => openPlanModal(item)}>
-                    <Ionicons name="cash-outline" size={16} color={colorMarca} />
-                    <Text style={[styles.planBtnText, { color: colorMarca }]}>Asignar</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
+          <View style={styles.cardTopRow}>
+            <UserAvatar user={user} size={44} colorMarca={colorMarca} style={{ marginRight: 15 }} />
+            <View style={styles.info}>
+              <Text style={[styles.name, { color: theme.text }]}>{user.nombre} {user.apellido}</Text>
+              {(activeTab === 'profesores' ||
+                activeTab === 'preparadores' ||
+                activeTab === 'nutricionistas' ||
+                activeTab === 'psicologos') && (
+                 <Text style={[styles.sub, { color: theme.textMuted }]}>
+                    {user.email}
+                 </Text>
+              )}
+              {activeTab === 'atletas' && (
+                <>
+                  <View style={[styles.badge, { backgroundColor: item.estado === 'activo' ? '#10b98120' : '#ef444420' }]}>
+                    <Text style={{ color: item.estado === 'activo' ? '#10b981' : '#ef4444', fontSize: 12, fontWeight: 'bold' }}>
+                      {item.estado === 'activo' ? 'Inscrito' : 'Inactivo'}
+                      {attSt?.total > 0 && attSt.asistenciaPct != null ? ` · ${attSt.asistenciaPct}% asist.` : ''}
+                    </Text>
+                  </View>
+                  <View style={[styles.planRow, { borderTopColor: theme.border }]}>
+                    <Text style={[styles.planText, { color: theme.textMuted }]} numberOfLines={1}>
+                      Plan: {planName}
+                    </Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.planBtn,
+                        {
+                          borderColor: theme.text,
+                          backgroundColor: isDarkMode ? 'transparent' : '#ffffff',
+                        },
+                      ]}
+                      onPress={() => openPlanModal(item)}
+                    >
+                      <Ionicons name="cash-outline" size={16} color={theme.text} />
+                      <Text style={[styles.planBtnText, { color: theme.text }]}>Asignar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
           </View>
         </DesignCard>
       </Swipeable>
@@ -885,8 +1008,32 @@ const styles = StyleSheet.create({
   activeTab: {},
   tabText: { fontSize: 12 },
   body: { flex: 1, paddingHorizontal: 20 },
-  cardInner: { flexDirection: 'row', alignItems: 'center' },
+  cardInner: { flexDirection: 'column', alignItems: 'stretch' },
+  cardTopRow: { flexDirection: 'row', alignItems: 'center' },
   info: { flex: 1 },
+  attendanceToggle: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  attendanceBlock: { marginTop: 10 },
+  attendanceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  attendanceChip: {
+    minWidth: 68,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  attendanceLbl: { fontSize: 10, fontWeight: '600' },
+  attendanceVal: { fontSize: 15, fontWeight: '800', marginTop: 2 },
+  attendanceHint: { fontSize: 11, marginTop: 8, lineHeight: 15 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   name: { fontSize: 16, fontWeight: '600' },
   sub: { fontSize: 13, marginTop: 2 },
   badge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5, marginTop: 5 },

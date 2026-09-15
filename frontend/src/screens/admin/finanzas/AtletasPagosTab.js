@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { finanzasStyles as s } from './finanzasStyles';
-import { ESTADO_FILTROS, fmtMoney } from './finanzasConstants';
+import { ESTADO_FILTROS, fmtMoney, contrastOutlineBtn } from './finanzasConstants';
 import UserAvatar from '../../../components/UserAvatar';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
@@ -103,7 +103,7 @@ function AthleteActionsMenu({
             </Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.menuItem} onPress={handleHistory} activeOpacity={0.75}>
-            <Ionicons name="time-outline" size={20} color={colorMarca} />
+            <Ionicons name="time-outline" size={20} color={theme.text} />
             <Text style={[styles.menuItemText, { color: theme.text }]}>Historial</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.menuCancel, { borderTopColor: theme.border }]} onPress={onClose} activeOpacity={0.75}>
@@ -237,17 +237,17 @@ export default function AtletasPagosTab({
           <Text style={[s.sectionTitle, { color: theme.text, marginBottom: 0 }]}>Resumen</Text>
           <View style={styles.headerBtns}>
             <TouchableOpacity
-              style={[styles.resumenToggleBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
+              style={[styles.resumenToggleBtn, contrastOutlineBtn(theme, isDarkMode)]}
               onPress={() => setFilterOpen(true)}
             >
-              <Ionicons name="funnel-outline" size={16} color={cc} />
+              <Ionicons name="funnel-outline" size={16} color={theme.text} />
               <Text style={{ color: theme.text, fontSize: 12, fontWeight: '600', marginLeft: 6 }}>Filtrar</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.resumenToggleBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
+              style={[styles.resumenToggleBtn, contrastOutlineBtn(theme, isDarkMode)]}
               onPress={() => setShowResumen((v) => !v)}
             >
-              <Ionicons name={showResumen ? 'eye-off-outline' : 'eye-outline'} size={16} color={cc} />
+              <Ionicons name={showResumen ? 'eye-off-outline' : 'eye-outline'} size={16} color={theme.text} />
               <Text style={{ color: theme.text, fontSize: 12, fontWeight: '600', marginLeft: 6 }}>
                 {showResumen ? 'Ocultar' : 'Mostrar'}
               </Text>
@@ -268,7 +268,7 @@ export default function AtletasPagosTab({
                   style={s.statCard}
                   contentStyle={s.statInner}
                 >
-                  <Text style={{ color: isVencidosView ? '#ef4444' : cc, fontSize: 18, fontWeight: 'bold' }}>
+                  <Text style={{ color: isVencidosView ? '#ef4444' : theme.text, fontSize: 18, fontWeight: 'bold' }}>
                     {fmtMoney(stats.totalFacturado)}
                   </Text>
                   <Text style={{ color: theme.textMuted, fontSize: 11 }}>

@@ -21,6 +21,10 @@ const familyInviteSchema = new mongoose.Schema(
         expiresAt: { type: Date, required: true, index: true },
         /** 0 = solo atletas (mayores / sin tutor); 1 = familia con tutor. */
         tutorCount: { type: Number, default: 1, min: 0, max: 2 },
+        /** Invitar familia: todos los atletas del alta nacen como prueba. */
+        esPrueba: { type: Boolean, default: false },
+        /** Días de prueba (solo si esPrueba). Admin elige al crear la invitación. */
+        diasPrueba: { type: Number, default: null, min: 1, max: 365 },
         athleteSlots: {
             type: [athleteSlotSchema],
             validate: {
