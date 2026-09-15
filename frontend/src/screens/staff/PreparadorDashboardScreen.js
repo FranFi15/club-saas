@@ -10,6 +10,7 @@ export default function PreparadorDashboardScreen({ navigation }) {
       sessionsTab="PrepSesiones"
       teamTab="PrepEquipo"
       teamRosterScreen="PrepRoster"
+      showPlantel={false}
     />
   );
 }

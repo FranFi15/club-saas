@@ -281,11 +281,11 @@ const putCategoryPlantel = asyncHandler(async (req, res) => {
     const { atletaIds } = req.body;
     const rol = req.user.rol;
 
-    if (!['admin_club', 'administrativo', 'profe', 'preparador_fisico'].includes(rol)) {
+    if (!['admin_club', 'administrativo', 'profe'].includes(rol)) {
         res.status(403);
         throw new Error('No autorizado');
     }
-    if (rol === 'profe' || rol === 'preparador_fisico') {
+    if (rol === 'profe') {
         await assertCoachOfCategory(Category, req.params.id, req.user._id, rol);
         const cat = await Category.findById(req.params.id).select('plantelEdicion');
         if (cat?.plantelEdicion?.estado !== 'delegado_coach') {

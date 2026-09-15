@@ -25,7 +25,7 @@ export async function getCoachCategoryAlertCounts(user, models) {
     const alerts = Object.fromEntries(catIds.map((id) => [String(id), 0]));
     if (!catIds.length) return alerts;
 
-    if (['profe', 'preparador_fisico'].includes(user.rol)) {
+    if (user.rol === 'profe') {
         const pending = await listRosterPendingForCoach(models, user._id, user.rol);
         for (const p of pending) {
             const key = String(p._id);

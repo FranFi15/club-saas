@@ -239,13 +239,12 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
   const showInitialLoader = loading && enrollments.length === 0;
 
   useEffect(() => {
-    if (openPlantel && plantelEdicionEstado === 'delegado_coach') {
+    if (openPlantel && userRol === 'profe' && plantelEdicionEstado === 'delegado_coach') {
       setPlantelModalOpen(true);
     }
-  }, [openPlantel, plantelEdicionEstado]);
+  }, [openPlantel, userRol, plantelEdicionEstado]);
 
-  const canCoachDefinePlantel =
-    (userRol === 'profe' || userRol === 'preparador_fisico') && plantelEdicionEstado === 'delegado_coach';
+  const canCoachDefinePlantel = userRol === 'profe' && plantelEdicionEstado === 'delegado_coach';
 
   const onCoachPlantelSaved = (data, errorMsg) => {
     if (errorMsg) {

@@ -64,15 +64,17 @@ export default function CoachCategoriesScreen({ navigation }) {
       'x-club-identifier': clubData.urlIdentifier,
       Authorization: `Bearer ${token}`,
     };
-    const [res, rol, pendRes] = await Promise.all([
+    const rol = (await getToken('userRol')) || '';
+    const [res, pendRes] = await Promise.all([
       clubApi.get('/categories/mis-categorias', { headers: h }),
-      getToken('userRol'),
-      clubApi.get('/categories/plantel-pendientes', { headers: h }).catch(() => ({ data: [] })),
+      rol === 'profe'
+        ? clubApi.get('/categories/plantel-pendientes', { headers: h }).catch(() => ({ data: [] }))
+        : Promise.resolve({ data: [] }),
     ]);
     return {
-      userRol: rol || '',
+      userRol: rol,
       list: sortByNombre(res.data || []),
-      plantelPendientes: pendRes.data || [],
+      plantelPendientes: rol === 'profe' ? pendRes.data || [] : [],
     };
   }, [clubData?.urlIdentifier]);
 

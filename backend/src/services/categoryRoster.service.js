@@ -277,14 +277,15 @@ export async function delegateCategoryRosterToCoach(models, categoryId, userId) 
     return getCategoryRosterContext(models, categoryId, { metaOnly: true });
 }
 
+/** Solo profesores (coaches) reciben la delegación de armar plantel. */
 export async function listRosterPendingForCoach(models, userId, rol) {
-    const { Category } = models;
-    const query =
-        rol === 'preparador_fisico'
-            ? { preparadoresFisicos: userId, 'plantelEdicion.estado': 'delegado_coach' }
-            : { profesores: userId, 'plantelEdicion.estado': 'delegado_coach' };
+    if (rol !== 'profe') return [];
 
-    const cats = await Category.find(query)
+    const { Category } = models;
+    const cats = await Category.find({
+        profesores: userId,
+        'plantelEdicion.estado': 'delegado_coach',
+    })
         .populate('disciplina', 'nombre')
         .select('nombre plantelEdicion disciplina edadMinima edadMaxima')
         .lean();
