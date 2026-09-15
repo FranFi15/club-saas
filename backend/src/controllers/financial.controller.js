@@ -190,6 +190,30 @@ const updateSocialFeeById = asyncHandler(async (req, res) => {
     res.json(json);
 });
 
+// @desc    Eliminar tipo de cuota social
+// @route   DELETE /api/financial/social-fees/:id
+const deleteSocialFeeById = asyncHandler(async (req, res) => {
+    const { SocialFee, User } = req.models;
+    await ensureSocialFeesMigrated(req.models);
+    const config = await SocialFee.findById(req.params.id);
+    if (!config) {
+        res.status(404);
+        throw new Error('Tipo de cuota social no encontrado.');
+    }
+
+    const cleared = await User.updateMany(
+        { cuotaSocialAsignada: config._id },
+        { $set: { cuotaSocialAsignada: null } },
+    );
+
+    await config.deleteOne();
+
+    res.json({
+        message: 'Tipo de cuota social eliminado.',
+        usuariosDesasignados: cleared.modifiedCount || 0,
+    });
+});
+
 // @desc    Compat PATCH singleton-style (actualiza el primer fee)
 // @route   PATCH /api/financial/social-fee
 const updateSocialFee = asyncHandler(async (req, res) => {
@@ -1491,6 +1515,7 @@ export {
     listSocialFees,
     createSocialFee,
     updateSocialFeeById,
+    deleteSocialFeeById,
     assignSocialFee,
     getSocialFee,
     updateSocialFee,

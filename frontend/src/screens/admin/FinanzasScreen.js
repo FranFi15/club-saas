@@ -253,13 +253,21 @@ export default function FinanzasScreen({ route }) {
     onConfirm: () => {},
     onCancel: () => {},
   });
-  const showAlert = (t, m) =>
+  const showAlert = (t, m, options = {}) =>
     setAlertConfig({
       visible: true,
       title: t,
       message: m,
-      onConfirm: () => setAlertConfig((p) => ({ ...p, visible: false })),
-      onCancel: () => setAlertConfig((p) => ({ ...p, visible: false })),
+      showCancel: options.showCancel || false,
+      isDanger: options.isDanger || false,
+      confirmText: options.confirmText || 'Aceptar',
+      cancelText: options.cancelText || 'Cancelar',
+      onConfirm:
+        options.onConfirm ||
+        (() => setAlertConfig((p) => ({ ...p, visible: false }))),
+      onCancel:
+        options.onCancel ||
+        (() => setAlertConfig((p) => ({ ...p, visible: false }))),
     });
 
   const getHeaders = async () => {

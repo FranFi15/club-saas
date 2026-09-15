@@ -65,10 +65,24 @@ export default function UserDetailsModal({ visible, user, onClose, onEdit, onDel
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
             
             <View style={styles.headerProfile}>
-              <UserAvatar user={user} size={80} colorMarca={colorMarca} />
+              <UserAvatar user={user} size={80} colorMarca={user?.estado === 'inactivo' ? '#9ca3af' : colorMarca} />
               <Text style={[styles.name, { color: theme.text }]}>{user.nombre} {user.apellido}</Text>
-              <View style={[styles.roleBadge, { backgroundColor: theme.background, borderColor: theme.border }]}>
-                <Text style={[styles.roleBadgeText, { color: theme.textMuted }]}>{user.rol || 'Usuario'}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                <View style={[styles.roleBadge, { backgroundColor: theme.background, borderColor: theme.border, marginTop: 0 }]}>
+                  <Text style={[styles.roleBadgeText, { color: theme.textMuted }]}>{user.rol || 'Usuario'}</Text>
+                </View>
+                {user?.estado === 'inactivo' ? (
+                  <View style={[styles.roleBadge, { backgroundColor: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.35)', marginTop: 0 }]}>
+                    <Text style={[styles.roleBadgeText, { color: '#ef4444' }]}>Inactivo</Text>
+                  </View>
+                ) : null}
+                {user?.esPrueba && user?.estado !== 'inactivo' ? (
+                  <View style={[styles.roleBadge, { backgroundColor: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.35)', marginTop: 0 }]}>
+                    <Text style={[styles.roleBadgeText, { color: '#f59e0b' }]}>
+                      {user.pruebaDecision === 'pendiente' ? 'Prueba vencida' : 'Prueba'}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
             </View>
 
@@ -170,9 +184,21 @@ export default function UserDetailsModal({ visible, user, onClose, onEdit, onDel
                 <Text style={styles.editFullBtnText}> Editar Perfil</Text>
               </TouchableOpacity>
               
-              <TouchableOpacity style={styles.deleteFullBtn} onPress={() => { onClose(); onDelete(user); }}>
-                <Ionicons name="trash" size={20} color="#fff" />
-                <Text style={styles.deleteFullBtnText}> Dar de Baja</Text>
+              <TouchableOpacity
+                style={[
+                  styles.deleteFullBtn,
+                  user?.estado === 'inactivo' ? styles.activateFullBtn : null,
+                ]}
+                onPress={() => { onClose(); onDelete(user); }}
+              >
+                <Ionicons
+                  name={user?.estado === 'inactivo' ? 'checkmark-circle' : 'trash'}
+                  size={20}
+                  color="#fff"
+                />
+                <Text style={styles.deleteFullBtnText}>
+                  {user?.estado === 'inactivo' ? ' Activar' : ' Dar de Baja'}
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -208,5 +234,6 @@ const styles = StyleSheet.create({
   editFullBtn: { flexDirection: 'row', backgroundColor: '#f59e0b', padding: 15, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   editFullBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   deleteFullBtn: { flexDirection: 'row', backgroundColor: '#ef4444', padding: 15, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  activateFullBtn: { backgroundColor: '#10b981' },
   deleteFullBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' }
 });

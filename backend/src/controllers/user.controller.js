@@ -506,7 +506,19 @@ const getUsers = asyncHandler(async (req, res) => {
     }
 
     if (req.query.rol && req.query.rol !== 'Todos' && req.query.rol !== 'undefined') {
-        filter.rol = req.query.rol;
+        const rolFilter = String(req.query.rol);
+        if (rolFilter === 'inactivos') {
+            filter.estado = 'inactivo';
+        } else if (rolFilter === 'prueba') {
+            filter.esPrueba = true;
+            filter.estado = { $ne: 'inactivo' };
+        } else {
+            filter.rol = rolFilter;
+            filter.estado = { $ne: 'inactivo' };
+        }
+    } else {
+        // Listado general: ocultar dados de baja (usar filtro Inactivos para verlos).
+        filter.estado = { $ne: 'inactivo' };
     }
 
     // Buscamos a los usuarios y llenamos su tutor (vínculo familiar)

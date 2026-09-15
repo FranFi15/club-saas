@@ -194,6 +194,24 @@ export default function CuotaSocialSection({
     }
   };
 
+  const handleDelete = (fee) => {
+    showAlert('Eliminar tipo', `¿Eliminar "${fee.nombre || 'Cuota social'}"? Se desasignará de los usuarios que lo tengan.`, {
+      showCancel: true,
+      isDanger: true,
+      confirmText: 'Eliminar',
+      onConfirm: async () => {
+        try {
+          const headers = await getHeaders();
+          await clubApi.delete(`/financial/social-fees/${fee._id}`, { headers });
+          showAlert('Listo', 'Tipo de cuota social eliminado.');
+          await reload();
+        } catch (e) {
+          showAlert('Error', e.response?.data?.message || 'No se pudo eliminar.');
+        }
+      },
+    });
+  };
+
   const generateNow = async () => {
     setGenerating(true);
     try {
@@ -351,7 +369,7 @@ export default function CuotaSocialSection({
                     { backgroundColor: theme.background, borderColor: theme.border, borderWidth: 1 },
                   ]}
                 >
-                  <Ionicons name="ribbon-outline" size={22} color={theme.text} />
+                  <Ionicons name="id-card-outline" size={22} color={theme.text} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
@@ -427,6 +445,13 @@ export default function CuotaSocialSection({
                     >
                       <Ionicons name="people-outline" size={16} color={theme.text} />
                       <Text style={[styles.actionTxt, { color: theme.text }]}>Asignar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, contrastOutlineBtn(theme, isDarkMode)]}
+                      onPress={() => handleDelete(fee)}
+                    >
+                      <Ionicons name="trash-outline" size={16} color="#ef4444" />
+                      <Text style={[styles.actionTxt, { color: '#ef4444' }]}>Eliminar</Text>
                     </TouchableOpacity>
                   </View>
                 </>
@@ -718,7 +743,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
   },
-  actions: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   actionBtn: {
     flex: 1,
     flexDirection: 'row',

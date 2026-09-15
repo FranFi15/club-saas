@@ -15,6 +15,8 @@ export const USER_ROL_LABELS = {
 
 export const USER_FILTER_ROLES = [
   'Todos',
+  'inactivos',
+  'prueba',
   'atleta',
   'tutor',
   'socio',
@@ -29,6 +31,8 @@ export const USER_FILTER_ROLES = [
 
 export function userRoleFilterLabel(rol) {
   if (rol === 'Todos') return 'Todos';
+  if (rol === 'inactivos') return 'Inactivos';
+  if (rol === 'prueba') return 'Prueba';
   return USER_ROL_LABELS[rol] || rol;
 }
 
@@ -38,5 +42,9 @@ export const USER_ROLE_FILTROS = USER_FILTER_ROLES.map((rol) => ({
 })).sort((a, b) => {
   if (a.value === 'Todos') return -1;
   if (b.value === 'Todos') return 1;
+  if (a.value === 'inactivos') return -1;
+  if (b.value === 'inactivos') return 1;
+  if (a.value === 'prueba') return -1;
+  if (b.value === 'prueba') return 1;
   return a.label.localeCompare(b.label, 'es', { sensitivity: 'base' });
 });

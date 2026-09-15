@@ -12,6 +12,7 @@ import {
     listSocialFees,
     createSocialFee,
     updateSocialFeeById,
+    deleteSocialFeeById,
     assignSocialFee,
     getAllPayments,
     getPaymentStats,
@@ -66,6 +67,7 @@ router.get('/social-fees', protect, authorize('admin_club', 'administrativo'), l
 router.post('/social-fees/generate', protect, authorize('admin_club', 'administrativo'), generarCuotaSocialMes);
 router.post('/social-fees', protect, authorize('admin_club'), createSocialFee);
 router.patch('/social-fees/:id', protect, authorize('admin_club'), updateSocialFeeById);
+router.delete('/social-fees/:id', protect, authorize('admin_club'), deleteSocialFeeById);
 router.post('/social-fees/:id/assign', protect, authorize('admin_club', 'administrativo'), assignSocialFee);
 
 // Legacy single-config endpoints (compat)

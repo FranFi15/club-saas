@@ -245,19 +245,42 @@ export default function UsuariosScreen({ navigation }) {
   };
 
   const handleDelete = (item) => {
+    const inactive = item.estado === 'inactivo';
+    if (inactive) {
+      showAlert(
+        `Activar a ${item.nombre}`,
+        `¿Querés volver a activar a ${item.nombre} ${item.apellido}?`,
+        {
+          showCancel: true,
+          confirmText: 'Activar',
+          onConfirm: async () => {
+            closeAlert();
+            try {
+              const headers = await getHeaders();
+              await clubApi.patch(`/users/${item._id}`, { estado: 'activo' }, { headers });
+              showAlert('Éxito', 'Usuario activado correctamente.');
+              onRefresh();
+            } catch (error) {
+              showAlert('Error', error.response?.data?.message || 'No se pudo activar el usuario.');
+            }
+          },
+        },
+      );
+      return;
+    }
+
     showAlert(
       `Dar de baja a ${item.nombre}`,
       `¿Querés desactivar a ${item.nombre} ${item.apellido}? Podés volver a activarlo después.`,
       {
         showCancel: true,
         isDanger: true,
-        confirmText: "Desactivar",
+        confirmText: 'Desactivar',
         onConfirm: async () => {
           closeAlert();
           try {
-            const token = await getToken ('userToken');
-            const headers = { 'x-club-identifier': clubData.urlIdentifier, 'Authorization': `Bearer ${token}` };
-            
+            const headers = await getHeaders();
+
             if (item.rol === 'atleta') {
               const res = await clubApi.patch(`/users/atletas/${item._id}/deactivate`, {}, { headers });
               if (res.data.infoTutor?.requiereAccionPantalla) {
@@ -270,23 +293,27 @@ export default function UsuariosScreen({ navigation }) {
               showAlert('Éxito', 'Usuario desactivado correctamente.');
             }
 
-            setUsers(users.filter(u => u._id !== item._id)); // Removing from list for now
+            onRefresh();
           } catch (error) {
             showAlert('Error', 'Hubo un problema al desactivar el usuario.');
           }
-        }
-      }
+        },
+      },
     );
   };
 
   const renderRightActions = (item) => {
+    const inactive = item.estado === 'inactivo';
     return (
       <View style={styles.swipeActionsContainer}>
         <TouchableOpacity style={[styles.swipeBtn, { backgroundColor: '#f59e0b' }]} onPress={() => openEditModal(item)}>
           <Ionicons name="pencil" size={22} color="#ffffff" />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.swipeBtn, { backgroundColor: '#ef4444' }]} onPress={() => handleDelete(item)}>
-          <Ionicons name="trash" size={22} color="#ffffff" />
+        <TouchableOpacity
+          style={[styles.swipeBtn, { backgroundColor: inactive ? '#10b981' : '#ef4444' }]}
+          onPress={() => handleDelete(item)}
+        >
+          <Ionicons name={inactive ? 'checkmark-circle' : 'trash'} size={22} color="#ffffff" />
         </TouchableOpacity>
       </View>
     );
@@ -295,15 +322,15 @@ export default function UsuariosScreen({ navigation }) {
   const renderItem = ({ item }) => {
     let familyTagText = null;
     let familyIcon = null;
+    const inactive = item.estado === 'inactivo';
 
-    // Detectamos si es hijo (tiene tutor asignado como objeto) o es tutor de alguien
     if (item.tutorPrincipal && item.tutorPrincipal.nombre) {
       familyTagText = `A cargo de: ${item.tutorPrincipal.nombre} ${item.tutorPrincipal.apellido}`;
-      familyIcon = "person";
+      familyIcon = 'person';
     } else if (item.familiaresACargo && item.familiaresACargo.length > 0) {
-      const nombresFamiliares = item.familiaresACargo.map(f => f.nombre).join(', ');
+      const nombresFamiliares = item.familiaresACargo.map((f) => f.nombre).join(', ');
       familyTagText = `Tutor de: ${nombresFamiliares}`;
-      familyIcon = "people";
+      familyIcon = 'people';
     }
 
     return (
@@ -311,30 +338,38 @@ export default function UsuariosScreen({ navigation }) {
         <DesignCard
           theme={theme}
           isDarkMode={isDarkMode}
-          accent={colorMarca}
+          accent={inactive ? '#9ca3af' : colorMarca}
+          muted={inactive}
           onPress={() => openDetailsModal(item)}
-          style={{ marginBottom: 12 }}
+          style={{ marginBottom: 12, opacity: inactive ? 0.72 : 1 }}
           contentStyle={styles.cardContent}
         >
-          <UserAvatar user={item} size={46} colorMarca={colorMarca} style={{ marginRight: 15 }} />
-          
+          <UserAvatar user={item} size={46} colorMarca={inactive ? '#9ca3af' : colorMarca} style={{ marginRight: 15 }} />
+
           <View style={styles.userInfo}>
-            <Text style={[styles.userName, { color: theme.text }]}>
+            <Text style={[styles.userName, { color: inactive ? theme.textMuted : theme.text }]}>
               {item.nombre} {item.apellido}
             </Text>
-            <Text style={[styles.userEmail, { color: theme.textMuted }]}>
-              {item.email}
-            </Text>
-            
+            <Text style={[styles.userEmail, { color: theme.textMuted }]}>{item.email}</Text>
+
             {familyTagText && (
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                <Ionicons name={familyIcon} size={14} color={colorMarca} style={{ marginRight: 4 }} />
-                <Text style={[styles.familyTag, { color: colorMarca }]} numberOfLines={1}>
+                <Ionicons name={familyIcon} size={14} color={inactive ? theme.textMuted : colorMarca} style={{ marginRight: 4 }} />
+                <Text
+                  style={[styles.familyTag, { color: inactive ? theme.textMuted : colorMarca }]}
+                  numberOfLines={1}
+                >
                   {familyTagText}
                 </Text>
               </View>
             )}
-            {item.esPrueba ? (
+            {inactive ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                <Ionicons name="pause-circle-outline" size={14} color="#ef4444" style={{ marginRight: 4 }} />
+                <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '700' }}>Inactivo</Text>
+              </View>
+            ) : null}
+            {!inactive && item.esPrueba ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                 <Ionicons
                   name="hourglass-outline"
