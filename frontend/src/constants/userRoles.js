@@ -42,9 +42,5 @@ export const USER_ROLE_FILTROS = USER_FILTER_ROLES.map((rol) => ({
 })).sort((a, b) => {
   if (a.value === 'Todos') return -1;
   if (b.value === 'Todos') return 1;
-  if (a.value === 'inactivos') return -1;
-  if (b.value === 'inactivos') return 1;
-  if (a.value === 'prueba') return -1;
-  if (b.value === 'prueba') return 1;
   return a.label.localeCompare(b.label, 'es', { sensitivity: 'base' });
 });

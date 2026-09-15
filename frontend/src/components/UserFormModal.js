@@ -14,6 +14,18 @@ import { sortUsersByName } from '../utils/listSort';
 import { displayDateToIsoCalendar, isoCalendarDateToDisplay, maskDateDDMMAAAA } from '../utils/dateDisplay';
 import ProfilePhotoField from './ProfilePhotoField';
 
+/** Roles de personal que ya entran en nómina por su cargo. */
+const PAYROLL_STAFF_ROLES = [
+  'admin_club',
+  'administrativo',
+  'control_ingreso',
+  'colaborador',
+  'profe',
+  'preparador_fisico',
+  'nutricionista',
+  'psicologo',
+];
+
 export default function UserFormModal({
   visible,
   onClose,
@@ -238,7 +250,6 @@ export default function UserFormModal({
       delete payload.esPrueba;
       delete payload.diasPrueba;
       delete payload.enNomina;
-      delete payload.sueldoNomina;
     } else if (payload.sexo !== 'M' && payload.sexo !== 'F') {
       payload.sexo = '';
     }
@@ -262,6 +273,13 @@ export default function UserFormModal({
       } else {
         payload.sueldoNomina = 0;
       }
+    } else if (PAYROLL_STAFF_ROLES.includes(payload.rol)) {
+      const sueldo = Number(String(payload.sueldoNomina || '0').replace(',', '.'));
+      payload.sueldoNomina = Number.isFinite(sueldo) && sueldo >= 0 ? sueldo : 0;
+      delete payload.enNomina;
+    } else {
+      delete payload.sueldoNomina;
+      delete payload.enNomina;
     }
     if (!CLIENT_ROLES_WITH_SOCIAL_FEE.includes(payload.rol)) {
       delete payload.exentoCuotaSocial;
@@ -509,6 +527,23 @@ export default function UserFormModal({
                     </View>
                   ) : null}
                 </>
+              ) : null}
+
+              {PAYROLL_STAFF_ROLES.includes(formData.rol) ? (
+                <View style={{ marginBottom: 15 }}>
+                  <Text style={[styles.label, { color: theme.textMuted }]}>Sueldo mensual de referencia</Text>
+                  <Text style={[styles.switchHint, { color: theme.textMuted, marginBottom: 8 }]}>
+                    Se usa como monto sugerido al cargar un pago en Finanzas → Nómina.
+                  </Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                    placeholder="Ej: 150000"
+                    placeholderTextColor={theme.textMuted}
+                    keyboardType="decimal-pad"
+                    value={String(formData.sueldoNomina ?? '')}
+                    onChangeText={(v) => handleChange('sueldoNomina', v.replace(/[^0-9.,]/g, ''))}
+                  />
+                </View>
               ) : null}
 
               {formData.rol === 'atleta' && !initialData ? (

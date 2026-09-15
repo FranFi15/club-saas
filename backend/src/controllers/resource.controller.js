@@ -118,6 +118,29 @@ const uploadResource = asyncHandler(async (req, res) => {
     });
 });
 
+// @desc    Historial de recursos enviados (staff / admin)
+// @route   GET /api/resources
+const getSentResources = asyncHandler(async (req, res) => {
+    const { Resource } = req.models;
+    const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 30, maxLimit: 100 });
+
+    const filter = req.user.rol === 'admin_club' ? {} : { autor: req.user._id };
+
+    const total = await Resource.countDocuments(filter);
+    const resources = await Resource.find(filter)
+        .populate('autor', 'nombre apellido rol')
+        .populate('targetCategoria', 'nombre')
+        .populate('targetUsuario', 'nombre apellido')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+    res.json({
+        resources,
+        ...paginationMeta(page, limit, total),
+    });
+});
+
 // @desc    Obtener mis recursos (Atleta)
 // @route   GET /api/resources/me
 async function resolveAtletaIdForMember(req, res) {
@@ -192,8 +215,9 @@ const updateResource = asyncHandler(async (req, res) => {
         throw new Error('Solo el autor puede editar este recurso');
     }
 
-    recurso.titulo = req.body.titulo || recurso.titulo;
-    recurso.descripcion = req.body.descripcion || recurso.descripcion;
+    if (req.body.titulo !== undefined) recurso.titulo = String(req.body.titulo || '').trim() || recurso.titulo;
+    if (req.body.descripcion !== undefined) recurso.descripcion = String(req.body.descripcion || '').trim();
+    if (req.body.tipo) recurso.tipo = req.body.tipo;
     if (req.body.fileUrl) {
         const normalizedFileUrl = normalizeResourceFileUrl(req.body.fileUrl);
         if (!normalizedFileUrl) {
@@ -202,7 +226,7 @@ const updateResource = asyncHandler(async (req, res) => {
         }
         recurso.fileUrl = normalizedFileUrl;
     }
-    
+
     const updatedResource = await recurso.save();
     res.json(updatedResource);
 });
@@ -227,4 +251,4 @@ const deleteResource = asyncHandler(async (req, res) => {
     res.json({ message: 'Recurso eliminado correctamente' });
 });
 
-export { uploadResource, getMyResources, updateResource, deleteResource };
+export { uploadResource, getSentResources, getMyResources, updateResource, deleteResource };

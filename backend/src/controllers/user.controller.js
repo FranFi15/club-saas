@@ -20,27 +20,48 @@ import {
     trialNeedsMemberDecision,
 } from '../services/trialAthlete.service.js';
 
-function parsePayrollFieldsForAthlete(body, { isAthlete }) {
-    if (!isAthlete) {
-        return { enNomina: false, sueldoNomina: 0 };
+function parseSueldoNomina(value) {
+    if (value === undefined || value === null || value === '') return undefined;
+    const n = Number(String(value).replace(',', '.'));
+    if (!Number.isFinite(n) || n < 0) {
+        const err = new Error('Sueldo de nómina inválido.');
+        err.statusCode = 400;
+        throw err;
     }
-    const enNomina =
-        body.enNomina === true || body.enNomina === 'true'
-            ? true
-            : body.enNomina === false || body.enNomina === 'false'
-              ? false
-              : undefined;
-    let sueldoNomina;
-    if (body.sueldoNomina !== undefined && body.sueldoNomina !== null && body.sueldoNomina !== '') {
-        const n = Number(String(body.sueldoNomina).replace(',', '.'));
-        if (!Number.isFinite(n) || n < 0) {
-            const err = new Error('Sueldo de nómina inválido.');
-            err.statusCode = 400;
-            throw err;
-        }
-        sueldoNomina = Math.round(n * 100) / 100;
+    return Math.round(n * 100) / 100;
+}
+
+/** Campos de nómina: atletas (jugador pago) o personal del club. */
+function parsePayrollFields(body, rol) {
+    const isAthlete = rol === 'atleta';
+    const isStaff = PAYROLL_STAFF_ROLES.includes(rol);
+
+    if (!isAthlete && !isStaff) {
+        return { enNomina: false, sueldoNomina: 0, clear: true };
     }
-    return { enNomina, sueldoNomina };
+
+    const sueldoNomina = parseSueldoNomina(body.sueldoNomina);
+
+    if (isAthlete) {
+        const enNomina =
+            body.enNomina === true || body.enNomina === 'true'
+                ? true
+                : body.enNomina === false || body.enNomina === 'false'
+                  ? false
+                  : undefined;
+        return {
+            enNomina,
+            sueldoNomina,
+            clear: false,
+        };
+    }
+
+    // Staff: siempre elegible por rol; solo guarda sueldo de referencia.
+    return {
+        enNomina: false,
+        sueldoNomina,
+        clear: false,
+    };
 }
 
 const registerUser = asyncHandler(async (req, res) => {
@@ -107,10 +128,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
     let payrollFields;
     try {
-        payrollFields = parsePayrollFieldsForAthlete(
-            { enNomina, sueldoNomina },
-            { isAthlete: rol === 'atleta' },
-        );
+        payrollFields = parsePayrollFields({ enNomina, sueldoNomina }, rol);
     } catch (e) {
         res.status(e.statusCode || 400);
         throw e;
@@ -135,10 +153,15 @@ const registerUser = asyncHandler(async (req, res) => {
         pruebaAvisoEnviadoAt: trialFields.pruebaAvisoEnviadoAt || undefined,
         pruebaDecision: trialFields.pruebaDecision || undefined,
         enNomina: rol === 'atleta' ? payrollFields.enNomina === true : false,
-        sueldoNomina:
-            rol === 'atleta' && payrollFields.enNomina === true
-                ? payrollFields.sueldoNomina ?? 0
-                : 0,
+        sueldoNomina: (() => {
+            if (rol === 'atleta') {
+                return payrollFields.enNomina === true ? payrollFields.sueldoNomina ?? 0 : 0;
+            }
+            if (PAYROLL_STAFF_ROLES.includes(rol)) {
+                return payrollFields.sueldoNomina ?? 0;
+            }
+            return 0;
+        })(),
     });
 
     if (user) {
@@ -330,18 +353,24 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
     if (req.body.enNomina !== undefined || req.body.sueldoNomina !== undefined || req.body.rol) {
         const nextRol = req.body.rol || user.rol;
         try {
-            const payrollFields = parsePayrollFieldsForAthlete(req.body, {
-                isAthlete: nextRol === 'atleta',
-            });
-            if (nextRol !== 'atleta') {
+            const payrollFields = parsePayrollFields(req.body, nextRol);
+            if (payrollFields.clear) {
                 user.enNomina = false;
                 user.sueldoNomina = 0;
-            } else {
+            } else if (nextRol === 'atleta') {
                 if (payrollFields.enNomina !== undefined) user.enNomina = payrollFields.enNomina;
                 if (payrollFields.sueldoNomina !== undefined) {
                     user.sueldoNomina = payrollFields.sueldoNomina;
                 }
                 if (user.enNomina !== true) user.sueldoNomina = 0;
+            } else {
+                // Staff
+                user.enNomina = false;
+                if (payrollFields.sueldoNomina !== undefined) {
+                    user.sueldoNomina = payrollFields.sueldoNomina;
+                } else if (req.body.sueldoNomina === '' || req.body.sueldoNomina === null) {
+                    user.sueldoNomina = 0;
+                }
             }
         } catch (e) {
             res.status(e.statusCode || 400);

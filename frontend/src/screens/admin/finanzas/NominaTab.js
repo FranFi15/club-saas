@@ -524,7 +524,7 @@ export default function NominaTab({
                           <Text style={{ color: theme.text, fontWeight: '600' }}>{staffLabel(item)}</Text>
                           <Text style={{ color: theme.textMuted, fontSize: 12 }}>
                             {ROL_LABEL[item.rol] || item.rol}
-                            {item.rol === 'atleta' && item.sueldoNomina
+                            {item.sueldoNomina
                               ? ` · ref. ${fmtMoney(item.sueldoNomina)}`
                               : ''}
                           </Text>

@@ -160,10 +160,54 @@ export default function CoachNewSessionScreen({ navigation }) {
   const showInitialLoader = loading && categories.length === 0 && spaces.length === 0;
 
   const onSelectSlot = ({ espacioId, horaInicio: hi, horaFin: hf, ymd }) => {
-    setEspacio(espacioId);
+    if (ymd) setSelectedYmd(ymd);
+
+    // Nuevo espacio o sin selección previa → una franja
+    if (!espacio || espacioId !== espacio || !horaInicio || !horaFin) {
+      setEspacio(espacioId);
+      setHoraInicio(hi);
+      setHoraFin(hf);
+      return;
+    }
+
+    // Mismo espacio: extender / reducir / reemplazar franjas consecutivas
+    if (hf === horaInicio) {
+      // Adyacente antes → extender inicio
+      setHoraInicio(hi);
+      return;
+    }
+    if (hi === horaFin) {
+      // Adyacente después → extender fin
+      setHoraFin(hf);
+      return;
+    }
+    if (hi >= horaInicio && hf <= horaFin) {
+      // Dentro del rango seleccionado
+      if (hi === horaInicio && hf === horaFin) {
+        // Única franja → deseleccionar
+        setHoraInicio('');
+        setHoraFin('');
+        return;
+      }
+      if (hi === horaInicio) {
+        // Quitar la primera hora
+        setHoraInicio(hf);
+        return;
+      }
+      if (hf === horaFin) {
+        // Quitar la última hora
+        setHoraFin(hi);
+        return;
+      }
+      // Medio del rango → dejar solo esa franja
+      setHoraInicio(hi);
+      setHoraFin(hf);
+      return;
+    }
+
+    // No adyacente → reemplazar
     setHoraInicio(hi);
     setHoraFin(hf);
-    if (ymd) setSelectedYmd(ymd);
   };
 
   const onSelectYmd = (ymd) => {
@@ -189,7 +233,7 @@ export default function CoachNewSessionScreen({ navigation }) {
     }
     if (needsClubSpace) {
       if (!espacio || !horaInicio || !horaFin) {
-        showAlert('Horario', 'Tocá un horario libre en el espacio que quieras usar.');
+        showAlert('Horario', 'Tocá uno o más horarios libres consecutivos en el espacio que quieras usar.');
         return;
       }
     }

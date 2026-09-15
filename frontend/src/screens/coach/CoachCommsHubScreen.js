@@ -50,7 +50,7 @@ export default function CoachCommsHubScreen({ navigation }) {
           colorMarca={colorMarca}
           icon="cloud-upload-outline"
           title="Material multimedia"
-          subtitle="PDF, fotos o enlaces externos para un atleta o todo un grupo"
+          subtitle="Crear nuevo o ver lo enviado"
           onPress={() => navigation.navigate('CoachResourceSend')}
         />
         <HubMenuCard

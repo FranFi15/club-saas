@@ -14,8 +14,15 @@ export function formatRolStaff(rol) {
   return map[rol] || rol;
 }
 
-/** Orden de chips en filtros por área del staff. */
-export const STAFF_ROL_FILTER_ORDER = [
+/** Orden alfabético de chips en filtros por área del staff. */
+export function sortStaffRolesAlpha(roles) {
+  return [...roles].sort((a, b) =>
+    formatRolStaff(a).localeCompare(formatRolStaff(b), 'es', { sensitivity: 'base' }),
+  );
+}
+
+/** Lista fija de roles staff ordenada alfabéticamente por etiqueta. */
+export const STAFF_ROL_FILTER_ORDER = sortStaffRolesAlpha([
   'profe',
   'preparador_fisico',
   'nutricionista',
@@ -26,4 +33,4 @@ export const STAFF_ROL_FILTER_ORDER = [
   'colaborador',
   'medico',
   'kinesiologo',
-];
+]);

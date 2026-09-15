@@ -104,8 +104,19 @@ export default function CoachSpaceAvailabilityPicker({
     const isFree = slot.status.tipo === 'libre';
     const isSelected =
       selectedSlot?.espacioId === selectedSpaceId &&
-      selectedSlot?.horaInicio === slot.horaInicio &&
-      selectedSlot?.horaFin === slot.horaFin;
+      !!selectedSlot?.horaInicio &&
+      !!selectedSlot?.horaFin &&
+      slot.horaInicio >= selectedSlot.horaInicio &&
+      slot.horaFin <= selectedSlot.horaFin;
+
+    const rangeHours =
+      selectedSlot?.horaInicio && selectedSlot?.horaFin
+        ? (() => {
+            const [sh] = selectedSlot.horaInicio.split(':').map(Number);
+            const [eh] = selectedSlot.horaFin.split(':').map(Number);
+            return Math.max(1, eh - sh);
+          })()
+        : 1;
 
     return (
       <TouchableOpacity
@@ -139,16 +150,22 @@ export default function CoachSpaceAvailabilityPicker({
         </View>
         <View style={[styles.slotDivider, { backgroundColor: theme.border }]} />
         <Ionicons
-          name={isFree ? 'checkmark-circle-outline' : 'close-circle-outline'}
+          name={isFree ? (isSelected ? 'checkmark-circle' : 'checkmark-circle-outline') : 'close-circle-outline'}
           size={20}
-          color={isFree ? '#10b981' : theme.textMuted}
+          color={isFree ? (isSelected ? colorMarca : '#10b981') : theme.textMuted}
         />
         <View style={{ flex: 1, marginLeft: 10 }}>
           <Text style={[styles.slotLabel, { color: theme.text }]}>
-            {isFree ? 'Libre' : slotOccupiedLabel(slot.status)}
+            {isFree ? (isSelected ? 'Seleccionado' : 'Libre') : slotOccupiedLabel(slot.status)}
           </Text>
           {isFree ? (
-            <Text style={styles.slotHintFree}>Tocá para usar este horario</Text>
+            <Text style={styles.slotHintFree}>
+              {isSelected
+                ? rangeHours > 1
+                  ? `Parte de ${selectedSlot.horaInicio}–${selectedSlot.horaFin}`
+                  : 'Tocá de nuevo para quitar'
+                : 'Tocá para sumar (podés elegir varias horas seguidas)'}
+            </Text>
           ) : null}
         </View>
       </TouchableOpacity>
@@ -207,7 +224,11 @@ export default function CoachSpaceAvailabilityPicker({
           {isoCalendarDateToDisplay(selectedYmd) || '—'}
         </Text>
         <Text style={[styles.daySub, { color: theme.textMuted }]}>
-          {loading ? 'Cargando…' : `${freeCount} horario${freeCount === 1 ? '' : 's'} libre${freeCount === 1 ? '' : 's'}`}
+          {loading
+            ? 'Cargando…'
+            : selectedSlot?.espacioId === selectedSpaceId && selectedSlot?.horaInicio && selectedSlot?.horaFin
+              ? `Sesión ${selectedSlot.horaInicio}–${selectedSlot.horaFin}`
+              : `${freeCount} horario${freeCount === 1 ? '' : 's'} libre${freeCount === 1 ? '' : 's'}`}
         </Text>
       </View>
 

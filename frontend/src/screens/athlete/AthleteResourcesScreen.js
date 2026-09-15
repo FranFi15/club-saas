@@ -23,7 +23,7 @@ import { pickPaginatedRows } from '../../utils/paginatedApi';
 import { detectMediaKind, openMediaViewer, downloadMediaFile, mediaKindIcon } from '../../utils/mediaUtils';
 import MemberChildPicker from '../../components/MemberChildPicker';
 import DesignCard from '../../components/DesignCard';
-import { formatRolStaff, STAFF_ROL_FILTER_ORDER } from '../staff/staffUtils';
+import { formatRolStaff, sortStaffRolesAlpha } from '../staff/staffUtils';
 import { useBadges } from '../../context/BadgeContext';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 
@@ -139,13 +139,10 @@ export default function AthleteResourcesScreen({ navigation }) {
       const rol = authorRolKey(item.autor);
       if (rol !== 'unknown') roles.add(rol);
     }
-    return Array.from(roles)
-      .sort((a, b) => {
-        const ia = STAFF_ROL_FILTER_ORDER.indexOf(a);
-        const ib = STAFF_ROL_FILTER_ORDER.indexOf(b);
-        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-      })
-      .map((rol) => ({ id: rol, label: formatRolStaff(rol) }));
+    return sortStaffRolesAlpha(Array.from(roles)).map((rol) => ({
+      id: rol,
+      label: formatRolStaff(rol),
+    }));
   }, [list]);
 
   useEffect(() => {
