@@ -32,6 +32,7 @@ const ROL_LABEL = {
   preparador_fisico: 'Prep. físico',
   nutricionista: 'Nutricionista',
   psicologo: 'Psicólogo',
+  atleta: 'Atleta (jugador pago)',
 };
 
 function staffLabel(u) {
@@ -502,7 +503,9 @@ export default function NominaTab({
                   >
                     {filteredStaffForPicker.length === 0 ? (
                       <Text style={{ color: theme.textMuted, textAlign: 'center', marginVertical: 16, paddingHorizontal: 12 }}>
-                        {pickerSearch.trim() ? 'Sin coincidencias.' : 'No hay personal cargado.'}
+                        {pickerSearch.trim()
+                          ? 'Sin coincidencias.'
+                          : 'No hay personal ni jugadores pagos en nómina.'}
                       </Text>
                     ) : (
                       filteredStaffForPicker.map((item) => (
@@ -510,6 +513,9 @@ export default function NominaTab({
                           key={String(item._id)}
                           onPress={() => {
                             setFormStaffId(item._id);
+                            if (item.sueldoNomina != null && Number(item.sueldoNomina) > 0) {
+                              setFormMonto(String(item.sueldoNomina));
+                            }
                             setPickingStaff(false);
                             setPickerSearch('');
                           }}
@@ -518,6 +524,9 @@ export default function NominaTab({
                           <Text style={{ color: theme.text, fontWeight: '600' }}>{staffLabel(item)}</Text>
                           <Text style={{ color: theme.textMuted, fontSize: 12 }}>
                             {ROL_LABEL[item.rol] || item.rol}
+                            {item.rol === 'atleta' && item.sueldoNomina
+                              ? ` · ref. ${fmtMoney(item.sueldoNomina)}`
+                              : ''}
                           </Text>
                         </TouchableOpacity>
                       ))

@@ -20,6 +20,29 @@ import {
     trialNeedsMemberDecision,
 } from '../services/trialAthlete.service.js';
 
+function parsePayrollFieldsForAthlete(body, { isAthlete }) {
+    if (!isAthlete) {
+        return { enNomina: false, sueldoNomina: 0 };
+    }
+    const enNomina =
+        body.enNomina === true || body.enNomina === 'true'
+            ? true
+            : body.enNomina === false || body.enNomina === 'false'
+              ? false
+              : undefined;
+    let sueldoNomina;
+    if (body.sueldoNomina !== undefined && body.sueldoNomina !== null && body.sueldoNomina !== '') {
+        const n = Number(String(body.sueldoNomina).replace(',', '.'));
+        if (!Number.isFinite(n) || n < 0) {
+            const err = new Error('Sueldo de nómina inválido.');
+            err.statusCode = 400;
+            throw err;
+        }
+        sueldoNomina = Math.round(n * 100) / 100;
+    }
+    return { enNomina, sueldoNomina };
+}
+
 const registerUser = asyncHandler(async (req, res) => {
     const {
         nombre,
@@ -37,6 +60,8 @@ const registerUser = asyncHandler(async (req, res) => {
         cuotaSocialAsignada,
         esPrueba,
         diasPrueba,
+        enNomina,
+        sueldoNomina,
     } = req.body;
 
     const { User } = req.models;
@@ -80,6 +105,17 @@ const registerUser = asyncHandler(async (req, res) => {
         }
     }
 
+    let payrollFields;
+    try {
+        payrollFields = parsePayrollFieldsForAthlete(
+            { enNomina, sueldoNomina },
+            { isAthlete: rol === 'atleta' },
+        );
+    } catch (e) {
+        res.status(e.statusCode || 400);
+        throw e;
+    }
+
     const user = await User.create({
         nombre,
         apellido,
@@ -98,6 +134,11 @@ const registerUser = asyncHandler(async (req, res) => {
         pruebaHasta: trialFields.pruebaHasta || undefined,
         pruebaAvisoEnviadoAt: trialFields.pruebaAvisoEnviadoAt || undefined,
         pruebaDecision: trialFields.pruebaDecision || undefined,
+        enNomina: rol === 'atleta' ? payrollFields.enNomina === true : false,
+        sueldoNomina:
+            rol === 'atleta' && payrollFields.enNomina === true
+                ? payrollFields.sueldoNomina ?? 0
+                : 0,
     });
 
     if (user) {
@@ -286,6 +327,28 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
         }
     }
 
+    if (req.body.enNomina !== undefined || req.body.sueldoNomina !== undefined || req.body.rol) {
+        const nextRol = req.body.rol || user.rol;
+        try {
+            const payrollFields = parsePayrollFieldsForAthlete(req.body, {
+                isAthlete: nextRol === 'atleta',
+            });
+            if (nextRol !== 'atleta') {
+                user.enNomina = false;
+                user.sueldoNomina = 0;
+            } else {
+                if (payrollFields.enNomina !== undefined) user.enNomina = payrollFields.enNomina;
+                if (payrollFields.sueldoNomina !== undefined) {
+                    user.sueldoNomina = payrollFields.sueldoNomina;
+                }
+                if (user.enNomina !== true) user.sueldoNomina = 0;
+            }
+        } catch (e) {
+            res.status(e.statusCode || 400);
+            throw e;
+        }
+    }
+
     if (req.body.exentoCuotaSocial !== undefined || req.body.cuotaSocialAsignada !== undefined || req.body.rol) {
         const nextRol = req.body.rol || user.rol;
         if (CLIENT_USER_ROLES.includes(nextRol)) {
@@ -339,6 +402,8 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
         cuotasEnApp: updatedUser.rol === 'atleta' ? atletaCuotasEnApp(updatedUser) : undefined,
         exentoCuotaSocial: updatedUser.exentoCuotaSocial,
         cuotaSocialAsignada: updatedUser.cuotaSocialAsignada,
+        enNomina: updatedUser.enNomina === true,
+        sueldoNomina: updatedUser.sueldoNomina || 0,
     });
 
     if (CLIENT_USER_ROLES.includes(updatedUser.rol)) {

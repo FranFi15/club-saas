@@ -32,7 +32,7 @@ export default function UserFormModal({
     nombre: '', apellido: '', email: '', password: '', 
     dni: '', telefono: '', rol: 'atleta', tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
     cuotasEnApp: true, sexo: '', exentoCuotaSocial: false, cuotaSocialAsignada: null,
-    esPrueba: false, diasPrueba: '15',
+    esPrueba: false, diasPrueba: '15', enNomina: false, sueldoNomina: '',
   });
 
   const [tutors, setTutors] = useState([]);
@@ -93,12 +93,17 @@ export default function UserFormModal({
               ),
             )
           : '15',
+        enNomina: initialData.enNomina === true,
+        sueldoNomina:
+          initialData.sueldoNomina != null && initialData.sueldoNomina !== ''
+            ? String(initialData.sueldoNomina)
+            : '',
       });
     } else {
       setFormData({
         nombre: '', apellido: '', email: '', password: '', dni: '', telefono: '', rol: 'atleta', tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
         cuotasEnApp: true, sexo: '', exentoCuotaSocial: false, cuotaSocialAsignada: null,
-        esPrueba: false, diasPrueba: '15',
+        esPrueba: false, diasPrueba: '15', enNomina: false, sueldoNomina: '',
       });
     }
   }, [initialData, visible]);
@@ -232,6 +237,8 @@ export default function UserFormModal({
       delete payload.sexo;
       delete payload.esPrueba;
       delete payload.diasPrueba;
+      delete payload.enNomina;
+      delete payload.sueldoNomina;
     } else if (payload.sexo !== 'M' && payload.sexo !== 'F') {
       payload.sexo = '';
     }
@@ -247,6 +254,13 @@ export default function UserFormModal({
       } else {
         payload.esPrueba = false;
         delete payload.diasPrueba;
+      }
+      payload.enNomina = !!payload.enNomina;
+      if (payload.enNomina) {
+        const sueldo = Number(String(payload.sueldoNomina || '0').replace(',', '.'));
+        payload.sueldoNomina = Number.isFinite(sueldo) && sueldo >= 0 ? sueldo : 0;
+      } else {
+        payload.sueldoNomina = 0;
       }
     }
     if (!CLIENT_ROLES_WITH_SOCIAL_FEE.includes(payload.rol)) {
@@ -458,6 +472,44 @@ export default function UserFormModal({
                   />
                 </View>
               )}
+
+              {formData.rol === 'atleta' ? (
+                <>
+                  <View style={[styles.switchRow, { borderColor: theme.border, backgroundColor: theme.background }]}>
+                    <View style={{ flex: 1, paddingRight: 12 }}>
+                      <Text style={[styles.switchTitle, { color: theme.text }]}>Jugador pago (nómina)</Text>
+                      <Text style={[styles.switchHint, { color: theme.textMuted }]}>
+                        Si está activo, el atleta aparece en Finanzas → Nómina para registrar sueldos.
+                      </Text>
+                    </View>
+                    <Switch
+                      value={!!formData.enNomina}
+                      onValueChange={(v) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          enNomina: v,
+                          sueldoNomina: v ? prev.sueldoNomina : '',
+                        }))
+                      }
+                      trackColor={{ false: theme.border, true: colorMarca + '88' }}
+                      thumbColor={formData.enNomina ? colorMarca : theme.textMuted}
+                    />
+                  </View>
+                  {formData.enNomina ? (
+                    <View style={{ marginBottom: 15 }}>
+                      <Text style={[styles.label, { color: theme.textMuted }]}>Sueldo mensual de referencia</Text>
+                      <TextInput
+                        style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                        placeholder="Ej: 150000"
+                        placeholderTextColor={theme.textMuted}
+                        keyboardType="decimal-pad"
+                        value={String(formData.sueldoNomina ?? '')}
+                        onChangeText={(v) => handleChange('sueldoNomina', v.replace(/[^0-9.,]/g, ''))}
+                      />
+                    </View>
+                  ) : null}
+                </>
+              ) : null}
 
               {formData.rol === 'atleta' && !initialData ? (
                 <>

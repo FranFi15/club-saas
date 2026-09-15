@@ -13,6 +13,13 @@ export const PAYROLL_STAFF_ROLES = [
 
 export const PAYROLL_METODOS = ['efectivo', 'transferencia', 'mercado_pago', 'otro'];
 
+/** Personal del club o atletas marcados como jugadores pagos. */
+export function isPayrollEligible(user) {
+    if (!user) return false;
+    if (PAYROLL_STAFF_ROLES.includes(user.rol)) return true;
+    return user.rol === 'atleta' && user.enNomina === true;
+}
+
 const payrollEntrySchema = new mongoose.Schema(
     {
         staff: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },

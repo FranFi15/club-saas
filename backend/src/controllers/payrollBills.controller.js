@@ -1,7 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import mongoose from 'mongoose';
 import { parsePageLimit, paginationMeta, escapeRegex } from '../utils/pagination.js';
-import { PAYROLL_STAFF_ROLES, PAYROLL_METODOS } from '../models/payroll.model.js';
+import { PAYROLL_STAFF_ROLES, PAYROLL_METODOS, isPayrollEligible } from '../models/payroll.model.js';
 import { BILL_METODOS } from '../models/bill.model.js';
 
 function parsePositiveMoney(value, fieldLabel = 'Monto') {
@@ -68,10 +68,10 @@ function staffName(u) {
 const listPayrollStaff = asyncHandler(async (req, res) => {
     const { User } = req.models;
     const staff = await User.find({
-        rol: { $in: PAYROLL_STAFF_ROLES },
         estado: { $ne: 'inactivo' },
+        $or: [{ rol: { $in: PAYROLL_STAFF_ROLES } }, { rol: 'atleta', enNomina: true }],
     })
-        .select('nombre apellido email rol')
+        .select('nombre apellido email rol enNomina sueldoNomina')
         .sort({ apellido: 1, nombre: 1 })
         .lean();
 
@@ -126,14 +126,14 @@ const createPayrollEntry = asyncHandler(async (req, res) => {
         throw new Error('Personal inválido.');
     }
 
-    const staff = await User.findById(staffId).select('rol nombre apellido');
+    const staff = await User.findById(staffId).select('rol nombre apellido enNomina');
     if (!staff) {
         res.status(404);
         throw new Error('Persona no encontrada.');
     }
-    if (!PAYROLL_STAFF_ROLES.includes(staff.rol)) {
+    if (!isPayrollEligible(staff)) {
         res.status(400);
-        throw new Error('Esa persona no es personal del club.');
+        throw new Error('Esa persona no está en la nómina del club.');
     }
 
     const period = parsePeriod(mes, anio);

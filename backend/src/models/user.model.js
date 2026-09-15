@@ -78,6 +78,11 @@ const userSchema = new mongoose.Schema({
     /** Tipo de cuota social asignado (uno solo). Null si exento o sin asignar. */
     cuotaSocialAsignada: { type: mongoose.Schema.Types.ObjectId, ref: 'SocialFee', default: null },
 
+    /** Atletas: si es true, aparece en nómina como jugador pago. */
+    enNomina: { type: Boolean, default: false },
+    /** Sueldo de referencia mensual para nómina (jugadores pagos / personal). */
+    sueldoNomina: { type: Number, default: 0, min: 0 },
+
     /** Para badges de novedades / recursos en la app del miembro. */
     lastSeenNewsAt: { type: Date, default: null },
     lastSeenResourcesAt: { type: Date, default: null },

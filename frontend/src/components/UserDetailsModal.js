@@ -117,6 +117,20 @@ export default function UserDetailsModal({ visible, user, onClose, onEdit, onDel
                       </Text>
                     </View>
                   </View>
+                  <View style={styles.divider} />
+                  <View style={styles.infoRow}>
+                    <Ionicons name="wallet-outline" size={20} color={theme.icon} />
+                    <View style={styles.infoTextContainer}>
+                      <Text style={[styles.infoLabel, { color: theme.textMuted }]}>Nómina</Text>
+                      <Text style={[styles.infoValue, { color: theme.text }]}>
+                        {user.enNomina
+                          ? user.sueldoNomina
+                            ? `Jugador pago · $${Number(user.sueldoNomina).toLocaleString('es-AR')}`
+                            : 'Jugador pago'
+                          : 'No'}
+                      </Text>
+                    </View>
+                  </View>
                 </>
               ) : null}
               <View style={styles.divider} />
