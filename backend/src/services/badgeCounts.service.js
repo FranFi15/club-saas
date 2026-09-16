@@ -9,36 +9,84 @@ import {
 } from './notificationFeed.service.js';
 import { countUnreadChatForUser } from './chat.service.js';
 import { getAdminPendingCounts, sumPendingCounts } from './pendingInbox.service.js';
+import { DEFAULT_CLUB_TIMEZONE } from '../utils/timeHelper.js';
 
-export async function countDocsPendientesAtleta(atletaId, models) {
+/** Docs pendientes por atleta (batch). Claves = String(atletaId). */
+export async function countDocsPendientesByAthleteIds(atletaIds, models) {
+    const out = new Map();
+    const ids = [...new Set((atletaIds || []).map((id) => String(id)).filter(Boolean))];
+    for (const id of ids) out.set(id, 0);
+    if (!ids.length) return out;
+
     const { Requirement, Enrollment, Submission } = models;
-    const inscripciones = await Enrollment.find({ atleta: atletaId, estado: 'activo' });
-    const catIds = inscripciones.map((i) => i.categoria);
+    const objectIds = atletaIds;
+
+    const inscripciones = await Enrollment.find({
+        atleta: { $in: objectIds },
+        estado: 'activo',
+    })
+        .select('atleta categoria')
+        .lean();
+
+    const catsByAthlete = new Map();
+    const allCatIds = [];
+    for (const en of inscripciones) {
+        const aid = String(en.atleta);
+        if (!catsByAthlete.has(aid)) catsByAthlete.set(aid, []);
+        catsByAthlete.get(aid).push(en.categoria);
+        allCatIds.push(en.categoria);
+    }
 
     const reqs = await Requirement.find({
         activo: true,
         $or: [
             { alcance: 'global' },
-            { alcance: 'categoria', targetCategoria: { $in: catIds } },
-            { alcance: 'usuario', targetUsuario: atletaId },
+            { alcance: 'categoria', targetCategoria: { $in: allCatIds } },
+            { alcance: 'usuario', targetUsuario: { $in: objectIds } },
         ],
     })
-        .select('_id')
+        .select('_id alcance targetCategoria targetUsuario')
         .lean();
 
-    if (!reqs.length) return 0;
+    if (!reqs.length) return out;
 
     const reqIds = reqs.map((r) => r._id);
     const subs = await Submission.find({
-        atleta: atletaId,
+        atleta: { $in: objectIds },
         requerimiento: { $in: reqIds },
-    }).lean();
-    const subByReq = new Map(subs.map((s) => [String(s.requerimiento), s]));
+    })
+        .select('atleta requerimiento estado')
+        .lean();
 
-    return reqs.filter((r) => {
-        const sub = subByReq.get(String(r._id));
-        return !sub || sub.estado === 'rechazado';
-    }).length;
+    const subByAthleteReq = new Map();
+    for (const s of subs) {
+        subByAthleteReq.set(`${String(s.atleta)}:${String(s.requerimiento)}`, s);
+    }
+
+    for (const aid of ids) {
+        const catIds = new Set((catsByAthlete.get(aid) || []).map(String));
+        let n = 0;
+        for (const r of reqs) {
+            let applies = false;
+            if (r.alcance === 'global') applies = true;
+            else if (r.alcance === 'categoria') {
+                applies = catIds.has(String(r.targetCategoria));
+            } else if (r.alcance === 'usuario') {
+                applies = String(r.targetUsuario) === aid;
+            }
+            if (!applies) continue;
+            const sub = subByAthleteReq.get(`${aid}:${String(r._id)}`);
+            if (!sub || sub.estado === 'rechazado') n += 1;
+        }
+        out.set(aid, n);
+    }
+
+    return out;
+}
+
+export async function countDocsPendientesAtleta(atletaId, models) {
+    const map = await countDocsPendientesByAthleteIds([atletaId], models);
+    return map.get(String(atletaId)) || 0;
 }
 
 async function getStaffCategoryIds(userId, rol, Category) {
@@ -63,6 +111,51 @@ export async function countUnreadNews(user, models) {
     });
 }
 
+/** Suma de recursos no vistos por atleta (mismo criterio que el loop tutor: un global cuenta N veces). */
+async function countUnreadResourcesForAthleteIds(atletaIds, since, models) {
+    const ids = (atletaIds || []).filter(Boolean);
+    if (!ids.length) return 0;
+
+    const { Enrollment, Resource } = models;
+    const enrollments = await Enrollment.find({
+        atleta: { $in: ids },
+        estado: 'activo',
+    })
+        .select('atleta categoria')
+        .lean();
+
+    const catsByAthlete = new Map();
+    const allCatIds = [];
+    for (const en of enrollments) {
+        const aid = String(en.atleta);
+        if (!catsByAthlete.has(aid)) catsByAthlete.set(aid, []);
+        catsByAthlete.get(aid).push(en.categoria);
+        allCatIds.push(en.categoria);
+    }
+
+    const resources = await Resource.find({
+        createdAt: { $gt: since },
+        $or: [
+            { alcance: 'global' },
+            { alcance: 'categoria', targetCategoria: { $in: allCatIds } },
+            { alcance: 'usuario', targetUsuario: { $in: ids } },
+        ],
+    })
+        .select('alcance targetCategoria targetUsuario')
+        .lean();
+
+    let total = 0;
+    for (const aid of ids.map(String)) {
+        const catIds = new Set((catsByAthlete.get(aid) || []).map(String));
+        for (const r of resources) {
+            if (r.alcance === 'global') total += 1;
+            else if (r.alcance === 'categoria' && catIds.has(String(r.targetCategoria))) total += 1;
+            else if (r.alcance === 'usuario' && String(r.targetUsuario) === aid) total += 1;
+        }
+    }
+    return total;
+}
+
 export async function countUnreadResources(user, models) {
     const { Resource, User } = models;
     const since = user.lastSeenResourcesAt || new Date(0);
@@ -70,12 +163,11 @@ export async function countUnreadResources(user, models) {
     if (user.rol === 'tutor') {
         const hijos = await User.find(hijosDelTutorFilter(user._id)).select('_id').lean();
         if (!hijos.length) return 0;
-        let total = 0;
-        for (const h of hijos) {
-            const vis = await resourceVisibilityFilter(h._id, models);
-            total += await Resource.countDocuments({ ...vis, createdAt: { $gt: since } });
-        }
-        return total;
+        return countUnreadResourcesForAthleteIds(
+            hijos.map((h) => h._id),
+            since,
+            models,
+        );
     }
 
     if (user.rol !== 'atleta') return 0;
@@ -133,20 +225,8 @@ async function countDocsRevisionForUser(user, models) {
     });
 }
 
-async function adminBadgeSummary(models, userId) {
-    const { Payment } = models;
-    const now = new Date();
-    const mes = now.getMonth() + 1;
-    const anio = now.getFullYear();
-
-    const [finanzasImpagas, pendingCounts] = await Promise.all([
-        Payment.countDocuments({
-            mes,
-            anio,
-            estado: { $in: ['pendiente', 'vencido'] },
-        }),
-        getAdminPendingCounts(models, userId),
-    ]);
+async function adminBadgeSummary(models, userId, timezone = DEFAULT_CLUB_TIMEZONE) {
+    const pendingCounts = await getAdminPendingCounts(models, userId, timezone);
 
     const {
         transferenciasRevision: transferenciasRevisionGrupos,
@@ -154,6 +234,7 @@ async function adminBadgeSummary(models, userId) {
         solicitudesInscripcion,
         alquileres: alquileresPendientes,
         chat: chatUnread,
+        finanzasImpagasMes: finanzasImpagas = 0,
     } = pendingCounts;
 
     const pendientes = sumPendingCounts(pendingCounts);
@@ -182,9 +263,12 @@ async function adminBadgeSummary(models, userId) {
 }
 
 async function coachBadgeSummary(user, models) {
-    const plantelPendientes = (await listRosterPendingForCoach(models, user._id, user.rol)).length;
-    const docsRevision = await countDocsRevisionForUser(user, models);
-    const chatUnread = await countUnreadChatForUser(models, user._id);
+    const [rosterPending, docsRevision, chatUnread] = await Promise.all([
+        listRosterPendingForCoach(models, user._id, user.rol),
+        countDocsRevisionForUser(user, models),
+        countUnreadChatForUser(models, user._id),
+    ]);
+    const plantelPendientes = rosterPending.length;
     const equipo = plantelPendientes + docsRevision;
     const comunicar = chatUnread;
 
@@ -272,36 +356,112 @@ async function countPendingConsultConfirmations(user, models) {
     });
 }
 
-async function countPendingConsultForAtleta(atletaId, models) {
-    const { Session } = models;
-    return Session.countDocuments({
-        atletaIndividual: atletaId,
-        tipo: { $in: ['consulta_nutricion', 'consulta_psicologia'] },
-        estado: { $ne: 'cancelada' },
-        'confirmacionAtleta.estado': 'pendiente',
-    });
-}
-
 /** Indica si un hijo del tutor tiene avisos pendientes (docs, cuotas, consultas, recursos, feed). */
 export async function tutorAthleteHasAlerts(tutorUser, atletaId, models) {
-    if ((await countDocsPendientesAtleta(atletaId, models)) > 0) return true;
-    if ((await countCuotasImpagasAtleta(atletaId, models)) > 0) return true;
-    if ((await countPendingConsultForAtleta(atletaId, models)) > 0) return true;
+    const map = await tutorAthletesAlertFlags(tutorUser, [atletaId], models);
+    return map.get(String(atletaId)) === true;
+}
 
-    const { Resource } = models;
+/**
+ * Flags de alerta por hijo en pocos round-trips (mis-hijos / listados tutor).
+ * Claves = String(atletaId).
+ */
+export async function tutorAthletesAlertFlags(tutorUser, athletes, models) {
+    const list = (athletes || []).filter(Boolean);
+    const flags = new Map();
+    for (const a of list) flags.set(String(a._id || a), false);
+    if (!list.length) return flags;
+
+    const { Payment, Resource, Session, Enrollment } = models;
+    const atletaIds = list.map((a) => a._id || a);
+    const cuotaIds = list
+        .filter((a) => a.rol == null || a.rol === 'atleta')
+        .filter((a) => (a.cuotasEnApp != null ? atletaCuotasEnApp(a) : true))
+        .map((a) => a._id || a);
     const since = tutorUser.lastSeenResourcesAt || new Date(0);
-    const vis = await resourceVisibilityFilter(atletaId, models);
-    if ((await Resource.countDocuments({ ...vis, createdAt: { $gt: since } })) > 0) return true;
 
-    const feed = await buildUnifiedNotificationFeed(tutorUser, models, { limit: 80 });
-    for (const item of feed) {
-        if (item.leida) continue;
-        if (item.atletaId && String(item.atletaId) === String(atletaId)) return true;
-        const id = String(item.id || '');
-        if (id.endsWith(`:${atletaId}`)) return true;
+    const [docsBy, paymentRows, consultRows, enrollments, feed] = await Promise.all([
+        countDocsPendientesByAthleteIds(atletaIds, models),
+        cuotaIds.length
+            ? Payment.find({
+                  atleta: { $in: cuotaIds },
+                  estado: { $in: ['pendiente', 'vencido'] },
+              })
+                  .select('atleta')
+                  .lean()
+            : Promise.resolve([]),
+        Session.find({
+            atletaIndividual: { $in: atletaIds },
+            tipo: { $in: ['consulta_nutricion', 'consulta_psicologia'] },
+            estado: { $ne: 'cancelada' },
+            'confirmacionAtleta.estado': 'pendiente',
+        })
+            .select('atletaIndividual')
+            .lean(),
+        Enrollment.find({ atleta: { $in: atletaIds }, estado: 'activo' })
+            .select('atleta categoria')
+            .lean(),
+        buildUnifiedNotificationFeed(tutorUser, models, { limit: 80 }),
+    ]);
+
+    for (const [aid, n] of docsBy) {
+        if (n > 0) flags.set(aid, true);
+    }
+    for (const p of paymentRows) flags.set(String(p.atleta), true);
+    for (const s of consultRows) flags.set(String(s.atletaIndividual), true);
+
+    const catsByAthlete = new Map();
+    const allCatIds = [];
+    for (const en of enrollments) {
+        const aid = String(en.atleta);
+        if (!catsByAthlete.has(aid)) catsByAthlete.set(aid, []);
+        catsByAthlete.get(aid).push(en.categoria);
+        allCatIds.push(en.categoria);
     }
 
-    return false;
+    const resources = await Resource.find({
+        createdAt: { $gt: since },
+        $or: [
+            { alcance: 'global' },
+            { alcance: 'categoria', targetCategoria: { $in: allCatIds } },
+            { alcance: 'usuario', targetUsuario: { $in: atletaIds } },
+        ],
+    })
+        .select('alcance targetCategoria targetUsuario')
+        .lean();
+
+    for (const aid of [...flags.keys()]) {
+        if (flags.get(aid)) continue;
+        const catIds = new Set((catsByAthlete.get(aid) || []).map(String));
+        for (const r of resources) {
+            if (r.alcance === 'global') {
+                flags.set(aid, true);
+                break;
+            }
+            if (r.alcance === 'categoria' && catIds.has(String(r.targetCategoria))) {
+                flags.set(aid, true);
+                break;
+            }
+            if (r.alcance === 'usuario' && String(r.targetUsuario) === aid) {
+                flags.set(aid, true);
+                break;
+            }
+        }
+    }
+
+    for (const item of feed) {
+        if (item.leida) continue;
+        if (item.atletaId) {
+            const aid = String(item.atletaId);
+            if (flags.has(aid)) flags.set(aid, true);
+        }
+        const id = String(item.id || '');
+        for (const aid of flags.keys()) {
+            if (id.endsWith(`:${aid}`)) flags.set(aid, true);
+        }
+    }
+
+    return flags;
 }
 
 async function memberBadgeSummary(user, models) {
@@ -324,41 +484,57 @@ async function memberBadgeSummary(user, models) {
         },
     };
 
-    const newsUnread = await countUnreadNews(user, models);
-    const chatUnread = await countUnreadChatForUser(models, user._id);
+    const [newsUnread, chatUnread] = await Promise.all([
+        countUnreadNews(user, models),
+        countUnreadChatForUser(models, user._id),
+    ]);
     out.hubs.novedades = newsUnread;
     out.hubs.chat = chatUnread > 0 ? Math.min(99, chatUnread) : 0;
 
     if (rol === 'atleta') {
-        out.hubs.documentacion = await countDocsPendientesAtleta(user._id, models);
-        out.hubs.recursos = await countUnreadResources(user, models);
-        if (atletaCuotasEnApp(user)) {
-            out.tabs.cuotas = await countCuotasImpagasAtleta(user._id, models);
-        }
-        const comm = out.hubs.documentacion + out.hubs.recursos + newsUnread + chatUnread;
+        const [documentacion, recursos, cuotasTab, pendingConsultas] = await Promise.all([
+            countDocsPendientesAtleta(user._id, models),
+            countUnreadResources(user, models),
+            atletaCuotasEnApp(user)
+                ? countCuotasImpagasAtleta(user._id, models)
+                : Promise.resolve(0),
+            countPendingConsultConfirmations(user, models),
+        ]);
+        out.hubs.documentacion = documentacion;
+        out.hubs.recursos = recursos;
+        out.tabs.cuotas = cuotasTab;
+        const comm = documentacion + recursos + newsUnread + chatUnread;
         out.tabs.comunicar = comm > 0 ? Math.min(99, comm) : 0;
-        const pendingConsultas = await countPendingConsultConfirmations(user, models);
         out.tabs.agenda = pendingConsultas > 0 ? Math.min(99, pendingConsultas) : 0;
     } else if (rol === 'tutor') {
         const hijos = await User.find(hijosDelTutorFilter(user._id)).lean();
+        const hijoIds = hijos.map((h) => h._id);
+        const cuotaHijoIds = hijos.filter((h) => atletaCuotasEnApp(h)).map((h) => h._id);
+
+        const [docsByAthlete, cuotaRows, recursos, pendingConsultas] = await Promise.all([
+            countDocsPendientesByAthleteIds(hijoIds, models),
+            cuotaHijoIds.length
+                ? Payment.find({
+                      atleta: { $in: cuotaHijoIds },
+                      estado: { $in: ['pendiente', 'vencido'] },
+                  })
+                      .select('_id')
+                      .lean()
+                : Promise.resolve([]),
+            countUnreadResources(user, models),
+            countPendingConsultConfirmations(user, models),
+        ]);
+
         let docs = 0;
-        let cuotas = 0;
-        for (const h of hijos) {
-            docs += await countDocsPendientesAtleta(h._id, models);
-            if (atletaCuotasEnApp(h)) {
-                cuotas += await Payment.countDocuments({
-                    atleta: h._id,
-                    estado: { $in: ['pendiente', 'vencido'] },
-                });
-            }
-        }
+        for (const n of docsByAthlete.values()) docs += n;
+        const cuotas = cuotaRows.length;
+
         out.hubs.documentacion = docs;
-        out.hubs.recursos = await countUnreadResources(user, models);
+        out.hubs.recursos = recursos;
         out.tabs.inicio = docs + cuotas > 0 ? Math.min(99, docs + cuotas) : 0;
         out.tabs.cuotas = cuotas;
         out.tabs.comunicar = Math.min(99, docs + out.hubs.recursos + chatUnread);
         out.tabs.novedades = newsUnread;
-        const pendingConsultas = await countPendingConsultConfirmations(user, models);
         out.tabs.agenda = pendingConsultas > 0 ? Math.min(99, pendingConsultas) : 0;
     }
 
@@ -382,7 +558,7 @@ export async function buildBadgeSummary(req) {
     let rolePart = { tabs: {}, hubs: {} };
 
     if (['admin_club', 'administrativo'].includes(rol)) {
-        rolePart = await adminBadgeSummary(req.models, userId);
+        rolePart = await adminBadgeSummary(req.models, userId, req.clubTimezone || DEFAULT_CLUB_TIMEZONE);
     } else if (['profe', 'preparador_fisico'].includes(rol)) {
         rolePart = await coachBadgeSummary(req.user, req.models);
     } else if (['nutricionista', 'psicologo'].includes(rol)) {

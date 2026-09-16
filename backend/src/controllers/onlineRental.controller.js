@@ -83,7 +83,7 @@ export const getOnlineAvailability = asyncHandler(async (req, res) => {
     const cfg = cfgFromSpace(space);
     const diaSemana = weekdayNameFromYmd(fecha);
 
-    if (isPastCalendarDay(fecha)) {
+    if (isPastCalendarDay(fecha, new Date(), req.clubTimezone)) {
         return res.json({
             espacio: spaceOnlinePublic(space),
             fecha,
@@ -112,7 +112,7 @@ export const getOnlineAvailability = asyncHandler(async (req, res) => {
 
     const slots = [];
     for (const slot of candidates) {
-        if (isSlotInPast(fecha, slot.horaInicio)) {
+        if (isSlotInPast(fecha, slot.horaInicio, new Date(), req.clubTimezone)) {
             slots.push({ ...slot, disponible: false, precio: precioPorSlot, pasado: true });
             continue;
         }
@@ -171,12 +171,12 @@ export const bookOnlineRental = asyncHandler(async (req, res) => {
 
     const cfg = cfgFromSpace(space);
 
-    if (isPastCalendarDay(fecha)) {
+    if (isPastCalendarDay(fecha, new Date(), req.clubTimezone)) {
         res.status(400);
         throw new Error('No se pueden alquilar días que ya pasaron.');
     }
 
-    if (isSlotInPast(fecha, horaInicio)) {
+    if (isSlotInPast(fecha, horaInicio, new Date(), req.clubTimezone)) {
         res.status(400);
         throw new Error('Ese horario ya pasó. Elegí un turno futuro.');
     }

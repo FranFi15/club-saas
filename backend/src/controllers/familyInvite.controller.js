@@ -443,7 +443,7 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
         for (const enrollment of enrollments) {
             if (!enrollment.esFacturacion || !enrollment.plan) continue;
             try {
-                await ensureCurrentMonthPaymentForEnrollment(req.models, enrollment);
+                await ensureCurrentMonthPaymentForEnrollment(req.models, enrollment, req.clubTimezone);
             } catch (e) {
                 console.warn('[family-invite] cuota:', e.message);
             }

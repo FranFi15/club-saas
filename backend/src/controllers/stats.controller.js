@@ -5,7 +5,7 @@ import { buildClubStats } from '../services/clubStats.service.js';
 // @route   GET /api/stats/club
 // @access  admin_club, administrativo
 const getClubStats = asyncHandler(async (req, res) => {
-    const stats = await buildClubStats(req.models, req.user._id);
+    const stats = await buildClubStats(req.models, req.user._id, req.clubTimezone);
     res.json(stats);
 });
 

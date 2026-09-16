@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
+import { DEFAULT_CLUB_TIMEZONE, normalizeClubTimezone } from '../constants/timezones.js';
 
 const ClubSchema = new mongoose.Schema({
     nombre: { type: String, required: true, trim: true },
@@ -18,6 +19,12 @@ const ClubSchema = new mongoose.Schema({
     estadoSuscripcion: { type: String, enum: ['activo', 'inactivo', 'periodo_prueba', 'vencido', 'cancelado'], default: 'periodo_prueba' },
     logoUrl: { type: String, default: '' },
     primaryColor: { type: String, default: '#150224' },
+    /** IANA timezone for civil calendar (crons, cuotas, agendas). */
+    timezone: {
+        type: String,
+        default: DEFAULT_CLUB_TIMEZONE,
+        set: (v) => normalizeClubTimezone(v),
+    },
     // El string de conexión único para la BD de este club en particular
     connectionStringDB: { type: String, required: true, unique: true },
     userCount: { type: Number, required: true, default: 0 }, // Atletas + socios — base para facturación

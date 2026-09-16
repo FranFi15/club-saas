@@ -4,12 +4,13 @@ import { getTenantDB } from '../config/db.js';
 import { getTenantModels } from '../utils/tenantModels.js';
 import { markOverduePayments } from '../services/overduePayments.service.js';
 import { sendCuotaReminders } from '../services/cuotaReminders.service.js';
+import { parseLocalHourEnv, shouldRunClubCron } from '../utils/clubCronTime.js';
+import { DEFAULT_CLUB_TIMEZONE, normalizeClubTimezone } from '../utils/timeHelper.js';
 
 /**
- * Marca cuotas vencidas y aplica recargos para todos los clubs activos.
+ * Marca cuotas vencidas a la hora local del club.
  * Activar con ENABLE_OVERDUE_CRON=true.
- * Por defecto: 04:00 todos los días.
- * Tras marcar vencidas, envía recordatorios pendientes (cuota_vencida / cuota_proxima).
+ * Default local hour 4.
  */
 export function startOverduePaymentsCron() {
     if (process.env.ENABLE_OVERDUE_CRON !== 'true') {
@@ -23,7 +24,8 @@ export function startOverduePaymentsCron() {
         return;
     }
 
-    const schedule = process.env.OVERDUE_CRON_SCHEDULE || '0 4 * * *';
+    const schedule = process.env.OVERDUE_CRON_SCHEDULE || '0 * * * *';
+    const localHour = parseLocalHourEnv('OVERDUE_CRON_LOCAL_HOUR', 4);
 
     const run = async () => {
         let tenants = [];
@@ -40,18 +42,23 @@ export function startOverduePaymentsCron() {
 
         let totalMarcadas = 0;
         let totalReminders = 0;
+        let ran = 0;
         for (const t of tenants) {
             if (!t.urlIdentifier || !t.connectionStringDB) continue;
+            const timezone = normalizeClubTimezone(t.timezone || DEFAULT_CLUB_TIMEZONE);
+            if (!shouldRunClubCron(timezone, { hour: localHour })) continue;
+
             try {
                 const cs = String(t.connectionStringDB).replace(/([^:]\/)\/+/g, '$1');
                 const tenantDB = await getTenantDB(t.urlIdentifier, cs);
                 const models = getTenantModels(tenantDB);
                 const modified = await markOverduePayments(models);
                 totalMarcadas += modified;
+                ran += 1;
                 if (modified > 0) {
                     console.log(`[cron-overdue] ${t.urlIdentifier}: ${modified} cuota(s) marcada(s) como vencida(s).`);
                 }
-                const { enviados } = await sendCuotaReminders(models);
+                const { enviados } = await sendCuotaReminders(models, { timezone });
                 totalReminders += enviados;
                 if (enviados > 0) {
                     console.log(`[cron-overdue] ${t.urlIdentifier}: ${enviados} recordatorio(s) de cuota.`);
@@ -60,13 +67,17 @@ export function startOverduePaymentsCron() {
                 console.error(`[cron-overdue] Tenant ${t.urlIdentifier}:`, e.message);
             }
         }
-        console.log(
-            `[cron-overdue] Fin de corrida. Cuotas marcadas: ${totalMarcadas}; recordatorios: ${totalReminders} (${tenants.length} club(es)).`,
-        );
+        if (ran > 0) {
+            console.log(
+                `[cron-overdue] Fin de corrida local hour=${localHour}. Cuotas marcadas: ${totalMarcadas}; recordatorios: ${totalReminders} (${ran}/${tenants.length} club(es)).`,
+            );
+        }
     };
 
     cron.schedule(schedule, run);
-    console.log(`[cron-overdue] Programado "${schedule}" → marcar cuotas vencidas por club.`);
+    console.log(
+        `[cron-overdue] Programado "${schedule}" → hora local ${localHour} (OVERDUE_CRON_LOCAL_HOUR).`,
+    );
 
     if (process.env.OVERDUE_CRON_RUN_ON_START === 'true') {
         run().catch((e) => console.error('[cron-overdue] Run on start:', e));

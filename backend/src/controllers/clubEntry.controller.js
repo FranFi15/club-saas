@@ -2,6 +2,7 @@ import asyncHandler from 'express-async-handler';
 import { hijosDelTutorFilter } from '../utils/userQuery.js';
 import { buildClubEntryToken, parseClubEntryToken } from '../services/clubEntryToken.service.js';
 import { markOverduePayments } from '../services/overduePayments.service.js';
+import { calendarMonthYearInTz, DEFAULT_CLUB_TIMEZONE } from '../utils/timeHelper.js';
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const CLIENT_BILLING_ROLES = ['atleta', 'tutor', 'socio'];
@@ -18,11 +19,9 @@ function formatMoney(n) {
 /**
  * Snapshot de planes / cuota social / mora para el escáner de ingreso.
  */
-async function buildMemberBillingSnapshot(models, member) {
+async function buildMemberBillingSnapshot(models, member, timezone = DEFAULT_CLUB_TIMEZONE) {
     const { Enrollment, Payment, SocialFee } = models;
-    const now = new Date();
-    const mes = now.getMonth() + 1;
-    const anio = now.getFullYear();
+    const { mes, anio } = calendarMonthYearInTz(new Date(), timezone);
     const userId = member._id;
 
     const isMorosoFlag = member.estado === 'moroso';
@@ -287,7 +286,7 @@ const scanClubEntryQr = asyncHandler(async (req, res) => {
     let billing = null;
     try {
         await markOverduePayments(req.models, { atleta: member._id });
-        billing = await buildMemberBillingSnapshot(req.models, member);
+        billing = await buildMemberBillingSnapshot(req.models, member, req.clubTimezone);
     } catch (e) {
         console.warn('[club-entry] billing snapshot:', e.message);
     }

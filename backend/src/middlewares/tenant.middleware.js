@@ -8,6 +8,7 @@ import {
     isMercadoPagoWebhookRequest,
     lookupClubIdentifierByMpUser,
 } from '../utils/mpSellerMapping.js';
+import { DEFAULT_CLUB_TIMEZONE, normalizeClubTimezone } from '../utils/timeHelper.js';
 
 const CLUB_ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
@@ -50,9 +51,10 @@ export const resolveTenant = async (req, res, next) => {
     }
 
     try {
-        let connectionStringDB = getCachedTenant(clubIdentifier);
+        let cached = getCachedTenant(clubIdentifier);
+        let connectionStringDB = cached?.connectionStringDB;
+        let timezone = cached?.timezone;
 
-        // Si no está en caché, le preguntamos al Super-Admin
         if (!connectionStringDB) {
             console.log(`[Cache Miss] Solicitando DB info para el tenant: ${clubIdentifier} al Super-Admin...`);
             const response = await axios.get(
@@ -65,24 +67,22 @@ export const resolveTenant = async (req, res, next) => {
             );
 
             connectionStringDB = response.data.connectionStringDB;
-            // Guardamos en caché
-            setCachedTenant(clubIdentifier, connectionStringDB);
+            timezone = normalizeClubTimezone(response.data.timezone || DEFAULT_CLUB_TIMEZONE);
+            setCachedTenant(clubIdentifier, connectionStringDB, timezone);
         }
 
-        // Conectamos y guardamos la conexión en la "req"
-        const sanitizedConnectionString = connectionStringDB.replace(/([^:]\/)\/+/g, "$1"); 
+        timezone = normalizeClubTimezone(timezone || DEFAULT_CLUB_TIMEZONE);
 
-        // 1. Guardamos la conexión
+        const sanitizedConnectionString = connectionStringDB.replace(/([^:]\/)\/+/g, '$1');
+
         req.tenantDB = await getTenantDB(clubIdentifier, sanitizedConnectionString);
-        
-        // 2. 🔥 LA MAGIA: Guardamos todos los modelos listos para usar en req.models
         req.models = getTenantModels(req.tenantDB);
         req.clubIdentifier = clubIdentifier;
-        
+        req.clubTimezone = timezone;
+
         next();
-        
-       } catch (error) {
-        console.error("❌ Error resolviendo tenant:", error.response?.data?.message || error.message);
+    } catch (error) {
+        console.error('❌ Error resolviendo tenant:', error.response?.data?.message || error.message);
         if (error.response && error.response.status === 403) {
             return res.status(403).json({ message: error.response.data.message });
         }

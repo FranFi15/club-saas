@@ -1,4 +1,5 @@
 import asyncHandler from 'express-async-handler';
+import { calendarMonthYearInTz } from '../utils/timeHelper.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { generateMonthlyPaymentsForTenant } from '../services/generateMonthlyPayments.service.js';
@@ -65,8 +66,13 @@ const getPlans = asyncHandler(async (req, res) => {
 // @route   POST /api/financial/payments/generate
 const generarCuotasMes = asyncHandler(async (req, res) => {
     const { mes, anio } = req.body;
-    const estadisticas = await generateMonthlyPaymentsForTenant(req.models, mes, anio);
-    const cuotaSocial = await generateSocialFeesForTenant(req.models, mes, anio);
+    const estadisticas = await generateMonthlyPaymentsForTenant(
+        req.models,
+        mes,
+        anio,
+        req.clubTimezone,
+    );
+    const cuotaSocial = await generateSocialFeesForTenant(req.models, mes, anio, req.clubTimezone);
     res.status(201).json({
         message: 'Proceso de facturación completado.',
         estadisticas,
@@ -251,16 +257,24 @@ const assignSocialFee = asyncHandler(async (req, res) => {
 // @route   POST /api/financial/social-fee/generate
 // @route   POST /api/financial/social-fees/generate
 const generarCuotaSocialMes = asyncHandler(async (req, res) => {
-    const now = new Date();
-    const mes = Number(req.body?.mes) || now.getMonth() + 1;
-    const anio = Number(req.body?.anio) || now.getFullYear();
+    const { mes: defMes, anio: defAnio } = calendarMonthYearInTz(
+        new Date(),
+        req.clubTimezone,
+    );
+    const mes = Number(req.body?.mes) || defMes;
+    const anio = Number(req.body?.anio) || defAnio;
 
     if (mes < 1 || mes > 12 || anio < 2000) {
         res.status(400);
         throw new Error('Período inválido.');
     }
 
-    const estadisticas = await generateSocialFeesForTenant(req.models, mes, anio);
+    const estadisticas = await generateSocialFeesForTenant(
+        req.models,
+        mes,
+        anio,
+        req.clubTimezone,
+    );
     res.status(201).json({
         message: estadisticas.omitido
             ? estadisticas.motivo
@@ -1445,6 +1459,7 @@ const sendReminders = asyncHandler(async (req, res) => {
         onlyVencidas,
         mes,
         anio,
+        timezone: req.clubTimezone,
     });
 
     const label = onlyVencidas ? 'aviso(s) a morosos' : 'recordatorio(s)';

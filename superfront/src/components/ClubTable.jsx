@@ -1,4 +1,5 @@
 import React from 'react';
+import { CLUB_TIMEZONE_OPTIONS, DEFAULT_CLUB_TIMEZONE } from '../constants/timezones.js';
 
 export default function ClubTable({ clubs, handleStatusChange, handleEditClick, handleDelete }) {
   const getStatusColor = (status) => {
@@ -7,10 +8,13 @@ export default function ClubTable({ clubs, handleStatusChange, handleEditClick, 
       periodo_prueba: 'bg-yellow-100 text-yellow-800 border-yellow-200',
       inactivo: 'bg-gray-100 text-gray-800 border-gray-200',
       vencido: 'bg-red-100 text-red-800 border-red-200',
-      cancelado: 'bg-red-100 text-red-800 border-red-200'
+      cancelado: 'bg-red-100 text-red-800 border-red-200',
     };
     return colors[status] || 'bg-gray-100 text-gray-800 border-gray-200';
   };
+
+  const timezoneLabel = (tz) =>
+    CLUB_TIMEZONE_OPTIONS.find((o) => o.value === tz)?.label || tz || DEFAULT_CLUB_TIMEZONE;
 
   return (
     <div className="overflow-hidden bg-white rounded-lg shadow">
@@ -21,6 +25,7 @@ export default function ClubTable({ clubs, handleStatusChange, handleEditClick, 
             <th className="p-4">Color</th>
             <th className="p-4">Nombre</th>
             <th className="p-4">Identifier</th>
+            <th className="p-4">Zona horaria</th>
             <th className="p-4 text-center">Estado</th>
             <th className="p-4 text-center">Atletas / socios</th>
             <th className="p-4 text-center">Acciones</th>
@@ -33,21 +38,26 @@ export default function ClubTable({ clubs, handleStatusChange, handleEditClick, 
                 {club.logoUrl ? (
                   <img src={club.logoUrl} alt="Logo" className="object-cover w-10 h-10 rounded-full shadow-sm" />
                 ) : (
-                  <div className="flex items-center justify-center w-10 h-10 text-xs font-bold text-gray-500 bg-gray-200 rounded-full shadow-sm">N/A</div>
+                  <div className="flex items-center justify-center w-10 h-10 text-xs font-bold text-gray-500 bg-gray-200 rounded-full shadow-sm">
+                    N/A
+                  </div>
                 )}
               </td>
               <td className="p-4">
-                <div 
-                  className="w-8 h-8 border border-gray-200 rounded-full shadow-sm" 
+                <div
+                  className="w-8 h-8 border border-gray-200 rounded-full shadow-sm"
                   style={{ backgroundColor: club.primaryColor }}
                   title={club.primaryColor}
                 ></div>
               </td>
               <td className="p-4 font-semibold text-gray-800">{club.nombre}</td>
               <td className="p-4 text-sm text-gray-500">{club.urlIdentifier}</td>
-              
+              <td className="p-4 text-sm text-gray-600" title={club.timezone || DEFAULT_CLUB_TIMEZONE}>
+                {timezoneLabel(club.timezone || DEFAULT_CLUB_TIMEZONE)}
+              </td>
+
               <td className="p-4 text-center">
-                <select 
+                <select
                   value={club.estadoSuscripcion}
                   onChange={(e) => handleStatusChange(club._id, e.target.value)}
                   className={`px-2 py-1 text-xs font-bold border rounded-full cursor-pointer focus:outline-none appearance-none text-center ${getStatusColor(club.estadoSuscripcion)}`}
@@ -59,16 +69,22 @@ export default function ClubTable({ clubs, handleStatusChange, handleEditClick, 
                   <option value="cancelado">CANCELADO</option>
                 </select>
               </td>
-              
+
               <td className="p-4 text-sm font-semibold text-center text-gray-700">
                 {club.userCount ?? 0}
               </td>
               <td className="p-4">
                 <div className="flex items-center justify-center gap-2">
-                  <button onClick={() => handleEditClick(club)} className="px-3 py-1 text-sm text-white transition bg-blue-500 rounded hover:bg-blue-600">
+                  <button
+                    onClick={() => handleEditClick(club)}
+                    className="px-3 py-1 text-sm text-white transition bg-blue-500 rounded hover:bg-blue-600"
+                  >
                     Editar
                   </button>
-                  <button onClick={() => handleDelete(club._id)} className="px-3 py-1 text-sm text-white transition bg-red-500 rounded hover:bg-red-600">
+                  <button
+                    onClick={() => handleDelete(club._id)}
+                    className="px-3 py-1 text-sm text-white transition bg-red-500 rounded hover:bg-red-600"
+                  >
                     Borrar
                   </button>
                 </div>

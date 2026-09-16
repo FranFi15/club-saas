@@ -223,16 +223,17 @@ const createSession = asyncHandler(async (req, res) => {
     res.status(201).json(session);
 });
 
-async function assertSessionMutable(session, res, { allowCompleted = false } = {}) {
-    if (allowCompleted && session.estado === 'completada' && !isSessionPast(session)) {
+async function assertSessionMutable(session, res, { allowCompleted = false, timezone } = {}) {
+    const tz = timezone;
+    if (allowCompleted && session.estado === 'completada' && !isSessionPast(session, new Date(), tz)) {
         return;
     }
-    if (isSessionReadOnly(session)) {
+    if (isSessionReadOnly(session, new Date(), tz)) {
         res.status(400);
         throw new Error(
             session.estado === 'cancelada'
                 ? 'Esta sesión está cancelada y no se puede modificar.'
-                : session.estado === 'completada' || isSessionPast(session)
+                : session.estado === 'completada' || isSessionPast(session, new Date(), tz)
                   ? 'Esta sesión ya pasó o está cerrada. Solo se puede consultar el resumen.'
                   : 'Esta sesión no se puede modificar.',
         );
@@ -253,7 +254,7 @@ const takeAttendance = asyncHandler(async (req, res) => {
         throw new Error('Sesión no encontrada');
     }
 
-    await assertSessionMutable(session, res);
+    await assertSessionMutable(session, res, { timezone: req.clubTimezone });
     if (req.user.rol === 'profe') {
         const ok = await esProfeDeCategoria(Category, session.categoria, req.user._id);
         if (!ok) {
@@ -763,23 +764,23 @@ const getCoachSessionStats = asyncHandler(async (req, res) => {
     };
     const end = utcEndOfToday();
 
-    const loadFrom = (fechaGte) => {
-        const fecha = { $lte: end };
-        if (fechaGte) fecha.$gte = fechaGte;
-        return Session.find({ ...baseQuery, fecha })
-            .select('estado asistencia bloquesEjecutados planEntrenamiento fecha tipo')
-            .populate('planEntrenamiento', 'bloques')
-            .lean();
-    };
+    // Una sola lectura del histórico; semana/mes se filtran en memoria (evita 3 finds solapados).
+    const allDocs = await Session.find(baseQuery)
+        .select('estado asistencia bloquesEjecutados planEntrenamiento fecha tipo')
+        .populate('planEntrenamiento', 'bloques')
+        .lean();
 
-    const [weekDocs, monthDocs, allDocs] = await Promise.all([
-        loadFrom(utcStartDaysAgo(6)),
-        loadFrom(utcStartOfCurrentMonth()),
-        Session.find(baseQuery)
-            .select('estado asistencia bloquesEjecutados planEntrenamiento fecha tipo')
-            .populate('planEntrenamiento', 'bloques')
-            .lean(),
-    ]);
+    const weekStart = utcStartDaysAgo(6).getTime();
+    const monthStart = utcStartOfCurrentMonth().getTime();
+    const endMs = end.getTime();
+    const weekDocs = [];
+    const monthDocs = [];
+    for (const doc of allDocs) {
+        const t = doc.fecha ? new Date(doc.fecha).getTime() : NaN;
+        if (!Number.isFinite(t) || t > endMs) continue;
+        if (t >= weekStart) weekDocs.push(doc);
+        if (t >= monthStart) monthDocs.push(doc);
+    }
 
     res.json({
         categorias: misCats,
@@ -1193,7 +1194,7 @@ const reprogramarSession = asyncHandler(async (req, res) => {
         throw new Error('Sesión no encontrada');
     }
 
-    if (isSessionPast(session)) {
+    if (isSessionPast(session, new Date(), req.clubTimezone)) {
         res.status(400);
         throw new Error(
             'Esta sesión ya pasó. Solo se puede consultar el resumen y las estadísticas.'
@@ -1695,7 +1696,7 @@ const cancelSession = asyncHandler(async (req, res) => {
         );
     }
 
-    await assertSessionMutable(session, res);
+    await assertSessionMutable(session, res, { timezone: req.clubTimezone });
     await assertStaffCanModifySession(req, session);
 
     const staffNeedsComunicado = STAFF_CANCEL_REQUIRES_COMUNICADO.includes(req.user.rol);
@@ -1754,7 +1755,7 @@ const uncancelSession = asyncHandler(async (req, res) => {
         throw new Error('Solo se pueden reactivar sesiones canceladas.');
     }
 
-    if (isSessionPast(session)) {
+    if (isSessionPast(session, new Date(), req.clubTimezone)) {
         res.status(400);
         throw new Error(
             'No se puede reactivar una sesión cuyo horario ya pasó. Solo podés consultar el resumen.'
@@ -1815,7 +1816,7 @@ const reopenSession = asyncHandler(async (req, res) => {
         throw new Error('Solo se pueden reabrir sesiones ya completadas.');
     }
 
-    if (isSessionPast(session)) {
+    if (isSessionPast(session, new Date(), req.clubTimezone)) {
         res.status(400);
         throw new Error(
             'No se puede reabrir una sesión cuyo horario ya pasó. Solo podés consultar el resumen y las estadísticas.'
@@ -1888,7 +1889,7 @@ const attachTrainingPlanToSession = asyncHandler(async (req, res) => {
         throw new Error('Sesión no encontrada');
     }
 
-    await assertSessionMutable(session, res);
+    await assertSessionMutable(session, res, { timezone: req.clubTimezone });
 
     if (session.tipo === 'consulta_nutricion' || session.tipo === 'consulta_psicologia') {
         res.status(400);
@@ -1943,7 +1944,7 @@ const finishSession = asyncHandler(async (req, res) => {
         throw new Error('Sesión no encontrada');
     }
 
-    await assertSessionMutable(session, res);
+    await assertSessionMutable(session, res, { timezone: req.clubTimezone });
 
     if (req.user.rol === 'profe') {
         const ok = await esProfeDeCategoria(Category, session.categoria, req.user._id);
@@ -2056,7 +2057,7 @@ const confirmConsultAttendance = asyncHandler(async (req, res) => {
     }
 
     // Corte por hora de inicio en zona del club (no UTC del servidor).
-    if (isSessionStarted(session)) {
+    if (isSessionStarted(session, new Date(), req.clubTimezone)) {
         res.status(400);
         throw new Error('Esta consulta ya comenzó o pasó. No se puede confirmar asistencia.');
     }
@@ -2142,7 +2143,7 @@ const cambiarAtletaConsulta = asyncHandler(async (req, res) => {
         throw new Error('No podés cambiar el atleta de una consulta cerrada o cancelada.');
     }
 
-    await assertSessionMutable(session, res);
+    await assertSessionMutable(session, res, { timezone: req.clubTimezone });
     await assertStaffCanModifySession(req, session);
 
     if (!nuevoAtletaId) {

@@ -1,4 +1,9 @@
-import { hasTimeOverlap } from '../utils/timeHelper.js';
+import {
+    hasTimeOverlap,
+    todayYmdClub as todayYmdClubTz,
+    nowHhMmClub as nowHhMmClubTz,
+    DEFAULT_CLUB_TIMEZONE,
+} from '../utils/timeHelper.js';
 
 export const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const DIAS = DIAS_SEMANA;
@@ -28,39 +33,26 @@ export function weekdayNameFromYmd(fechaYmd) {
     return DIAS[d.getUTCDay()];
 }
 
-/** Fecha civil del club (Argentina) en YYYY-MM-DD. */
-export function todayYmdClub(now = new Date()) {
-    return new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'America/Argentina/Buenos_Aires',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-    }).format(now);
+/** Fecha civil del club en YYYY-MM-DD. */
+export function todayYmdClub(now = new Date(), timezone = DEFAULT_CLUB_TIMEZONE) {
+    return todayYmdClubTz(now, timezone);
 }
 
 /** Hora actual HH:mm en zona del club. */
-export function nowHhMmClub(now = new Date()) {
-    const parts = new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'America/Argentina/Buenos_Aires',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-    }).formatToParts(now);
-    const hour = parts.find((p) => p.type === 'hour')?.value || '00';
-    const minute = parts.find((p) => p.type === 'minute')?.value || '00';
-    return `${hour}:${minute}`;
+export function nowHhMmClub(now = new Date(), timezone = DEFAULT_CLUB_TIMEZONE) {
+    return nowHhMmClubTz(now, timezone);
 }
 
-export function isPastCalendarDay(fechaYmd, now = new Date()) {
+export function isPastCalendarDay(fechaYmd, now = new Date(), timezone = DEFAULT_CLUB_TIMEZONE) {
     if (!fechaYmd || !/^\d{4}-\d{2}-\d{2}$/.test(String(fechaYmd))) return true;
-    return String(fechaYmd) < todayYmdClub(now);
+    return String(fechaYmd) < todayYmdClub(now, timezone);
 }
 
 /** El turno ya empezó (o el día ya pasó). */
-export function isSlotInPast(fechaYmd, horaInicio, now = new Date()) {
-    if (isPastCalendarDay(fechaYmd, now)) return true;
-    if (String(fechaYmd) > todayYmdClub(now)) return false;
-    return String(horaInicio || '') <= nowHhMmClub(now);
+export function isSlotInPast(fechaYmd, horaInicio, now = new Date(), timezone = DEFAULT_CLUB_TIMEZONE) {
+    if (isPastCalendarDay(fechaYmd, now, timezone)) return true;
+    if (String(fechaYmd) > todayYmdClub(now, timezone)) return false;
+    return String(horaInicio || '') <= nowHhMmClub(now, timezone);
 }
 
 /** Normaliza días; si viene vacío/ausente, todos (compat con espacios viejos). */

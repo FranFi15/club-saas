@@ -111,7 +111,7 @@ const enrollAthlete = asyncHandler(async (req, res) => {
 
     if (enrollment.esFacturacion && enrollment.plan) {
         try {
-            await ensureCurrentMonthPaymentForEnrollment(req.models, enrollment);
+            await ensureCurrentMonthPaymentForEnrollment(req.models, enrollment, req.clubTimezone);
         } catch (e) {
             console.warn('[enroll] cuota mes actual:', e.message);
         }
@@ -253,7 +253,7 @@ const updateEnrollmentFinancials = asyncHandler(async (req, res) => {
 
     if (updatedEnrollment?.esFacturacion && updatedEnrollment.plan) {
         try {
-            await ensureCurrentMonthPaymentForEnrollment(req.models, updatedEnrollment);
+            await ensureCurrentMonthPaymentForEnrollment(req.models, updatedEnrollment, req.clubTimezone);
         } catch (e) {
             console.warn('[financials] cuota mes actual:', e.message);
         }
@@ -299,7 +299,7 @@ const setEnrollmentBillingPreference = asyncHandler(async (req, res) => {
 
     if (updated.esFacturacion && updated.plan) {
         try {
-            await ensureCurrentMonthPaymentForEnrollment(req.models, updated);
+            await ensureCurrentMonthPaymentForEnrollment(req.models, updated, req.clubTimezone);
         } catch (e) {
             console.warn('[billing] cuota mes actual:', e.message);
         }

@@ -1,4 +1,5 @@
 import React from 'react';
+import { CLUB_TIMEZONE_OPTIONS, DEFAULT_CLUB_TIMEZONE } from '../constants/timezones.js';
 
 export default function ClubForm({ formData, setFormData, editingId, handleSubmit, handleCancelEdit }) {
   const isCreate = !editingId;
@@ -59,6 +60,21 @@ export default function ClubForm({ formData, setFormData, editingId, handleSubmi
             value={formData.primaryColor}
             onChange={(e) => setFormData({ ...formData, primaryColor: e.target.value })}
           />
+        </div>
+
+        <div className="flex flex-col gap-1 p-1 border rounded bg-gray-50 md:col-span-2">
+          <label className="pl-2 text-sm text-gray-600">Zona horaria</label>
+          <select
+            className="p-2 bg-white border rounded"
+            value={formData.timezone || DEFAULT_CLUB_TIMEZONE}
+            onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
+          >
+            {CLUB_TIMEZONE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         {isCreate ? (

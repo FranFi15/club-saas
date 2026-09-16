@@ -2,6 +2,7 @@ import asyncHandler from 'express-async-handler';
 import Club from '../models/club.model.js';
 import { countAthletesInTenant } from '../utils/tenantAthleteCount.js';
 import { createClubAdminInTenant } from '../utils/tenantBootstrap.js';
+import { DEFAULT_CLUB_TIMEZONE, normalizeClubTimezone } from '../constants/timezones.js';
 
 function readAdminPayload(body) {
     const nested = body.admin || {};
@@ -20,6 +21,7 @@ const registerClub = asyncHandler(async (req, res) => {
         urlIdentifier, 
         logoUrl, 
         primaryColor,
+        timezone,
     } = req.body;
 
     const admin = readAdminPayload(req.body);
@@ -40,6 +42,7 @@ const registerClub = asyncHandler(async (req, res) => {
         urlIdentifier,
         logoUrl,
         primaryColor,
+        timezone: normalizeClubTimezone(timezone || DEFAULT_CLUB_TIMEZONE),
     });
     
     // Usamos una variable de entorno genérica para el cluster de Mongo
@@ -120,6 +123,9 @@ const updateClub = asyncHandler(async (req, res) => {
         club.emailContacto = req.body.emailContacto || club.emailContacto;
         club.logoUrl = req.body.logoUrl !== undefined ? req.body.logoUrl : club.logoUrl;
         club.primaryColor = req.body.primaryColor || club.primaryColor;
+        if (req.body.timezone !== undefined) {
+            club.timezone = normalizeClubTimezone(req.body.timezone);
+        }
 
         const updatedClub = await club.save();
         res.json(updatedClub);
@@ -138,12 +144,13 @@ const getCronTenantIndex = asyncHandler(async (req, res) => {
     }
     const bloqueados = ['inactivo', 'vencido', 'cancelado'];
     const clubs = await Club.find({ estadoSuscripcion: { $nin: bloqueados } }).select(
-        'urlIdentifier connectionStringDB',
+        'urlIdentifier connectionStringDB timezone',
     );
     res.json({
         tenants: clubs.map((c) => ({
             urlIdentifier: c.urlIdentifier,
             connectionStringDB: c.connectionStringDB,
+            timezone: normalizeClubTimezone(c.timezone || DEFAULT_CLUB_TIMEZONE),
         })),
     });
 });
@@ -176,7 +183,8 @@ const getClubDbInfo = asyncHandler(async (req, res) => {
     res.json({
         clubId: club.clubId,
         connectionStringDB: club.connectionStringDB,
-        apiSecretKey: club.apiSecretKey
+        apiSecretKey: club.apiSecretKey,
+        timezone: normalizeClubTimezone(club.timezone || DEFAULT_CLUB_TIMEZONE),
     });
 });
 

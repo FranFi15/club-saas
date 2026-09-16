@@ -308,7 +308,7 @@ const resolveEnrollmentRequest = asyncHandler(async (req, res) => {
             let enr = await applyFamilyDiscountToEnrollment(req.models, atletaId, exists);
             if (enr.esFacturacion && enr.plan) {
                 try {
-                    await ensureCurrentMonthPaymentForEnrollment(req.models, enr);
+                    await ensureCurrentMonthPaymentForEnrollment(req.models, enr, req.clubTimezone);
                 } catch (e) {
                     console.warn('[enrollment-request] cuota mes actual:', e.message);
                 }
@@ -326,7 +326,7 @@ const resolveEnrollmentRequest = asyncHandler(async (req, res) => {
             enrollment = await applyFamilyDiscountToEnrollment(req.models, atletaId, enrollment);
             if (enrollment.esFacturacion && enrollment.plan) {
                 try {
-                    await ensureCurrentMonthPaymentForEnrollment(req.models, enrollment);
+                    await ensureCurrentMonthPaymentForEnrollment(req.models, enrollment, req.clubTimezone);
                 } catch (e) {
                     console.warn('[enrollment-request] cuota mes actual:', e.message);
                 }

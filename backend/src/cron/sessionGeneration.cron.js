@@ -3,11 +3,14 @@ import cron from 'node-cron';
 import { getTenantDB } from '../config/db.js';
 import { getTenantModels } from '../utils/tenantModels.js';
 import { maintainSessionBufferForTenant } from '../services/sessionFromSchedule.service.js';
+import { parseLocalHourEnv, shouldRunClubCron } from '../utils/clubCronTime.js';
+import { DEFAULT_CLUB_TIMEZONE, normalizeClubTimezone } from '../utils/timeHelper.js';
 
 /**
- * Cron diario: por cada club, si hay menos de N sesiones programadas futuras,
- * crea las que falten hasta la fecha límite configurada por el admin.
+ * Cron horario: por cada club, si es la hora local configurada,
+ * mantiene el buffer de sesiones futuras.
  * Activar con ENABLE_SESSION_CRON=true.
+ * Default local hour 3 (= ~00:00 ART when server is UTC).
  */
 export function startSessionGenerationCron() {
     if (process.env.ENABLE_SESSION_CRON !== 'true') {
@@ -21,7 +24,8 @@ export function startSessionGenerationCron() {
         return;
     }
 
-    const schedule = process.env.SESSION_CRON_SCHEDULE || '0 3 * * *';
+    const schedule = process.env.SESSION_CRON_SCHEDULE || '0 * * * *';
+    const localHour = parseLocalHourEnv('SESSION_CRON_LOCAL_HOUR', 3);
 
     const run = async () => {
         let tenants = [];
@@ -37,34 +41,38 @@ export function startSessionGenerationCron() {
         }
 
         let totalNuevas = 0;
+        let ran = 0;
         for (const t of tenants) {
             if (!t.urlIdentifier || !t.connectionStringDB) continue;
+            const timezone = normalizeClubTimezone(t.timezone || DEFAULT_CLUB_TIMEZONE);
+            if (!shouldRunClubCron(timezone, { hour: localHour })) continue;
+
             try {
                 const cs = String(t.connectionStringDB).replace(/([^:]\/)\/+/g, '$1');
                 const tenantDB = await getTenantDB(t.urlIdentifier, cs);
                 const models = getTenantModels(tenantDB);
                 const result = await maintainSessionBufferForTenant(models);
                 totalNuevas += result.creadasCount || 0;
+                ran += 1;
                 if (result.omitido && result.motivo) {
                     console.log(`[cron-sessions] ${t.urlIdentifier}: omitido — ${result.motivo}`);
                 } else if (result.creadasCount > 0) {
-                    console.log(
-                        `[cron-sessions] ${t.urlIdentifier}: +${result.creadasCount} sesión(es) (${result.futurasAntes} → ${result.futurasDespues} futuras)`,
-                    );
-                }
-                if (result.errores?.length) {
-                    console.warn(`[cron-sessions] ${t.urlIdentifier}: ${result.errores.length} error(es)`);
+                    console.log(`[cron-sessions] ${t.urlIdentifier}: +${result.creadasCount} sesión(es)`);
                 }
             } catch (e) {
                 console.error(`[cron-sessions] Tenant ${t.urlIdentifier}:`, e.message);
             }
         }
-        console.log(`[cron-sessions] Fin de corrida. Sesiones nuevas en total: ${totalNuevas} (${tenants.length} club(es))`);
+        if (ran > 0) {
+            console.log(
+                `[cron-sessions] Fin de corrida local hour=${localHour}. Sesiones nuevas: ${totalNuevas} (${ran}/${tenants.length} club(es)).`,
+            );
+        }
     };
 
     cron.schedule(schedule, run);
     console.log(
-        `[cron-sessions] Programado "${schedule}" — mantiene mínimo de sesiones futuras respetando vigenteHasta de cada horario.`,
+        `[cron-sessions] Programado "${schedule}" — corre por club a la hora local ${localHour} (SESSION_CRON_LOCAL_HOUR).`,
     );
 
     if (process.env.SESSION_CRON_RUN_ON_START === 'true') {

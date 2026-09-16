@@ -1,13 +1,70 @@
 // Compara dos rangos de horas (formato "HH:mm") y devuelve true si se pisan.
-// Ej: 18:00-19:30 y 19:00-20:00 devuelven true.
-// Ej: 18:00-19:00 y 19:00-20:00 devuelven false (termina justo cuando empieza el otro).
 
 export const hasTimeOverlap = (start1, end1, start2, end2) => {
-    return (start1 < end2) && (end1 > start2);
+    return start1 < end2 && end1 > start2;
 };
 
-/** Zona civil del club (misma que alquileres online / agendas). */
-export const CLUB_TIMEZONE = 'America/Argentina/Buenos_Aires';
+/** Zona civil por defecto (clubs existentes / fallback). */
+export const DEFAULT_CLUB_TIMEZONE = 'America/Argentina/Buenos_Aires';
+
+/** @deprecated Use DEFAULT_CLUB_TIMEZONE; kept for older imports. */
+export const CLUB_TIMEZONE = DEFAULT_CLUB_TIMEZONE;
+
+const ALLOWED_CLUB_TIMEZONES = new Set([
+    'America/Argentina/Buenos_Aires',
+    'America/Argentina/Cordoba',
+    'America/Montevideo',
+    'America/Santiago',
+    'America/Sao_Paulo',
+    'America/Asuncion',
+    'America/La_Paz',
+    'America/Lima',
+    'America/Bogota',
+    'America/Mexico_City',
+    'America/New_York',
+    'Europe/Madrid',
+    'UTC',
+]);
+
+export function normalizeClubTimezone(tz) {
+    if (tz && ALLOWED_CLUB_TIMEZONES.has(String(tz))) return String(tz);
+    return DEFAULT_CLUB_TIMEZONE;
+}
+
+function tzOrDefault(tz) {
+    return normalizeClubTimezone(tz);
+}
+
+/** Partes de calendario civil en una IANA zone. */
+export function calendarPartsInTz(now = new Date(), tz = DEFAULT_CLUB_TIMEZONE) {
+    const zone = tzOrDefault(tz);
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: zone,
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+        hourCycle: 'h23',
+    }).formatToParts(now);
+
+    const get = (type) => parts.find((p) => p.type === type)?.value;
+    return {
+        year: parseInt(get('year') || '0', 10),
+        month: parseInt(get('month') || '0', 10),
+        day: parseInt(get('day') || '0', 10),
+        hour: parseInt(get('hour') || '0', 10),
+        minute: parseInt(get('minute') || '0', 10),
+        second: parseInt(get('second') || '0', 10),
+    };
+}
+
+/** Mes/año de cuotas en zona del club. */
+export function calendarMonthYearInTz(now = new Date(), tz = DEFAULT_CLUB_TIMEZONE) {
+    const { year, month } = calendarPartsInTz(now, tz);
+    return { mes: month, anio: year };
+}
 
 /** YYYY-MM-DD de un Date/ISO de sesión (día calendario guardado en UTC). */
 export function sessionCalendarYmd(fecha) {
@@ -23,18 +80,18 @@ export function sessionCalendarYmd(fecha) {
     return `${y}-${m}-${day}`;
 }
 
-export function todayYmdClub(now = new Date()) {
+export function todayYmdClub(now = new Date(), tz = DEFAULT_CLUB_TIMEZONE) {
     return new Intl.DateTimeFormat('en-CA', {
-        timeZone: CLUB_TIMEZONE,
+        timeZone: tzOrDefault(tz),
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
     }).format(now);
 }
 
-export function nowHhMmClub(now = new Date()) {
+export function nowHhMmClub(now = new Date(), tz = DEFAULT_CLUB_TIMEZONE) {
     const parts = new Intl.DateTimeFormat('en-GB', {
-        timeZone: CLUB_TIMEZONE,
+        timeZone: tzOrDefault(tz),
         hour: '2-digit',
         minute: '2-digit',
         hour12: false,
@@ -63,53 +120,69 @@ export function hhMmToMinutes(value) {
 }
 
 /**
- * Instante de fin de sesión en zona del club.
- * horaFin es hora civil Argentina sobre el día calendario de session.fecha.
+ * Convert civil wall time (YMD + HH:mm) in an IANA zone to a UTC Date.
  */
-export function sessionEndLocalDate(session) {
+export function zonedWallTimeToDate(ymd, hhmm, tz = DEFAULT_CLUB_TIMEZONE) {
+    const zone = tzOrDefault(tz);
+    const [y, mo, d] = String(ymd).split('-').map(Number);
+    const [hh, mm] = normalizeHhMm(hhmm).split(':').map(Number);
+    let guess = Date.UTC(y, mo - 1, d, hh, mm, 0);
+
+    for (let i = 0; i < 5; i++) {
+        const parts = calendarPartsInTz(new Date(guess), zone);
+        const asUtcMs = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, 0);
+        const desiredMs = Date.UTC(y, mo - 1, d, hh, mm, 0);
+        const delta = desiredMs - asUtcMs;
+        if (delta === 0) break;
+        guess += delta;
+    }
+
+    return new Date(guess);
+}
+
+/**
+ * Instante de fin de sesión en zona del club.
+ */
+export function sessionEndLocalDate(session, tz = DEFAULT_CLUB_TIMEZONE) {
     const ymd = sessionCalendarYmd(session?.fecha);
     if (!ymd) return null;
-    const hhmm = normalizeHhMm(session?.horaFin, '23:59');
-    // Offset fijo ART (−03): el club opera en Argentina; evita Date(y,m,d) del TZ del servidor (UTC en Render).
-    return new Date(`${ymd}T${hhmm}:00.000-03:00`);
+    return zonedWallTimeToDate(ymd, normalizeHhMm(session?.horaFin, '23:59'), tz);
 }
 
 /**
  * Instante de inicio de sesión en zona del club.
  */
-export function sessionStartLocalDate(session) {
+export function sessionStartLocalDate(session, tz = DEFAULT_CLUB_TIMEZONE) {
     const ymd = sessionCalendarYmd(session?.fecha);
     if (!ymd) return null;
-    const hhmm = normalizeHhMm(session?.horaInicio, '00:00');
-    return new Date(`${ymd}T${hhmm}:00.000-03:00`);
+    return zonedWallTimeToDate(ymd, normalizeHhMm(session?.horaInicio, '00:00'), tz);
 }
 
-/** True si la hora de fin (Argentina) ya pasó. */
-export function isSessionPast(session, now = new Date()) {
+/** True si la hora de fin ya pasó en la zona del club. */
+export function isSessionPast(session, now = new Date(), tz = DEFAULT_CLUB_TIMEZONE) {
     const ymd = sessionCalendarYmd(session?.fecha);
     if (!ymd) return false;
-    const today = todayYmdClub(now);
+    const today = todayYmdClub(now, tz);
     if (ymd < today) return true;
     if (ymd > today) return false;
-    return hhMmToMinutes(session?.horaFin || '23:59') < hhMmToMinutes(nowHhMmClub(now));
+    return hhMmToMinutes(session?.horaFin || '23:59') < hhMmToMinutes(nowHhMmClub(now, tz));
 }
 
 /**
- * True si la consulta ya empezó (Argentina).
- * Usado para confirmación de asistencia atleta/tutor.
+ * True si la consulta ya empezó en la zona del club.
  */
-export function isSessionStarted(session, now = new Date()) {
+export function isSessionStarted(session, now = new Date(), tz = DEFAULT_CLUB_TIMEZONE) {
     const ymd = sessionCalendarYmd(session?.fecha);
     if (!ymd) return false;
-    const today = todayYmdClub(now);
+    const today = todayYmdClub(now, tz);
     if (ymd < today) return true;
     if (ymd > today) return false;
-    return hhMmToMinutes(session?.horaInicio || '00:00') <= hhMmToMinutes(nowHhMmClub(now));
+    return hhMmToMinutes(session?.horaInicio || '00:00') <= hhMmToMinutes(nowHhMmClub(now, tz));
 }
 
 /** Completada, cancelada o con horario ya terminado → no mutar. */
-export function isSessionReadOnly(session, now = new Date()) {
+export function isSessionReadOnly(session, now = new Date(), tz = DEFAULT_CLUB_TIMEZONE) {
     if (!session) return true;
     if (session.estado === 'completada' || session.estado === 'cancelada') return true;
-    return isSessionPast(session, now);
+    return isSessionPast(session, now, tz);
 }

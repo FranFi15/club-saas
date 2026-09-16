@@ -1,6 +1,11 @@
 import { createAppNotification } from './appNotification.service.js';
 import { getOrCreateClubSettings } from './familyDiscount.service.js';
 import { atletaCuotasEnApp } from '../utils/ageHelper.js';
+import {
+    DEFAULT_CLUB_TIMEZONE,
+    todayYmdClub,
+    zonedWallTimeToDate,
+} from '../utils/timeHelper.js';
 
 const DEFAULT_DAYS_BEFORE = 3;
 
@@ -17,18 +22,13 @@ export async function getCuotaReminderDaysBefore(models) {
     return clampReminderDaysBefore(doc.cuotaReminderDaysBefore ?? DEFAULT_DAYS_BEFORE);
 }
 
-function startOfLocalDay(d = new Date()) {
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-function endOfLocalDay(d = new Date()) {
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
-}
-
-function addDays(d, days) {
-    const out = new Date(d);
-    out.setDate(out.getDate() + days);
-    return out;
+function addDaysYmd(ymd, days) {
+    const [y, m, d] = ymd.split('-').map(Number);
+    const utc = new Date(Date.UTC(y, m - 1, d + days));
+    const yy = utc.getUTCFullYear();
+    const mm = String(utc.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(utc.getUTCDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
 }
 
 function formatMoney(n) {
@@ -43,16 +43,11 @@ function resolveDestinatario(atleta) {
     return atleta._id;
 }
 
-/** Nombre del concepto: plan de entrenamiento o cuota social del club. */
 function conceptoCuota(cuota) {
     if (cuota.tipo === 'social') return cuota.cuotaSocial?.nombre || 'cuota social';
     return cuota.plan?.nombre || 'plan';
 }
 
-/**
- * "…de Juan Pérez" cuando avisamos al tutor; vacío cuando el titular de la cuota
- * es quien recibe la notificación.
- */
 function sufijoTitular(cuota, destinatario) {
     const titular = cuota.atleta;
     if (!titular) return '';
@@ -69,23 +64,22 @@ async function alreadyNotified(Notification, { tipo, referencia }) {
 /**
  * Envía recordatorios in-app + push.
  * @param {object} [options]
- * @param {boolean} [options.force] reenviar aunque ya se notificó
- * @param {boolean} [options.onlyVencidas] solo cuotas vencidas (avisar morosos)
- * @param {number} [options.mes]
- * @param {number} [options.anio]
- * @param {string} [options.atletaId]
+ * @param {string} [options.timezone]
  */
 export async function sendCuotaReminders(models, options = {}) {
     const { Payment, Notification } = models;
     const force = Boolean(options.force);
     const onlyVencidas = Boolean(options.onlyVencidas);
+    const timezone = options.timezone || DEFAULT_CLUB_TIMEZONE;
     const daysBefore =
         options.daysBefore != null
             ? clampReminderDaysBefore(options.daysBefore)
             : await getCuotaReminderDaysBefore(models);
 
-    const hoyInicio = startOfLocalDay();
-    const ventanaFin = endOfLocalDay(addDays(hoyInicio, daysBefore));
+    const todayYmd = todayYmdClub(new Date(), timezone);
+    const ventanaYmd = addDaysYmd(todayYmd, daysBefore);
+    const hoyInicio = zonedWallTimeToDate(todayYmd, '00:00', timezone);
+    const ventanaFin = zonedWallTimeToDate(ventanaYmd, '23:59', timezone);
 
     const periodFilter = {};
     const mes = options.mes != null ? Number(options.mes) : null;

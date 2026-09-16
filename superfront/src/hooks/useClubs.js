@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../utils/api.js';
 import { toast } from 'sonner';
+import { DEFAULT_CLUB_TIMEZONE } from '../constants/timezones.js';
 
 export const useClubs = () => {
     const [clubs, setClubs] = useState([]);
@@ -10,6 +11,7 @@ export const useClubs = () => {
         urlIdentifier: '',
         logoUrl: '',
         primaryColor: '#150224',
+        timezone: DEFAULT_CLUB_TIMEZONE,
         adminNombre: '',
         adminApellido: '',
         adminEmail: '',
@@ -48,7 +50,7 @@ export const useClubs = () => {
             }
             setFormData(initialFormState);
             setEditingId(null);
-            fetchClubs(); 
+            fetchClubs();
         } catch (error) {
             const message = error.response?.data?.message;
             toast.error(
@@ -68,6 +70,7 @@ export const useClubs = () => {
             urlIdentifier: club.urlIdentifier,
             logoUrl: club.logoUrl || '',
             primaryColor: club.primaryColor || '#150224',
+            timezone: club.timezone || DEFAULT_CLUB_TIMEZONE,
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -93,7 +96,7 @@ export const useClubs = () => {
         try {
             await api.patch(`/clubs/${id}`, { estadoSuscripcion: newStatus });
             toast.success('Estado actualizado correctamente');
-            fetchClubs(); 
+            fetchClubs();
         } catch (error) {
             toast.error('Error al actualizar el estado del club');
         }
@@ -108,6 +111,6 @@ export const useClubs = () => {
         handleEditClick,
         handleCancelEdit,
         handleDelete,
-        handleStatusChange
+        handleStatusChange,
     };
 };

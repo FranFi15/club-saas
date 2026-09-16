@@ -2,7 +2,10 @@ import asyncHandler from 'express-async-handler';
 import { calcEdad, puedePagarComoAtleta, atletaCuotasEnApp } from '../utils/ageHelper.js';
 import { atletasDeTutoresFilter, hijosDelTutorFilter } from '../utils/userQuery.js';
 import { syncFamilyDiscountForAthlete } from '../services/familyDiscount.service.js';
-import { countDocsPendientesAtleta, tutorAthleteHasAlerts } from '../services/badgeCounts.service.js';
+import {
+    countDocsPendientesByAthleteIds,
+    tutorAthletesAlertFlags,
+} from '../services/badgeCounts.service.js';
 import { isAssignableUserRole, canAssignUserRole, CLIENT_USER_ROLES } from '../constants/userRoles.js';
 import { ensureCurrentMonthSocialFeeForUser, resolveUserSocialFeeAssignment } from '../services/generateSocialFees.service.js';
 import { syncAthleteCountToSuper } from '../services/athleteQuota.service.js';
@@ -196,7 +199,7 @@ const registerUser = asyncHandler(async (req, res) => {
         // Alta a mitad de mes: no esperar al cron del día 1 para la cuota social.
         if (CLIENT_USER_ROLES.includes(user.rol) && !user.esPrueba) {
             try {
-                await ensureCurrentMonthSocialFeeForUser(req.models, user);
+                await ensureCurrentMonthSocialFeeForUser(req.models, user, req.clubTimezone);
             } catch (e) {
                 console.log('Cuota social al crear usuario:', e.message);
             }
@@ -437,7 +440,7 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
 
     if (CLIENT_USER_ROLES.includes(updatedUser.rol)) {
         try {
-            await ensureCurrentMonthSocialFeeForUser(req.models, updatedUser);
+            await ensureCurrentMonthSocialFeeForUser(req.models, updatedUser, req.clubTimezone);
         } catch (e) {
             console.log('Cuota social al actualizar usuario:', e.message);
         }
@@ -731,17 +734,21 @@ const getMisHijos = asyncHandler(async (req, res) => {
         .collation(userNameCollation)
         .sort(userNameMongoSort);
 
-    const tutor = await User.findById(req.user._id);
+    const tutor = await User.findById(req.user._id)
+        .select('rol lastSeenNewsAt lastSeenResourcesAt')
+        .lean();
 
-    const enriched = await Promise.all(
-        hijos.map(async (h) => ({
-            ...h.toObject(),
-            edad: calcEdad(h.fechaNacimiento),
-            cuotasEnApp: atletaCuotasEnApp(h),
-            puedePagarEnApp: puedePagarComoAtleta(h.fechaNacimiento),
-            tieneAlertas: tutor ? await tutorAthleteHasAlerts(tutor, h._id, req.models) : false,
-        })),
-    );
+    const alertFlags = tutor
+        ? await tutorAthletesAlertFlags(tutor, hijos, req.models)
+        : new Map();
+
+    const enriched = hijos.map((h) => ({
+        ...h.toObject(),
+        edad: calcEdad(h.fechaNacimiento),
+        cuotasEnApp: atletaCuotasEnApp(h),
+        puedePagarEnApp: puedePagarComoAtleta(h.fechaNacimiento),
+        tieneAlertas: alertFlags.get(String(h._id)) === true,
+    }));
 
     res.json(enriched);
 });
@@ -803,26 +810,37 @@ const getTutorDashboard = asyncHandler(async (req, res) => {
         .sort(userNameMongoSort)
         .lean();
 
-    const items = await Promise.all(
-        hijos.map(async (h) => {
-            const docsPendientes = await countDocsPendientesAtleta(h._id, req.models);
-            const payments = await Payment.find({ atleta: h._id }).select('estado montoFinal').lean();
-            const pendientes = payments.filter((p) => ['pendiente', 'vencido'].includes(p.estado));
-            const deuda = pendientes.reduce((sum, p) => sum + (p.montoFinal || 0), 0);
+    const hijoIds = hijos.map((h) => h._id);
+    const [docsBy, allPayments] = await Promise.all([
+        countDocsPendientesByAthleteIds(hijoIds, req.models),
+        hijoIds.length
+            ? Payment.find({ atleta: { $in: hijoIds } }).select('atleta estado montoFinal').lean()
+            : Promise.resolve([]),
+    ]);
 
-            return {
-                _id: h._id,
-                nombre: h.nombre,
-                apellido: h.apellido,
-                fotoPerfil: h.fotoPerfil || '',
-                edad: calcEdad(h.fechaNacimiento),
-                docsPendientes,
-                cuotasPendientes: pendientes.length,
-                cuotasVencidas: pendientes.filter((p) => p.estado === 'vencido').length,
-                deuda,
-            };
-        }),
-    );
+    const paymentsByAthlete = new Map();
+    for (const p of allPayments) {
+        const aid = String(p.atleta);
+        if (!paymentsByAthlete.has(aid)) paymentsByAthlete.set(aid, []);
+        paymentsByAthlete.get(aid).push(p);
+    }
+
+    const items = hijos.map((h) => {
+        const payments = paymentsByAthlete.get(String(h._id)) || [];
+        const pendientes = payments.filter((p) => ['pendiente', 'vencido'].includes(p.estado));
+        const deuda = pendientes.reduce((sum, p) => sum + (p.montoFinal || 0), 0);
+        return {
+            _id: h._id,
+            nombre: h.nombre,
+            apellido: h.apellido,
+            fotoPerfil: h.fotoPerfil || '',
+            edad: calcEdad(h.fechaNacimiento),
+            docsPendientes: docsBy.get(String(h._id)) || 0,
+            cuotasPendientes: pendientes.length,
+            cuotasVencidas: pendientes.filter((p) => p.estado === 'vencido').length,
+            deuda,
+        };
+    });
 
     res.json(items);
 });

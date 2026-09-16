@@ -3,6 +3,11 @@
  * Cada persona tiene a lo sumo un tipo (User.cuotaSocialAsignada).
  */
 import { feeAutoRoles, SOCIAL_FEE_DEFAULT_ROLES, SOCIAL_FEE_ELIGIBLE_ROLES } from '../models/socialFee.model.js';
+import {
+    calendarMonthYearInTz,
+    DEFAULT_CLUB_TIMEZONE,
+    zonedWallTimeToDate,
+} from '../utils/timeHelper.js';
 
 export function sanitizeSocialFeeRoles(roles, { allowEmpty = false } = {}) {
     if (!Array.isArray(roles)) {
@@ -134,13 +139,11 @@ export async function applyRoleAutoAssignment(models, feeDoc) {
 }
 
 /** Retarget open (pendiente/vencido) social payment for current month to a fee. */
-export async function retargetOpenSocialPayment(models, userId, fee) {
+export async function retargetOpenSocialPayment(models, userId, fee, timezone = DEFAULT_CLUB_TIMEZONE) {
     const { Payment } = models;
     if (!userId || !fee?._id) return null;
 
-    const now = new Date();
-    const mes = now.getMonth() + 1;
-    const anio = now.getFullYear();
+    const { mes, anio } = calendarMonthYearInTz(new Date(), timezone);
     const payment = await Payment.findOne({
         atleta: userId,
         tipo: 'social',
@@ -156,7 +159,8 @@ export async function retargetOpenSocialPayment(models, userId, fee) {
     payment.montoOriginal = monto;
     payment.descuentoAplicado = 0;
     payment.montoFinal = monto;
-    payment.fechaVencimiento = new Date(anio, mes - 1, diaVenc, 23, 59, 59);
+    const ymd = `${anio}-${String(mes).padStart(2, '0')}-${String(diaVenc).padStart(2, '0')}`;
+    payment.fechaVencimiento = zonedWallTimeToDate(ymd, '23:59', timezone);
     await payment.save();
     return payment;
 }
@@ -211,7 +215,13 @@ export async function assignSocialFeeToUsers(models, feeId, userIds) {
  * Crea la cuota social de un período para un usuario si aún no existe.
  * @returns {{ created: boolean, omitted: boolean, reason?: string, updated?: boolean }}
  */
-export async function ensureSocialFeeForUser(models, user, mes, anio) {
+export async function ensureSocialFeeForUser(
+    models,
+    user,
+    mes,
+    anio,
+    timezone = DEFAULT_CLUB_TIMEZONE,
+) {
     const { Payment, User, SocialFee } = models;
     if (!user) return { created: false, omitted: true, reason: 'sin_usuario' };
 
@@ -248,7 +258,7 @@ export async function ensureSocialFeeForUser(models, user, mes, anio) {
             const sameFee = String(existente.cuotaSocial) === String(cuotaSocial._id);
             const sameMonto = Number(existente.montoFinal) === Number(cuotaSocial.monto);
             if (!sameFee || !sameMonto) {
-                await retargetOpenSocialPayment(models, usuarioId, cuotaSocial);
+                await retargetOpenSocialPayment(models, usuarioId, cuotaSocial, timezone);
                 return { created: false, omitted: false, updated: true, reason: 'retarget' };
             }
         }
@@ -257,6 +267,7 @@ export async function ensureSocialFeeForUser(models, user, mes, anio) {
 
     const monto = Number(cuotaSocial.monto) || 0;
     const diaVenc = cuotaSocial.diaVencimiento || 10;
+    const ymd = `${anio}-${String(mes).padStart(2, '0')}-${String(diaVenc).padStart(2, '0')}`;
 
     await Payment.create({
         atleta: usuarioId,
@@ -267,20 +278,29 @@ export async function ensureSocialFeeForUser(models, user, mes, anio) {
         montoOriginal: monto,
         descuentoAplicado: 0,
         montoFinal: monto,
-        fechaVencimiento: new Date(anio, mes - 1, diaVenc, 23, 59, 59),
+        fechaVencimiento: zonedWallTimeToDate(ymd, '23:59', timezone),
         estado: 'pendiente',
     });
 
     return { created: true, omitted: false };
 }
 
-/** Cuota social del mes calendario actual (zona del servidor). */
-export async function ensureCurrentMonthSocialFeeForUser(models, user) {
-    const now = new Date();
-    return ensureSocialFeeForUser(models, user, now.getMonth() + 1, now.getFullYear());
+/** Cuota social del mes calendario actual (zona del club). */
+export async function ensureCurrentMonthSocialFeeForUser(
+    models,
+    user,
+    timezone = DEFAULT_CLUB_TIMEZONE,
+) {
+    const { mes, anio } = calendarMonthYearInTz(new Date(), timezone);
+    return ensureSocialFeeForUser(models, user, mes, anio, timezone);
 }
 
-export async function generateSocialFeesForTenant(models, mes, anio) {
+export async function generateSocialFeesForTenant(
+    models,
+    mes,
+    anio,
+    timezone = DEFAULT_CLUB_TIMEZONE,
+) {
     const { User } = models;
     await ensureSocialFeesMigrated(models);
 
@@ -310,7 +330,7 @@ export async function generateSocialFeesForTenant(models, mes, anio) {
     let cuotasActualizadas = 0;
 
     for (const cliente of clientes) {
-        const result = await ensureSocialFeeForUser(models, cliente, mes, anio);
+        const result = await ensureSocialFeeForUser(models, cliente, mes, anio, timezone);
         if (result.created) cuotasCreadas++;
         else if (result.updated) cuotasActualizadas++;
         else cuotasOmitidas++;

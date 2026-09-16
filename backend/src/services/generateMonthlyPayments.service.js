@@ -7,6 +7,11 @@ import {
     findTrainingPaymentInDiscipline,
     reconcileDisciplineBillingFlags,
 } from './disciplineBilling.service.js';
+import {
+    calendarMonthYearInTz,
+    DEFAULT_CLUB_TIMEZONE,
+    zonedWallTimeToDate,
+} from '../utils/timeHelper.js';
 
 function paymentAmountsFromEnrollment(inscripcion) {
     const plan = typeof inscripcion.plan === 'object' && inscripcion.plan
@@ -44,7 +49,7 @@ function disciplinaIdFromEnrollment(inscripcion) {
  * Crea la cuota de un período para una inscripción si aún no existe.
  * @returns {{ created: boolean, omitted: boolean, reason?: string }}
  */
-export async function ensurePaymentForEnrollment(models, enrollment, mes, anio) {
+export async function ensurePaymentForEnrollment(models, enrollment, mes, anio, timezone = DEFAULT_CLUB_TIMEZONE) {
     const { Payment, Enrollment } = models;
     if (!enrollment) return { created: false, omitted: true, reason: 'sin_inscripcion' };
 
@@ -105,7 +110,8 @@ export async function ensurePaymentForEnrollment(models, enrollment, mes, anio) 
         if (reciboExistente) return { created: false, omitted: true, reason: 'ya_existe' };
     }
 
-    const fechaVencimiento = new Date(anio, mes - 1, amounts.diaVenc, 23, 59, 59);
+    const ymd = `${anio}-${String(mes).padStart(2, '0')}-${String(amounts.diaVenc).padStart(2, '0')}`;
+    const fechaVencimiento = zonedWallTimeToDate(ymd, '23:59', timezone);
 
     await Payment.create({
         atleta: atletaId,
@@ -125,13 +131,22 @@ export async function ensurePaymentForEnrollment(models, enrollment, mes, anio) 
     return { created: true, omitted: false };
 }
 
-/** Cuota del mes calendario actual (zona del servidor). */
-export async function ensureCurrentMonthPaymentForEnrollment(models, enrollment) {
-    const now = new Date();
-    return ensurePaymentForEnrollment(models, enrollment, now.getMonth() + 1, now.getFullYear());
+/** Cuota del mes calendario actual (zona del club). */
+export async function ensureCurrentMonthPaymentForEnrollment(
+    models,
+    enrollment,
+    timezone = DEFAULT_CLUB_TIMEZONE,
+) {
+    const { mes, anio } = calendarMonthYearInTz(new Date(), timezone);
+    return ensurePaymentForEnrollment(models, enrollment, mes, anio, timezone);
 }
 
-export async function generateMonthlyPaymentsForTenant(models, mes, anio) {
+export async function generateMonthlyPaymentsForTenant(
+    models,
+    mes,
+    anio,
+    timezone = DEFAULT_CLUB_TIMEZONE,
+) {
     const { Enrollment } = models;
 
     await reconcileDisciplineBillingFlags(models);
@@ -156,7 +171,7 @@ export async function generateMonthlyPaymentsForTenant(models, mes, anio) {
     let cuotasOmitidas = 0;
 
     for (const inscripcion of inscripcionesActivas) {
-        const result = await ensurePaymentForEnrollment(models, inscripcion, mes, anio);
+        const result = await ensurePaymentForEnrollment(models, inscripcion, mes, anio, timezone);
         if (result.created) cuotasCreadas++;
         else cuotasOmitidas++;
     }
