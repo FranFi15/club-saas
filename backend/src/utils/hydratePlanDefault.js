@@ -14,8 +14,8 @@ export async function hydratePlanDefault(models, docs) {
         if (!doc) continue;
         const raw = doc.planDefault;
         if (!raw) continue;
-        // Ya viene populado con nombre
-        if (typeof raw === 'object' && raw.nombre != null) continue;
+        // Ya viene populado con nombre usable
+        if (typeof raw === 'object' && raw.nombre) continue;
         const id = String(raw._id || raw);
         if (id && id !== 'null' && id !== 'undefined') needIds.push(id);
     }
@@ -31,7 +31,7 @@ export async function hydratePlanDefault(models, docs) {
         if (!doc) continue;
         const raw = doc.planDefault;
         if (!raw) continue;
-        if (typeof raw === 'object' && raw.nombre != null) continue;
+        if (typeof raw === 'object' && raw.nombre) continue;
         const id = String(raw._id || raw);
         const plan = byId.get(id);
         doc.planDefault = plan
@@ -48,4 +48,49 @@ export async function toPlainWithPlan(models, doc) {
     const plain = typeof doc.toObject === 'function' ? doc.toObject() : { ...doc };
     await hydratePlanDefault(models, plain);
     return plain;
+}
+
+/**
+ * Para categorías: si no tienen plan propio, mostrar el de la disciplina
+ * (misma regla que la facturación al inscribir).
+ */
+export async function hydrateCategoryPlans(models, categories, disciplineIdHint = null) {
+    if (!categories) return categories;
+    const list = Array.isArray(categories) ? categories : [categories];
+    await hydratePlanDefault(models, list);
+
+    const { Discipline } = models;
+    if (!Discipline) return categories;
+
+    const needDiscIds = new Set();
+    for (const cat of list) {
+        if (!cat || cat.planDefault?.nombre) continue;
+        const did = String(cat.disciplina?._id || cat.disciplina || disciplineIdHint || '');
+        if (did && did !== 'null' && did !== 'undefined') needDiscIds.add(did);
+    }
+
+    if (!needDiscIds.size) return categories;
+
+    const discs = await Discipline.find({ _id: { $in: [...needDiscIds] } })
+        .select('planDefault')
+        .lean();
+    await hydratePlanDefault(models, discs);
+    const planByDisc = new Map(
+        discs.map((d) => [String(d._id), d.planDefault?.nombre ? d.planDefault : null]),
+    );
+
+    for (const cat of list) {
+        if (!cat || cat.planDefault?.nombre) continue;
+        const did = String(cat.disciplina?._id || cat.disciplina || disciplineIdHint || '');
+        const inherited = planByDisc.get(did);
+        if (inherited) {
+            cat.planDefault = {
+                _id: inherited._id,
+                nombre: inherited.nombre,
+                monto: inherited.monto,
+            };
+        }
+    }
+
+    return categories;
 }

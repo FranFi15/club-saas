@@ -12,14 +12,21 @@ import {
     syncCategoryGroupChatSafe,
     deactivateCategoryGroupChat,
 } from '../services/categoryGroupChat.service.js';
-import { hydratePlanDefault, toPlainWithPlan } from '../utils/hydratePlanDefault.js';
+import { toPlainWithPlan, hydrateCategoryPlans } from '../utils/hydratePlanDefault.js';
 
 // @desc    Crear nueva categoría dentro de una disciplina
 // @route   POST /api/categories
 const createCategory = asyncHandler(async (req, res) => {
     const { nombre, disciplina, profesores, descripcion, edadMinima, edadMaxima, planDefault, sexo } = req.body;
     
-    const { Category } = req.models;
+    const { Category, Discipline } = req.models;
+
+    // Si no eligieron plan en la categoría, heredar el de la disciplina (facturación ya hace fallback).
+    let resolvedPlan = planDefault || null;
+    if (!resolvedPlan && disciplina) {
+        const disc = await Discipline.findById(disciplina).select('planDefault').lean();
+        resolvedPlan = disc?.planDefault || null;
+    }
 
     const category = await Category.create({
         nombre,
@@ -29,10 +36,12 @@ const createCategory = asyncHandler(async (req, res) => {
         edadMinima,
         edadMaxima,
         sexo: sexo === 'M' || sexo === 'F' ? sexo : 'ambos',
-        planDefault: planDefault || undefined
+        planDefault: resolvedPlan || undefined,
     });
 
-    res.status(201).json(await toPlainWithPlan(req.models, category));
+    const plain = await toPlainWithPlan(req.models, category);
+    await hydrateCategoryPlans(req.models, plain, disciplina);
+    res.status(201).json(plain);
 });
 
 // @desc    Obtener categorías por disciplina
@@ -49,7 +58,7 @@ const getCategoriesByDiscipline = asyncHandler(async (req, res) => {
         .sort({ nombre: 1 })
         .lean();
 
-    await hydratePlanDefault(req.models, categories);
+    await hydrateCategoryPlans(req.models, categories, req.params.disciplineId);
     res.json(sortByField(categories));
 });
 
@@ -68,7 +77,7 @@ const getAllCategories = asyncHandler(async (req, res) => {
         .sort({ nombre: 1 })
         .lean();
 
-    await hydratePlanDefault(req.models, categories);
+    await hydrateCategoryPlans(req.models, categories);
     res.json(sortByField(categories));
 });
 
@@ -76,10 +85,49 @@ const getAllCategories = asyncHandler(async (req, res) => {
 // @route   PUT /api/categories/:id
 const updateCategory = asyncHandler(async (req, res) => {
     const { Category } = req.models;
-    const category = await Category.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
-    if (!category) { res.status(404); throw new Error('Categoría no encontrada'); }
+    const category = await Category.findById(req.params.id);
+    if (!category) {
+        res.status(404);
+        throw new Error('Categoría no encontrada');
+    }
+
+    const {
+        nombre,
+        descripcion,
+        profesores,
+        preparadoresFisicos,
+        nutricionistas,
+        psicologos,
+        edadMinima,
+        edadMaxima,
+        sexo,
+        planDefault,
+        chatAtletaProfesionalEnabled,
+        chatGrupalCategoriaEnabled,
+    } = req.body;
+
+    if (nombre !== undefined) category.nombre = nombre;
+    if (descripcion !== undefined) category.descripcion = descripcion;
+    if (profesores !== undefined) category.profesores = profesores;
+    if (preparadoresFisicos !== undefined) category.preparadoresFisicos = preparadoresFisicos;
+    if (nutricionistas !== undefined) category.nutricionistas = nutricionistas;
+    if (psicologos !== undefined) category.psicologos = psicologos;
+    if (edadMinima !== undefined) category.edadMinima = edadMinima;
+    if (edadMaxima !== undefined) category.edadMaxima = edadMaxima;
+    if (sexo === 'M' || sexo === 'F' || sexo === 'ambos') category.sexo = sexo;
+    if (planDefault !== undefined) category.planDefault = planDefault || null;
+    if (chatAtletaProfesionalEnabled !== undefined) {
+        category.chatAtletaProfesionalEnabled = !!chatAtletaProfesionalEnabled;
+    }
+    if (chatGrupalCategoriaEnabled !== undefined) {
+        category.chatGrupalCategoriaEnabled = !!chatGrupalCategoriaEnabled;
+    }
+
+    await category.save();
     await syncCategoryGroupChatSafe(req.models, category._id);
-    res.json(await toPlainWithPlan(req.models, category));
+    const plain = await toPlainWithPlan(req.models, category);
+    await hydrateCategoryPlans(req.models, plain, category.disciplina);
+    res.json(plain);
 });
 
 // @desc    Eliminar categoría (EFECTO DOMINÓ: Da de baja a los alumnos inscriptos)
