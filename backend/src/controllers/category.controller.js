@@ -12,6 +12,7 @@ import {
     syncCategoryGroupChatSafe,
     deactivateCategoryGroupChat,
 } from '../services/categoryGroupChat.service.js';
+import { hydratePlanDefault, toPlainWithPlan } from '../utils/hydratePlanDefault.js';
 
 // @desc    Crear nueva categoría dentro de una disciplina
 // @route   POST /api/categories
@@ -31,7 +32,7 @@ const createCategory = asyncHandler(async (req, res) => {
         planDefault: planDefault || undefined
     });
 
-    res.status(201).json(category);
+    res.status(201).json(await toPlainWithPlan(req.models, category));
 });
 
 // @desc    Obtener categorías por disciplina
@@ -47,7 +48,8 @@ const getCategoriesByDiscipline = asyncHandler(async (req, res) => {
         .populate('planDefault', 'nombre monto')
         .sort({ nombre: 1 })
         .lean();
-    
+
+    await hydratePlanDefault(req.models, categories);
     res.json(sortByField(categories));
 });
 
@@ -65,7 +67,8 @@ const getAllCategories = asyncHandler(async (req, res) => {
         .populate('planDefault', 'nombre monto')
         .sort({ nombre: 1 })
         .lean();
-    
+
+    await hydratePlanDefault(req.models, categories);
     res.json(sortByField(categories));
 });
 
@@ -75,9 +78,8 @@ const updateCategory = asyncHandler(async (req, res) => {
     const { Category } = req.models;
     const category = await Category.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
     if (!category) { res.status(404); throw new Error('Categoría no encontrada'); }
-    await category.populate('planDefault', 'nombre monto');
     await syncCategoryGroupChatSafe(req.models, category._id);
-    res.json(category);
+    res.json(await toPlainWithPlan(req.models, category));
 });
 
 // @desc    Eliminar categoría (EFECTO DOMINÓ: Da de baja a los alumnos inscriptos)

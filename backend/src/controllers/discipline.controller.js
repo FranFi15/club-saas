@@ -1,5 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import { sortByField } from '../utils/listSort.js';
+import { hydratePlanDefault, toPlainWithPlan } from '../utils/hydratePlanDefault.js';
 
 // @desc    Crear nueva disciplina
 // @route   POST /api/disciplines
@@ -22,7 +23,7 @@ const createDiscipline = asyncHandler(async (req, res) => {
         planDefault: planDefault || undefined
     });
 
-    res.status(201).json(discipline);
+    res.status(201).json(await toPlainWithPlan(req.models, discipline));
 });
 
 // @desc    Obtener todas las disciplinas
@@ -35,6 +36,7 @@ const getDisciplines = asyncHandler(async (req, res) => {
         .populate('planDefault', 'nombre monto')
         .sort({ nombre: 1 })
         .lean();
+    await hydratePlanDefault(req.models, disciplines);
     res.json(sortByField(disciplines));
 });
 
@@ -57,8 +59,7 @@ const updateDiscipline = asyncHandler(async (req, res) => {
     if (planDefault !== undefined) discipline.planDefault = planDefault || null;
 
     const updatedDiscipline = await discipline.save();
-    await updatedDiscipline.populate('planDefault', 'nombre monto');
-    res.json(updatedDiscipline);
+    res.json(await toPlainWithPlan(req.models, updatedDiscipline));
 });
 
 // @desc    Eliminar disciplina (EFECTO DOMINÓ: Borra categorías y da de baja alumnos)
