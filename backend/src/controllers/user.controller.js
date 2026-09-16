@@ -185,7 +185,7 @@ const registerUser = asyncHandler(async (req, res) => {
             message: 'Usuario creado exitosamente.'
         });
 
-        if (user.rol === 'atleta') {
+        if (user.rol === 'atleta' || user.rol === 'socio') {
             await syncAthleteCountToSuper(req.models, req.clubIdentifier);
         }
 
@@ -443,7 +443,12 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
         }
     }
 
-    if (rolAnterior === 'atleta' || updatedUser.rol === 'atleta') {
+    if (
+        rolAnterior === 'atleta' ||
+        rolAnterior === 'socio' ||
+        updatedUser.rol === 'atleta' ||
+        updatedUser.rol === 'socio'
+    ) {
         await syncAthleteCountToSuper(req.models, req.clubIdentifier);
     }
 

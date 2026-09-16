@@ -20,7 +20,7 @@ const ClubSchema = new mongoose.Schema({
     primaryColor: { type: String, default: '#150224' },
     // El string de conexión único para la BD de este club en particular
     connectionStringDB: { type: String, required: true, unique: true },
-    userCount: { type: Number, required: true, default: 0 }, // Atletas (rol atleta) — base para facturación
+    userCount: { type: Number, required: true, default: 0 }, // Atletas + socios — base para facturación
     /** ID de usuario/vendedor Mercado Pago (OAuth) para rutear webhooks multi-tenant. */
     mercadopagoUserId: { type: String, default: '', trim: true },
 }, { timestamps: true });

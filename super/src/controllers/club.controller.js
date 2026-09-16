@@ -180,7 +180,7 @@ const getClubDbInfo = asyncHandler(async (req, res) => {
     });
 });
 
-/** Sincroniza userCount desde el backend del tenant (conteo real de atletas). */
+/** Sincroniza userCount desde el backend del tenant (conteo real de atletas + socios). */
 const syncAthleteCount = asyncHandler(async (req, res) => {
     const internalKey = req.headers['x-internal-api-key'];
     if (internalKey !== process.env.INTERNAL_ADMIN_API_KEY) {
@@ -197,7 +197,7 @@ const syncAthleteCount = asyncHandler(async (req, res) => {
     const count = Number(req.body?.count);
     if (!Number.isFinite(count) || count < 0) {
         res.status(400);
-        throw new Error('Indicá un conteo de atletas válido.');
+        throw new Error('Indicá un conteo de atletas/socios válido.');
     }
 
     club.userCount = Math.floor(count);

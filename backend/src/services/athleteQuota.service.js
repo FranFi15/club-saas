@@ -1,8 +1,11 @@
 import axios from 'axios';
 
+/** Roles que cuentan para el cupo / facturación del club en Super Admin. */
+export const BILLABLE_MEMBER_ROLES = ['atleta', 'socio'];
+
 export async function countClubAthletes(models) {
     const { User } = models;
-    return User.countDocuments({ rol: 'atleta' });
+    return User.countDocuments({ rol: { $in: BILLABLE_MEMBER_ROLES } });
 }
 
 async function superInternalRequest(clubIdentifier, method, pathSuffix = '', body) {
@@ -23,7 +26,7 @@ async function superInternalRequest(clubIdentifier, method, pathSuffix = '', bod
     return data;
 }
 
-/** Sincroniza userCount en super con atletas reales del tenant (facturación por cantidad). */
+/** Sincroniza userCount en super con atletas + socios reales del tenant. */
 export async function syncAthleteCountToSuper(models, clubIdentifier) {
     if (!clubIdentifier) return;
     try {

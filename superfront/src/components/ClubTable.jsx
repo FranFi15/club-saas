@@ -22,7 +22,7 @@ export default function ClubTable({ clubs, handleStatusChange, handleEditClick, 
             <th className="p-4">Nombre</th>
             <th className="p-4">Identifier</th>
             <th className="p-4 text-center">Estado</th>
-            <th className="p-4 text-center">Atletas</th>
+            <th className="p-4 text-center">Atletas / socios</th>
             <th className="p-4 text-center">Acciones</th>
           </tr>
         </thead>
