@@ -407,7 +407,7 @@ export default function RequestDocComposer({
           placeholderTextColor={theme.textMuted}
         />
 
-        <Text style={[styles.label, { color: theme.textMuted }]}>Detalle (opcional)</Text>
+        <Text style={[styles.label, { color: theme.textMuted }]}>Detalle</Text>
         <TextInput
           style={[inputStyle, styles.textArea]}
           multiline
@@ -419,7 +419,7 @@ export default function RequestDocComposer({
           placeholderTextColor={theme.textMuted}
         />
 
-        <Text style={[styles.label, { color: theme.textMuted }]}>Archivo de referencia (opcional)</Text>
+        <Text style={[styles.label, { color: theme.textMuted }]}>Archivo de referencia</Text>
         <Text style={[styles.hint, { color: theme.textMuted }]}>
           Plantilla, formulario o ejemplo que el atleta puede descargar antes de enviar su documentación.
         </Text>
@@ -457,7 +457,7 @@ export default function RequestDocComposer({
           </View>
         )}
 
-        <Text style={[styles.label, { color: theme.textMuted }]}>Vencimiento (opcional)</Text>
+        <Text style={[styles.label, { color: theme.textMuted }]}>Vencimiento</Text>
         <CalendarDateField
           theme={theme}
           colorMarca={colorMarca}

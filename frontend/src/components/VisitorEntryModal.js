@@ -152,7 +152,7 @@ export default function VisitorEntryModal({
               editable={!saving}
             />
 
-            <Text style={[styles.label, { color: theme.textMuted }]}>Motivo / nota (opcional)</Text>
+            <Text style={[styles.label, { color: theme.textMuted }]}>Motivo / nota</Text>
             <TextInput
               style={[
                 styles.input,

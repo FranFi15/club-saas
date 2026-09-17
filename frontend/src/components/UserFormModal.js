@@ -378,7 +378,7 @@ export default function UserFormModal({
                 value={formData.apellido} onChangeText={(v) => handleChange('apellido', v)} placeholder="Pérez" placeholderTextColor={theme.textMuted} />
               
               <Text style={[styles.label, { color: theme.textMuted }]}>
-                {hasAtleta ? 'Email (opcional)' : 'Email *'}
+                {hasAtleta ? 'Email' : 'Email *'}
               </Text>
               <TextInput style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
                 value={formData.email} onChangeText={(v) => handleChange('email', v.toLowerCase())} placeholder={hasAtleta ? 'Vacío = entra con nombre.apellido' : 'juan@correo.com'} keyboardType="email-address" autoCapitalize="none" placeholderTextColor={theme.textMuted} />

@@ -239,11 +239,11 @@ export default function FamilySignup() {
                 />
               </label>
               <label className="fs-field">
-                <span>Teléfono (opcional)</span>
+                <span>Teléfono</span>
                 <input value={tutor.telefono} onChange={(e) => updateTutor('telefono', e.target.value)} />
               </label>
               <label className="fs-field">
-                <span>DNI (opcional)</span>
+                <span>DNI</span>
                 <input value={tutor.dni} onChange={(e) => updateTutor('dni', e.target.value)} />
               </label>
             </div>
@@ -283,7 +283,7 @@ export default function FamilySignup() {
                 />
               </label>
               <label className="fs-field">
-                <span>Email (opcional)</span>
+                <span>Email</span>
                 <input
                   type="email"
                   value={atletas[index]?.email || ''}
@@ -327,7 +327,7 @@ export default function FamilySignup() {
                 </select>
               </label>
               <label className="fs-field">
-                <span>DNI (opcional)</span>
+                <span>DNI</span>
                 <input
                   value={atletas[index]?.dni || ''}
                   onChange={(e) => updateAthlete(index, 'dni', e.target.value)}

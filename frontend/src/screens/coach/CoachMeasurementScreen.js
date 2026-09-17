@@ -678,7 +678,7 @@ export default function CoachMeasurementScreen({ navigation, route }) {
                 multiline
                 value={notas}
                 onChangeText={setNotas}
-                placeholder="Opcional — contexto de la medición"
+                placeholder="Contexto de la medición"
                 placeholderTextColor={theme.textMuted}
               />
 

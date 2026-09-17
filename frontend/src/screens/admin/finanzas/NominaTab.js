@@ -606,7 +606,7 @@ export default function NominaTab({
                 })}
               </View>
 
-              <Text style={[s.label, { color: theme.textMuted }]}>Comprobante (opcional)</Text>
+              <Text style={[s.label, { color: theme.textMuted }]}>Comprobante</Text>
               <TouchableOpacity
                 onPress={uploadProof}
                 disabled={uploading}

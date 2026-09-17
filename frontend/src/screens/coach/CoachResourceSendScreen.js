@@ -824,7 +824,7 @@ export default function CoachResourceSendScreen({ navigation }) {
                 multiline
                 value={descripcion}
                 onChangeText={setDescripcion}
-                placeholder="Opcional"
+                placeholder=""
                 placeholderTextColor={theme.textMuted}
               />
 

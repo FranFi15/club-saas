@@ -1760,7 +1760,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                     editable={!readOnly}
                     onFocus={ensureEntrenoInputVisible}
                   />
-                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Objetivo (opcional)</Text>
+                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Objetivo</Text>
                   <TextInput
                     style={[inputStyle, { minHeight: 56 }]}
                     multiline

@@ -560,7 +560,7 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
                 placeholder="0"
                 placeholderTextColor={theme.textMuted}
               />
-              <Text style={[s.label, { color: theme.textMuted }]}>Archivo de factura (opcional)</Text>
+              <Text style={[s.label, { color: theme.textMuted }]}>Archivo de factura</Text>
               <TouchableOpacity
                 onPress={uploadFactura}
                 disabled={uploading}
@@ -599,7 +599,7 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
                 <>
                   <Text style={[s.label, { color: theme.textMuted }]}>Método de pago</Text>
                   {renderMetodoChips()}
-                  <Text style={[s.label, { color: theme.textMuted }]}>Comprobante de pago (opcional)</Text>
+                  <Text style={[s.label, { color: theme.textMuted }]}>Comprobante de pago</Text>
                   <TouchableOpacity
                     onPress={uploadPago}
                     disabled={uploading}
@@ -722,7 +722,7 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
               )}
               <Text style={[s.label, { color: theme.textMuted }]}>Método de pago</Text>
               {renderMetodoChips()}
-              <Text style={[s.label, { color: theme.textMuted }]}>Comprobante de pago (opcional)</Text>
+              <Text style={[s.label, { color: theme.textMuted }]}>Comprobante de pago</Text>
               <TouchableOpacity
                 onPress={uploadPago}
                 disabled={uploading}

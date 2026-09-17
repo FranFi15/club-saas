@@ -555,7 +555,7 @@ export default function CuotaSocialSection({
                 })}
               </View>
 
-              <Text style={[styles.label, { color: theme.textMuted }]}>Descripción (opcional)</Text>
+              <Text style={[styles.label, { color: theme.textMuted }]}>Descripción</Text>
               <TextInput
                 style={[
                   styles.input,

@@ -87,7 +87,7 @@ function MetricBatchCard({
         </View>
       ))}
 
-      <Text style={[styles.sharedLabel, { color: theme.textMuted }]}>Notas (opcional)</Text>
+      <Text style={[styles.sharedLabel, { color: theme.textMuted }]}>Notas</Text>
       <TextInput
         style={[inputStyle, { minHeight: 56 }]}
         placeholder="Observaciones del control…"

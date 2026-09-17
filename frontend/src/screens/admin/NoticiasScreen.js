@@ -597,7 +597,7 @@ export default function NoticiasScreen({ navigation, route }) {
                 value={formData.contenido} onChangeText={v=>setFormData({...formData,contenido:v})} />
 
               {/* Imagen */}
-              <Text style={[styles.label,{color:theme.textMuted}]}>Imagen (opcional)</Text>
+              <Text style={[styles.label,{color:theme.textMuted}]}>Imagen</Text>
               {formData.imagen?.url ? (
                 <View style={{marginBottom:15}}>
                   <Image source={{uri:formData.imagen.url}} style={styles.previewImage} />

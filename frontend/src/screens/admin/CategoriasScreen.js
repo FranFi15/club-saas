@@ -401,7 +401,7 @@ export default function CategoriasScreen({ navigation, route }) {
                     colorMarca={colorMarca}
                     value={edadCorteDesdeDisplay}
                     onChange={setEdadCorteDesdeDisplay}
-                    placeholder="Opcional"
+                    placeholder=""
                     allowClear
                     style={{ marginBottom: 0, backgroundColor: theme.background }}
                   />
@@ -413,7 +413,7 @@ export default function CategoriasScreen({ navigation, route }) {
                     colorMarca={colorMarca}
                     value={edadCorteHastaDisplay}
                     onChange={setEdadCorteHastaDisplay}
-                    placeholder="Opcional"
+                    placeholder=""
                     allowClear
                     style={{ marginBottom: 0, backgroundColor: theme.background }}
                   />

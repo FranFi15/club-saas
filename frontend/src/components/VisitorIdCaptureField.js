@@ -68,7 +68,7 @@ export default function VisitorIdCaptureField({
   return (
     <View style={styles.wrap}>
       <Text style={[styles.label, { color: theme?.textMuted || '#6b7280' }]}>
-        Identificación (opcional)
+        Identificación
       </Text>
       <Text style={[styles.hint, { color: theme?.textMuted || '#9ca3af' }]}>
         Sacá una foto del visitante o del DNI con la cámara.

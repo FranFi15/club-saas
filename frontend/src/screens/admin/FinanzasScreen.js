@@ -1032,7 +1032,7 @@ export default function FinanzasScreen({ route }) {
           </TouchableOpacity>
         ))}
       </View>
-      <Text style={[s.label, { color: theme.textMuted }]}>Notas (opcional)</Text>
+      <Text style={[s.label, { color: theme.textMuted }]}>Notas</Text>
       <TextInput
         style={[s.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
         placeholder="Observaciones"
@@ -1532,7 +1532,7 @@ export default function FinanzasScreen({ route }) {
                 <Text style={{ color: theme.textMuted, fontWeight: '700', fontSize: 16, marginLeft: 10 }}>%</Text>
               </View>
 
-              <Text style={[s.label, { color: theme.textMuted }]}>Descripción (opcional)</Text>
+              <Text style={[s.label, { color: theme.textMuted }]}>Descripción</Text>
               <TextInput
                 style={[
                   s.input,

@@ -303,7 +303,7 @@ export default function EditProfileScreen({ navigation }) {
             style={inputStyle}
             value={email}
             onChangeText={(t) => setEmail(t.toLowerCase())}
-            placeholder={loginHint ? `Opcional — usuario: ${loginHint}` : 'tu@email.com'}
+            placeholder={loginHint ? `Usuario: ${loginHint}` : 'tu@email.com'}
             placeholderTextColor={theme.textMuted}
             keyboardType="email-address"
             autoCapitalize="none"
@@ -384,7 +384,7 @@ export default function EditProfileScreen({ navigation }) {
                 placeholder="Nombre del titular"
                 placeholderTextColor={theme.textMuted}
               />
-              <Text style={[styles.label, { color: theme.text }]}>Banco (opcional)</Text>
+              <Text style={[styles.label, { color: theme.text }]}>Banco</Text>
               <TextInput
                 style={inputStyle}
                 value={bankBanco}
@@ -413,7 +413,7 @@ export default function EditProfileScreen({ navigation }) {
             </>
           ) : null}
 
-          <Text style={[styles.section, { color: theme.text }]}>Cambiar contraseña (opcional)</Text>
+          <Text style={[styles.section, { color: theme.text }]}>Cambiar contraseña</Text>
           <Text style={[styles.label, { color: theme.text }]}>Nueva contraseña</Text>
           <TextInput
             style={inputStyle}
