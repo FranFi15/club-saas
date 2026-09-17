@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CLUB_API_URL, SUPER_API_URL, TERMS_URL, PRIVACY_URL, APP_URL } from '../api';
 import './FamilySignup.css';
 
@@ -12,6 +12,8 @@ function emptyAthlete() {
     sexo: '',
     dni: '',
     telefono: '',
+    direccion: '',
+    fotoPerfil: '',
   };
 }
 
@@ -41,6 +43,115 @@ async function clubFetch(path, { club, method = 'GET', body } = {}) {
   return data;
 }
 
+async function uploadInvitePhoto({ club, token, file }) {
+  const form = new FormData();
+  form.append('archivo', file, file.name || `foto-${Date.now()}.jpg`);
+  const res = await fetch(`${CLUB_API_URL}/family-invites/public/${encodeURIComponent(token)}/photo`, {
+    method: 'POST',
+    headers: { 'x-club-identifier': club },
+    body: form,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message || 'No se pudo subir la foto.');
+  }
+  return data.url || data.secureUrl;
+}
+
+function PhotoField({ label, value, nombre, apellido, club, token, onChange, required }) {
+  const cameraRef = useRef(null);
+  const galleryRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [localError, setLocalError] = useState('');
+
+  const initials = `${(nombre || '').trim().charAt(0)}${(apellido || '').trim().charAt(0)}`.toUpperCase() || '?';
+
+  const onFile = async (file) => {
+    if (!file) return;
+    if (!file.type?.startsWith('image/') && !/\.(jpe?g|png|gif|webp|hei[cf])$/i.test(file.name || '')) {
+      setLocalError('Elegí una imagen.');
+      return;
+    }
+    setLocalError('');
+    setUploading(true);
+    try {
+      const url = await uploadInvitePhoto({ club, token, file });
+      onChange(url);
+    } catch (e) {
+      setLocalError(e.message || 'No se pudo subir la foto.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="fs-photo">
+      <span className="fs-photo-label">
+        {label}
+        {required ? ' *' : ''}
+      </span>
+      <div className="fs-photo-row">
+        <div className="fs-photo-avatar" aria-hidden>
+          {value ? <img src={value} alt="" /> : <span>{initials}</span>}
+        </div>
+        <div className="fs-photo-actions">
+          <button
+            type="button"
+            className="fs-photo-btn"
+            disabled={uploading}
+            onClick={() => cameraRef.current?.click()}
+          >
+            {uploading ? 'Subiendo…' : 'Tomar foto'}
+          </button>
+          <button
+            type="button"
+            className="fs-photo-btn fs-photo-btn--secondary"
+            disabled={uploading}
+            onClick={() => galleryRef.current?.click()}
+          >
+            Galería
+          </button>
+          {value ? (
+            <button
+              type="button"
+              className="fs-photo-clear"
+              disabled={uploading}
+              onClick={() => onChange('')}
+            >
+              Quitar
+            </button>
+          ) : null}
+          <p className="fs-hint">En el celular podés usar la cámara; en la PC elegí un archivo.</p>
+        </div>
+      </div>
+      {localError ? <p className="fs-error fs-error--inline">{localError}</p> : null}
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="fs-file-hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          onFile(file);
+        }}
+      />
+      <input
+        ref={galleryRef}
+        type="file"
+        accept="image/*"
+        className="fs-file-hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          onFile(file);
+        }}
+      />
+    </div>
+  );
+}
+
 export default function FamilySignup() {
   const { club, token } = useMemo(() => queryParams(), []);
   const [loading, setLoading] = useState(true);
@@ -57,6 +168,8 @@ export default function FamilySignup() {
     password: '',
     telefono: '',
     dni: '',
+    direccion: '',
+    fotoPerfil: '',
   });
   const [atletas, setAtletas] = useState([]);
 
@@ -116,14 +229,46 @@ export default function FamilySignup() {
       setError('Tenés que aceptar los Términos y la Política de privacidad.');
       return;
     }
+    if (requiereTutor) {
+      if (!tutor.direccion.trim()) {
+        setError('Indicá la dirección del tutor.');
+        return;
+      }
+      if (!tutor.fotoPerfil.trim()) {
+        setError('Subí una foto del tutor (cámara o galería).');
+        return;
+      }
+    }
+    for (let i = 0; i < atletas.length; i += 1) {
+      if (!atletas[i]?.fotoPerfil?.trim()) {
+        setError(`Atleta ${i + 1}: subí una foto (cámara o galería).`);
+        return;
+      }
+      if (!requiereTutor && !atletas[i]?.direccion?.trim()) {
+        setError(`Atleta ${i + 1}: indicá la dirección.`);
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       const data = await clubFetch(`/family-invites/public/${encodeURIComponent(token)}/redeem`, {
         club,
         method: 'POST',
         body: {
-          ...(requiereTutor ? { tutor } : {}),
-          atletas,
+          ...(requiereTutor
+            ? {
+                tutor: {
+                  ...tutor,
+                  direccion: tutor.direccion.trim(),
+                  fotoPerfil: tutor.fotoPerfil.trim(),
+                },
+              }
+            : {}),
+          atletas: atletas.map((a) => ({
+            ...a,
+            fotoPerfil: (a.fotoPerfil || '').trim(),
+            ...(!requiereTutor ? { direccion: (a.direccion || '').trim() } : {}),
+          })),
           acceptTerms: true,
         },
       });
@@ -208,6 +353,16 @@ export default function FamilySignup() {
         {requiereTutor ? (
           <section className="fs-section">
             <h2 className="fs-section-title">Tutor / responsable</h2>
+            <PhotoField
+              label="Foto"
+              value={tutor.fotoPerfil}
+              nombre={tutor.nombre}
+              apellido={tutor.apellido}
+              club={club}
+              token={token}
+              required
+              onChange={(url) => updateTutor('fotoPerfil', url)}
+            />
             <div className="fs-grid">
               <label className="fs-field">
                 <span>Nombre</span>
@@ -246,6 +401,16 @@ export default function FamilySignup() {
                 <span>DNI</span>
                 <input value={tutor.dni} onChange={(e) => updateTutor('dni', e.target.value)} />
               </label>
+              <label className="fs-field fs-field--full">
+                <span>Dirección</span>
+                <input
+                  required
+                  autoComplete="street-address"
+                  value={tutor.direccion}
+                  onChange={(e) => updateTutor('direccion', e.target.value)}
+                  placeholder="Calle, número, localidad"
+                />
+              </label>
             </div>
           </section>
         ) : null}
@@ -265,6 +430,16 @@ export default function FamilySignup() {
                 ? ` · ${slot.categoria.edadMinima ?? '?'}–${slot.categoria.edadMaxima ?? '?'} años`
                 : ''}
             </p>
+            <PhotoField
+              label="Foto"
+              value={atletas[index]?.fotoPerfil || ''}
+              nombre={atletas[index]?.nombre}
+              apellido={atletas[index]?.apellido}
+              club={club}
+              token={token}
+              required
+              onChange={(url) => updateAthlete(index, 'fotoPerfil', url)}
+            />
             <div className="fs-grid">
               <label className="fs-field">
                 <span>Nombre</span>
@@ -333,6 +508,18 @@ export default function FamilySignup() {
                   onChange={(e) => updateAthlete(index, 'dni', e.target.value)}
                 />
               </label>
+              {!requiereTutor ? (
+                <label className="fs-field fs-field--full">
+                  <span>Dirección</span>
+                  <input
+                    required
+                    autoComplete="street-address"
+                    value={atletas[index]?.direccion || ''}
+                    onChange={(e) => updateAthlete(index, 'direccion', e.target.value)}
+                    placeholder="Calle, número, localidad"
+                  />
+                </label>
+              ) : null}
             </div>
           </section>
         ))}

@@ -18,10 +18,15 @@ import { getTenantModels } from '../utils/tenantModels.js';
 import { markOverduePayments } from '../services/overduePayments.service.js';
 import { generateSessionsInDateRange, startOfTodayUtc } from '../services/sessionFromSchedule.service.js';
 import { generateMonthlyPaymentsForTenant } from '../services/generateMonthlyPayments.service.js';
+import {
+    applyDiscountToFamilyEnrollments,
+    setGlobalFamilyDiscountPct,
+} from '../services/familyDiscount.service.js';
 
 const CLUB_ID = (process.env.SEED_CLUB_IDENTIFIER || 'ejemplo').toLowerCase();
+const CLUB_NAME = process.env.SEED_CLUB_NAME || (CLUB_ID === 'ejemplo' ? 'Club Atlético Ejemplo' : CLUB_ID.toUpperCase());
 const PASSWORD = process.env.SEED_EXAMPLE_PASSWORD || 'Demo2026!';
-const EMAIL_DOMAIN = 'clubejemplo.local';
+const EMAIL_DOMAIN = process.env.SEED_EMAIL_DOMAIN || `${CLUB_ID}.local`;
 const TERMS_VERSION = '2026-08-15';
 
 const FEE_PLANS = [
@@ -295,8 +300,13 @@ async function ensureSpacesAndGrid(models) {
 }
 
 async function syncFamilies(models) {
-    const { User } = models;
+    const { User, Payment } = models;
+    // Demo default: new families without override also get a global %.
+    await setGlobalFamilyDiscountPct(models, 10);
+
     const linked = [];
+    const familyAthleteIds = [];
+
     for (const family of FAMILIES) {
         const tutor = await upsertUser(User, {
             email: family.tutor.email,
@@ -308,8 +318,9 @@ async function syncFamilies(models) {
             passwordPlain: PASSWORD,
         });
         const kidsOk = [];
+        const kidIds = [];
         for (const kid of family.kids) {
-            const atleta = await User.findOne({ email: kid.email.toLowerCase(), rol: 'atleta' });
+            const atleta = await User.findOne({ email: kid.email.toLowerCase() });
             if (!atleta) continue;
             atleta.nombre = kid.nombre;
             atleta.apellido = kid.apellido;
@@ -317,9 +328,44 @@ async function syncFamilies(models) {
             atleta.tutorPrincipal = tutor._id;
             await atleta.save();
             kidsOk.push(`${kid.nombre} ${kid.apellido}`);
+            kidIds.push(atleta._id);
+            familyAthleteIds.push(atleta._id);
         }
-        linked.push({ tutor: family.tutor.email, kids: kidsOk });
+
+        // Stamp Enrollment.descuentoPorcentaje from tutor override (needs 2+ kids).
+        if (kidIds.length >= 2) {
+            const applied = await applyDiscountToFamilyEnrollments(models, tutor._id, 15, { updateTutor: true });
+            console.log(
+                `   Dto familiar ${family.tutor.email}: ${applied.porcentaje}% en ${applied.actualizados} inscripción(es)`,
+            );
+        }
+
+        linked.push({ tutor: family.tutor.email, kids: kidsOk, kidIds });
     }
+
+    // Category tutors also have descuentoFamiliar set during structure seed — stamp enrollments too.
+    const categoryTutors = await User.find({
+        email: new RegExp(`^tutor\\.(futbol|basquet|hockey)\\.`, 'i'),
+        descuentoFamiliar: { $gt: 0 },
+    }).select('_id descuentoFamiliar');
+    for (const t of categoryTutors) {
+        await applyDiscountToFamilyEnrollments(models, t._id, t.descuentoFamiliar, { updateTutor: false });
+        const kids = await User.find({ tutorPrincipal: t._id }).select('_id');
+        kids.forEach((k) => familyAthleteIds.push(k._id));
+    }
+
+    // Open cuotas were likely generated at full price before linking — rebuild them with discount.
+    if (familyAthleteIds.length && Payment) {
+        const del = await Payment.deleteMany({
+            atleta: { $in: familyAthleteIds },
+            estado: { $in: ['pendiente', 'vencido', 'en_revision'] },
+            $or: [{ tipo: 'entrenamiento' }, { tipo: { $exists: false } }, { tipo: null }],
+        });
+        if (del.deletedCount) {
+            console.log(`   Cuotas abiertas sin dto borradas para regenerar: ${del.deletedCount}`);
+        }
+    }
+
     return linked;
 }
 
@@ -661,7 +707,7 @@ async function ensureClubInSuper() {
     const connectionStringDB = `${mongoHost.replace(/\/$/, '')}/${tenantDbName}?retryWrites=true&w=majority`;
 
     await clubs.insertOne({
-        nombre: 'Club Atlético Ejemplo',
+        nombre: CLUB_NAME,
         urlIdentifier: CLUB_ID,
         emailContacto: `contacto@${EMAIL_DOMAIN}`,
         clubId,
@@ -741,10 +787,11 @@ async function seed(models) {
 
     let settings = await ClubSettings.findOne();
     if (!settings) settings = await ClubSettings.create({});
-    settings.transferenciaTitular = 'Club Atlético Ejemplo';
+    settings.transferenciaTitular = CLUB_NAME;
     settings.transferenciaBanco = 'Banco Nación';
     settings.transferenciaCbu = '0110599520000001234567';
-    settings.transferenciaAlias = 'club.ejemplo.nacion';
+    settings.transferenciaAlias = `${CLUB_ID}.nacion`;
+    settings.descuentoFamiliarGlobal = 10;
     await settings.save();
 
     const staffPrep = await upsertUser(User, {
@@ -963,6 +1010,9 @@ async function seed(models) {
 
     await ensureSpacesAndGrid(models);
     const families = await syncFamilies(models);
+    families.forEach((f) =>
+        console.log(`   Familia ${f.tutor}: ${f.kids.join(', ') || '(sin hijos)'} · dto 15%`),
+    );
     const extras = await seedSessionsPlansMeasurements(models);
 
     try {
@@ -977,9 +1027,10 @@ async function seed(models) {
 function printGuide({ sampleLogins, extras, mes, anio }) {
     const line = '─'.repeat(60);
     console.log(`\n${line}`);
-    console.log('  CLUB EJEMPLO — cómo usarlo');
+    console.log(`  CLUB ${CLUB_NAME} — cómo usarlo`);
     console.log(line);
     console.log(`\n  Código del club:   ${CLUB_ID}`);
+    console.log(`  Nombre:            ${CLUB_NAME}`);
     console.log(`  Contraseña:        ${PASSWORD}`);
     console.log('\n  Estructura');
     console.log('  · 3 disciplinas: Fútbol, Básquet, Hockey');

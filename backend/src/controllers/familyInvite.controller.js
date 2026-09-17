@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import asyncHandler from 'express-async-handler';
+import { assertUploadedSize } from '../config/cloudinary.js';
 import { syncFamilyDiscountForTutor, applyFamilyDiscountToEnrollment } from '../services/familyDiscount.service.js';
 import { ensureCurrentMonthPaymentForEnrollment } from '../services/generateMonthlyPayments.service.js';
 import { syncCategoryGroupChatSafe } from '../services/categoryGroupChat.service.js';
@@ -272,6 +273,14 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
             res.status(400);
             throw new Error('La contraseña del tutor debe tener al menos 6 caracteres.');
         }
+        if (!String(tutor.direccion || '').trim()) {
+            res.status(400);
+            throw new Error('Indicá la dirección del tutor.');
+        }
+        if (!String(tutor.fotoPerfil || '').trim()) {
+            res.status(400);
+            throw new Error('Subí una foto del tutor (cámara o galería).');
+        }
         tutorEmail = String(tutor.email).trim().toLowerCase();
         if (await User.findOne({ email: tutorEmail })) {
             res.status(400);
@@ -290,6 +299,14 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
         if (String(a.password).length < 6) {
             res.status(400);
             throw new Error(`Atleta ${i + 1}: la contraseña debe tener al menos 6 caracteres.`);
+        }
+        if (!String(a.fotoPerfil || '').trim()) {
+            res.status(400);
+            throw new Error(`Atleta ${i + 1}: subí una foto (cámara o galería).`);
+        }
+        if (!requiereTutor && !String(a.direccion || '').trim()) {
+            res.status(400);
+            throw new Error(`Atleta ${i + 1}: indicá la dirección.`);
         }
 
         let emailResolved;
@@ -344,6 +361,8 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
             password: tutor.password,
             telefono: tutor.telefono ? String(tutor.telefono).trim() : undefined,
             dni: tutor.dni ? String(tutor.dni).trim() : undefined,
+            direccion: String(tutor.direccion).trim(),
+            fotoPerfil: String(tutor.fotoPerfil).trim(),
             rol: 'tutor',
             acceptedTermsVersion: CURRENT_TERMS_VERSION,
             acceptedTermsAt: termsAt,
@@ -379,6 +398,8 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
                 fechaNacimiento: a.fechaNacimiento,
                 sexo: a.sexo === 'M' || a.sexo === 'F' ? a.sexo : '',
                 telefono: a.telefono ? String(a.telefono).trim() : undefined,
+                direccion: !createdTutor && a.direccion ? String(a.direccion).trim() : undefined,
+                fotoPerfil: String(a.fotoPerfil || '').trim(),
                 rol: 'atleta',
                 tutorPrincipal: createdTutor?._id || undefined,
                 cuotasEnApp: true,
@@ -489,11 +510,53 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
     });
 });
 
+/** Subida pública de foto de perfil durante el alta por invitación (sin login). */
+const uploadPublicFamilyInvitePhoto = asyncHandler(async (req, res) => {
+    const { FamilyInvite } = req.models;
+    await loadInviteOrThrow(FamilyInvite, req.params.token, { forRedeem: true });
+
+    if (!req.file) {
+        res.status(400);
+        throw new Error('No se recibió ninguna foto.');
+    }
+
+    try {
+        assertUploadedSize(req.file);
+    } catch (e) {
+        res.status(e.code === 'LIMIT_FILE_SIZE' ? 413 : 400);
+        throw e;
+    }
+
+    const mime = String(req.file.mimetype || '').toLowerCase();
+    const name = String(req.file.originalname || '').toLowerCase();
+    const isImage =
+        mime.startsWith('image/') ||
+        /\.(jpe?g|png|gif|webp|hei[cf])$/i.test(name);
+    if (!isImage) {
+        res.status(400);
+        throw new Error('Solo se permiten imágenes.');
+    }
+
+    const url = req.file.path || req.file.secure_url;
+    if (!url) {
+        res.status(500);
+        throw new Error('No se pudo subir la foto.');
+    }
+
+    res.status(200).json({
+        message: 'Foto subida',
+        url,
+        secureUrl: url,
+        publicId: req.file.filename || req.file.public_id,
+    });
+});
+
 export {
     createFamilyInvite,
     listFamilyInvites,
     cancelFamilyInvite,
     getPublicFamilyInvite,
     redeemFamilyInvite,
+    uploadPublicFamilyInvitePhoto,
     INVITE_TTL_MS,
 };
