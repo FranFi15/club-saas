@@ -1,6 +1,7 @@
 import { calcEdad } from '../utils/ageHelper.js';
 import { getAdminPendingCounts } from './pendingInbox.service.js';
 import { calendarMonthYearInTz, DEFAULT_CLUB_TIMEZONE } from '../utils/timeHelper.js';
+import { normalizeUserRoles } from '../constants/userRoles.js';
 
 const STAFF_ROLES = ['profe', 'preparador_fisico', 'nutricionista', 'psicologo'];
 const GESTION_ROLES = ['admin_club', 'administrativo', 'control_ingreso'];
@@ -48,7 +49,7 @@ export async function buildClubStats(models, adminUserId, timezone = DEFAULT_CLU
         cuotasMes,
         vencidosByTipo,
     ] = await Promise.all([
-        User.find({ estado: 'activo' }).select('_id rol sexo fechaNacimiento').lean(),
+        User.find({ estado: 'activo' }).select('_id rol roles sexo fechaNacimiento').lean(),
         Discipline.find({ estado: 'activa' }).select('_id nombre').lean(),
         Category.find().select('_id nombre disciplina').lean(),
         Enrollment.find({ estado: 'activo' }).select('atleta categoria').lean(),
@@ -73,9 +74,10 @@ export async function buildClubStats(models, adminUserId, timezone = DEFAULT_CLU
 
     for (const u of activeUsers) {
         const id = idStr(u._id);
+        const roles = normalizeUserRoles(u);
         rolById.set(id, u.rol);
         roleCount[u.rol] = (roleCount[u.rol] || 0) + 1;
-        if (u.rol === 'atleta') activeAthletes.push(u);
+        if (roles.includes('atleta')) activeAthletes.push(u);
     }
 
     const staffCounts = STAFF_ROLES.map((rol) => ({ rol, count: roleCount[rol] || 0 }));

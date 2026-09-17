@@ -94,8 +94,18 @@ export async function getCategoryRosterContext(models, categoryId, options = {})
     const activos = await Enrollment.find({ categoria: categoryId, estado: 'activo' })
         .select('atleta')
         .lean();
-    const activeIds = new Set(activos.map((e) => String(e.atleta)));
-    const inscriptoIds = activos.map((e) => e.atleta);
+    const candidateIds = activos.map((e) => e.atleta);
+    const activeUsers = candidateIds.length
+        ? await User.find({
+              _id: { $in: candidateIds },
+              estado: 'activo',
+          })
+              .select('_id')
+              .lean()
+        : [];
+    const activeUserIdSet = new Set(activeUsers.map((u) => String(u._id)));
+    const inscriptoIds = candidateIds.filter((id) => activeUserIdSet.has(String(id)));
+    const activeIds = new Set(inscriptoIds.map((id) => String(id)));
 
     const basePayload = {
         categoria: {
@@ -106,7 +116,7 @@ export async function getCategoryRosterContext(models, categoryId, options = {})
             profesores: category.profesores || [],
         },
         plantelEdicion: category.plantelEdicion || { estado: null },
-        totalInscriptos: activos.length,
+        totalInscriptos: inscriptoIds.length,
         inscriptoIds,
     };
 

@@ -30,6 +30,7 @@ import {
     trialNeedsMemberDecision,
 } from '../services/trialAthlete.service.js';
 import { resolveAthleteEmail, isAthleteInternalEmail } from '../utils/athleteLoginEmail.js';
+import { getOpenPaymentsSummary, forgiveOpenPayments } from '../services/userPaymentsStatus.service.js';
 
 function parseSueldoNomina(value) {
     if (value === undefined || value === null || value === '') return undefined;
@@ -466,6 +467,14 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
 
     const nextRoles = normalizeUserRoles(user);
     const hasAtleta = nextRoles.includes('atleta');
+    const becameInactive = user.estado === 'inactivo' && user.isModified('estado');
+    if (becameInactive && hasAtleta && req.models.Enrollment) {
+        await req.models.Enrollment.updateMany(
+            { atleta: user._id, estado: 'activo' },
+            { $set: { estado: 'inactivo', fechaBaja: Date.now() } },
+        );
+    }
+
     const clientRol = nextRoles.find((r) => CLIENT_USER_ROLES.includes(r));
     const staffPayrollRol = nextRoles.find((r) => PAYROLL_STAFF_ROLES.includes(r));
     const payrollRol = hasAtleta ? 'atleta' : staffPayrollRol || user.rol;
@@ -588,6 +597,22 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
     }
 });
 
+// @desc    Resumen de cuotas abiertas del usuario (antes de baja / reactivación)
+// @route   GET /api/users/:id/cuotas-impagas
+const getUserUnpaidPaymentsSummary = asyncHandler(async (req, res) => {
+    const { User } = req.models;
+    const user = await User.findById(req.params.id).select('nombre apellido estado').lean();
+    if (!user) {
+        res.status(404);
+        throw new Error('Usuario no encontrado');
+    }
+    const summary = await getOpenPaymentsSummary(req.models, req.params.id);
+    res.json({
+        usuario: { _id: user._id, nombre: user.nombre, apellido: user.apellido, estado: user.estado },
+        ...summary,
+    });
+});
+
 // @desc    Desactivar (Baja lógica) un atleta y chequear estado del tutor
 // @route   PATCH /api/users/atletas/:id/deactivate
 const deactivateAthlete = asyncHandler(async (req, res) => {
@@ -600,6 +625,8 @@ const deactivateAthlete = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Atleta no encontrado');
     }
+
+    const cuotasImpagas = await getOpenPaymentsSummary(req.models, atleta._id);
 
     // 1. Damos de baja al atleta
     atleta.estado = 'inactivo';
@@ -651,7 +678,42 @@ const deactivateAthlete = asyncHandler(async (req, res) => {
     res.json({
         success: true,
         atletaId: atleta._id,
-        infoTutor
+        infoTutor,
+        cuotasImpagas,
+    });
+});
+
+// @desc    Reactivar usuario; opcionalmente perdonar cuotas abiertas
+// @route   PATCH /api/users/:id/reactivate
+const reactivateUser = asyncHandler(async (req, res) => {
+    const { User } = req.models;
+    const perdonarCuotas =
+        req.body.perdonarCuotas === true || req.body.perdonarCuotas === 'true';
+
+    const user = await User.findById(req.params.id);
+    if (!user) {
+        res.status(404);
+        throw new Error('Usuario no encontrado');
+    }
+
+    const before = await getOpenPaymentsSummary(req.models, user._id);
+    let perdonadas = 0;
+    if (perdonarCuotas && before.cantidad > 0) {
+        const result = await forgiveOpenPayments(req.models, user._id);
+        perdonadas = result.deleted;
+    }
+
+    user.estado = 'activo';
+    await user.save();
+
+    res.json({
+        success: true,
+        _id: user._id,
+        estado: user.estado,
+        cuotasImpagasAntes: before,
+        cuotasPerdonadas: perdonadas,
+        cuotasSiguen: perdonarCuotas ? 0 : before.cantidad,
+        montoQueSigue: perdonarCuotas ? 0 : before.montoTotal,
     });
 });
 
@@ -745,6 +807,14 @@ const getUsers = asyncHandler(async (req, res) => {
     } else {
         // Listado general: ocultar dados de baja (usar filtro Inactivos para verlos).
         filter.estado = { $ne: 'inactivo' };
+    }
+
+    // Optional explicit estado (e.g. estructura hub: only activos, not moroso).
+    if (req.query.estado && req.query.rol !== 'inactivos') {
+        const est = String(req.query.estado);
+        if (['activo', 'inactivo', 'moroso'].includes(est)) {
+            filter.estado = est;
+        }
     }
 
     // Buscamos a los usuarios y llenamos su tutor (vínculo familiar)
@@ -1003,6 +1073,8 @@ export {
     updateMyProfile,
     updateUserAsAdmin,
     deactivateAthlete,
+    getUserUnpaidPaymentsSummary,
+    reactivateUser,
     continueTrialAthlete,
     leaveTrialAthleteHandler,
     getUsers,

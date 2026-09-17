@@ -4,6 +4,8 @@ import {
     updateMyProfile,
     updateUserAsAdmin,
     deactivateAthlete,
+    getUserUnpaidPaymentsSummary,
+    reactivateUser,
     continueTrialAthlete,
     leaveTrialAthleteHandler,
     getUsers,
@@ -42,6 +44,18 @@ router.delete('/push-token', protect, removePushToken);
 router.patch('/profile', protect, updateMyProfile);
 
 // Ruta Administrativa: Solo el staff de alto rango
+router.get(
+    '/:id/cuotas-impagas',
+    protect,
+    authorize('admin_club', 'administrativo'),
+    getUserUnpaidPaymentsSummary,
+);
+router.patch(
+    '/:id/reactivate',
+    protect,
+    authorize('admin_club', 'administrativo'),
+    reactivateUser,
+);
 router.patch('/:id', protect, authorize('admin_club', 'administrativo'), updateUserAsAdmin);
 router.patch('/atletas/:id/deactivate', protect, authorize('admin_club', 'administrativo'), deactivateAthlete);
 router.post(

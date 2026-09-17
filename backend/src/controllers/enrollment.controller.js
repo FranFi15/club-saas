@@ -174,11 +174,16 @@ const getAthletesByCategory = asyncHandler(async (req, res) => {
         categoria: req.params.categoryId,
         estado: 'activo',
     })
-        .populate('atleta', 'nombre apellido dni fotoPerfil email')
+        .populate({
+            path: 'atleta',
+            select: 'nombre apellido dni fotoPerfil email estado',
+            match: { estado: 'activo' },
+        })
         .populate('plan', 'nombre monto')
         .lean();
 
-    res.json(sortEnrollmentsByAtleta(enrollments));
+    const onlyActiveAthletes = enrollments.filter((e) => e.atleta);
+    res.json(sortEnrollmentsByAtleta(onlyActiveAthletes));
 });
 
 // @desc    Obtener todas las categorías donde el atleta está inscripto
