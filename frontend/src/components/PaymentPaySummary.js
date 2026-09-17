@@ -18,6 +18,8 @@ export default function PaymentPaySummary({
 }) {
   const items = payments.filter(Boolean);
   const total = items.reduce((s, p) => s + (p.montoFinal || 0), 0);
+  const totalOriginal = items.reduce((s, p) => s + (p.montoOriginal ?? p.montoFinal ?? 0), 0);
+  const totalDto = items.reduce((s, p) => s + (p.descuentoAplicado || 0), 0);
 
   if (!items.length) return null;
 
@@ -40,6 +42,7 @@ export default function PaymentPaySummary({
         {items.map((p) => {
           const ec = EST_COLOR[p.estado] || '#999';
           const label = getLineLabel ? getLineLabel(p) : p.plan?.nombre || 'Cuota';
+          const hasDto = (p.descuentoAplicado || 0) > 0;
           return (
             <View key={String(p._id)} style={[styles.row, { borderColor: theme.border }]}>
               <View style={{ flex: 1, marginRight: 8 }}>
@@ -50,10 +53,26 @@ export default function PaymentPaySummary({
                   <Text style={{ color: ec, fontSize: 11, fontWeight: '600', marginTop: 2, textTransform: 'capitalize' }}>
                     {p.estado}
                     {(p.recargoAplicado || 0) > 0 ? ` · recargo ${fmtMoney(p.recargoAplicado)}` : ''}
+                    {hasDto ? ` · dto ${fmtMoney(p.descuentoAplicado)}` : ''}
                   </Text>
                 ) : null}
               </View>
-              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 14 }}>{fmtMoney(p.montoFinal)}</Text>
+              <View style={{ alignItems: 'flex-end' }}>
+                {hasDto && (p.montoOriginal || 0) > (p.montoFinal || 0) ? (
+                  <Text
+                    style={{
+                      color: theme.textMuted,
+                      fontSize: 11,
+                      textDecorationLine: 'line-through',
+                    }}
+                  >
+                    {fmtMoney(p.montoOriginal)}
+                  </Text>
+                ) : null}
+                <Text style={{ color: theme.text, fontWeight: '700', fontSize: 14 }}>
+                  {fmtMoney(p.montoFinal)}
+                </Text>
+              </View>
             </View>
           );
         })}
@@ -61,7 +80,15 @@ export default function PaymentPaySummary({
 
       {showTotal ? (
         <View style={[styles.totalRow, { borderTopColor: theme.border }]}>
-          <Text style={{ color: theme.text, fontWeight: '800', fontSize: 15 }}>Total</Text>
+          <View>
+            <Text style={{ color: theme.text, fontWeight: '800', fontSize: 15 }}>Total a cobrar</Text>
+            {totalDto > 0 ? (
+              <Text style={{ color: '#f59e0b', fontSize: 11, fontWeight: '700', marginTop: 2 }}>
+                −{fmtMoney(totalDto)} descuento
+                {totalOriginal > total ? ` (de ${fmtMoney(totalOriginal)})` : ''}
+              </Text>
+            ) : null}
+          </View>
           <Text style={{ color: theme.text, fontWeight: '800', fontSize: 20 }}>{fmtMoney(total)}</Text>
         </View>
       ) : null}

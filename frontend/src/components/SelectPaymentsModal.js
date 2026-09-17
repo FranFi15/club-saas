@@ -59,6 +59,11 @@ export default function SelectPaymentsModal({
   );
 
   const total = selectedList.reduce((s, p) => s + (p.montoFinal || 0), 0);
+  const totalDto = selectedList.reduce((s, p) => s + (p.descuentoAplicado || 0), 0);
+  const totalOriginal = selectedList.reduce(
+    (s, p) => s + (p.montoOriginal ?? p.montoFinal ?? 0),
+    0,
+  );
 
   const toggle = (id) => {
     const key = String(id);
@@ -145,14 +150,41 @@ export default function SelectPaymentsModal({
                           </Text>
                         </View>
                       </View>
-                      <Text style={{ color: theme.text, fontWeight: '800' }}>{fmtMoney(p.montoFinal)}</Text>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        {(p.descuentoAplicado || 0) > 0 &&
+                        (p.montoOriginal || 0) > (p.montoFinal || 0) ? (
+                          <Text
+                            style={{
+                              color: theme.textMuted,
+                              fontSize: 11,
+                              textDecorationLine: 'line-through',
+                            }}
+                          >
+                            {fmtMoney(p.montoOriginal)}
+                          </Text>
+                        ) : null}
+                        <Text style={{ color: theme.text, fontWeight: '800' }}>
+                          {fmtMoney(p.montoFinal)}
+                        </Text>
+                        {(p.descuentoAplicado || 0) > 0 ? (
+                          <Text style={{ color: '#f59e0b', fontSize: 10, fontWeight: '700' }}>
+                            −{fmtMoney(p.descuentoAplicado)}
+                          </Text>
+                        ) : null}
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
               </ScrollView>
 
               <Text style={[styles.count, { color: theme.textMuted }]}>
-                {selectedList.length} seleccionada{selectedList.length === 1 ? '' : 's'} · {fmtMoney(total)}
+                {selectedList.length} seleccionada{selectedList.length === 1 ? '' : 's'} · a cobrar{' '}
+                {fmtMoney(total)}
+                {totalDto > 0
+                  ? ` (−${fmtMoney(totalDto)} dto${
+                      totalOriginal > total ? ` de ${fmtMoney(totalOriginal)}` : ''
+                    })`
+                  : ''}
               </Text>
 
               <TouchableOpacity

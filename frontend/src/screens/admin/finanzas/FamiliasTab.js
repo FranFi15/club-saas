@@ -65,14 +65,25 @@ export default function FamiliasTab({
     return { label: cuota.estado, color: ec };
   };
 
+  const sumPayments = (payments, field) =>
+    (payments || []).reduce((s, p) => s + (Number(p?.[field]) || 0), 0);
+
   const renderFamilyCard = useCallback(
     ({ item: g }) => {
       const tutorId = g.tutor._id;
-      const pctActual = familyDiscountDisplay(g);
+      const pctActual = Number(familyDiscountDisplay(g)) || 0;
       const inputVal = discountInput[tutorId] ?? (pctActual ? String(pctActual) : '');
       const impagas = g.cuotasImpagas || [];
       const canPayAll = impagas.length > 0;
       const accent = g.totalImpago > 0 ? '#ef4444' : '#10b981';
+      const totalOriginal = sumPayments(impagas, 'montoOriginal') || g.totalImpago || 0;
+      const totalDto = sumPayments(impagas, 'descuentoAplicado');
+      const totalFinal = g.totalImpago || 0;
+      const hasDtoOnImpagas = totalDto > 0 || (pctActual > 0 && totalOriginal > totalFinal);
+      const cuotasMes = (g.hijos || []).map((h) => h.cuotaMes).filter(Boolean);
+      const totalMesOriginal = sumPayments(cuotasMes, 'montoOriginal');
+      const totalMesFinal = sumPayments(cuotasMes, 'montoFinal');
+      const totalMesDto = sumPayments(cuotasMes, 'descuentoAplicado');
 
       return (
         <DesignCard
@@ -86,19 +97,77 @@ export default function FamiliasTab({
             <View style={[s.planIcon, { backgroundColor: '#8b5cf620' }]}>
               <Ionicons name="people" size={20} color="#8b5cf6" />
             </View>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, paddingRight: 8 }}>
               <Text style={{ color: theme.textMuted, fontSize: 11 }}>Tutor</Text>
               <Text style={[s.planName, { color: theme.text }]}>
                 {g.tutor.nombre} {g.tutor.apellido}
               </Text>
+              {pctActual > 0 ? (
+                <Text style={{ color: '#8b5cf6', fontSize: 11, fontWeight: '700', marginTop: 2 }}>
+                  Descuento familiar {pctActual}%
+                </Text>
+              ) : null}
             </View>
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text style={{ color: theme.textMuted, fontSize: 11 }}>Impago total</Text>
-              <Text style={{ color: '#ef4444', fontWeight: '800', fontSize: 16 }}>
-                {fmtMoney(g.totalImpago)}
+            <View style={{ alignItems: 'flex-end', maxWidth: '46%' }}>
+              <Text style={{ color: theme.textMuted, fontSize: 11 }}>
+                {canPayAll ? 'A pagar (c/ dto)' : 'Impago total'}
               </Text>
+              {canPayAll && hasDtoOnImpagas && totalOriginal > totalFinal ? (
+                <Text
+                  style={{
+                    color: theme.textMuted,
+                    fontSize: 12,
+                    textDecorationLine: 'line-through',
+                    marginTop: 1,
+                  }}
+                >
+                  {fmtMoney(totalOriginal)}
+                </Text>
+              ) : null}
+              <Text style={{ color: '#ef4444', fontWeight: '800', fontSize: 16 }}>
+                {fmtMoney(totalFinal)}
+              </Text>
+              {canPayAll && totalDto > 0 ? (
+                <Text style={{ color: '#f59e0b', fontSize: 10, fontWeight: '700', marginTop: 1 }}>
+                  −{fmtMoney(totalDto)} dto
+                </Text>
+              ) : null}
             </View>
           </View>
+
+          {cuotasMes.length > 0 ? (
+            <View style={[styles.monthTotalBox, { backgroundColor: theme.background, borderColor: theme.border }]}>
+              <Text style={{ color: theme.textMuted, fontSize: 11, fontWeight: '600' }}>
+                Total {MN[mes - 1]} {anio}
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 2 }}>
+                {totalMesDto > 0 && totalMesOriginal > totalMesFinal ? (
+                  <Text
+                    style={{
+                      color: theme.textMuted,
+                      fontSize: 12,
+                      textDecorationLine: 'line-through',
+                    }}
+                  >
+                    {fmtMoney(totalMesOriginal)}
+                  </Text>
+                ) : null}
+                <Text style={{ color: theme.text, fontWeight: '800', fontSize: 15 }}>
+                  {fmtMoney(totalMesFinal)}
+                </Text>
+                {totalMesDto > 0 ? (
+                  <Text style={{ color: '#f59e0b', fontSize: 11, fontWeight: '700' }}>
+                    −{fmtMoney(totalMesDto)} dto
+                    {pctActual > 0 ? ` (${pctActual}%)` : ''}
+                  </Text>
+                ) : pctActual > 0 ? (
+                  <Text style={{ color: '#8b5cf6', fontSize: 11, fontWeight: '600' }}>
+                    {pctActual}% familiar
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
 
           {canPayAll ? (
             <TouchableOpacity
@@ -108,7 +177,10 @@ export default function FamiliasTab({
               }
             >
               <Ionicons name="cash-outline" size={18} color="#fff" />
-              <Text style={styles.payBtnFamiliaTxt}>Pagar</Text>
+              <Text style={styles.payBtnFamiliaTxt}>
+                Pagar {fmtMoney(totalFinal)}
+                {totalDto > 0 ? ` (−${fmtMoney(totalDto)})` : ''}
+              </Text>
             </TouchableOpacity>
           ) : null}
 
@@ -162,9 +234,31 @@ export default function FamiliasTab({
                         {h.nombre} {h.apellido}
                       </Text>
                       {cuota ? (
-                        <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>
-                          {fmtMoney(cuota.montoFinal)}
-                        </Text>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          {cuota.descuentoAplicado > 0 && cuota.montoOriginal > cuota.montoFinal ? (
+                            <Text
+                              style={{
+                                color: theme.textMuted,
+                                fontSize: 11,
+                                textDecorationLine: 'line-through',
+                              }}
+                            >
+                              {fmtMoney(cuota.montoOriginal)}
+                            </Text>
+                          ) : null}
+                          <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>
+                            {fmtMoney(cuota.montoFinal)}
+                          </Text>
+                          {cuota.descuentoAplicado > 0 ? (
+                            <Text style={{ color: '#f59e0b', fontSize: 10, fontWeight: '700' }}>
+                              −{fmtMoney(cuota.descuentoAplicado)} dto
+                            </Text>
+                          ) : h.descuentoPorcentaje > 0 ? (
+                            <Text style={{ color: '#8b5cf6', fontSize: 10, fontWeight: '600' }}>
+                              {h.descuentoPorcentaje}% familiar
+                            </Text>
+                          ) : null}
+                        </View>
                       ) : null}
                     </View>
                     <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8 }}>
@@ -443,6 +537,13 @@ const styles = {
     paddingBottom: 14,
   },
   familyHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  monthTotalBox: {
+    borderWidth: 1,
+    borderRadius: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
   payBtnFamilia: {
     flexDirection: 'row',
     alignItems: 'center',
