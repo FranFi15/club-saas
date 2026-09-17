@@ -1,5 +1,5 @@
 // src/screens/admin/DetalleCategoriaScreen.js
-import React, { useState, useContext, useCallback, useEffect } from 'react';
+import React, { useState, useContext, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -31,6 +31,17 @@ import UserDetailsModal from '../../components/UserDetailsModal';
 import UserAvatar from '../../components/UserAvatar';
 import CategoryRosterModal from '../../components/CategoryRosterModal';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { isoCalendarDateToDisplay } from '../../utils/dateDisplay';
+
+function ageRangeHint(cat) {
+  if (!cat) return '';
+  const min = cat.edadMinima;
+  const max = cat.edadMaxima;
+  if (min == null && max == null) return 'Sin límite de edad en la categoría.';
+  if (min != null && max != null) return `Solo atletas de ${min} a ${max} años.`;
+  if (max != null) return `Solo atletas de hasta ${max} años.`;
+  return `Solo atletas de ${min} años o más.`;
+}
 
 export default function DetalleCategoriaScreen({ navigation, route }) {
   const { clubData } = useContext(ClubContext);
@@ -67,6 +78,11 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [availableUsers, setAvailableUsers] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [selectedAthleteIds, setSelectedAthleteIds] = useState(() => new Set());
+  const [pickerCategory, setPickerCategory] = useState(null);
+  const [submittingAthletes, setSubmittingAthletes] = useState(false);
+  const [addLoading, setAddLoading] = useState(false);
+  const athleteSearchDebounce = useRef(null);
 
   const [selectedUser, setSelectedUser] = useState(null);
   const [isDetailsModalVisible, setIsDetailsModalVisible] = useState(false);
@@ -292,40 +308,48 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
   // ===============================
   // BUSCADOR PARA AÑADIR
   // ===============================
-  useEffect(() => {
-    if (isPickerVisible) {
-      const handler = setTimeout(() => { searchUsers(); }, 500);
-      return () => clearTimeout(handler);
-    }
-  }, [searchQuery, isPickerVisible]);
+  const searchAvailableAthletes = useCallback(
+    async (q) => {
+      setIsSearching(true);
+      try {
+        const h = await getHeaders();
+        const qs = q.trim().length >= 2 ? `?search=${encodeURIComponent(q.trim())}` : '';
+        const res = await clubApi.get(`/enrollment-requests/categoria/${categoria._id}/disponibles${qs}`, {
+          headers: h,
+        });
+        const data = res.data || {};
+        setPickerCategory(data.categoria || null);
+        setAvailableUsers(sortUsersByName(data.atletas || []));
+      } catch (e) {
+        setPickerCategory(null);
+        setAvailableUsers([]);
+      } finally {
+        setIsSearching(false);
+      }
+    },
+    [categoria._id, clubData?.urlIdentifier],
+  );
 
-  const searchUsers = async () => {
+  const searchStaffUsers = async () => {
     setIsSearching(true);
     try {
       const rolDeseado =
-        activeTab === 'atletas'
-          ? 'atleta'
-          : activeTab === 'profesores'
-            ? 'profe'
-            : activeTab === 'preparadores'
-              ? 'preparador_fisico'
-              : activeTab === 'nutricionistas'
-                ? 'nutricionista'
-                : 'psicologo';
-      // Si la búsqueda está vacía, solo trae los últimos 20 de ese rol
+        activeTab === 'profesores'
+          ? 'profe'
+          : activeTab === 'preparadores'
+            ? 'preparador_fisico'
+            : activeTab === 'nutricionistas'
+              ? 'nutricionista'
+              : 'psicologo';
       const response = await clubApi.get('/users', {
         headers: await getHeaders(),
-        params: { rol: rolDeseado, search: searchQuery, limit: 20 }
+        params: { rol: rolDeseado, search: searchQuery, limit: 20 },
       });
 
-      // Filtrar los que YA están adentro
       let filtered = response.data.users;
-      if (activeTab === 'atletas') {
-        const inscriptosIds = enrollments.map(e => e.atleta._id);
-        filtered = filtered.filter(u => !inscriptosIds.includes(u._id));
-      } else if (activeTab === 'profesores') {
-        const staffIds = profesores.map(p => p._id);
-        filtered = filtered.filter(u => !staffIds.includes(u._id));
+      if (activeTab === 'profesores') {
+        const staffIds = profesores.map((p) => p._id);
+        filtered = filtered.filter((u) => !staffIds.includes(u._id));
       } else if (activeTab === 'preparadores') {
         const prepIds = preparadoresFisicos.map((p) => p._id);
         filtered = filtered.filter((u) => !prepIds.includes(u._id));
@@ -345,70 +369,108 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
     }
   };
 
-  const handleSelectUser = async (user) => {
-    setIsPickerVisible(false);
-    try {
-      if (activeTab === 'atletas') {
-        const response = await clubApi.post('/enrollments', {
-          atletaId: user._id,
-          categoriaId: categoria._id,
-          aptoMedico: false
-        }, { headers: await getHeaders() });
+  useEffect(() => {
+    if (!isPickerVisible) return undefined;
+    if (activeTab === 'atletas') {
+      if (athleteSearchDebounce.current) clearTimeout(athleteSearchDebounce.current);
+      athleteSearchDebounce.current = setTimeout(() => searchAvailableAthletes(searchQuery), 400);
+      return () => clearTimeout(athleteSearchDebounce.current);
+    }
+    const handler = setTimeout(() => {
+      searchStaffUsers();
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchQuery, isPickerVisible, activeTab, searchAvailableAthletes]);
 
+  const openAddPicker = () => {
+    setSearchQuery('');
+    setAvailableUsers([]);
+    setSelectedAthleteIds(new Set());
+    setPickerCategory(null);
+    setIsPickerVisible(true);
+    if (activeTab === 'atletas') {
+      setAddLoading(true);
+      searchAvailableAthletes('').finally(() => setAddLoading(false));
+    }
+  };
+
+  const toggleAthleteSelect = (id) => {
+    setSelectedAthleteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const submitSelectedAthletes = async () => {
+    if (selectedAthleteIds.size === 0) {
+      showAlert('Atletas', 'Seleccioná al menos un atleta.');
+      return;
+    }
+    setSubmittingAthletes(true);
+    const h = await getHeaders();
+    const picked = availableUsers.filter((u) => selectedAthleteIds.has(u._id));
+    const added = [];
+    const conflicts = [];
+    const errors = [];
+
+    for (const user of picked) {
+      try {
+        const response = await clubApi.post(
+          '/enrollments',
+          { atletaId: user._id, categoriaId: categoria._id, aptoMedico: false },
+          { headers: h },
+        );
         const enrollment = response.data;
         const { billingConflict, ...enrollmentFields } = enrollment;
-        setEnrollments([...enrollments, { ...enrollmentFields, atleta: user }]);
-
+        added.push({ ...enrollmentFields, atleta: user });
         if (billingConflict?.code === 'DISCIPLINE_BILLING_CHOICE') {
-          const discName = billingConflict.disciplina?.nombre || 'esta disciplina';
-          const currentCat = billingConflict.current?.categoria?.nombre || 'otra categoría';
-          const currentPlan = billingConflict.current?.plan?.nombre
-            || (billingConflict.current?.plan?.monto != null
-              ? `$${billingConflict.current.plan.monto}`
-              : 'cuota actual');
-          const proposedPlan = billingConflict.proposed?.plan?.nombre
-            || (billingConflict.proposed?.plan?.monto != null
-              ? `$${billingConflict.proposed.plan.monto}`
-              : 'plan de esta categoría');
-
-          showAlert(
-            'Cuota de entrenamiento',
-            `${user.nombre} ya tiene cuota en ${discName} por ${currentCat} (${currentPlan}). ¿Qué cuota aplica para esta disciplina?\n\nMantener: ${currentPlan}\nUsar esta categoría: ${proposedPlan}`,
-            {
-              showCancel: true,
-              cancelText: 'Mantener actual',
-              confirmText: 'Usar esta',
-              onCancel: () => {
-                closeAlert();
-                showAlert('Listo', `${user.nombre} inscrito. Se mantiene la cuota actual de la disciplina.`);
-              },
-              onConfirm: async () => {
-                closeAlert();
-                try {
-                  const { data: updated } = await clubApi.patch(
-                    `/enrollments/${enrollment._id}/billing`,
-                    { preferencia: 'switch' },
-                    { headers: await getHeaders() },
-                  );
-                  setEnrollments((prev) =>
-                    prev.map((e) =>
-                      e._id === enrollment._id
-                        ? { ...e, plan: updated.plan || null, esFacturacion: updated.esFacturacion }
-                        : e,
-                    ),
-                  );
-                  showAlert('Listo', `${user.nombre} inscrito. Ahora factura con el plan de esta categoría.`);
-                } catch (err) {
-                  showAlert('Error', err.response?.data?.message || 'No se pudo cambiar la cuota.');
-                }
-              },
-            },
-          );
-        } else {
-          showAlert('Éxito', `${user.nombre} inscrito correctamente.`);
+          conflicts.push(`${user.nombre} ${user.apellido || ''}`.trim());
         }
-        
-      } else if (activeTab === 'profesores') {
+      } catch (error) {
+        errors.push(
+          `${user.nombre}: ${error.response?.data?.message || 'no se pudo inscribir'}`,
+        );
+      }
+    }
+
+    if (added.length) {
+      setEnrollments((prev) => sortEnrollmentsByAtleta([...prev, ...added]));
+    }
+    setIsPickerVisible(false);
+    setSelectedAthleteIds(new Set());
+    setSubmittingAthletes(false);
+
+    if (added.length && !errors.length && !conflicts.length) {
+      showAlert(
+        'Éxito',
+        added.length === 1
+          ? `${added[0].atleta.nombre} inscrito correctamente.`
+          : `${added.length} atletas inscritos correctamente.`,
+      );
+      return;
+    }
+
+    const parts = [];
+    if (added.length) parts.push(`${added.length} inscrito(s).`);
+    if (conflicts.length) {
+      parts.push(
+        `Cuota en conflicto (se mantuvo la actual) para: ${conflicts.join(', ')}. Podés cambiarla desde cada inscripción.`,
+      );
+    }
+    if (errors.length) parts.push(`Errores:\n${errors.join('\n')}`);
+    showAlert(added.length ? 'Listo' : 'Error', parts.join('\n\n') || 'No se pudo vincular.');
+  };
+
+  const handleSelectUser = async (user) => {
+    if (activeTab === 'atletas') {
+      toggleAthleteSelect(user._id);
+      return;
+    }
+    setIsPickerVisible(false);
+    try {
+      if (activeTab === 'profesores') {
         const nuevosProfes = [...profesores.map(p => p._id), user._id];
         await clubApi.put(`/categories/${categoria._id}`, { profesores: nuevosProfes }, { headers: await getHeaders() });
         setProfesores([...profesores, user]);
@@ -845,7 +907,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
         )}
       </View>
 
-      <TouchableOpacity style={[styles.fab, { backgroundColor: colorMarca }]} onPress={() => { setSearchQuery(''); setAvailableUsers([]); setIsPickerVisible(true); }}>
+      <TouchableOpacity style={[styles.fab, { backgroundColor: colorMarca }]} onPress={openAddPicker}>
         <Ionicons name="add" size={30} color="#ffffff" />
       </TouchableOpacity>
 
@@ -855,49 +917,131 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
            <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
               <View style={styles.modalHeader}>
                  <Text style={[styles.modalTitle, { color: theme.text }]}>
-                   Añadir{' '}
                    {activeTab === 'atletas'
-                     ? 'Atleta'
-                     : activeTab === 'profesores'
-                       ? 'Profesor/a'
-                       : activeTab === 'preparadores'
-                         ? 'Preparador/a físico/a'
-                         : activeTab === 'nutricionistas'
-                           ? 'Nutricionista'
-                           : 'Psicólogo/a'}
+                     ? 'Agregar atletas'
+                     : `Añadir ${
+                         activeTab === 'profesores'
+                           ? 'Profesor/a'
+                           : activeTab === 'preparadores'
+                             ? 'Preparador/a físico/a'
+                             : activeTab === 'nutricionistas'
+                               ? 'Nutricionista'
+                               : 'Psicólogo/a'
+                       }`}
                  </Text>
                  <TouchableOpacity onPress={() => setIsPickerVisible(false)}>
                     <Ionicons name="close" size={28} color={theme.icon} />
                  </TouchableOpacity>
               </View>
+
+              {activeTab === 'atletas' ? (
+                <>
+                  <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 8 }}>
+                    Elegí uno o más atletas. Solo se listan los que cumplen edad y no están en la categoría.
+                  </Text>
+                  <Text style={{ color: colorMarca, fontSize: 13, fontWeight: '600', marginBottom: 10 }}>
+                    {ageRangeHint(pickerCategory || categoria)}
+                  </Text>
+                </>
+              ) : null}
               
               <View style={[styles.searchBox, { backgroundColor: theme.background, borderColor: theme.border }]}>
                  <Ionicons name="search" size={20} color={theme.icon} style={{ marginLeft: 15, marginRight: 10 }} />
                  <TextInput style={[styles.searchInput, { color: theme.text }]}
-                    placeholder="Buscar por nombre o apellido..."
+                    placeholder={
+                      activeTab === 'atletas'
+                        ? 'Buscar por nombre, DNI o email…'
+                        : 'Buscar por nombre o apellido...'
+                    }
                     placeholderTextColor={theme.textMuted}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                  />
-                 {isSearching && <ActivityIndicator color={colorMarca} style={{ marginRight: 15 }} />}
+                 {(isSearching || addLoading) && <ActivityIndicator color={colorMarca} style={{ marginRight: 15 }} />}
               </View>
 
               <FlatList
                  data={availableUsers}
                  keyExtractor={item => item._id}
-                 renderItem={({ item }) => (
+                 renderItem={({ item }) => {
+                   if (activeTab === 'atletas') {
+                     const sel = selectedAthleteIds.has(item._id);
+                     const nac = isoCalendarDateToDisplay(item.fechaNacimiento);
+                     const edadTxt = item.edad != null ? `${item.edad} años` : null;
+                     return (
+                       <TouchableOpacity
+                         style={[
+                           styles.pickerItem,
+                           {
+                             borderBottomColor: theme.border,
+                             backgroundColor: sel ? colorMarca + '15' : 'transparent',
+                             flexDirection: 'row',
+                             alignItems: 'center',
+                           },
+                         ]}
+                         onPress={() => toggleAthleteSelect(item._id)}
+                       >
+                         <Ionicons
+                           name={sel ? 'checkbox' : 'square-outline'}
+                           size={22}
+                           color={sel ? colorMarca : theme.textMuted}
+                         />
+                         <View style={{ marginLeft: 10, flex: 1 }}>
+                           <Text style={{ color: theme.text, fontSize: 16, fontWeight: '600' }}>
+                             {item.nombre} {item.apellido}
+                           </Text>
+                           <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
+                             {[nac ? `Nac. ${nac}` : null, edadTxt, item.dni ? `DNI ${item.dni}` : null]
+                               .filter(Boolean)
+                               .join(' · ')}
+                           </Text>
+                         </View>
+                       </TouchableOpacity>
+                     );
+                   }
+                   return (
                     <TouchableOpacity style={[styles.pickerItem, { borderBottomColor: theme.border }]} onPress={() => handleSelectUser(item)}>
                        <Text style={{ color: theme.text, fontSize: 16, fontWeight: '500' }}>{item.nombre} {item.apellido}</Text>
                        <Text style={{ color: theme.textMuted, fontSize: 13 }}>{item.email}</Text>
                     </TouchableOpacity>
-                 )}
-                 style={{ marginTop: 15, maxHeight: 300 }}
+                   );
+                 }}
+                 style={{ marginTop: 15, maxHeight: 320 }}
                  ListEmptyComponent={
                    <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 20 }}>
-                     {!isSearching && searchQuery ? "No se encontraron usuarios disponibles." : "Escribe para buscar..."}
+                     {addLoading || isSearching
+                       ? 'Buscando…'
+                       : activeTab === 'atletas'
+                         ? searchQuery.trim().length >= 2
+                           ? 'Sin resultados para esta búsqueda.'
+                           : pickerCategory?.edadMinima != null || pickerCategory?.edadMaxima != null
+                             ? 'No hay atletas en el rango de edad (o falta fecha de nacimiento).'
+                             : 'No hay atletas disponibles para agregar.'
+                         : !isSearching && searchQuery
+                           ? 'No se encontraron usuarios disponibles.'
+                           : 'Escribe para buscar...'}
                    </Text>
                  }
               />
+
+              {activeTab === 'atletas' ? (
+                <TouchableOpacity
+                  style={[
+                    styles.savePlanBtn,
+                    { backgroundColor: colorMarca, opacity: submittingAthletes ? 0.7 : 1, marginTop: 12 },
+                  ]}
+                  disabled={submittingAthletes}
+                  onPress={submitSelectedAthletes}
+                >
+                  {submittingAthletes ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>
+                      Agregar ({selectedAthleteIds.size})
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              ) : null}
            </View>
         </View>
       </Modal>

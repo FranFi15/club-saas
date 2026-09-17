@@ -71,9 +71,9 @@ const enrollAthlete = asyncHandler(async (req, res) => {
     }
     await applyCategorySexoToAthlete(user, category);
 
-    // 3. Verificamos que no esté inscripto ya
+    // 3. Verificamos que no esté inscripto ya (activo). Si quedó inactivo por desvincular, reactivamos.
     const exists = await Enrollment.findOne({ atleta: atletaId, categoria: categoriaId });
-    if (exists) {
+    if (exists && exists.estado === 'activo') {
         res.status(400);
         throw new Error('El atleta ya está inscripto en esta categoría');
     }
@@ -91,13 +91,25 @@ const enrollAthlete = asyncHandler(async (req, res) => {
     });
     const trialBilling = enrollmentBillingForTrial(billing, isAthleteOnTrial(user));
 
-    let enrollment = await Enrollment.create({
-        atleta: atletaId,
-        categoria: categoriaId,
-        aptoMedico,
-        plan: trialBilling.plan,
-        esFacturacion: Boolean(trialBilling.esFacturacion),
-    });
+    let enrollment;
+    if (exists) {
+        exists.estado = 'activo';
+        exists.fechaBaja = undefined;
+        exists.fechaInscripcion = Date.now();
+        if (aptoMedico !== undefined) exists.aptoMedico = aptoMedico;
+        exists.plan = trialBilling.plan || null;
+        exists.esFacturacion = Boolean(trialBilling.esFacturacion);
+        await exists.save();
+        enrollment = exists;
+    } else {
+        enrollment = await Enrollment.create({
+            atleta: atletaId,
+            categoria: categoriaId,
+            aptoMedico,
+            plan: trialBilling.plan,
+            esFacturacion: Boolean(trialBilling.esFacturacion),
+        });
+    }
 
     await applyPreviousBillingClear(req.models, trialBilling.previousBillingId);
 
