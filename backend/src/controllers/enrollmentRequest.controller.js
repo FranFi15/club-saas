@@ -10,6 +10,7 @@ import {
     resolveNewEnrollmentBilling,
 } from '../services/disciplineBilling.service.js';
 import { enrollmentBillingForTrial, isAthleteOnTrial } from '../services/trialAthlete.service.js';
+import { roleQuery, userHasRole } from '../constants/userRoles.js';
 
 async function applyPreviousBillingClear(models, previousBillingId) {
     if (!previousBillingId) return;
@@ -117,14 +118,15 @@ const getAvailableAthletesForCategory = asyncHandler(async (req, res) => {
     const { enrolledIds, pendingIds } = await enrolledAndPendingIds(req, categoriaId);
     const hasAgeLimits = category.edadMinima != null || category.edadMaxima != null;
 
-    const filter = { rol: 'atleta' };
+    const and = [roleQuery('atleta')];
     if (search.length >= 2) {
         const re = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-        filter.$or = [{ nombre: re }, { apellido: re }, { dni: re }, { email: re }];
+        and.push({ $or: [{ nombre: re }, { apellido: re }, { dni: re }, { email: re }] });
     }
     if (hasAgeLimits) {
-        filter.fechaNacimiento = { $exists: true, $ne: null };
+        and.push({ fechaNacimiento: { $exists: true, $ne: null } });
     }
+    const filter = { $and: and };
 
     const users = await User.find(filter)
         .select('nombre apellido dni fotoPerfil email fechaNacimiento')
@@ -177,7 +179,9 @@ const createEnrollmentRequest = asyncHandler(async (req, res) => {
     }
 
     const { User } = req.models;
-    const athletes = await User.find({ _id: { $in: uniqueIds }, rol: 'atleta' }).select('nombre apellido fechaNacimiento');
+    const athletes = await User.find({ _id: { $in: uniqueIds }, ...roleQuery('atleta') }).select(
+        'nombre apellido fechaNacimiento',
+    );
     const fueraDeRango = athletes.filter((u) => !matchesCategoryAgeLimits(category, u.fechaNacimiento));
     if (fueraDeRango.length > 0) {
         res.status(400);
@@ -270,7 +274,7 @@ const resolveEnrollmentRequest = asyncHandler(async (req, res) => {
 
     for (const atletaId of request.atletas) {
         const user = await User.findById(atletaId);
-        if (!user || user.rol !== 'atleta') {
+        if (!user || !userHasRole(user, 'atleta')) {
             omitidos.push({ atletaId, motivo: 'No es atleta' });
             continue;
         }

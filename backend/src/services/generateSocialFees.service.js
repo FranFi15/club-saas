@@ -12,7 +12,7 @@ import {
     DEFAULT_CLUB_TIMEZONE,
     zonedWallTimeToDate,
 } from '../utils/timeHelper.js';
-import { roleQueryMany } from '../constants/userRoles.js';
+import { roleQueryMany, userHasRole } from '../constants/userRoles.js';
 
 export function sanitizeSocialFeeRoles(roles, { allowEmpty = false } = {}) {
     if (!Array.isArray(roles)) {
@@ -71,9 +71,16 @@ export async function ensureSocialFeesMigrated(models) {
             if (!roles.length || !fee.activo) continue;
             await User.updateMany(
                 {
-                    ...roleQueryMany(roles),
-                    exentoCuotaSocial: { $ne: true },
-                    $or: [{ cuotaSocialAsignada: null }, { cuotaSocialAsignada: { $exists: false } }],
+                    $and: [
+                        roleQueryMany(roles),
+                        { exentoCuotaSocial: { $ne: true } },
+                        {
+                            $or: [
+                                { cuotaSocialAsignada: null },
+                                { cuotaSocialAsignada: { $exists: false } },
+                            ],
+                        },
+                    ],
                 },
                 { $set: { cuotaSocialAsignada: fee._id } },
             );
@@ -235,12 +242,12 @@ export async function ensureSocialFeeForUser(
     let usuario = user;
     if (usuario.cuotaSocialAsignada === undefined || !usuario.rol) {
         usuario = await User.findById(user._id || user)
-            .select('rol estado exentoCuotaSocial cuotaSocialAsignada esPrueba')
+            .select('rol roles estado exentoCuotaSocial cuotaSocialAsignada esPrueba')
             .lean();
     }
     if (!usuario) return { created: false, omitted: true, reason: 'sin_usuario' };
     if (usuario.estado === 'inactivo') return { created: false, omitted: true, reason: 'inactivo' };
-    if (usuario.esPrueba && usuario.rol === 'atleta') {
+    if (usuario.esPrueba && userHasRole(usuario, 'atleta')) {
         return { created: false, omitted: true, reason: 'atleta_prueba' };
     }
     if (usuario.exentoCuotaSocial) return { created: false, omitted: true, reason: 'exento' };
@@ -316,7 +323,7 @@ export async function generateSocialFeesForTenant(
         cuotaSocialAsignada: { $ne: null },
         esPrueba: { $ne: true },
     })
-        .select('rol estado exentoCuotaSocial cuotaSocialAsignada esPrueba')
+        .select('rol roles estado exentoCuotaSocial cuotaSocialAsignada esPrueba')
         .lean();
 
     if (!clientes.length) {

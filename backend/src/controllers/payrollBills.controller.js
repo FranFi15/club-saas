@@ -69,9 +69,14 @@ const listPayrollStaff = asyncHandler(async (req, res) => {
     const { User } = req.models;
     const staff = await User.find({
         estado: { $ne: 'inactivo' },
-        $or: [{ rol: { $in: PAYROLL_STAFF_ROLES } }, { rol: 'atleta', enNomina: true }],
+        $or: [
+            { rol: { $in: PAYROLL_STAFF_ROLES } },
+            { roles: { $in: PAYROLL_STAFF_ROLES } },
+            { rol: 'atleta', enNomina: true },
+            { roles: 'atleta', enNomina: true },
+        ],
     })
-        .select('nombre apellido email rol enNomina sueldoNomina')
+        .select('nombre apellido email rol roles enNomina sueldoNomina')
         .sort({ apellido: 1, nombre: 1 })
         .lean();
 

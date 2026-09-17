@@ -219,7 +219,7 @@ export default function AtletasPagosTab({
       <View style={s.empty}>
         <Ionicons name="people-outline" size={50} color={theme.icon} />
         <Text style={[s.emptyTxt, { color: theme.text }]}>
-          {isTodosView ? 'Sin atletas con cuotas en este mes' : 'Sin atletas para este filtro'}
+          {isTodosView ? 'Sin usuarios con cuotas en este mes' : 'Sin usuarios para este filtro'}
         </Text>
         <Text style={[s.emptySub, { color: theme.textMuted }]}>
           {isTodosView
@@ -347,7 +347,7 @@ export default function AtletasPagosTab({
           <Ionicons name="search" size={18} color={theme.icon} style={{ marginRight: 8 }} />
           <TextInput
             style={[styles.searchInput, { color: theme.text }]}
-            placeholder="Buscar atleta"
+            placeholder="Buscar usuario"
             placeholderTextColor={theme.textMuted}
             value={filtroBusqueda}
             onChangeText={setFiltroBusqueda}

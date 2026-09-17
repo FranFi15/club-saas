@@ -2,6 +2,9 @@
  * Solo aplica con 2 o más atletas bajo el mismo tutor.
  */
 
+import { roleQuery, userHasRole } from '../constants/userRoles.js';
+import { hijosDelTutorFilter } from '../utils/userQuery.js';
+
 const MIN_ATHLETES_FOR_FAMILY_DISCOUNT = 2;
 
 export async function getOrCreateClubSettings(ClubSettings) {
@@ -36,7 +39,7 @@ async function countHijosDelTutor(models, tutorId) {
     const { User } = models;
     // Solo hermanos permanentes (no inactivos ni de prueba) cuentan para el descuento.
     return User.countDocuments({
-        rol: 'atleta',
+        ...roleQuery('atleta'),
         tutorPrincipal: tutorId,
         estado: { $ne: 'inactivo' },
         esPrueba: { $ne: true },
@@ -45,7 +48,7 @@ async function countHijosDelTutor(models, tutorId) {
 
 async function clearFamilyDiscountOnEnrollments(models, tutorId) {
     const { User, Enrollment } = models;
-    const hijos = await User.find({ rol: 'atleta', tutorPrincipal: tutorId }).select('_id');
+    const hijos = await User.find(hijosDelTutorFilter(tutorId)).select('_id');
     let actualizados = 0;
     for (const hijo of hijos) {
         const result = await Enrollment.updateMany(
@@ -60,8 +63,8 @@ async function clearFamilyDiscountOnEnrollments(models, tutorId) {
 /** Porcentaje vigente para una familia (override del tutor o global). */
 export async function getFamilyDiscountPctForTutor(models, tutorId) {
     const { User } = models;
-    const tutor = await User.findById(tutorId).select('rol descuentoFamiliar');
-    if (!tutor || tutor.rol !== 'tutor') return 0;
+    const tutor = await User.findById(tutorId).select('rol roles descuentoFamiliar');
+    if (!tutor || !userHasRole(tutor, 'tutor')) return 0;
     if (tutor.descuentoFamiliar != null && !Number.isNaN(Number(tutor.descuentoFamiliar))) {
         return Math.min(100, Math.max(0, Number(tutor.descuentoFamiliar)));
     }
@@ -71,7 +74,7 @@ export async function getFamilyDiscountPctForTutor(models, tutorId) {
 export async function applyDiscountToFamilyEnrollments(models, tutorId, porcentaje, { updateTutor = true } = {}) {
     const { User, Enrollment } = models;
     const hijosPermanentes = await User.find({
-        rol: 'atleta',
+        ...roleQuery('atleta'),
         tutorPrincipal: tutorId,
         estado: { $ne: 'inactivo' },
         esPrueba: { $ne: true },
@@ -116,8 +119,8 @@ export async function applyDiscountToFamilyEnrollments(models, tutorId, porcenta
  */
 export async function syncFamilyDiscountForTutor(models, tutorId) {
     const { User } = models;
-    const tutor = await User.findById(tutorId).select('rol descuentoFamiliar');
-    if (!tutor || tutor.rol !== 'tutor') return { applied: false };
+    const tutor = await User.findById(tutorId).select('rol roles descuentoFamiliar');
+    if (!tutor || !userHasRole(tutor, 'tutor')) return { applied: false };
 
     const hijosCount = await countHijosDelTutor(models, tutorId);
     if (hijosCount < MIN_ATHLETES_FOR_FAMILY_DISCOUNT) {
@@ -147,16 +150,16 @@ export async function syncFamilyDiscountForTutor(models, tutorId) {
 
 export async function syncFamilyDiscountForAthlete(models, atletaId) {
     const { User } = models;
-    const atleta = await User.findById(atletaId).select('tutorPrincipal rol');
-    if (!atleta?.tutorPrincipal || atleta.rol !== 'atleta') return { applied: false };
+    const atleta = await User.findById(atletaId).select('tutorPrincipal rol roles');
+    if (!atleta?.tutorPrincipal || !userHasRole(atleta, 'atleta')) return { applied: false };
     return syncFamilyDiscountForTutor(models, atleta.tutorPrincipal);
 }
 
 /** Aplica el descuento familiar a una inscripción recién creada (solo familias con 2+ atletas). */
 export async function applyFamilyDiscountToEnrollment(models, atletaId, enrollment) {
     const { User } = models;
-    const atleta = await User.findById(atletaId).select('tutorPrincipal rol');
-    if (!atleta?.tutorPrincipal || atleta.rol !== 'atleta') return enrollment;
+    const atleta = await User.findById(atletaId).select('tutorPrincipal rol roles');
+    if (!atleta?.tutorPrincipal || !userHasRole(atleta, 'atleta')) return enrollment;
 
     await syncFamilyDiscountForTutor(models, atleta.tutorPrincipal);
 

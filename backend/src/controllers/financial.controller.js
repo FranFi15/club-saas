@@ -24,6 +24,17 @@ import { getTransferBankData, setTransferBankData } from '../services/transferBa
 import { parsePageLimit, paginationMeta, buildAthleteSearchFilter, buildUserSearchFilter } from '../utils/pagination.js';
 import { sendCuotaReminders } from '../services/cuotaReminders.service.js';
 import { ensurePaymentReceipt, queuePaymentReceipt, buildPaymentReceiptPdf } from '../services/paymentReceipt.service.js';
+import {
+    CLIENT_USER_ROLES,
+    roleQuery,
+    userHasRole,
+} from '../constants/userRoles.js';
+import { hijosDelTutorFilter } from '../utils/userQuery.js';
+import {
+    ensureBecaPlan,
+    getBecaPlanIds,
+    excludeBecaPaymentsFilter,
+} from '../services/becaPlan.service.js';
 
 /** Aggregation $match does not cast string ids to ObjectId. */
 function toObjectIds(ids) {
@@ -41,23 +52,26 @@ function toObjectIds(ids) {
 // @desc    Crear un nuevo Plan/Cuota
 // @route   POST /api/financial/plans
 const createPlan = asyncHandler(async (req, res) => {
-    const { nombre, monto, descripcion, diaVencimiento, porcentajeRecargo } = req.body;
+    const { nombre, monto, descripcion, diaVencimiento, porcentajeRecargo, esBeca } = req.body;
     const { Plan } = req.models;
 
+    const asBeca = esBeca === true || esBeca === 'true';
     const plan = await Plan.create({
         nombre,
-        monto,
+        monto: asBeca ? 0 : monto,
         descripcion,
         diaVencimiento: diaVencimiento || 10,
         porcentajeRecargo: clampRecargoPct(porcentajeRecargo),
+        esBeca: asBeca,
     });
     res.status(201).json(plan);
 });
 
-// @desc    Obtener todos los planes
+// @desc    Obtener todos los planes (asegura que exista el plan Beca)
 // @route   GET /api/financial/plans
 const getPlans = asyncHandler(async (req, res) => {
     const { Plan } = req.models;
+    await ensureBecaPlan(req.models);
     const plans = await Plan.find({}).sort({ createdAt: -1 });
     res.json(plans);
 });
@@ -309,10 +323,17 @@ const getAllPayments = asyncHandler(async (req, res) => {
     Object.assign(filter, categoryFilter);
 
     if (search && String(search).trim()) {
-        const athleteFilter = buildAthleteSearchFilter(search);
+        // Include multi-role clients (e.g. profe+atleta) and socios, not only primary rol=atleta.
+        const athleteFilter = buildUserSearchFilter(search, { roles: CLIENT_USER_ROLES });
         const matchingUsers = await User.find(athleteFilter).select('_id').lean();
         const ids = matchingUsers.map((u) => u._id);
         filter.atleta = { $in: ids.length ? ids : [null] };
+    }
+
+    const becaPlanIds = await getBecaPlanIds(req.models);
+    const becaExclude = excludeBecaPaymentsFilter(becaPlanIds);
+    if (becaExclude) {
+        filter.$and = [...(filter.$and || []), becaExclude];
     }
 
     const athletePagePipeline = [
@@ -356,7 +377,7 @@ const getAllPayments = asyncHandler(async (req, res) => {
     const payments = await Payment.find({ ...filter, atleta: { $in: athleteIds } })
         .sort(isAllVencidos ? { anio: -1, mes: -1, createdAt: -1 } : { estado: 1, createdAt: -1 })
         .populate('atleta', 'nombre apellido email tutorPrincipal rol fotoPerfil')
-        .populate('plan', 'nombre monto diaVencimiento porcentajeRecargo')
+        .populate('plan', 'nombre monto diaVencimiento porcentajeRecargo esBeca')
         .populate('cuotaSocial', 'nombre monto diaVencimiento porcentajeRecargo')
         .populate({ path: 'categoria', select: 'nombre disciplina', populate: { path: 'disciplina', select: 'nombre' } })
         .lean();
@@ -402,9 +423,16 @@ const getPaymentStats = asyncHandler(async (req, res) => {
         categoryFilter = { categoria: { $in: cats.map((c) => c._id) } };
     }
 
+    const becaPlanIds = await getBecaPlanIds(req.models);
+    const becaExclude = excludeBecaPaymentsFilter(becaPlanIds);
+    const withBecaExclude = (base) => {
+        if (!becaExclude) return base;
+        return { $and: [base, becaExclude] };
+    };
+
     if (scope === 'vencidos') {
         const rows = await Payment.aggregate([
-            { $match: { estado: 'vencido', ...categoryFilter } },
+            { $match: withBecaExclude({ estado: 'vencido', ...categoryFilter }) },
             { $group: { _id: null, count: { $sum: 1 }, monto: { $sum: '$montoFinal' } } },
         ]);
         const vencidos = rows[0]?.count || 0;
@@ -427,13 +455,14 @@ const getPaymentStats = asyncHandler(async (req, res) => {
     const match = { ...categoryFilter };
     if (mes) match.mes = mesNum;
     if (anio) match.anio = anioNum;
+    const matchFiltered = withBecaExclude(match);
 
     const [rows, total] = await Promise.all([
         Payment.aggregate([
-            { $match: match },
+            { $match: matchFiltered },
             { $group: { _id: '$estado', count: { $sum: 1 }, monto: { $sum: '$montoFinal' } } },
         ]),
-        Payment.countDocuments(match),
+        Payment.countDocuments(matchFiltered),
     ]);
 
     const byEstado = {};
@@ -455,7 +484,7 @@ const getPaymentStats = asyncHandler(async (req, res) => {
             anioAnt -= 1;
         }
         const prevRows = await Payment.aggregate([
-            { $match: { mes: mesAnt, anio: anioAnt, ...categoryFilter } },
+            { $match: withBecaExclude({ mes: mesAnt, anio: anioAnt, ...categoryFilter }) },
             {
                 $group: {
                     _id: null,
@@ -532,7 +561,7 @@ const getSiblings = asyncHandler(async (req, res) => {
 
     const globalPct = await getGlobalFamilyDiscountPct(req.models);
 
-    const athleteMatch = { rol: 'atleta', tutorPrincipal: { $ne: null } };
+    const athleteMatch = { ...roleQuery('atleta'), tutorPrincipal: { $ne: null } };
 
     if (search) {
         const tutorIds = new Set();
@@ -608,7 +637,7 @@ const getSiblings = asyncHandler(async (req, res) => {
     const tutorById = new Map(tutorDocs.map((t) => [String(t._id), t]));
 
     const atletasConTutor = await User.find({
-        rol: 'atleta',
+        ...roleQuery('atleta'),
         tutorPrincipal: { $in: pageTutorIds },
     })
         .select('nombre apellido tutorPrincipal fotoPerfil')
@@ -712,7 +741,7 @@ const applySiblingDiscount = asyncHandler(async (req, res) => {
     const { tutorId, porcentaje } = req.body;
     const { User } = req.models;
 
-    const hijos = await User.find({ rol: 'atleta', tutorPrincipal: tutorId });
+    const hijos = await User.find(hijosDelTutorFilter(tutorId));
     if (!hijos.length) {
         res.status(400);
         throw new Error('No hay atletas vinculados a esta familia.');
@@ -802,8 +831,12 @@ async function assertMemberCanPayPayments(req, payments) {
         if (req.user.rol === 'tutor') {
             // El tutor también es titular de su propia cuota social.
             if (atletaId !== String(req.user._id)) {
-                const hijo = await User.findById(atletaId).select('tutorPrincipal rol').lean();
-                if (!hijo || hijo.rol !== 'atleta' || String(hijo.tutorPrincipal) !== String(req.user._id)) {
+                const hijo = await User.findById(atletaId).select('tutorPrincipal rol roles').lean();
+                if (
+                    !hijo ||
+                    !userHasRole(hijo, 'atleta') ||
+                    String(hijo.tutorPrincipal) !== String(req.user._id)
+                ) {
                     res.status(403);
                     throw new Error('No podés pagar cuotas de este atleta.');
                 }
@@ -877,7 +910,9 @@ async function notifyPaymentRegistered(req, payment) {
         const atleta = await User.findById(payment.atleta);
         // Los menores cobran a través del tutor; socios y tutores son sus propios titulares.
         const destinatario =
-            atleta?.rol === 'atleta' && atleta?.tutorPrincipal ? atleta.tutorPrincipal : payment.atleta;
+            userHasRole(atleta, 'atleta') && atleta?.tutorPrincipal
+                ? atleta.tutorPrincipal
+                : payment.atleta;
         const concepto =
             payment.tipo === 'social'
                 ? payment.cuotaSocial?.nombre || 'cuota social'
@@ -1248,7 +1283,7 @@ const getTutorFamilyPayments = asyncHandler(async (req, res) => {
         throw new Error('Solo disponible para tutores.');
     }
 
-    const hijos = await User.find({ rol: 'atleta', tutorPrincipal: req.user._id })
+    const hijos = await User.find(hijosDelTutorFilter(req.user._id))
         .select('nombre apellido fechaNacimiento')
         .collation(userNameCollation)
         .sort(userNameMongoSort)
@@ -1328,8 +1363,8 @@ async function assertMemberCanViewAtletaPayments(req, atletaId) {
     if (rol === 'tutor') {
         // El tutor también es titular de su propia cuota social.
         if (target === String(req.user._id)) return;
-        const hijo = await User.findById(target).select('tutorPrincipal rol').lean();
-        if (!hijo || hijo.rol !== 'atleta') {
+        const hijo = await User.findById(target).select('tutorPrincipal rol roles').lean();
+        if (!hijo || !userHasRole(hijo, 'atleta')) {
             deny(400, 'Atleta no válido.');
         }
         if (!hijo.tutorPrincipal || String(hijo.tutorPrincipal) !== String(req.user._id)) {
@@ -1508,6 +1543,10 @@ const updatePlan = asyncHandler(async (req, res) => {
     const body = { ...req.body };
     if (body.porcentajeRecargo !== undefined) {
         body.porcentajeRecargo = clampRecargoPct(body.porcentajeRecargo);
+    }
+    if (body.esBeca !== undefined) {
+        body.esBeca = body.esBeca === true || body.esBeca === 'true';
+        if (body.esBeca) body.monto = 0;
     }
     const plan = await Plan.findByIdAndUpdate(req.params.id, body, { returnDocument: 'after' });
     if (!plan) { res.status(404); throw new Error('Plan no encontrado'); }

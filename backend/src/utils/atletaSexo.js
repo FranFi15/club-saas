@@ -18,7 +18,10 @@ export function categorySexoError(category, user) {
 
 /** Si el atleta no tiene sexo y la categoría es M/F, lo asigna automáticamente. */
 export async function applyCategorySexoToAthlete(user, category) {
-    if (!user || user.rol !== 'atleta') return user;
+    if (!user) return user;
+    const roles = Array.isArray(user.roles) ? user.roles : [];
+    const isAthlete = user.rol === 'atleta' || roles.includes('atleta');
+    if (!isAthlete) return user;
     if (user.sexo === 'M' || user.sexo === 'F') return user;
     const catSexo = category?.sexo;
     if (catSexo === 'M' || catSexo === 'F') {

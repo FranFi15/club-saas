@@ -22,7 +22,10 @@ export function puedePagarComoAtleta(fechaNacimiento) {
 
 /** Atletas sin el flag explícito en false conservan acceso (compatibilidad). */
 export function atletaCuotasEnApp(user) {
-    if (!user || user.rol !== 'atleta') return true;
+    if (!user) return true;
+    const roles = Array.isArray(user.roles) ? user.roles : [];
+    const isAthlete = user.rol === 'atleta' || roles.includes('atleta');
+    if (!isAthlete) return true;
     return user.cuotasEnApp !== false;
 }
 

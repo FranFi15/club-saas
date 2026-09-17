@@ -3,7 +3,7 @@ export const MN = [
 ];
 
 export const TABS = [
-  { key: 'atletas', label: 'Atletas', icon: 'people-outline' },
+  { key: 'atletas', label: 'Usuarios', icon: 'people-outline' },
   { key: 'familias', label: 'Familias', icon: 'home-outline' },
   { key: 'nomina', label: 'Nómina', icon: 'wallet-outline' },
   { key: 'gastos', label: 'Gastos', icon: 'receipt-outline' },

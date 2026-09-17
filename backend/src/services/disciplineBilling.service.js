@@ -67,9 +67,9 @@ async function planSummary(models, planId) {
     if (!Plan) {
         return { _id: planId };
     }
-    const plan = await Plan.findById(planId).select('nombre monto').lean();
+    const plan = await Plan.findById(planId).select('nombre monto esBeca').lean();
     if (!plan) return { _id: planId };
-    return { _id: plan._id, nombre: plan.nombre, monto: plan.monto };
+    return { _id: plan._id, nombre: plan.nombre, monto: plan.monto, esBeca: !!plan.esBeca };
 }
 
 /**

@@ -12,12 +12,15 @@ import {
     DEFAULT_CLUB_TIMEZONE,
     zonedWallTimeToDate,
 } from '../utils/timeHelper.js';
+import { isBecaPlan, removeOpenTrainingPaymentsForBeca } from './becaPlan.service.js';
+import { userHasRole } from '../constants/userRoles.js';
 
 function paymentAmountsFromEnrollment(inscripcion) {
     const plan = typeof inscripcion.plan === 'object' && inscripcion.plan
         ? inscripcion.plan
         : null;
     if (!plan?._id && !plan?.id) return null;
+    if (isBecaPlan(plan)) return null;
 
     const valorCuota = Number(plan.monto) || 0;
     let dineroDescontado = 0;
@@ -53,15 +56,16 @@ export async function ensurePaymentForEnrollment(models, enrollment, mes, anio, 
     const { Payment, Enrollment } = models;
     if (!enrollment) return { created: false, omitted: true, reason: 'sin_inscripcion' };
 
-    let inscripcion = enrollment;
-    if (
-        !inscripcion.plan ||
-        typeof inscripcion.plan !== 'object' ||
-        !inscripcion.plan.monto ||
-        !inscripcion.categoria ||
-        typeof inscripcion.categoria !== 'object'
-    ) {
-        inscripcion = await Enrollment.findById(enrollment._id || enrollment)
+    let insc = enrollment;
+    const needsPopulate =
+        !insc.plan ||
+        typeof insc.plan !== 'object' ||
+        (insc.plan.monto == null && !insc.plan.esBeca) ||
+        !insc.categoria ||
+        typeof insc.categoria !== 'object';
+
+    if (needsPopulate) {
+        insc = await Enrollment.findById(enrollment._id || enrollment)
             .populate('plan')
             .populate({
                 path: 'categoria',
@@ -69,26 +73,36 @@ export async function ensurePaymentForEnrollment(models, enrollment, mes, anio, 
                 populate: { path: 'disciplina', select: 'nombre' },
             });
     }
-    if (!inscripcion) return { created: false, omitted: true, reason: 'sin_inscripcion' };
-    if (inscripcion.esFacturacion !== true) {
+    if (!insc) return { created: false, omitted: true, reason: 'sin_inscripcion' };
+    if (insc.esFacturacion !== true) {
         return { created: false, omitted: true, reason: 'no_facturacion' };
     }
 
+    if (isBecaPlan(insc.plan)) {
+        const atletaId = insc.atleta?._id || insc.atleta;
+        await removeOpenTrainingPaymentsForBeca(models, {
+            atletaId,
+            planId: insc.plan._id || insc.plan,
+            categoriaId: insc.categoria?._id || insc.categoria,
+        });
+        return { created: false, omitted: true, reason: 'beca' };
+    }
+
     const { User } = models;
-    const atletaIdEarly = inscripcion.atleta?._id || inscripcion.atleta;
+    const atletaIdEarly = insc.atleta?._id || insc.atleta;
     if (atletaIdEarly) {
-        const trialUser = await User.findById(atletaIdEarly).select('esPrueba rol').lean();
-        if (trialUser?.esPrueba && trialUser.rol === 'atleta') {
+        const trialUser = await User.findById(atletaIdEarly).select('esPrueba rol roles').lean();
+        if (trialUser?.esPrueba && userHasRole(trialUser, 'atleta')) {
             return { created: false, omitted: true, reason: 'atleta_prueba' };
         }
     }
 
-    const amounts = paymentAmountsFromEnrollment(inscripcion);
+    const amounts = paymentAmountsFromEnrollment(insc);
     if (!amounts) return { created: false, omitted: true, reason: 'sin_plan' };
 
-    const atletaId = inscripcion.atleta?._id || inscripcion.atleta;
-    const categoriaId = inscripcion.categoria?._id || inscripcion.categoria;
-    const disciplinaId = disciplinaIdFromEnrollment(inscripcion);
+    const atletaId = insc.atleta?._id || insc.atleta;
+    const categoriaId = insc.categoria?._id || insc.categoria;
+    const disciplinaId = disciplinaIdFromEnrollment(insc);
 
     if (disciplinaId) {
         const enDisciplina = await findTrainingPaymentInDiscipline(
@@ -170,8 +184,8 @@ export async function generateMonthlyPaymentsForTenant(
     let cuotasCreadas = 0;
     let cuotasOmitidas = 0;
 
-    for (const inscripcion of inscripcionesActivas) {
-        const result = await ensurePaymentForEnrollment(models, inscripcion, mes, anio, timezone);
+    for (const insc of inscripcionesActivas) {
+        const result = await ensurePaymentForEnrollment(models, insc, mes, anio, timezone);
         if (result.created) cuotasCreadas++;
         else cuotasOmitidas++;
     }

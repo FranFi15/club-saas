@@ -70,6 +70,11 @@ export function resolveRolesWrite(rolesInput, primaryRol) {
     return { rol, roles: [...new Set(roles)] };
 }
 
+/** True if user has the role as primary or in roles[]. */
+export function userHasRole(user, rol) {
+    return normalizeUserRoles(user).includes(rol);
+}
+
 /** Mongo filter: user has this role as primary or in roles[]. */
 export function roleQuery(rol) {
     return { $or: [{ rol }, { roles: rol }] };

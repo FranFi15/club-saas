@@ -10,6 +10,7 @@ import {
     resolveNewEnrollmentBilling,
 } from './disciplineBilling.service.js';
 import { enrollmentBillingForTrial, isAthleteOnTrial } from './trialAthlete.service.js';
+import { roleQuery } from '../constants/userRoles.js';
 
 async function applyPreviousBillingClear(models, previousBillingId) {
     if (!previousBillingId) return;
@@ -54,7 +55,7 @@ async function loadOtrasCategoriasMap(Enrollment, categoryId, atletaIds) {
 }
 
 function buildEligibleUserFilter(category, search) {
-    const userFilter = { rol: 'atleta', estado: 'activo' };
+    const userFilter = { ...roleQuery('atleta'), estado: 'activo' };
     const birthRange = birthDateRangeForCategory(category);
     const hasAgeLimits = category.edadMinima != null || category.edadMaxima != null;
 
@@ -160,7 +161,7 @@ export async function syncCategoryAthletes(models, categoryId, atletaIds) {
         throw err;
     }
 
-    const atletas = await User.find({ _id: { $in: ids }, rol: 'atleta' });
+    const atletas = await User.find({ _id: { $in: ids }, ...roleQuery('atleta') });
     if (atletas.length !== ids.length) {
         const err = new Error('Hay IDs inválidos o usuarios que no son atletas.');
         err.statusCode = 400;

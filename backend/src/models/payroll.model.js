@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { normalizeUserRoles } from '../constants/userRoles.js';
 
 export const PAYROLL_STAFF_ROLES = [
     'admin_club',
@@ -16,8 +17,9 @@ export const PAYROLL_METODOS = ['efectivo', 'transferencia', 'mercado_pago', 'ot
 /** Personal del club o atletas marcados como jugadores pagos. */
 export function isPayrollEligible(user) {
     if (!user) return false;
-    if (PAYROLL_STAFF_ROLES.includes(user.rol)) return true;
-    return user.rol === 'atleta' && user.enNomina === true;
+    const roles = normalizeUserRoles(user);
+    if (roles.some((r) => PAYROLL_STAFF_ROLES.includes(r))) return true;
+    return roles.includes('atleta') && user.enNomina === true;
 }
 
 const payrollEntrySchema = new mongoose.Schema(

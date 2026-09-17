@@ -8,6 +8,11 @@ const planSchema = new mongoose.Schema({
     diaVencimiento: { type: Number, default: 10, min: 1, max: 28 }, // Día del mes en que vence la cuota
     /** Recargo % sobre montoFinal al pasar a vencido (después del descuento de inscripción). */
     porcentajeRecargo: { type: Number, default: 0, min: 0, max: 100 },
+    /**
+     * Plan beca: no genera cuotas de entrenamiento y no figura en Finanzas.
+     * Asignar este plan a la inscripción que factura la disciplina.
+     */
+    esBeca: { type: Boolean, default: false },
     activo: { type: Boolean, default: true }
 }, { timestamps: true });
 

@@ -1,3 +1,5 @@
+import { roleQuery, roleQueryMany } from '../constants/userRoles.js';
+
 /**
  * @param {import('express').Request} req
  * @param {{ defaultLimit?: number, maxLimit?: number }} [opts]
@@ -26,24 +28,34 @@ export function escapeRegex(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** Filtro de usuarios por nombre/apellido/email (tokens AND). */
-export function buildUserSearchFilter(search, { rol } = {}) {
+/**
+ * Filtro de usuarios por nombre/apellido/email (tokens AND).
+ * Multi-rol: `rol` / `roles` match primary `rol` or `roles[]`.
+ * @param {string} search
+ * @param {{ rol?: string, roles?: string[] }} [opts]
+ */
+export function buildUserSearchFilter(search, { rol, roles } = {}) {
   const trimmed = String(search || '').trim();
   if (!trimmed) return null;
 
   const tokens = trimmed.split(/\s+/).filter(Boolean);
-  const filter = {};
-  if (rol) filter.rol = rol;
-  filter.$and = tokens.map((token) => {
+  const and = tokens.map((token) => {
     const rx = new RegExp(escapeRegex(token), 'i');
     return { $or: [{ nombre: rx }, { apellido: rx }, { email: rx }] };
   });
-  return filter;
+
+  if (Array.isArray(roles) && roles.length) {
+    and.push(roleQueryMany(roles));
+  } else if (rol) {
+    and.push(roleQuery(rol));
+  }
+
+  return { $and: and };
 }
 
 /** Filtro de atletas por nombre/apellido/email (tokens AND). */
-export function buildAthleteSearchFilter(search, { rol = 'atleta' } = {}) {
-  return buildUserSearchFilter(search, { rol });
+export function buildAthleteSearchFilter(search, { rol = 'atleta', roles } = {}) {
+  return buildUserSearchFilter(search, roles?.length ? { roles } : { rol });
 }
 
 /** Búsqueda de plantel: nombre, apellido, email o DNI. */

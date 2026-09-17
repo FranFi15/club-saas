@@ -14,6 +14,8 @@ import {
 } from '../services/disciplineBilling.service.js';
 import { enrollmentBillingForTrial, isAthleteOnTrial } from '../services/trialAthlete.service.js';
 import { matchesCategoryAgeLimits } from '../utils/ageHelper.js';
+import { userHasRole } from '../constants/userRoles.js';
+import { isBecaPlan, removeOpenTrainingPaymentsForBeca } from '../services/becaPlan.service.js';
 
 async function applyPreviousBillingClear(models, previousBillingId) {
     if (!previousBillingId) return;
@@ -30,9 +32,9 @@ const enrollAthlete = asyncHandler(async (req, res) => {
     // Traemos ambos modelos de una sola vez
     const { User, Enrollment, Category } = req.models;
 
-    // 1. Verificamos que el usuario exista y sea realmente un atleta
+    // 1. Verificamos que el usuario exista y sea realmente un atleta (multi-rol OK)
     const user = await User.findById(atletaId);
-    if (!user || user.rol !== 'atleta') {
+    if (!user || !userHasRole(user, 'atleta')) {
         res.status(400);
         throw new Error('El usuario no existe o no tiene el rol de atleta');
     }
@@ -192,8 +194,8 @@ const getCategoriesByAthlete = asyncHandler(async (req, res) => {
             throw new Error('Solo podés ver tus propias inscripciones.');
         }
     } else if (rol === 'tutor') {
-        const hijo = await User.findById(targetId).select('tutorPrincipal rol').lean();
-        if (!hijo || hijo.rol !== 'atleta') {
+        const hijo = await User.findById(targetId).select('tutorPrincipal rol roles').lean();
+        if (!hijo || !userHasRole(hijo, 'atleta')) {
             res.status(400);
             throw new Error('Usuario no válido.');
         }
@@ -255,13 +257,28 @@ const updateEnrollmentFinancials = asyncHandler(async (req, res) => {
         await enrollment.save();
     }
 
-    const updatedEnrollment = await Enrollment.findById(enrollment._id).populate('plan', 'nombre monto');
+    const updatedEnrollment = await Enrollment.findById(enrollment._id).populate(
+        'plan',
+        'nombre monto esBeca',
+    );
 
     if (updatedEnrollment?.esFacturacion && updatedEnrollment.plan) {
-        try {
-            await ensureCurrentMonthPaymentForEnrollment(req.models, updatedEnrollment, req.clubTimezone);
-        } catch (e) {
-            console.warn('[financials] cuota mes actual:', e.message);
+        if (isBecaPlan(updatedEnrollment.plan)) {
+            await removeOpenTrainingPaymentsForBeca(req.models, {
+                atletaId: updatedEnrollment.atleta,
+                planId: updatedEnrollment.plan._id,
+                categoriaId: updatedEnrollment.categoria,
+            });
+        } else {
+            try {
+                await ensureCurrentMonthPaymentForEnrollment(
+                    req.models,
+                    updatedEnrollment,
+                    req.clubTimezone,
+                );
+            } catch (e) {
+                console.warn('[financials] cuota mes actual:', e.message);
+            }
         }
     }
 
