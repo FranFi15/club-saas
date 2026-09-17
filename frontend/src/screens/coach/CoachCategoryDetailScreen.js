@@ -732,21 +732,8 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
     );
   };
 
-  const activeAlertLayer = rejectModal.visible
-    ? 'reject'
-    : docOpen
-      ? 'doc'
-      : wellnessOpen
-        ? 'wellness'
-        : addOpen
-          ? 'add'
-          : historyModal
-            ? 'history'
-            : 'root';
-
-  const renderEmbeddedAlert = () => (
+  const rootAlert = (
     <CustomAlert
-      embedded
       visible={alertConfig.visible}
       title={alertConfig.title}
       message={alertConfig.message}
@@ -978,7 +965,6 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
               )}
             </TouchableOpacity>
           </View>
-          {activeAlertLayer === 'add' ? renderEmbeddedAlert() : null}
         </View>
       </Modal>
 
@@ -1126,7 +1112,6 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
             )}
           </View>
         </View>
-        {activeAlertLayer === 'wellness' ? renderEmbeddedAlert() : null}
       </Modal>
 
       <Modal visible={docOpen} animationType="slide" transparent statusBarTranslucent>
@@ -1327,7 +1312,6 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
           </View>
         </View>
         {renderRejectOverlay()}
-        {activeAlertLayer === 'doc' || activeAlertLayer === 'reject' ? renderEmbeddedAlert() : null}
       </Modal>
 
       <Modal visible={!!historyModal} animationType="slide" transparent>
@@ -1355,11 +1339,10 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
               />
             </ScrollView>
           </View>
-          {activeAlertLayer === 'history' ? renderEmbeddedAlert() : null}
         </View>
       </Modal>
 
-      {activeAlertLayer === 'root' ? renderEmbeddedAlert() : null}
+      {rootAlert}
     </SafeAreaView>
   );
 }

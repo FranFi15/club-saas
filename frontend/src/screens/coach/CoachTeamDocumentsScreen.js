@@ -11,6 +11,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -528,20 +529,6 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
     />
   );
 
-  const activeAlertLayer = rejectModal.visible ? 'reject' : 'root';
-
-  const renderEmbeddedAlert = () => (
-    <CustomAlert
-      embedded
-      visible={alertConfig.visible}
-      title={alertConfig.title}
-      message={alertConfig.message}
-      onConfirm={alertConfig.onConfirm}
-      onCancel={alertConfig.onCancel}
-      showCancel={alertConfig.showCancel}
-    />
-  );
-
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
@@ -576,63 +563,68 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
         }
       />
 
-      {rejectModal.visible ? (
-        <View style={styles.modalHost}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={styles.modalOverlay}
-          >
-            <TouchableOpacity
-              style={StyleSheet.absoluteFillObject}
-              activeOpacity={1}
-              onPress={() => setRejectModal({ visible: false, item: null, motivo: '' })}
+      <Modal
+        visible={rejectModal.visible}
+        transparent
+        animationType="slide"
+        presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+        onRequestClose={() => setRejectModal({ visible: false, item: null, motivo: '' })}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            activeOpacity={1}
+            onPress={() => setRejectModal({ visible: false, item: null, motivo: '' })}
+          />
+          <View style={[styles.modalCard, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Rechazar documento</Text>
+            <Text style={[styles.modalHint, { color: theme.textMuted }]}>
+              El atleta verá este motivo y podrá volver a subir el archivo.
+            </Text>
+            <TextInput
+              style={[
+                styles.modalInput,
+                { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
+              ]}
+              placeholder="Motivo del rechazo..."
+              placeholderTextColor={theme.textMuted}
+              value={rejectModal.motivo}
+              onChangeText={(t) => setRejectModal((p) => ({ ...p, motivo: t }))}
+              multiline
+              maxLength={400}
             />
-            <View style={[styles.modalCard, { backgroundColor: theme.surface }]}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>Rechazar documento</Text>
-              <Text style={[styles.modalHint, { color: theme.textMuted }]}>
-                El atleta verá este motivo y podrá volver a subir el archivo.
-              </Text>
-              <TextInput
-                style={[
-                  styles.modalInput,
-                  { color: theme.text, borderColor: theme.border, backgroundColor: theme.background },
-                ]}
-                placeholder="Motivo del rechazo..."
-                placeholderTextColor={theme.textMuted}
-                value={rejectModal.motivo}
-                onChangeText={(t) => setRejectModal((p) => ({ ...p, motivo: t }))}
-                multiline
-                maxLength={400}
-              />
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={[styles.modalBtn, { borderColor: theme.border }]}
-                  onPress={() => setRejectModal({ visible: false, item: null, motivo: '' })}
-                >
-                  <Text style={{ color: theme.text, fontWeight: '600' }}>Cancelar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#ef4444' }]} onPress={confirmReject}>
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>Rechazar</Text>
-                </TouchableOpacity>
-              </View>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtn, { borderColor: theme.border }]}
+                onPress={() => setRejectModal({ visible: false, item: null, motivo: '' })}
+              >
+                <Text style={{ color: theme.text, fontWeight: '600' }}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#ef4444' }]} onPress={confirmReject}>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>Rechazar</Text>
+              </TouchableOpacity>
             </View>
-          </KeyboardAvoidingView>
-          {renderEmbeddedAlert()}
-        </View>
-      ) : (
-        activeAlertLayer === 'root' ? renderEmbeddedAlert() : null
-      )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onConfirm={alertConfig.onConfirm}
+        onCancel={alertConfig.onCancel}
+        showCancel={alertConfig.showCancel}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  modalHost: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 500,
-    elevation: 500,
-  },
   filtersPanel: {
     marginHorizontal: 8,
     marginTop: 16,
