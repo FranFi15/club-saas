@@ -29,7 +29,7 @@ import {
     athleteHasDecisionTutor,
     trialNeedsMemberDecision,
 } from '../services/trialAthlete.service.js';
-import { resolveAthleteEmail } from '../utils/athleteLoginEmail.js';
+import { resolveAthleteEmail, isAthleteInternalEmail } from '../utils/athleteLoginEmail.js';
 
 function parseSueldoNomina(value) {
     if (value === undefined || value === null || value === '') return undefined;
@@ -283,6 +283,7 @@ const updateMyProfile = asyncHandler(async (req, res) => {
     const {
         nombre,
         apellido,
+        email,
         telefono,
         direccion,
         contactoEmergencia,
@@ -309,6 +310,47 @@ const updateMyProfile = asyncHandler(async (req, res) => {
         }
         user.apellido = a;
     }
+
+    if (email !== undefined) {
+        const raw = String(email || '').trim().toLowerCase();
+        const roles = normalizeUserRoles(user);
+        const hasAtleta = roles.includes('atleta');
+
+        if (!raw) {
+            if (!hasAtleta) {
+                res.status(400);
+                throw new Error('El email es obligatorio.');
+            }
+            if (!isAthleteInternalEmail(user.email, req.clubIdentifier)) {
+                try {
+                    const resolved = await resolveAthleteEmail(User, {
+                        email: '',
+                        nombre: user.nombre,
+                        apellido: user.apellido,
+                        clubIdentifier: req.clubIdentifier,
+                    });
+                    user.email = resolved.email;
+                } catch (e) {
+                    res.status(e.statusCode || 400);
+                    throw e;
+                }
+            }
+        } else {
+            if (!raw.includes('@') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) {
+                res.status(400);
+                throw new Error('Ingresá un email válido.');
+            }
+            if (raw !== String(user.email || '').toLowerCase()) {
+                const taken = await User.findOne({ email: raw, _id: { $ne: user._id } }).select('_id').lean();
+                if (taken) {
+                    res.status(400);
+                    throw new Error('Ese email ya está registrado en el club.');
+                }
+                user.email = raw;
+            }
+        }
+    }
+
     if (telefono !== undefined) user.telefono = String(telefono).trim();
     if (direccion !== undefined) user.direccion = String(direccion).trim();
     if (contactoEmergencia !== undefined) user.contactoEmergencia = String(contactoEmergencia).trim();
@@ -332,10 +374,15 @@ const updateMyProfile = asyncHandler(async (req, res) => {
     const updatedUser = await user.save();
 
     const edad = calcEdad(updatedUser.fechaNacimiento);
+    const loginHint = isAthleteInternalEmail(updatedUser.email, req.clubIdentifier)
+        ? String(updatedUser.email).split('@')[0]
+        : updatedUser.email;
     res.json({
         ...updatedUser.toObject(),
         password: undefined,
         edad,
+        loginHint,
+        emailGenerado: isAthleteInternalEmail(updatedUser.email, req.clubIdentifier),
         cuotasEnApp: updatedUser.rol === 'atleta' ? atletaCuotasEnApp(updatedUser) : undefined,
         puedePagarEnApp:
             updatedUser.rol === 'tutor' ||
@@ -801,6 +848,10 @@ const getMe = asyncHandler(async (req, res) => {
         rol: activeRol,
         roles,
         edad,
+        loginHint: isAthleteInternalEmail(user.email, req.clubIdentifier)
+            ? String(user.email).split('@')[0]
+            : user.email,
+        emailGenerado: isAthleteInternalEmail(user.email, req.clubIdentifier),
         cuotasEnApp: roles.includes('atleta') ? cuotasHabilitadas : undefined,
         puedePagarEnApp,
         pruebaPendiente: pruebaPendiente.map((a) => (a.toObject ? a.toObject() : a)),

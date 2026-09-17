@@ -41,10 +41,23 @@ function bankFormFromApi(data) {
   };
 }
 
+function isInternalAthleteEmail(email) {
+  const e = String(email || '').toLowerCase();
+  return e.includes('@athletes.') && e.endsWith('.internal');
+}
+
+function displayEmailForEdit(email) {
+  if (!email) return '';
+  if (isInternalAthleteEmail(email)) return '';
+  return String(email);
+}
+
 function profileFormFromApi(data) {
   return {
     rol: data.rol || '',
-    email: data.email || '',
+    email: displayEmailForEdit(data.email),
+    emailRaw: data.email || '',
+    loginHint: data.loginHint || (isInternalAthleteEmail(data.email) ? String(data.email).split('@')[0] : ''),
     nombre: data.nombre || '',
     apellido: data.apellido || '',
     dni: data.dni || '',
@@ -69,6 +82,7 @@ export default function EditProfileScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
   const [rol, setRol] = useState(initialForm?.rol ?? '');
   const [email, setEmail] = useState(initialForm?.email ?? '');
+  const [loginHint, setLoginHint] = useState(initialForm?.loginHint ?? '');
   const [nombre, setNombre] = useState(initialForm?.nombre ?? '');
   const [apellido, setApellido] = useState(initialForm?.apellido ?? '');
   const [dni, setDni] = useState(initialForm?.dni ?? '');
@@ -107,6 +121,7 @@ export default function EditProfileScreen({ navigation }) {
     const form = profileFormFromApi(data.profile);
     setRol(form.rol);
     setEmail(form.email);
+    setLoginHint(form.loginHint || '');
     setNombre(form.nombre);
     setApellido(form.apellido);
     setDni(form.dni);
@@ -186,6 +201,7 @@ export default function EditProfileScreen({ navigation }) {
       const body = {
         nombre: nombre.trim(),
         apellido: apellido.trim(),
+        email: email.trim().toLowerCase(),
         telefono: telefono.trim(),
         direccion: direccion.trim(),
         contactoEmergencia: contactoEmergencia.trim(),
@@ -212,6 +228,8 @@ export default function EditProfileScreen({ navigation }) {
         );
       }
       await persistUserTokensFromProfile(data);
+      setLoginHint(data.loginHint || '');
+      setEmail(displayEmailForEdit(data.email));
       if (profileCacheKey) {
         writeScreenCache(profileCacheKey, {
           profile: data,
@@ -280,16 +298,27 @@ export default function EditProfileScreen({ navigation }) {
             nombre={nombre}
             apellido={apellido}
           />
-          <Text style={[styles.hint, { color: theme.textMuted }]}>
-            El email no se puede cambiar desde acá. Contactá al club si necesitás otro correo.
-          </Text>
-          <Text style={[styles.label, { color: theme.textMuted }]}>Email</Text>
+          <Text style={[styles.label, { color: theme.text }]}>Email</Text>
           <TextInput
-            style={[inputStyle, styles.readOnly]}
+            style={inputStyle}
             value={email}
-            editable={false}
+            onChangeText={(t) => setEmail(t.toLowerCase())}
+            placeholder={loginHint ? `Opcional — usuario: ${loginHint}` : 'tu@email.com'}
             placeholderTextColor={theme.textMuted}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
           />
+          {loginHint && !email.trim() ? (
+            <Text style={[styles.hint, { color: theme.textMuted }]}>
+              Sin email real entrás con el usuario <Text style={{ fontWeight: '700' }}>{loginHint}</Text>.
+              Si agregás un correo, ese pasa a ser tu usuario de acceso.
+            </Text>
+          ) : (
+            <Text style={[styles.hint, { color: theme.textMuted }]}>
+              Este email es tu usuario para iniciar sesión en la app.
+            </Text>
+          )}
 
           <Text style={[styles.label, { color: theme.text }]}>Nombre</Text>
           <TextInput style={inputStyle} value={nombre} onChangeText={setNombre} placeholderTextColor={theme.textMuted} />
