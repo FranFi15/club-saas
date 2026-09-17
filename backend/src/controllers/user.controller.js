@@ -29,6 +29,7 @@ import {
     athleteHasDecisionTutor,
     trialNeedsMemberDecision,
 } from '../services/trialAthlete.service.js';
+import { resolveAthleteEmail } from '../utils/athleteLoginEmail.js';
 
 function parseSueldoNomina(value) {
     if (value === undefined || value === null || value === '') return undefined;
@@ -98,13 +99,6 @@ const registerUser = asyncHandler(async (req, res) => {
 
     const { User } = req.models;
 
-    const userExists = await User.findOne({ email });
-
-    if (userExists) {
-        res.status(400);
-        throw new Error('El usuario ya existe en este club.');
-    }
-
     let resolved;
     try {
         resolved = resolveRolesWrite(rolesBody, rol);
@@ -129,6 +123,40 @@ const registerUser = asyncHandler(async (req, res) => {
     const clientRol = roles.find((r) => CLIENT_USER_ROLES.includes(r));
     const staffPayrollRol = roles.find((r) => PAYROLL_STAFF_ROLES.includes(r));
     const payrollRol = hasAtleta ? 'atleta' : staffPayrollRol || primaryRol;
+
+    const emailRaw = String(email || '').trim();
+    if (!emailRaw && !hasAtleta) {
+        res.status(400);
+        throw new Error('El email es obligatorio para este tipo de cuenta.');
+    }
+
+    let emailResolved;
+    try {
+        if (hasAtleta) {
+            emailResolved = await resolveAthleteEmail(User, {
+                email: emailRaw,
+                nombre,
+                apellido,
+                clubIdentifier: req.clubIdentifier,
+            });
+        } else {
+            emailResolved = {
+                email: emailRaw.toLowerCase(),
+                generated: false,
+                loginHint: emailRaw.toLowerCase(),
+            };
+        }
+    } catch (e) {
+        res.status(e.statusCode || 400);
+        throw e;
+    }
+
+    const userExists = await User.findOne({ email: emailResolved.email });
+
+    if (userExists) {
+        res.status(400);
+        throw new Error('El usuario ya existe en este club.');
+    }
 
     let trialFields;
     try {
@@ -164,7 +192,7 @@ const registerUser = asyncHandler(async (req, res) => {
         nombre,
         apellido,
         dni,
-        email,
+        email: emailResolved.email,
         password,
         rol: primaryRol,
         roles,
@@ -205,12 +233,16 @@ const registerUser = asyncHandler(async (req, res) => {
             nombre: user.nombre,
             apellido: user.apellido,
             email: user.email,
+            loginHint: emailResolved.loginHint,
+            emailGenerado: emailResolved.generated,
             rol: user.rol,
             roles: normalizeUserRoles(user),
             fotoPerfil: user.fotoPerfil,
             esPrueba: user.esPrueba,
             pruebaHasta: user.pruebaHasta,
-            message: 'Usuario creado exitosamente.'
+            message: emailResolved.generated
+                ? `Usuario creado. Sin email: puede entrar con el usuario "${emailResolved.loginHint}".`
+                : 'Usuario creado exitosamente.'
         });
 
         if (roles.includes('atleta') || roles.includes('socio')) {

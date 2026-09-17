@@ -153,8 +153,9 @@ export default function FamilySignup() {
           <p className="fs-eyebrow">Listo</p>
           <h1 className="fs-title">{withTutor ? 'Familia registrada' : 'Registro listo'}</h1>
           <p className="fs-lead">
-            Ya {withTutor ? 'pueden' : 'podés'} entrar a la app con el código <strong>{club}</strong> y
-            el email/contraseña que cargaron.
+            Ya {withTutor ? 'pueden' : 'podés'} entrar a la app con el código <strong>{club}</strong>.
+            Usá el email (o el usuario nombre.apellido si no cargaron email) y la contraseña que
+            definieron.
           </p>
           <ul className="fs-summary">
             {done.tutor ? (
@@ -164,7 +165,9 @@ export default function FamilySignup() {
             ) : null}
             {(done.atletas || []).map((a) => (
               <li key={a._id}>
-                Atleta: {a.nombre} {a.apellido} ({a.email})
+                Atleta: {a.nombre} {a.apellido} — usuario:{' '}
+                <strong>{a.loginHint || a.email}</strong>
+                {a.emailGenerado ? ' (sin email)' : ''}
               </li>
             ))}
           </ul>
@@ -280,13 +283,17 @@ export default function FamilySignup() {
                 />
               </label>
               <label className="fs-field">
-                <span>Email</span>
+                <span>Email (opcional)</span>
                 <input
-                  required
                   type="email"
                   value={atletas[index]?.email || ''}
                   onChange={(e) => updateAthlete(index, 'email', e.target.value)}
+                  placeholder="Si no tiene, dejalo vacío"
                 />
+                <small className="fs-hint">
+                  Sin email: entra a la app con nombre.apellido (ej. juan.perez) y la contraseña de
+                  abajo.
+                </small>
               </label>
               <label className="fs-field">
                 <span>Contraseña</span>

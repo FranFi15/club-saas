@@ -234,8 +234,14 @@ export default function UsuariosScreen({ navigation }) {
            setIsSaving(false);
            return;
         }
-        await clubApi.post('/users', formData, { headers });
-        showAlert('Éxito', 'El usuario fue creado correctamente.');
+        const { data } = await clubApi.post('/users', formData, { headers });
+        showAlert(
+          'Éxito',
+          data?.message ||
+            (data?.emailGenerado
+              ? `Usuario creado. Puede entrar con "${data.loginHint}".`
+              : 'El usuario fue creado correctamente.'),
+        );
       }
       // Volvemos a traer todos de la DB para que los objetos populados (tutorPrincipal) vengan íntegros
       fetchUsers(1); 

@@ -287,6 +287,11 @@ export default function UserFormModal({
     let payload = { ...formData };
     payload.roles = selectedRoles;
     payload.rol = selectedRoles.includes(payload.rol) ? payload.rol : selectedRoles[0];
+    if (hasAtleta && !String(payload.email || '').trim()) {
+      payload.email = '';
+    } else if (!hasAtleta && !String(payload.email || '').trim()) {
+      // leave as-is; backend will reject
+    }
     if (payload.fechaNacimiento) {
       const ymd = displayDateToIsoCalendar(payload.fechaNacimiento);
       payload.fechaNacimiento = ymd || undefined;
@@ -372,9 +377,16 @@ export default function UserFormModal({
               <TextInput style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
                 value={formData.apellido} onChangeText={(v) => handleChange('apellido', v)} placeholder="Pérez" placeholderTextColor={theme.textMuted} />
               
-              <Text style={[styles.label, { color: theme.textMuted }]}>Email *</Text>
+              <Text style={[styles.label, { color: theme.textMuted }]}>
+                {hasAtleta ? 'Email (opcional)' : 'Email *'}
+              </Text>
               <TextInput style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
-                value={formData.email} onChangeText={(v) => handleChange('email', v.toLowerCase())} placeholder="juan@correo.com" keyboardType="email-address" autoCapitalize="none" placeholderTextColor={theme.textMuted} />
+                value={formData.email} onChangeText={(v) => handleChange('email', v.toLowerCase())} placeholder={hasAtleta ? 'Vacío = entra con nombre.apellido' : 'juan@correo.com'} keyboardType="email-address" autoCapitalize="none" placeholderTextColor={theme.textMuted} />
+              {hasAtleta && !String(formData.email || '').trim() ? (
+                <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: -8, marginBottom: 12 }}>
+                  Sin email, el atleta entra a la app con usuario nombre.apellido (ej. juan.perez) y la contraseña que definas.
+                </Text>
+              ) : null}
               
               {!initialData && (
                 <>

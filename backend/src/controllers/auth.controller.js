@@ -1,5 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import jwt from 'jsonwebtoken';
+import { findUserByLoginIdentifier } from '../utils/athleteLoginEmail.js';
 import {
     ensureUserRolesPersisted,
     normalizeUserRoles,
@@ -86,7 +87,7 @@ const loginUser = asyncHandler(async (req, res) => {
     const { User } = req.models;
     const club = req.clubIdentifier;
 
-    const user = await User.findOne({ email });
+    const user = await findUserByLoginIdentifier(User, email, club);
 
     if (user && (await user.matchPassword(password))) {
         assertActiveUser(user, res);

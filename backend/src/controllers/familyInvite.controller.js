@@ -8,6 +8,7 @@ import { categorySexoError, applyCategorySexoToAthlete } from '../utils/atletaSe
 import { resolveNewEnrollmentBilling } from '../services/disciplineBilling.service.js';
 import { parseTrialCreateFields, enrollmentBillingForTrial } from '../services/trialAthlete.service.js';
 import { matchesCategoryAgeLimits } from '../utils/ageHelper.js';
+import { resolveAthleteEmail, isAthleteInternalEmail } from '../utils/athleteLoginEmail.js';
 
 const CURRENT_TERMS_VERSION = '2026-08-15';
 const INVITE_TTL_MS = 72 * 60 * 60 * 1000;
@@ -279,26 +280,42 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
     }
 
     const athleteEmails = new Set(tutorEmail ? [tutorEmail] : []);
+    const resolvedAthleteEmails = [];
     for (let i = 0; i < atletas.length; i += 1) {
         const a = atletas[i];
-        if (!a?.nombre || !a?.apellido || !a?.email || !a?.password || !a?.fechaNacimiento) {
+        if (!a?.nombre || !a?.apellido || !a?.password || !a?.fechaNacimiento) {
             res.status(400);
-            throw new Error(`Atleta ${i + 1}: faltan nombre, apellido, email, contraseña o fecha de nacimiento.`);
+            throw new Error(`Atleta ${i + 1}: faltan nombre, apellido, contraseña o fecha de nacimiento.`);
         }
         if (String(a.password).length < 6) {
             res.status(400);
             throw new Error(`Atleta ${i + 1}: la contraseña debe tener al menos 6 caracteres.`);
         }
-        const email = String(a.email).trim().toLowerCase();
-        if (athleteEmails.has(email)) {
-            res.status(400);
-            throw new Error(`Atleta ${i + 1}: el email está duplicado en el formulario.`);
+
+        let emailResolved;
+        try {
+            emailResolved = await resolveAthleteEmail(User, {
+                email: a.email,
+                nombre: a.nombre,
+                apellido: a.apellido,
+                clubIdentifier: req.clubIdentifier,
+                reservedEmails: athleteEmails,
+            });
+        } catch (e) {
+            res.status(e.statusCode || 400);
+            throw new Error(`Atleta ${i + 1}: ${e.message}`);
         }
-        athleteEmails.add(email);
-        if (await User.findOne({ email })) {
+        if (athleteEmails.has(emailResolved.email)) {
+            res.status(400);
+            throw new Error(`Atleta ${i + 1}: el email/usuario está duplicado en el formulario.`);
+        }
+        athleteEmails.add(emailResolved.email);
+        if (!emailResolved.generated && (await User.findOne({ email: emailResolved.email }))) {
             res.status(400);
             throw new Error(`Atleta ${i + 1}: el email ya está registrado en el club.`);
         }
+        resolvedAthleteEmails.push(emailResolved);
+
         const slot = invite.athleteSlots[i];
         const category = await Category.findById(slot.categoria._id || slot.categoria).populate(
             'disciplina',
@@ -356,7 +373,7 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
             const atleta = await User.create({
                 nombre: String(a.nombre).trim(),
                 apellido: String(a.apellido).trim(),
-                email: String(a.email).trim().toLowerCase(),
+                email: resolvedAthleteEmails[i].email,
                 password: a.password,
                 dni: a.dni ? String(a.dni).trim() : undefined,
                 fechaNacimiento: a.fechaNacimiento,
@@ -371,6 +388,8 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
                 acceptedTermsVersion: CURRENT_TERMS_VERSION,
                 acceptedTermsAt: termsAt,
             });
+            atleta._loginHint = resolvedAthleteEmails[i].loginHint;
+            atleta._emailGenerado = resolvedAthleteEmails[i].generated;
 
             await applyCategorySexoToAthlete(atleta, category);
 
@@ -458,6 +477,10 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
         atletas: createdAthletes.map((u) => ({
             _id: u._id,
             email: u.email,
+            loginHint: u._loginHint || (isAthleteInternalEmail(u.email, req.clubIdentifier)
+                ? String(u.email).split('@')[0]
+                : u.email),
+            emailGenerado: Boolean(u._emailGenerado),
             nombre: u.nombre,
             apellido: u.apellido,
         })),

@@ -135,7 +135,7 @@ export default function LoginScreen({ navigation }) {
     const emailValue = (emailValueRef.current || email).trim();
     const passwordValue = passwordValueRef.current || password;
     if (!emailValue || !passwordValue) {
-      showAlert('Atención', 'Completá tu email y contraseña para entrar.');
+      showAlert('Atención', 'Completá tu email o usuario y la contraseña para entrar.');
       return;
     }
 
@@ -241,7 +241,7 @@ export default function LoginScreen({ navigation }) {
         contentProps={{ importantForAutofill: 'yes', autoComplete: 'password' }}
         style={styles.cardWrap}
       >
-        <Text style={[styles.label, { color: theme.text }]}>Email</Text>
+        <Text style={[styles.label, { color: theme.text }]}>Email o usuario</Text>
         <TextInput
           style={[
             styles.input,
@@ -251,9 +251,9 @@ export default function LoginScreen({ navigation }) {
               color: theme.text,
             },
           ]}
-          placeholder="tu@email.com"
+          placeholder="email o juan.perez"
           placeholderTextColor={theme.textMuted}
-          keyboardType="email-address"
+          keyboardType="default"
           autoCapitalize="none"
           autoCorrect={false}
           value={email}
