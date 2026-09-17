@@ -6,9 +6,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StatusBar,
-  ScrollView,
+  Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { CommonActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
@@ -20,6 +19,8 @@ import { resolveMainNavigator } from '../constants/appRoles';
 import { USER_ROL_LABELS } from '../constants/userRoles';
 import { needsTermsAcceptance } from '../constants/legal';
 import { beginAuthSession } from '../utils/session';
+import AuthFormLayout from '../components/AuthFormLayout';
+import DesignCard from '../components/DesignCard';
 
 export default function SelectRoleScreen({ navigation, route }) {
   const { clubData, setMemberSessionRol, setSessionActive } = useContext(ClubContext);
@@ -126,74 +127,165 @@ export default function SelectRoleScreen({ navigation, route }) {
     }
   };
 
+  if (!clubData?.urlIdentifier) {
+    return (
+      <View style={[styles.flex, { backgroundColor: theme.background }]}>
+        <ActivityIndicator color={theme.text} />
+      </View>
+    );
+  }
+
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+    <View style={[styles.flex, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={[styles.kicker, { color: colorMarca }]}>
-          {fromProfile ? 'Cambiar rol' : 'Elegí cómo entrar'}
-        </Text>
-        <Text style={[styles.title, { color: theme.text }]}>
-          {fromProfile ? '¿Con qué rol querés continuar?' : 'Tu cuenta tiene varios roles'}
-        </Text>
-        <Text style={[styles.sub, { color: theme.textMuted }]}>
-          Podés cambiarlo después desde tu perfil.
-        </Text>
+      <AuthFormLayout backgroundColor={theme.background}>
+        <View style={styles.heroWrap}>
+          {clubData.logoUrl ? (
+            <Image source={{ uri: clubData.logoUrl }} style={styles.heroImage} resizeMode="cover" />
+          ) : (
+            <View style={[styles.placeholderLogo, { backgroundColor: colorMarca }]}>
+              <Text style={styles.placeholderText}>
+                {(clubData.nombre || 'C').charAt(0)}
+              </Text>
+            </View>
+          )}
+        </View>
 
-        {booting ? (
-          <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />
-        ) : (
-          <View style={styles.list}>
-            {sortedRoles.map((rol) => (
-              <TouchableOpacity
-                key={rol}
-                style={[styles.card, { borderColor: theme.border, backgroundColor: theme.surface }]}
-                onPress={() => applyRole(rol)}
-                disabled={loading}
-                activeOpacity={0.85}
-              >
-                <View style={[styles.iconWrap, { backgroundColor: colorMarca + '18' }]}>
-                  <Ionicons name="swap-horizontal" size={22} color={colorMarca} />
-                </View>
-                <Text style={[styles.cardTitle, { color: theme.text }]}>
-                  {USER_ROL_LABELS[rol] || rol}
-                </Text>
-                <Ionicons name="chevron-forward" size={20} color={theme.icon} />
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+        <DesignCard
+          theme={theme}
+          isDarkMode={isDarkMode}
+          accent={colorMarca}
+          contentStyle={styles.cardBody}
+          style={styles.cardWrap}
+        >
+          <Text style={[styles.clubName, { color: theme.text }]} numberOfLines={2}>
+            {clubData.nombre || 'Tu club'}
+          </Text>
+          <Text style={[styles.title, { color: theme.text }]}>
+            {fromProfile ? 'Cambiar rol' : 'Elegí tu rol'}
+          </Text>
+          <Text style={[styles.sub, { color: theme.textMuted }]}>
+            {fromProfile
+              ? 'Tocá el rol con el que querés continuar.'
+              : 'Tu cuenta tiene más de un rol. Elegí cómo entrar.'}
+          </Text>
 
-        {loading ? <ActivityIndicator color={colorMarca} style={{ marginTop: 16 }} /> : null}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-      </ScrollView>
-    </SafeAreaView>
+          {booting ? (
+            <ActivityIndicator color={colorMarca} style={{ marginVertical: 24 }} />
+          ) : (
+            <View style={styles.list}>
+              {sortedRoles.map((rol) => (
+                <TouchableOpacity
+                  key={rol}
+                  style={[
+                    styles.roleBtn,
+                    {
+                      borderColor: theme.border,
+                      backgroundColor: isDarkMode ? '#1a191f' : theme.background,
+                    },
+                  ]}
+                  onPress={() => applyRole(rol)}
+                  disabled={loading}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[styles.roleBtnText, { color: theme.text }]}>
+                    {USER_ROL_LABELS[rol] || rol}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={20} color={colorMarca} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {loading ? <ActivityIndicator color={colorMarca} style={{ marginTop: 12 }} /> : null}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+        </DesignCard>
+      </AuthFormLayout>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  scroll: { padding: 24, paddingBottom: 40 },
-  kicker: { fontWeight: '700', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.6 },
-  title: { fontSize: 24, fontWeight: '800', marginTop: 8 },
-  sub: { fontSize: 15, marginTop: 8, lineHeight: 22 },
-  list: { marginTop: 28, gap: 12 },
-  card: {
-    flexDirection: 'row',
+  flex: { flex: 1 },
+  heroWrap: {
     alignItems: 'center',
-    gap: 14,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 16,
-    paddingHorizontal: 14,
+    width: '100%',
+    marginBottom: 0,
   },
-  iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+  heroImage: {
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+  },
+  placeholderLogo: {
+    width: 250,
+    height: 250,
+    borderRadius: 125,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardTitle: { flex: 1, fontSize: 17, fontWeight: '700' },
-  error: { color: '#ef4444', marginTop: 16, textAlign: 'center' },
+  placeholderText: {
+    color: '#fff',
+    fontSize: 96,
+    fontWeight: 'bold',
+  },
+  cardWrap: {
+    width: '100%',
+    marginBottom: 0,
+  },
+  cardBody: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 20,
+    alignItems: 'center',
+  },
+  clubName: {
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+    opacity: 0.75,
+    marginBottom: 6,
+    alignSelf: 'stretch',
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '800',
+    textAlign: 'center',
+    alignSelf: 'stretch',
+  },
+  sub: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 18,
+    alignSelf: 'stretch',
+  },
+  list: {
+    gap: 10,
+    width: '100%',
+  },
+  roleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 52,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    width: '100%',
+  },
+  roleBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    flex: 1,
+    paddingRight: 8,
+  },
+  error: {
+    color: '#ef4444',
+    marginTop: 14,
+    textAlign: 'center',
+    fontSize: 14,
+  },
 });
