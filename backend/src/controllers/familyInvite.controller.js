@@ -7,45 +7,22 @@ import { syncAthleteCountToSuper } from '../services/athleteQuota.service.js';
 import { categorySexoError, applyCategorySexoToAthlete } from '../utils/atletaSexo.js';
 import { resolveNewEnrollmentBilling } from '../services/disciplineBilling.service.js';
 import { parseTrialCreateFields, enrollmentBillingForTrial } from '../services/trialAthlete.service.js';
+import { matchesCategoryAgeLimits } from '../utils/ageHelper.js';
 
 const CURRENT_TERMS_VERSION = '2026-08-15';
 const INVITE_TTL_MS = 72 * 60 * 60 * 1000;
 const MARKETING_SITE = (process.env.MARKETING_SITE_URL || 'https://hermesclubapp.com').replace(/\/$/, '');
 
-function calcAge(fechaNacimiento) {
-    if (!fechaNacimiento) return null;
-    const hoy = new Date();
-    const nac = new Date(fechaNacimiento);
-    if (Number.isNaN(nac.getTime())) return null;
-    let edad = hoy.getFullYear() - nac.getFullYear();
-    const m = hoy.getMonth() - nac.getMonth();
-    if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) edad -= 1;
-    return edad;
-}
-
 function assertAgeFitsCategory(category, fechaNacimiento, label) {
-    if (!category.edadMinima && !category.edadMaxima) return;
+    if (category.edadMinima == null && category.edadMaxima == null) return;
     if (!fechaNacimiento) {
         const err = new Error(`${label}: indicá la fecha de nacimiento (la categoría tiene límites de edad).`);
         err.statusCode = 400;
         throw err;
     }
-    const edad = calcAge(fechaNacimiento);
-    if (edad == null) {
-        const err = new Error(`${label}: fecha de nacimiento inválida.`);
-        err.statusCode = 400;
-        throw err;
-    }
-    if (category.edadMinima && edad < category.edadMinima) {
+    if (!matchesCategoryAgeLimits(category, fechaNacimiento)) {
         const err = new Error(
-            `${label}: no cumple la edad mínima de ${category.nombre} (${category.edadMinima} años).`,
-        );
-        err.statusCode = 400;
-        throw err;
-    }
-    if (category.edadMaxima && edad > category.edadMaxima) {
-        const err = new Error(
-            `${label}: supera la edad máxima de ${category.nombre} (${category.edadMaxima} años).`,
+            `${label}: no cumple el rango de edad de ${category.nombre} (${category.edadMinima ?? '?'}–${category.edadMaxima ?? '?'} años).`,
         );
         err.statusCode = 400;
         throw err;
@@ -90,7 +67,7 @@ async function loadInviteOrThrow(FamilyInvite, token, { forRedeem = false } = {}
         .populate('athleteSlots.disciplina', 'nombre planDefault')
         .populate({
             path: 'athleteSlots.categoria',
-            select: 'nombre disciplina planDefault edadMinima edadMaxima sexo',
+            select: 'nombre disciplina planDefault edadMinima edadMaxima edadCorteDesde edadCorteHasta sexo',
             populate: { path: 'disciplina', select: 'nombre planDefault' },
         });
 

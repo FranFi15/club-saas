@@ -18,6 +18,8 @@ import AdminScreenHeader from '../../components/AdminScreenHeader';
 import DesignCard from '../../components/DesignCard';
 import { sortByNombre } from '../../utils/listSort';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import CalendarDateField from '../../components/CalendarDateField';
+import { displayDateToIsoCalendar, isoCalendarDateToDisplay } from '../../utils/dateDisplay';
 
 export default function CategoriasScreen({ navigation, route }) {
   const { clubData } = useContext(ClubContext);
@@ -37,6 +39,8 @@ export default function CategoriasScreen({ navigation, route }) {
   const [categoryName, setCategoryName] = useState('');
   const [edadMin, setEdadMin] = useState('');
   const [edadMax, setEdadMax] = useState('');
+  const [edadCorteDesdeDisplay, setEdadCorteDesdeDisplay] = useState('');
+  const [edadCorteHastaDisplay, setEdadCorteHastaDisplay] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null); 
 
@@ -132,6 +136,8 @@ export default function CategoriasScreen({ navigation, route }) {
             nombre: categoryName.trim(),
             edadMinima: edadMin ? parseInt(edadMin) : undefined,
             edadMaxima: edadMax ? parseInt(edadMax) : undefined,
+            edadCorteDesde: displayDateToIsoCalendar(edadCorteDesdeDisplay) || null,
+            edadCorteHasta: displayDateToIsoCalendar(edadCorteHastaDisplay) || null,
             planDefault: planDefaultId,
             sexo: categorySexo,
           },
@@ -149,6 +155,8 @@ export default function CategoriasScreen({ navigation, route }) {
             disciplina: disciplina._id,
             edadMinima: edadMin ? parseInt(edadMin) : undefined,
             edadMaxima: edadMax ? parseInt(edadMax) : undefined,
+            edadCorteDesde: displayDateToIsoCalendar(edadCorteDesdeDisplay) || null,
+            edadCorteHasta: displayDateToIsoCalendar(edadCorteHastaDisplay) || null,
             planDefault: planDefaultId,
             sexo: categorySexo,
           },
@@ -203,6 +211,8 @@ export default function CategoriasScreen({ navigation, route }) {
     setCategoryName(item.nombre);
     setEdadMin(item.edadMinima ? item.edadMinima.toString() : '');
     setEdadMax(item.edadMaxima ? item.edadMaxima.toString() : '');
+    setEdadCorteDesdeDisplay(item.edadCorteDesde ? isoCalendarDateToDisplay(String(item.edadCorteDesde).slice(0, 10)) : '');
+    setEdadCorteHastaDisplay(item.edadCorteHasta ? isoCalendarDateToDisplay(String(item.edadCorteHasta).slice(0, 10)) : '');
     setPlanDefaultId(item.planDefault?._id || null);
     setCategorySexo(item.sexo === 'M' || item.sexo === 'F' ? item.sexo : 'ambos');
     setIsModalVisible(true);
@@ -213,6 +223,8 @@ export default function CategoriasScreen({ navigation, route }) {
     setCategoryName('');
     setEdadMin('');
     setEdadMax('');
+    setEdadCorteDesdeDisplay('');
+    setEdadCorteHastaDisplay('');
     setPlanDefaultId(null);
     setCategorySexo('ambos');
     setIsModalVisible(true);
@@ -224,6 +236,8 @@ export default function CategoriasScreen({ navigation, route }) {
     setCategoryName('');
     setEdadMin('');
     setEdadMax('');
+    setEdadCorteDesdeDisplay('');
+    setEdadCorteHastaDisplay('');
     setCategorySexo('ambos');
     setPlanPickerVisible(false);
   };
@@ -267,6 +281,13 @@ export default function CategoriasScreen({ navigation, route }) {
                 {item.edadMinima ? `Desde ${item.edadMinima} años` : ''}
                 {item.edadMinima && item.edadMaxima ? ' - ' : ''}
                 {item.edadMaxima ? `Hasta ${item.edadMaxima} años` : ''}
+              </Text>
+            ) : null}
+            {(item.edadCorteDesde || item.edadCorteHasta) ? (
+              <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
+                Corte edad
+                {item.edadCorteDesde ? ` desde ${isoCalendarDateToDisplay(String(item.edadCorteDesde).slice(0, 10))}` : ''}
+                {item.edadCorteHasta ? ` hasta ${isoCalendarDateToDisplay(String(item.edadCorteHasta).slice(0, 10))}` : ''}
               </Text>
             ) : null}
           </View>
@@ -362,6 +383,39 @@ export default function CategoriasScreen({ navigation, route }) {
                     value={edadMax}
                     onChangeText={setEdadMax}
                     keyboardType="numeric"
+                  />
+                </View>
+              </View>
+
+              <Text style={[styles.modalLabel, { color: theme.textMuted }]}>
+                Corte de edad (temporada)
+              </Text>
+              <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8, marginTop: -4 }}>
+                Si hoy no llega a la mínima, puede inscribirse si cumple esa edad en o antes de “Hasta”.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 15, marginBottom: 25 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.modalLabel, { color: theme.textMuted }]}>Desde</Text>
+                  <CalendarDateField
+                    theme={theme}
+                    colorMarca={colorMarca}
+                    value={edadCorteDesdeDisplay}
+                    onChange={setEdadCorteDesdeDisplay}
+                    placeholder="Opcional"
+                    allowClear
+                    style={{ marginBottom: 0, backgroundColor: theme.background }}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.modalLabel, { color: theme.textMuted }]}>Hasta</Text>
+                  <CalendarDateField
+                    theme={theme}
+                    colorMarca={colorMarca}
+                    value={edadCorteHastaDisplay}
+                    onChange={setEdadCorteHastaDisplay}
+                    placeholder="Opcional"
+                    allowClear
+                    style={{ marginBottom: 0, backgroundColor: theme.background }}
                   />
                 </View>
               </View>

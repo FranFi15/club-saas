@@ -17,7 +17,18 @@ import { toPlainWithPlan, hydrateCategoryPlans } from '../utils/hydratePlanDefau
 // @desc    Crear nueva categoría dentro de una disciplina
 // @route   POST /api/categories
 const createCategory = asyncHandler(async (req, res) => {
-    const { nombre, disciplina, profesores, descripcion, edadMinima, edadMaxima, planDefault, sexo } = req.body;
+    const {
+        nombre,
+        disciplina,
+        profesores,
+        descripcion,
+        edadMinima,
+        edadMaxima,
+        edadCorteDesde,
+        edadCorteHasta,
+        planDefault,
+        sexo,
+    } = req.body;
     
     const { Category, Discipline } = req.models;
 
@@ -35,6 +46,8 @@ const createCategory = asyncHandler(async (req, res) => {
         descripcion,
         edadMinima,
         edadMaxima,
+        edadCorteDesde: edadCorteDesde || undefined,
+        edadCorteHasta: edadCorteHasta || undefined,
         sexo: sexo === 'M' || sexo === 'F' ? sexo : 'ambos',
         planDefault: resolvedPlan || undefined,
     });
@@ -100,6 +113,8 @@ const updateCategory = asyncHandler(async (req, res) => {
         psicologos,
         edadMinima,
         edadMaxima,
+        edadCorteDesde,
+        edadCorteHasta,
         sexo,
         planDefault,
         chatAtletaProfesionalEnabled,
@@ -114,6 +129,12 @@ const updateCategory = asyncHandler(async (req, res) => {
     if (psicologos !== undefined) category.psicologos = psicologos;
     if (edadMinima !== undefined) category.edadMinima = edadMinima;
     if (edadMaxima !== undefined) category.edadMaxima = edadMaxima;
+    if (edadCorteDesde !== undefined) {
+        category.edadCorteDesde = edadCorteDesde || null;
+    }
+    if (edadCorteHasta !== undefined) {
+        category.edadCorteHasta = edadCorteHasta || null;
+    }
     if (sexo === 'M' || sexo === 'F' || sexo === 'ambos') category.sexo = sexo;
     if (planDefault !== undefined) category.planDefault = planDefault || null;
     if (chatAtletaProfesionalEnabled !== undefined) {

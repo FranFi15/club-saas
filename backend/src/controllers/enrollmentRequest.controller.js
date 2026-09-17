@@ -106,7 +106,9 @@ const getAvailableAthletesForCategory = asyncHandler(async (req, res) => {
 
     await assertStaffCategoryAccess(req, res, categoriaId);
 
-    const category = await Category.findById(categoriaId).select('nombre edadMinima edadMaxima').lean();
+    const category = await Category.findById(categoriaId).select(
+        'nombre edadMinima edadMaxima edadCorteDesde edadCorteHasta',
+    ).lean();
     if (!category) {
         res.status(404);
         throw new Error('Categoría no encontrada.');
@@ -168,7 +170,7 @@ const createEnrollmentRequest = asyncHandler(async (req, res) => {
         throw new Error('Algunos atletas ya están en la categoría o tienen una solicitud pendiente.');
     }
 
-    const category = await Category.findById(categoriaId).select('nombre edadMinima edadMaxima');
+    const category = await Category.findById(categoriaId).select('nombre edadMinima edadMaxima edadCorteDesde edadCorteHasta');
     if (!category) {
         res.status(404);
         throw new Error('Categoría no encontrada.');

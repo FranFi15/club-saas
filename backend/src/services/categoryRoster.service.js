@@ -287,7 +287,7 @@ export async function listRosterPendingForCoach(models, userId, rol) {
         'plantelEdicion.estado': 'delegado_coach',
     })
         .populate('disciplina', 'nombre')
-        .select('nombre plantelEdicion disciplina edadMinima edadMaxima')
+        .select('nombre plantelEdicion disciplina edadMinima edadMaxima edadCorteDesde edadCorteHasta')
         .lean();
 
     return cats.map((c) => ({

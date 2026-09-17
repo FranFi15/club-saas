@@ -13,6 +13,7 @@ import {
     setEnrollmentAsDisciplineBilling,
 } from '../services/disciplineBilling.service.js';
 import { enrollmentBillingForTrial, isAthleteOnTrial } from '../services/trialAthlete.service.js';
+import { matchesCategoryAgeLimits } from '../utils/ageHelper.js';
 
 async function applyPreviousBillingClear(models, previousBillingId) {
     if (!previousBillingId) return;
@@ -46,27 +47,20 @@ const enrollAthlete = asyncHandler(async (req, res) => {
         throw new Error('Categoría no encontrada');
     }
 
-    if (category.edadMinima || category.edadMaxima) {
+    if (category.edadMinima != null || category.edadMaxima != null) {
         if (!user.fechaNacimiento) {
             res.status(400);
             throw new Error('El atleta no tiene fecha de nacimiento registrada y la categoría tiene límites de edad');
         }
-        
-        const hoy = new Date();
-        const nac = new Date(user.fechaNacimiento);
-        let edad = hoy.getFullYear() - nac.getFullYear();
-        const m = hoy.getMonth() - nac.getMonth();
-        if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) {
-            edad--;
-        }
-
-        if (category.edadMinima && edad < category.edadMinima) {
+        if (!matchesCategoryAgeLimits(category, user.fechaNacimiento)) {
             res.status(400);
-            throw new Error(`El atleta no cumple con la edad mínima de la categoría (${category.edadMinima} años)`);
-        }
-        if (category.edadMaxima && edad > category.edadMaxima) {
-            res.status(400);
-            throw new Error(`El atleta supera la edad máxima de la categoría (${category.edadMaxima} años)`);
+            const corte =
+                category.edadCorteHasta
+                    ? ` (evaluando mínima al ${String(category.edadCorteHasta).slice(0, 10)})`
+                    : '';
+            throw new Error(
+                `El atleta no cumple el rango de edad de la categoría (${category.edadMinima ?? '?'}–${category.edadMaxima ?? '?'} años)${corte}`,
+            );
         }
     }
 

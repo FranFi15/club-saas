@@ -32,6 +32,13 @@ const categorySchema = new mongoose.Schema({
     descripcion: { type: String, trim: true },
     edadMinima: { type: Number },
     edadMaxima: { type: Number },
+    /**
+     * Cortes de temporada para evaluar edad.
+     * - edadCorteHasta: si hoy está bajo la mínima, entra si a esta fecha ya cumple edadMinima.
+     * - edadCorteDesde: la máxima se mide a esta fecha (inicio de temporada).
+     */
+    edadCorteDesde: { type: Date },
+    edadCorteHasta: { type: Date },
     /** Varones, mujeres o ambos (plantel mixto / sin restricción). */
     sexo: { type: String, enum: ['M', 'F', 'ambos'], default: 'ambos' },
     // Plan de pago default que se asigna automáticamente al inscribir un atleta
