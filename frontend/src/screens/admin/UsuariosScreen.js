@@ -253,34 +253,104 @@ export default function UsuariosScreen({ navigation }) {
     }
   };
 
-  const handleDelete = (item) => {
+  const handleDelete = async (item) => {
     const inactive = item.estado === 'inactivo';
+    const fmtMoney = (n) => `$${(Number(n) || 0).toLocaleString('es-AR')}`;
+    const isAthlete =
+      item.rol === 'atleta' || (Array.isArray(item.roles) && item.roles.includes('atleta'));
+
+    let unpaid = { cantidad: 0, montoTotal: 0 };
+    try {
+      const headers = await getHeaders();
+      const res = await clubApi.get(`/users/${item._id}/cuotas-impagas`, { headers });
+      unpaid = {
+        cantidad: res.data?.cantidad || 0,
+        montoTotal: res.data?.montoTotal || 0,
+      };
+    } catch (e) {
+      console.log('No se pudieron cargar cuotas impagas:', e.message);
+    }
+
     if (inactive) {
-      showAlert(
-        `Activar a ${item.nombre}`,
-        `¿Querés volver a activar a ${item.nombre} ${item.apellido}?`,
-        {
-          showCancel: true,
-          confirmText: 'Activar',
-          onConfirm: async () => {
-            closeAlert();
-            try {
-              const headers = await getHeaders();
-              await clubApi.patch(`/users/${item._id}`, { estado: 'activo' }, { headers });
-              showAlert('Éxito', 'Usuario activado correctamente.');
-              onRefresh();
-            } catch (error) {
-              showAlert('Error', error.response?.data?.message || 'No se pudo activar el usuario.');
-            }
+      if (unpaid.cantidad > 0) {
+        showAlert(
+          `Activar a ${item.nombre}`,
+          `Usuario con cuotas impagas anteriormente: ${unpaid.cantidad} cuota(s) por ${fmtMoney(unpaid.montoTotal)}.\n\n¿Querés perdonarlas o que sigan pendientes?`,
+          {
+            showCancel: true,
+            confirmText: 'Perdonarlas',
+            cancelText: 'Que sigan',
+            onConfirm: async () => {
+              closeAlert();
+              try {
+                const headers = await getHeaders();
+                await clubApi.patch(
+                  `/users/${item._id}/reactivate`,
+                  { perdonarCuotas: true },
+                  { headers },
+                );
+                showAlert('Éxito', 'Usuario activado. Las cuotas impagas fueron perdonadas.');
+                onRefresh();
+              } catch (error) {
+                showAlert('Error', error.response?.data?.message || 'No se pudo activar el usuario.');
+              }
+            },
+            onCancel: async () => {
+              closeAlert();
+              try {
+                const headers = await getHeaders();
+                await clubApi.patch(
+                  `/users/${item._id}/reactivate`,
+                  { perdonarCuotas: false },
+                  { headers },
+                );
+                showAlert(
+                  'Éxito',
+                  `Usuario activado. Siguen ${unpaid.cantidad} cuota(s) impagas (${fmtMoney(unpaid.montoTotal)}).`,
+                );
+                onRefresh();
+              } catch (error) {
+                showAlert('Error', error.response?.data?.message || 'No se pudo activar el usuario.');
+              }
+            },
           },
-        },
-      );
+        );
+      } else {
+        showAlert(
+          `Activar a ${item.nombre}`,
+          `¿Querés volver a activar a ${item.nombre} ${item.apellido}?`,
+          {
+            showCancel: true,
+            confirmText: 'Activar',
+            onConfirm: async () => {
+              closeAlert();
+              try {
+                const headers = await getHeaders();
+                await clubApi.patch(
+                  `/users/${item._id}/reactivate`,
+                  { perdonarCuotas: false },
+                  { headers },
+                );
+                showAlert('Éxito', 'Usuario activado correctamente.');
+                onRefresh();
+              } catch (error) {
+                showAlert('Error', error.response?.data?.message || 'No se pudo activar el usuario.');
+              }
+            },
+          },
+        );
+      }
       return;
     }
 
+    const unpaidLine =
+      unpaid.cantidad > 0
+        ? `\n\nTiene ${unpaid.cantidad} cuota(s) impagas por ${fmtMoney(unpaid.montoTotal)}. Al desactivar no se generan cuotas nuevas; las impagas quedan hasta que lo reactive y decida perdonarlas o no.`
+        : '\n\nNo tiene cuotas impagas.';
+
     showAlert(
       `Dar de baja a ${item.nombre}`,
-      `¿Querés desactivar a ${item.nombre} ${item.apellido}? Podés volver a activarlo después.`,
+      `¿Querés desactivar a ${item.nombre} ${item.apellido}? Podés volver a activarlo después.${unpaidLine}`,
       {
         showCancel: true,
         isDanger: true,
@@ -290,7 +360,7 @@ export default function UsuariosScreen({ navigation }) {
           try {
             const headers = await getHeaders();
 
-            if (item.rol === 'atleta') {
+            if (isAthlete) {
               const res = await clubApi.patch(`/users/atletas/${item._id}/deactivate`, {}, { headers });
               if (res.data.infoTutor?.requiereAccionPantalla) {
                 showAlert('Información', res.data.infoTutor.mensaje);

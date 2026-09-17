@@ -38,7 +38,10 @@ export default function EstructuraHubScreen({ navigation }) {
     if (!clubData?.urlIdentifier) return { counts: { atletas: 0, disciplinas: 0, categorias: 0 } };
     const h = await getHeaders();
     const [atletaRes, discRes, catRes] = await Promise.all([
-      clubApi.get('/users', { headers: h, params: { rol: 'atleta', limit: 1, page: 1 } }),
+      clubApi.get('/users', {
+        headers: h,
+        params: { rol: 'atleta', estado: 'activo', limit: 1, page: 1 },
+      }),
       clubApi.get('/disciplines', { headers: h }),
       clubApi.get('/categories', { headers: h }),
     ]);
