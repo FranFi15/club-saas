@@ -165,3 +165,11 @@
 .fs-muted {
   color: var(--text-muted);
 }
+
+.fs-hint {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
