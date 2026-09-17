@@ -201,7 +201,10 @@ export default function UsuariosScreen({ navigation }) {
   };
 
   const openEditModal = (user) => {
-    if (viewerRol === 'administrativo' && user?.rol === 'admin_club') {
+    if (
+      viewerRol === 'administrativo' &&
+      (user?.rol === 'admin_club' || (Array.isArray(user?.roles) && user.roles.includes('admin_club')))
+    ) {
       showAlert('Sin permiso', 'No podés modificar al administrador del club.');
       return;
     }
@@ -391,8 +394,14 @@ export default function UsuariosScreen({ navigation }) {
           </View>
 
           <View style={[styles.roleBadge, { backgroundColor: theme.background, borderColor: theme.border }]}>
-            <Text style={[styles.roleBadgeText, { color: theme.textMuted }]}>
-              {USER_ROL_LABELS[item.rol] || item.rol || item.role || 'Usuario'}
+            <Text style={[styles.roleBadgeText, { color: theme.textMuted }]} numberOfLines={2}>
+              {(Array.isArray(item.roles) && item.roles.length
+                ? item.roles
+                : [item.rol || item.role]
+              )
+                .filter(Boolean)
+                .map((r) => USER_ROL_LABELS[r] || r)
+                .join(' · ') || 'Usuario'}
             </Text>
           </View>
         </DesignCard>

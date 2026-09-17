@@ -1,20 +1,26 @@
 import asyncHandler from 'express-async-handler';
 import jwt from 'jsonwebtoken';
+import {
+    ensureUserRolesPersisted,
+    normalizeUserRoles,
+} from '../constants/userRoles.js';
 
 const ACCESS_TOKEN_TTL = '15m';
 const REFRESH_TOKEN_TTL = '30d';
 /** Debe coincidir con frontend/src/constants/legal.js → TERMS_VERSION */
 const CURRENT_TERMS_VERSION = '2026-08-15';
 
-const generateAccessToken = (id, club) => {
+const generateAccessToken = (id, club, activeRol) => {
     const payload = { id };
     if (club) payload.club = club;
+    if (activeRol) payload.activeRol = activeRol;
     return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: ACCESS_TOKEN_TTL });
 };
 
-const generateRefreshToken = (id, club) => {
+const generateRefreshToken = (id, club, activeRol) => {
     const payload = { id };
     if (club) payload.club = club;
+    if (activeRol) payload.activeRol = activeRol;
     return jwt.sign(payload, process.env.JWT_REFRESH_SECRET, { expiresIn: REFRESH_TOKEN_TTL });
 };
 
@@ -51,6 +57,30 @@ function assertClubClaim(decoded, req, res) {
     }
 }
 
+function resolveActiveRol(user, preferred) {
+    const roles = normalizeUserRoles(user);
+    if (preferred && roles.includes(preferred)) return preferred;
+    return user.rol && roles.includes(user.rol) ? user.rol : roles[0];
+}
+
+function authUserPayload(user, activeRol, accessToken, refreshToken) {
+    const roles = normalizeUserRoles(user);
+    return {
+        _id: user._id,
+        nombre: user.nombre,
+        apellido: user.apellido,
+        rol: activeRol || user.rol,
+        roles,
+        fotoPerfil: user.fotoPerfil || '',
+        token: accessToken,
+        refreshToken,
+        acceptedTermsVersion: user.acceptedTermsVersion || '',
+        acceptedTermsAt: user.acceptedTermsAt || null,
+        currentTermsVersion: CURRENT_TERMS_VERSION,
+        needsTermsAcceptance: (user.acceptedTermsVersion || '') !== CURRENT_TERMS_VERSION,
+    };
+}
+
 const loginUser = asyncHandler(async (req, res) => {
     const { email, password } = req.body;
     const { User } = req.models;
@@ -60,25 +90,15 @@ const loginUser = asyncHandler(async (req, res) => {
 
     if (user && (await user.matchPassword(password))) {
         assertActiveUser(user, res);
+        await ensureUserRolesPersisted(user);
 
-        const accessToken = generateAccessToken(user._id, club);
-        const refreshToken = generateRefreshToken(user._id, club);
+        const activeRol = resolveActiveRol(user, user.rol);
+        const accessToken = generateAccessToken(user._id, club, activeRol);
+        const refreshToken = generateRefreshToken(user._id, club, activeRol);
 
         sendRefreshCookie(res, refreshToken);
 
-        res.json({
-            _id: user._id,
-            nombre: user.nombre,
-            apellido: user.apellido,
-            rol: user.rol,
-            fotoPerfil: user.fotoPerfil || '',
-            token: accessToken,
-            refreshToken,
-            acceptedTermsVersion: user.acceptedTermsVersion || '',
-            acceptedTermsAt: user.acceptedTermsAt || null,
-            currentTermsVersion: CURRENT_TERMS_VERSION,
-            needsTermsAcceptance: (user.acceptedTermsVersion || '') !== CURRENT_TERMS_VERSION,
-        });
+        res.json(authUserPayload(user, activeRol, accessToken, refreshToken));
     } else {
         res.status(401);
         throw new Error('Email o contraseña incorrectos');
@@ -99,16 +119,20 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         const { User } = req.models;
         const user = await User.findById(decoded.id);
         assertActiveUser(user, res);
+        await ensureUserRolesPersisted(user);
 
+        const activeRol = resolveActiveRol(user, decoded.activeRol);
         const club = req.clubIdentifier;
-        const accessToken = generateAccessToken(user._id, club);
-        const newRefreshToken = generateRefreshToken(user._id, club);
+        const accessToken = generateAccessToken(user._id, club, activeRol);
+        const newRefreshToken = generateRefreshToken(user._id, club, activeRol);
 
         sendRefreshCookie(res, newRefreshToken);
 
         res.json({
             token: accessToken,
             refreshToken: newRefreshToken,
+            rol: activeRol,
+            roles: normalizeUserRoles(user),
             acceptedTermsVersion: user.acceptedTermsVersion || '',
             acceptedTermsAt: user.acceptedTermsAt || null,
             currentTermsVersion: CURRENT_TERMS_VERSION,
@@ -119,6 +143,29 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         res.status(403);
         throw new Error('Refresh token inválido o expirado');
     }
+});
+
+const selectRole = asyncHandler(async (req, res) => {
+    const requested = String(req.body?.rol || '').trim();
+    if (!requested) {
+        res.status(400);
+        throw new Error('Falta el rol');
+    }
+
+    const user = req.user;
+    await ensureUserRolesPersisted(user);
+    const roles = normalizeUserRoles(user);
+    if (!roles.includes(requested)) {
+        res.status(400);
+        throw new Error('Ese rol no está asignado a tu usuario');
+    }
+
+    const club = req.clubIdentifier;
+    const accessToken = generateAccessToken(user._id, club, requested);
+    const refreshToken = generateRefreshToken(user._id, club, requested);
+    sendRefreshCookie(res, refreshToken);
+
+    res.json(authUserPayload(user, requested, accessToken, refreshToken));
 });
 
 const logoutUser = asyncHandler(async (req, res) => {
@@ -142,9 +189,19 @@ const acceptTerms = asyncHandler(async (req, res) => {
     }
 
     const user = req.user;
+    const primary = user._primaryRol;
+    const active = user.rol;
+    if (primary) {
+        user.rol = primary;
+    }
     user.acceptedTermsVersion = version;
     user.acceptedTermsAt = new Date();
     await user.save();
+    if (active) {
+        user.rol = active;
+        user._primaryRol = primary || user.rol;
+        if (typeof user.unmarkModified === 'function') user.unmarkModified('rol');
+    }
 
     res.json({
         ok: true,
@@ -154,4 +211,4 @@ const acceptTerms = asyncHandler(async (req, res) => {
     });
 });
 
-export { loginUser, refreshAccessToken, logoutUser, acceptTerms };
+export { loginUser, refreshAccessToken, selectRole, logoutUser, acceptTerms };

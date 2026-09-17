@@ -2,12 +2,17 @@
  * Genera cuotas sociales del mes según la asignación por usuario.
  * Cada persona tiene a lo sumo un tipo (User.cuotaSocialAsignada).
  */
-import { feeAutoRoles, SOCIAL_FEE_DEFAULT_ROLES, SOCIAL_FEE_ELIGIBLE_ROLES } from '../models/socialFee.model.js';
+import {
+    feeAutoRoles,
+    SOCIAL_FEE_DEFAULT_ROLES,
+    SOCIAL_FEE_ELIGIBLE_ROLES,
+} from '../models/socialFee.model.js';
 import {
     calendarMonthYearInTz,
     DEFAULT_CLUB_TIMEZONE,
     zonedWallTimeToDate,
 } from '../utils/timeHelper.js';
+import { roleQueryMany } from '../constants/userRoles.js';
 
 export function sanitizeSocialFeeRoles(roles, { allowEmpty = false } = {}) {
     if (!Array.isArray(roles)) {
@@ -66,7 +71,7 @@ export async function ensureSocialFeesMigrated(models) {
             if (!roles.length || !fee.activo) continue;
             await User.updateMany(
                 {
-                    rol: { $in: roles },
+                    ...roleQueryMany(roles),
                     exentoCuotaSocial: { $ne: true },
                     $or: [{ cuotaSocialAsignada: null }, { cuotaSocialAsignada: { $exists: false } }],
                 },
@@ -128,7 +133,7 @@ export async function applyRoleAutoAssignment(models, feeDoc) {
 
     const result = await User.updateMany(
         {
-            rol: { $in: roles },
+            ...roleQueryMany(roles),
             estado: { $ne: 'inactivo' },
             exentoCuotaSocial: { $ne: true },
         },
@@ -194,7 +199,7 @@ export async function assignSocialFeeToUsers(models, feeId, userIds) {
 
     const users = await User.find({
         _id: { $in: ids },
-        rol: { $in: SOCIAL_FEE_ELIGIBLE_ROLES },
+        ...roleQueryMany(SOCIAL_FEE_ELIGIBLE_ROLES),
         estado: { $ne: 'inactivo' },
     }).select('_id');
 
@@ -305,7 +310,7 @@ export async function generateSocialFeesForTenant(
     await ensureSocialFeesMigrated(models);
 
     const clientes = await User.find({
-        rol: { $in: SOCIAL_FEE_ELIGIBLE_ROLES },
+        ...roleQueryMany(SOCIAL_FEE_ELIGIBLE_ROLES),
         estado: { $ne: 'inactivo' },
         exentoCuotaSocial: { $ne: true },
         cuotaSocialAsignada: { $ne: null },

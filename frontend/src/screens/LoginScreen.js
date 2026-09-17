@@ -14,8 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
 import { ThemeContext } from '../context/ThemeContext';
 import { saveToken, getToken } from '../utils/storage';
+import { persistAuthSessionUser } from '../utils/roleSession';
 import { beginAuthSession } from '../utils/session';
-import { persistAuthTokens } from '../utils/authTokens';
 import { clubApi } from '../utils/api';
 import { resolveMainNavigator } from '../constants/appRoles';
 import { needsTermsAcceptance } from '../constants/legal';
@@ -152,6 +152,7 @@ export default function LoginScreen({ navigation }) {
         token,
         refreshToken,
         rol,
+        roles,
         nombre,
         apellido,
         _id,
@@ -165,16 +166,27 @@ export default function LoginScreen({ navigation }) {
       }
 
       beginAuthSession();
-      await persistAuthTokens({ token, refreshToken });
+      await persistAuthSessionUser({
+        token,
+        refreshToken,
+        rol,
+        roles: Array.isArray(roles) && roles.length ? roles : rol ? [rol] : [],
+        nombre,
+        apellido,
+        _id,
+        fotoPerfil,
+        acceptedTermsVersion,
+      });
       await saveToken('userEmail', emailValue);
-      if (rol) await saveToken('userRol', rol);
-      if (nombre != null) await saveToken('userNombre', String(nombre));
-      if (apellido != null) await saveToken('userApellido', String(apellido));
-      if (_id != null) await saveToken('userId', String(_id));
-      if (fotoPerfil != null) await saveToken('userFotoPerfil', String(fotoPerfil));
-      await saveToken('acceptedTermsVersion', String(acceptedTermsVersion || ''));
 
       setSessionActive(true);
+
+      const roleList = Array.isArray(roles) && roles.length ? roles : rol ? [rol] : [];
+      if (roleList.length > 1) {
+        navigation.replace('SelectRole', { roles: roleList });
+        return;
+      }
+
       if (rol === 'atleta' || rol === 'tutor' || rol === 'socio') {
         setMemberSessionRol(rol);
       } else {

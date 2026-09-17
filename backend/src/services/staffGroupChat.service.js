@@ -6,13 +6,14 @@
 import { getOrCreateClubSettings } from './familyDiscount.service.js';
 import { PAYROLL_STAFF_ROLES } from '../models/payroll.model.js';
 import { ensureChatConversationPairKeyIndex } from '../models/chatConversation.model.js';
+import { roleQueryMany } from '../constants/userRoles.js';
 
 const STAFF_GROUP_TITLE = 'Personal del club';
 
 async function resolveStaffMemberIds(models) {
     const { User } = models;
     const active = await User.find({
-        rol: { $in: PAYROLL_STAFF_ROLES },
+        ...roleQueryMany(PAYROLL_STAFF_ROLES),
         estado: { $ne: 'inactivo' },
     })
         .select('_id')

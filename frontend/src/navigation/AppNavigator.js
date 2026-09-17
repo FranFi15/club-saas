@@ -7,6 +7,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import WorkspaceSearchScreen from '../screens/WorkspaceSearchScreen';
 import LoginScreen from '../screens/LoginScreen';
 import TermsAcceptanceScreen from '../screens/TermsAcceptanceScreen';
+import SelectRoleScreen from '../screens/SelectRoleScreen';
 import MemberPlaceholderScreen from '../screens/staff/MemberPlaceholderScreen';
 import AdminTabNavigator from './AdminTabNavigator';
 import ControlIngresoNavigator from './ControlIngresoNavigator';
@@ -56,6 +57,7 @@ export default function AppNavigator() {
       >
         <Stack.Screen name="WorkspaceSearch" component={WorkspaceSearchScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="SelectRole" component={SelectRoleScreen} />
         <Stack.Screen name="TermsAcceptance" component={TermsAcceptanceScreen} />
         <Stack.Screen name="AdminHome" component={AdminTabNavigator} />
         <Stack.Screen name="ControlIngresoHome" component={ControlIngresoNavigator} />

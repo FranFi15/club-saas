@@ -42,7 +42,7 @@ export default function UserFormModal({
 
   const [formData, setFormData] = useState({
     nombre: '', apellido: '', email: '', password: '', 
-    dni: '', telefono: '', rol: 'atleta', tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
+    dni: '', telefono: '', rol: 'atleta', roles: ['atleta'], tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
     cuotasEnApp: true, sexo: '', exentoCuotaSocial: false, cuotaSocialAsignada: null,
     esPrueba: false, diasPrueba: '15', enNomina: false, sueldoNomina: '',
   });
@@ -51,7 +51,6 @@ export default function UserFormModal({
   const [isLoadingTutors, setIsLoadingTutors] = useState(false);
   const [tutorSearchQuery, setTutorSearchQuery] = useState('');
   const [debouncedTutorSearch, setDebouncedTutorSearch] = useState('');
-  const [showRoleSelect, setShowRoleSelect] = useState(false);
   const [socialFees, setSocialFees] = useState([]);
   const [loadingSocialFees, setLoadingSocialFees] = useState(false);
   const [showFeeSelect, setShowFeeSelect] = useState(false);
@@ -72,8 +71,23 @@ export default function UserFormModal({
     { label: 'Administrador del club', value: 'admin_club' },
   ].filter((r) => isClubOwnerRole(viewerRol) || r.value !== 'admin_club');
 
+  const selectedRoles = formData.roles?.length ? formData.roles : [formData.rol || 'atleta'];
+  const hasAtleta = selectedRoles.includes('atleta');
+  const hasClientFeeRole = selectedRoles.some((r) => CLIENT_ROLES_WITH_SOCIAL_FEE.includes(r));
+  const hasStaffPayroll = selectedRoles.some((r) => PAYROLL_STAFF_ROLES.includes(r));
+  const clientFeeRol =
+    selectedRoles.find((r) => CLIENT_ROLES_WITH_SOCIAL_FEE.includes(r)) || formData.rol;
+
   useEffect(() => {
     if (initialData) {
+      const initialRoles =
+        Array.isArray(initialData.roles) && initialData.roles.length
+          ? [...new Set(initialData.roles)]
+          : [initialData.rol || 'atleta'];
+      const primary =
+        initialData.rol && initialRoles.includes(initialData.rol)
+          ? initialData.rol
+          : initialRoles[0];
       setFormData({
         nombre: initialData.nombre || '',
         apellido: initialData.apellido || '',
@@ -81,7 +95,8 @@ export default function UserFormModal({
         password: '',
         dni: initialData.dni || '',
         telefono: initialData.telefono || '',
-        rol: initialData.rol || 'atleta',
+        rol: primary,
+        roles: initialRoles,
         tutorPrincipal: initialData.tutorPrincipal?._id || initialData.tutorPrincipal || null,
         fechaNacimiento: (() => {
           if (!initialData.fechaNacimiento) return '';
@@ -113,7 +128,7 @@ export default function UserFormModal({
       });
     } else {
       setFormData({
-        nombre: '', apellido: '', email: '', password: '', dni: '', telefono: '', rol: 'atleta', tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
+        nombre: '', apellido: '', email: '', password: '', dni: '', telefono: '', rol: 'atleta', roles: ['atleta'], tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
         cuotasEnApp: true, sexo: '', exentoCuotaSocial: false, cuotaSocialAsignada: null,
         esPrueba: false, diasPrueba: '15', enNomina: false, sueldoNomina: '',
       });
@@ -151,17 +166,17 @@ export default function UserFormModal({
   }, [visible, clubData?.urlIdentifier]);
 
   useEffect(() => {
-    if (!CLIENT_ROLES_WITH_SOCIAL_FEE.includes(formData.rol) || formData.exentoCuotaSocial) return;
+    if (!hasClientFeeRole || formData.exentoCuotaSocial) return;
     if (formData.cuotaSocialAsignada) return;
     const def = socialFees.find((f) =>
-      (f.rolesAutoAsignacion || f.rolesAplicables || []).includes(formData.rol),
+      (f.rolesAutoAsignacion || f.rolesAplicables || []).includes(clientFeeRol),
     );
     if (def?._id) {
       setFormData((prev) =>
         prev.cuotaSocialAsignada ? prev : { ...prev, cuotaSocialAsignada: def._id },
       );
     }
-  }, [formData.rol, formData.exentoCuotaSocial, formData.cuotaSocialAsignada, socialFees]);
+  }, [hasClientFeeRole, clientFeeRol, formData.exentoCuotaSocial, formData.cuotaSocialAsignada, socialFees]);
 
   // Debounce para búsqueda de tutor
   useEffect(() => {
@@ -194,24 +209,54 @@ export default function UserFormModal({
   // Incluye tutorPrincipal: si el modal abre con tutor asignado no cargamos lista;
   // al quitar el tutor (X) hay que volver a fetchear — antes el efecto no se disparaba.
   useEffect(() => {
-    if (formData.rol === 'atleta' && visible && !formData.tutorPrincipal) {
+    if (hasAtleta && visible && !formData.tutorPrincipal) {
       fetchTutors(debouncedTutorSearch);
     }
-  }, [formData.rol, visible, debouncedTutorSearch, formData.tutorPrincipal, fetchTutors]);
+  }, [hasAtleta, visible, debouncedTutorSearch, formData.tutorPrincipal, fetchTutors]);
+
+  const toggleRole = (value) => {
+    setFormData((prev) => {
+      const current = prev.roles?.length ? [...prev.roles] : [prev.rol || 'atleta'];
+      const on = current.includes(value);
+      let next;
+      if (on) {
+        if (current.length <= 1) return prev;
+        next = current.filter((r) => r !== value);
+      } else {
+        next = [...current, value];
+      }
+      const rol = next.includes(prev.rol) ? prev.rol : next[0];
+      const clearedAthlete = !next.includes('atleta');
+      return {
+        ...prev,
+        roles: next,
+        rol,
+        ...(clearedAthlete
+          ? {
+              tutorPrincipal: null,
+              cuotasEnApp: true,
+              sexo: '',
+              esPrueba: false,
+              diasPrueba: '15',
+            }
+          : {}),
+        ...(!next.some((r) => CLIENT_ROLES_WITH_SOCIAL_FEE.includes(r))
+          ? { cuotaSocialAsignada: null }
+          : {}),
+      };
+    });
+  };
+
+  const setPrimaryRole = (value) => {
+    setFormData((prev) => {
+      const current = prev.roles?.length ? prev.roles : [prev.rol || 'atleta'];
+      if (!current.includes(value)) return prev;
+      return { ...prev, rol: value };
+    });
+  };
 
   const handleChange = (name, value) => {
-    if (name === 'rol' && value !== 'atleta') {
-      setFormData((prev) => ({
-        ...prev,
-        rol: value,
-        tutorPrincipal: null,
-        cuotasEnApp: true,
-        sexo: '',
-        cuotaSocialAsignada: null,
-        esPrueba: false,
-        diasPrueba: '15',
-      }));
-    } else if (name === 'exentoCuotaSocial') {
+    if (name === 'exentoCuotaSocial') {
       setFormData((prev) => ({
         ...prev,
         exentoCuotaSocial: value,
@@ -240,20 +285,23 @@ export default function UserFormModal({
 
   const handleSave = () => {
     let payload = { ...formData };
+    payload.roles = selectedRoles;
+    payload.rol = selectedRoles.includes(payload.rol) ? payload.rol : selectedRoles[0];
     if (payload.fechaNacimiento) {
       const ymd = displayDateToIsoCalendar(payload.fechaNacimiento);
       payload.fechaNacimiento = ymd || undefined;
     }
-    if (payload.rol !== 'atleta') {
+    if (!hasAtleta) {
       delete payload.cuotasEnApp;
       delete payload.sexo;
       delete payload.esPrueba;
       delete payload.diasPrueba;
       delete payload.enNomina;
+      delete payload.tutorPrincipal;
     } else if (payload.sexo !== 'M' && payload.sexo !== 'F') {
       payload.sexo = '';
     }
-    if (payload.rol === 'atleta') {
+    if (hasAtleta) {
       if (initialData) {
         // Trial flags are set at create; edit uses Convertir ahora.
         delete payload.esPrueba;
@@ -273,7 +321,7 @@ export default function UserFormModal({
       } else {
         payload.sueldoNomina = 0;
       }
-    } else if (PAYROLL_STAFF_ROLES.includes(payload.rol)) {
+    } else if (hasStaffPayroll) {
       const sueldo = Number(String(payload.sueldoNomina || '0').replace(',', '.'));
       payload.sueldoNomina = Number.isFinite(sueldo) && sueldo >= 0 ? sueldo : 0;
       delete payload.enNomina;
@@ -281,7 +329,7 @@ export default function UserFormModal({
       delete payload.sueldoNomina;
       delete payload.enNomina;
     }
-    if (!CLIENT_ROLES_WITH_SOCIAL_FEE.includes(payload.rol)) {
+    if (!hasClientFeeRole) {
       delete payload.exentoCuotaSocial;
       delete payload.cuotaSocialAsignada;
     } else if (payload.exentoCuotaSocial) {
@@ -353,7 +401,7 @@ export default function UserFormModal({
               <TextInput style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
                 value={formData.fechaNacimiento} onChangeText={handleFechaNacimiento} placeholder="DD-MM-AAAA" placeholderTextColor={theme.textMuted} keyboardType="number-pad" maxLength={10} />
 
-              {formData.rol === 'atleta' ? (
+              {hasAtleta ? (
                 <>
                   <Text style={[styles.label, { color: theme.textMuted }]}>Sexo (métricas ISAK / % grasa)</Text>
                   <View style={styles.sexoRow}>
@@ -387,44 +435,44 @@ export default function UserFormModal({
                 </>
               ) : null}
 
-              <Text style={[styles.label, { color: theme.textMuted }]}>Rol en el Club *</Text>
-              
-              <View style={{ zIndex: 10, marginBottom: 15 }}>
-                <TouchableOpacity 
-                  style={[styles.roleSelectBtn, { backgroundColor: theme.background, borderColor: theme.border }]}
-                  onPress={() => setShowRoleSelect(!showRoleSelect)}
-                >
-                  <Text style={[styles.roleSelectText, { color: theme.text }]}>
-                    {roles.find((r) => r.value === formData.rol)?.label || 'Seleccionar Rol'}
-                  </Text>
-                  <Ionicons name={showRoleSelect ? "chevron-up" : "chevron-down"} size={20} color={theme.icon} />
-                </TouchableOpacity>
-
-                {showRoleSelect && (
-                  <View style={[styles.dropdown, { backgroundColor: theme.background, borderColor: theme.border }]}>
-                    <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={{ maxHeight: 200 }}>
-                      {roles.map(r => (
-                        <TouchableOpacity key={r.value} 
-                          style={[styles.dropdownItem, { 
-                            borderBottomColor: theme.border,
-                            backgroundColor: formData.rol === r.value ? colorMarca + '15' : 'transparent' 
-                          }]}
-                          onPress={() => { handleChange('rol', r.value); setShowRoleSelect(false); }}>
-                          <Text style={{ 
-                            color: formData.rol === r.value ? colorMarca : theme.text,
-                            fontWeight: formData.rol === r.value ? 'bold' : 'normal'
-                          }}>
-                            {r.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
+              <Text style={[styles.label, { color: theme.textMuted }]}>Roles en el Club *</Text>
+              <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8 }}>
+                Tocá para activar. Mantené pulsado (o tocá de nuevo el activo) para marcar el rol principal.
+              </Text>
+              <View style={styles.roleChips}>
+                {roles.map((r) => {
+                  const on = selectedRoles.includes(r.value);
+                  const primary = formData.rol === r.value;
+                  return (
+                    <TouchableOpacity
+                      key={r.value}
+                      onPress={() => toggleRole(r.value)}
+                      onLongPress={() => setPrimaryRole(r.value)}
+                      style={[
+                        styles.roleChip,
+                        {
+                          borderColor: on ? colorMarca : theme.border,
+                          backgroundColor: on ? (primary ? colorMarca : colorMarca + '22') : theme.background,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          color: on && primary ? '#fff' : on ? colorMarca : theme.text,
+                          fontWeight: on ? '700' : '500',
+                          fontSize: 13,
+                        }}
+                      >
+                        {r.label}
+                        {primary && on ? ' ★' : ''}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
               {/* BÚSQUEDA DE TUTOR INTEELIGENTE */}
-              {formData.rol === 'atleta' && (
+              {hasAtleta && (
                 <View style={{ marginTop: 5, marginBottom: 15 }}>
                   <Text style={[styles.label, { color: theme.textMuted }]}>Vincular Tutor </Text>
                   
@@ -474,7 +522,7 @@ export default function UserFormModal({
                 </View>
               )}
 
-              {formData.rol === 'atleta' && (
+              {hasAtleta && (
                 <View style={[styles.switchRow, { borderColor: theme.border, backgroundColor: theme.background }]}>
                   <View style={{ flex: 1, paddingRight: 12 }}>
                     <Text style={[styles.switchTitle, { color: theme.text }]}>Cuotas en la app</Text>
@@ -491,7 +539,7 @@ export default function UserFormModal({
                 </View>
               )}
 
-              {formData.rol === 'atleta' ? (
+              {hasAtleta ? (
                 <>
                   <View style={[styles.switchRow, { borderColor: theme.border, backgroundColor: theme.background }]}>
                     <View style={{ flex: 1, paddingRight: 12 }}>
@@ -529,7 +577,7 @@ export default function UserFormModal({
                 </>
               ) : null}
 
-              {PAYROLL_STAFF_ROLES.includes(formData.rol) ? (
+              {hasStaffPayroll && !hasAtleta ? (
                 <View style={{ marginBottom: 15 }}>
                   <Text style={[styles.label, { color: theme.textMuted }]}>Sueldo mensual de referencia</Text>
                   <Text style={[styles.switchHint, { color: theme.textMuted, marginBottom: 8 }]}>
@@ -546,7 +594,7 @@ export default function UserFormModal({
                 </View>
               ) : null}
 
-              {formData.rol === 'atleta' && !initialData ? (
+              {hasAtleta && !initialData ? (
                 <>
                   <View style={[styles.switchRow, { borderColor: theme.border, backgroundColor: theme.background }]}>
                     <View style={{ flex: 1, paddingRight: 12 }}>
@@ -579,7 +627,7 @@ export default function UserFormModal({
                 </>
               ) : null}
 
-              {formData.rol === 'atleta' && initialData?.esPrueba ? (
+              {hasAtleta && initialData?.esPrueba ? (
                 <View style={[styles.switchRow, { borderColor: '#f59e0b55', backgroundColor: '#f59e0b12' }]}>
                   <View style={{ flex: 1, paddingRight: 12 }}>
                     <Text style={[styles.switchTitle, { color: theme.text }]}>
@@ -612,7 +660,7 @@ export default function UserFormModal({
                 </View>
               ) : null}
 
-              {CLIENT_ROLES_WITH_SOCIAL_FEE.includes(formData.rol) && (
+              {hasClientFeeRole && (
                 <>
                   <View style={[styles.switchRow, { borderColor: theme.border, backgroundColor: theme.background }]}>
                     <View style={{ flex: 1, paddingRight: 12 }}>
@@ -708,6 +756,8 @@ const styles = StyleSheet.create({
   input: { height: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 15, marginBottom: 15 },
   row: { flexDirection: 'row' },
   
+  roleChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 15 },
+  roleChip: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 },
   roleSelectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 15 },
   roleSelectText: { fontSize: 15 },
   

@@ -23,6 +23,7 @@ import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScree
 import ProfileEditDataButton from '../../components/ProfileEditDataButton';
 import ProfileClubEntryButton from '../../components/ProfileClubEntryButton';
 import ProfileLogoutButton from '../../components/ProfileLogoutButton';
+import ProfileSwitchRoleButton from '../../components/ProfileSwitchRoleButton';
 import ProfileNotificationToggle from '../../components/ProfileNotificationToggle';
 import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
 import ProfileLinkRow from '../../components/ProfileLinkRow';
@@ -289,7 +290,9 @@ export default function TutorProfileScreen({ navigation }) {
 
           <ProfileNotificationToggle />
 
-          <ProfileLogoutButton onPress={logout} />
+          <ProfileSwitchRoleButton theme={theme} colorMarca={colorMarca} />
+
+        <ProfileLogoutButton onPress={logout} />
         </View>
       </ScrollView>
     </SafeAreaView>

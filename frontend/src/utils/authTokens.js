@@ -42,6 +42,11 @@ export async function performTokenRefresh(clubIdentifier, refreshTokenOverride) 
     refreshToken: data.refreshToken,
   });
 
+  if (data.rol) await saveToken('userRol', String(data.rol));
+  if (Array.isArray(data.roles)) {
+    await saveToken('userRoles', JSON.stringify(data.roles.filter(Boolean)));
+  }
+
   if (data.acceptedTermsVersion != null) {
     await saveToken('acceptedTermsVersion', String(data.acceptedTermsVersion || ''));
   }

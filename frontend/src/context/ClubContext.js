@@ -13,6 +13,7 @@ import { resolveMainNavigator } from '../constants/appRoles';
 import { needsTermsAcceptance } from '../constants/legal';
 import { navigationRef } from '../navigation/navigationRef';
 import { clearAllScreenCache } from '../hooks/useCachedFocusLoad';
+import { getStoredUserRoles } from '../utils/roleSession';
 
 export { CLUB_WORKSPACE_KEY };
 
@@ -95,15 +96,26 @@ export const ClubProvider = ({ children }) => {
                   if (!cancelled && getAuthGeneration() === bootGeneration) {
                     beginAuthSession();
                     setSessionActive(true);
-                    if (rol === 'atleta' || rol === 'tutor' || rol === 'socio') {
-                      setMemberSessionRol(rol);
+                    const roles =
+                      (Array.isArray(refreshData?.roles) && refreshData.roles.length
+                        ? refreshData.roles
+                        : null) || (await getStoredUserRoles());
+                    const activeRol = refreshData?.rol || rol;
+                    if (activeRol && roles.length && !roles.includes(activeRol)) {
+                      nextBootRoute = 'SelectRole';
+                    } else if (roles.length > 1 && !activeRol) {
+                      nextBootRoute = 'SelectRole';
+                    } else {
+                      if (activeRol === 'atleta' || activeRol === 'tutor' || activeRol === 'socio') {
+                        setMemberSessionRol(activeRol);
+                      }
+                      const acceptedVersion =
+                        refreshData?.acceptedTermsVersion ??
+                        (await getToken('acceptedTermsVersion'));
+                      nextBootRoute = needsTermsAcceptance(acceptedVersion)
+                        ? 'TermsAcceptance'
+                        : resolveMainNavigator(activeRol);
                     }
-                    const acceptedVersion =
-                      refreshData?.acceptedTermsVersion ??
-                      (await getToken('acceptedTermsVersion'));
-                    nextBootRoute = needsTermsAcceptance(acceptedVersion)
-                      ? 'TermsAcceptance'
-                      : resolveMainNavigator(rol);
                   } else if (!cancelled) {
                     nextBootRoute = 'Login';
                   }

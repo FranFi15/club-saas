@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import asyncHandler from 'express-async-handler';
 import { getUserModel } from '../models/user.model.js';
+import { normalizeUserRoles } from '../constants/userRoles.js';
 
 const protect = asyncHandler(async (req, res, next) => {
     let token;
@@ -26,6 +27,24 @@ const protect = asyncHandler(async (req, res, next) => {
             if (req.user.estado === 'inactivo') {
                 res.status(401);
                 throw new Error('Tu cuenta está desactivada. Consultá en administración.');
+            }
+
+            const allowed = normalizeUserRoles(req.user);
+            const primaryRol = req.user.rol;
+            req.user._primaryRol = primaryRol;
+            req.user.roles = allowed;
+
+            const activeRol =
+                decoded.activeRol && allowed.includes(decoded.activeRol)
+                    ? decoded.activeRol
+                    : allowed.includes(primaryRol)
+                      ? primaryRol
+                      : allowed[0] || primaryRol;
+
+            req.user.rol = activeRol;
+            if (typeof req.user.unmarkModified === 'function') {
+                req.user.unmarkModified('rol');
+                req.user.unmarkModified('roles');
             }
 
             next();

@@ -6,6 +6,7 @@ const AUTH_KEYS = [
   'userToken',
   'userRefreshToken',
   'userRol',
+  'userRoles',
   'userId',
   'userNombre',
   'userApellido',

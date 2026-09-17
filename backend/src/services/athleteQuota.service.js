@@ -1,11 +1,12 @@
 import axios from 'axios';
+import { roleQueryMany } from '../constants/userRoles.js';
 
 /** Roles que cuentan para el cupo / facturación del club en Super Admin. */
 export const BILLABLE_MEMBER_ROLES = ['atleta', 'socio'];
 
 export async function countClubAthletes(models) {
     const { User } = models;
-    return User.countDocuments({ rol: { $in: BILLABLE_MEMBER_ROLES } });
+    return User.countDocuments(roleQueryMany(BILLABLE_MEMBER_ROLES));
 }
 
 async function superInternalRequest(clubIdentifier, method, pathSuffix = '', body) {

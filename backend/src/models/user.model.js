@@ -29,6 +29,7 @@ const userSchema = new mongoose.Schema({
     /** Solo tutores: % de descuento de esta familia (override del global del club). */
     descuentoFamiliar: { type: Number, default: null, min: 0, max: 100 },
 
+    /** Rol primario / preferido (también debe estar en `roles`). */
     rol: { 
         type: String, 
         enum: [
@@ -47,6 +48,31 @@ const userSchema = new mongoose.Schema({
             'socio'
         ],
         required: true 
+    },
+
+    /** Todos los roles asignados (multi-rol). Vacío se trata como `[rol]` al leer. */
+    roles: {
+        type: [
+            {
+                type: String,
+                enum: [
+                    'admin_club',
+                    'administrativo',
+                    'control_ingreso',
+                    'colaborador',
+                    'profe',
+                    'preparador_fisico',
+                    'nutricionista',
+                    'psicologo',
+                    'medico',
+                    'kinesiologo',
+                    'atleta',
+                    'tutor',
+                    'socio',
+                ],
+            },
+        ],
+        default: undefined,
     },
     
     // Estado Administrativo/Financiero
@@ -116,10 +142,22 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ tutorPrincipal: 1, rol: 1 });
 userSchema.index({ rol: 1, estado: 1 });
+userSchema.index({ roles: 1, estado: 1 });
 userSchema.index({ esPrueba: 1, pruebaHasta: 1, pruebaDecision: 1 });
 
-// Encriptamos la contraseña antes de guardar
+// Encriptamos la contraseña antes de guardar; normalizamos roles ↔ rol
 userSchema.pre('save', async function() {
+    if (this.rol) {
+        const list = Array.isArray(this.roles) ? this.roles.filter(Boolean) : [];
+        if (list.length === 0) {
+            this.roles = [this.rol];
+        } else if (!list.includes(this.rol)) {
+            this.roles = [this.rol, ...list];
+        } else {
+            this.roles = [...new Set(list)];
+        }
+    }
+
     if (!this.isModified('password')) return;
     
     const salt = await bcrypt.genSalt(10);

@@ -24,6 +24,7 @@ import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScree
 import ProfileEditDataButton from '../../components/ProfileEditDataButton';
 import ProfileClubEntryButton from '../../components/ProfileClubEntryButton';
 import ProfileLogoutButton from '../../components/ProfileLogoutButton';
+import ProfileSwitchRoleButton from '../../components/ProfileSwitchRoleButton';
 import ProfileNotificationToggle from '../../components/ProfileNotificationToggle';
 import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
 import ProfileInfoRow, { profileCardStyles } from '../../components/ProfileInfoRow';
@@ -374,7 +375,9 @@ export default function AdminProfileScreen({ navigation }) {
 
             <ProfileNotificationToggle />
 
-            <ProfileLogoutButton onPress={handleLogout} />
+            <ProfileSwitchRoleButton theme={theme} colorMarca={colorMarca} />
+
+        <ProfileLogoutButton onPress={handleLogout} />
           </>
         )}
       </ScrollView>

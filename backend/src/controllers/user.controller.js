@@ -6,7 +6,14 @@ import {
     countDocsPendientesByAthleteIds,
     tutorAthletesAlertFlags,
 } from '../services/badgeCounts.service.js';
-import { isAssignableUserRole, canAssignUserRole, CLIENT_USER_ROLES } from '../constants/userRoles.js';
+import {
+    isAssignableUserRole,
+    canAssignUserRole,
+    CLIENT_USER_ROLES,
+    resolveRolesWrite,
+    normalizeUserRoles,
+    roleQuery,
+} from '../constants/userRoles.js';
 import { ensureCurrentMonthSocialFeeForUser, resolveUserSocialFeeAssignment } from '../services/generateSocialFees.service.js';
 import { syncAthleteCountToSuper } from '../services/athleteQuota.service.js';
 import { registerUserPushToken, unregisterUserPushToken } from '../services/pushNotification.service.js';
@@ -75,6 +82,7 @@ const registerUser = asyncHandler(async (req, res) => {
         email,
         password,
         rol,
+        roles: rolesBody,
         fotoPerfil,
         tutorPrincipal,
         fechaNacimiento,
@@ -97,29 +105,44 @@ const registerUser = asyncHandler(async (req, res) => {
         throw new Error('El usuario ya existe en este club.');
     }
 
-    if (!isAssignableUserRole(rol)) {
+    let resolved;
+    try {
+        resolved = resolveRolesWrite(rolesBody, rol);
+    } catch (e) {
         res.status(400);
-        throw new Error('Ese rol no está disponible en esta versión de la app.');
+        throw e;
+    }
+    const { rol: primaryRol, roles } = resolved;
+
+    for (const r of roles) {
+        if (!isAssignableUserRole(r)) {
+            res.status(400);
+            throw new Error('Ese rol no está disponible en esta versión de la app.');
+        }
+        if (req.user && !canAssignUserRole(req.user.rol, r)) {
+            res.status(403);
+            throw new Error('Solo el administrador del club puede crear ese tipo de cuenta.');
+        }
     }
 
-    if (req.user && !canAssignUserRole(req.user.rol, rol)) {
-        res.status(403);
-        throw new Error('Solo el administrador del club puede crear ese tipo de cuenta.');
-    }
+    const hasAtleta = roles.includes('atleta');
+    const clientRol = roles.find((r) => CLIENT_USER_ROLES.includes(r));
+    const staffPayrollRol = roles.find((r) => PAYROLL_STAFF_ROLES.includes(r));
+    const payrollRol = hasAtleta ? 'atleta' : staffPayrollRol || primaryRol;
 
     let trialFields;
     try {
-        trialFields = parseTrialCreateFields({ esPrueba, diasPrueba, rol });
+        trialFields = parseTrialCreateFields({ esPrueba, diasPrueba, rol: hasAtleta ? 'atleta' : primaryRol });
     } catch (e) {
         res.status(e.statusCode || 400);
         throw e;
     }
 
     let socialAssignment = { exentoCuotaSocial: false, cuotaSocialAsignada: null };
-    if (CLIENT_USER_ROLES.includes(rol) && !trialFields.esPrueba) {
+    if (clientRol && !trialFields.esPrueba) {
         try {
             socialAssignment = await resolveUserSocialFeeAssignment(req.models, {
-                rol,
+                rol: clientRol,
                 exentoCuotaSocial,
                 cuotaSocialAsignada,
             });
@@ -131,7 +154,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
     let payrollFields;
     try {
-        payrollFields = parsePayrollFields({ enNomina, sueldoNomina }, rol);
+        payrollFields = parsePayrollFields({ enNomina, sueldoNomina }, payrollRol);
     } catch (e) {
         res.status(e.statusCode || 400);
         throw e;
@@ -143,24 +166,25 @@ const registerUser = asyncHandler(async (req, res) => {
         dni,
         email,
         password,
-        rol,
+        rol: primaryRol,
+        roles,
         tutorPrincipal: tutorPrincipal || undefined,
         fotoPerfil: fotoPerfil || '',
         fechaNacimiento: fechaNacimiento || undefined,
-        cuotasEnApp: rol === 'atleta' ? cuotasEnApp !== false : undefined,
-        sexo: rol === 'atleta' && (sexo === 'M' || sexo === 'F') ? sexo : '',
+        cuotasEnApp: hasAtleta ? cuotasEnApp !== false : undefined,
+        sexo: hasAtleta && (sexo === 'M' || sexo === 'F') ? sexo : '',
         exentoCuotaSocial: trialFields.esPrueba ? true : socialAssignment.exentoCuotaSocial,
         cuotaSocialAsignada: trialFields.esPrueba ? undefined : socialAssignment.cuotaSocialAsignada || undefined,
         esPrueba: trialFields.esPrueba,
         pruebaHasta: trialFields.pruebaHasta || undefined,
         pruebaAvisoEnviadoAt: trialFields.pruebaAvisoEnviadoAt || undefined,
         pruebaDecision: trialFields.pruebaDecision || undefined,
-        enNomina: rol === 'atleta' ? payrollFields.enNomina === true : false,
+        enNomina: hasAtleta ? payrollFields.enNomina === true : false,
         sueldoNomina: (() => {
-            if (rol === 'atleta') {
+            if (hasAtleta) {
                 return payrollFields.enNomina === true ? payrollFields.sueldoNomina ?? 0 : 0;
             }
-            if (PAYROLL_STAFF_ROLES.includes(rol)) {
+            if (staffPayrollRol) {
                 return payrollFields.sueldoNomina ?? 0;
             }
             return 0;
@@ -168,7 +192,7 @@ const registerUser = asyncHandler(async (req, res) => {
     });
 
     if (user) {
-        if (user.rol === 'atleta' && user.tutorPrincipal && !user.esPrueba) {
+        if (hasAtleta && user.tutorPrincipal && !user.esPrueba) {
             try {
                 await syncFamilyDiscountForAthlete(req.models, user._id);
             } catch (e) {
@@ -182,22 +206,23 @@ const registerUser = asyncHandler(async (req, res) => {
             apellido: user.apellido,
             email: user.email,
             rol: user.rol,
+            roles: normalizeUserRoles(user),
             fotoPerfil: user.fotoPerfil,
             esPrueba: user.esPrueba,
             pruebaHasta: user.pruebaHasta,
             message: 'Usuario creado exitosamente.'
         });
 
-        if (user.rol === 'atleta' || user.rol === 'socio') {
+        if (roles.includes('atleta') || roles.includes('socio')) {
             await syncAthleteCountToSuper(req.models, req.clubIdentifier);
         }
 
-        if (PAYROLL_STAFF_ROLES.includes(user.rol)) {
+        if (roles.some((r) => PAYROLL_STAFF_ROLES.includes(r))) {
             await syncStaffGroupChatSafe(req.models);
         }
 
         // Alta a mitad de mes: no esperar al cron del día 1 para la cuota social.
-        if (CLIENT_USER_ROLES.includes(user.rol) && !user.esPrueba) {
+        if (clientRol && !user.esPrueba) {
             try {
                 await ensureCurrentMonthSocialFeeForUser(req.models, user, req.clubTimezone);
             } catch (e) {
@@ -299,7 +324,7 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
         throw new Error('Usuario no encontrado');
     }
 
-    if (req.user.rol === 'administrativo' && user.rol === 'admin_club') {
+    if (req.user.rol === 'administrativo' && normalizeUserRoles(user).includes('admin_club')) {
         res.status(403);
         throw new Error('No tenés permiso para modificar al administrador del club.');
     }
@@ -327,40 +352,59 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
         user.fotoPerfil = String(req.body.fotoPerfil).trim();
     }
     
+    const rolesAnteriores = normalizeUserRoles(user);
     const rolAnterior = user.rol;
 
     // El admin sí puede cambiar roles y estados
-    if (req.body.rol) {
-        if (!isAssignableUserRole(req.body.rol)) {
+    if (req.body.roles || req.body.rol) {
+        let resolved;
+        try {
+            resolved = resolveRolesWrite(
+                req.body.roles !== undefined ? req.body.roles : user.roles,
+                req.body.rol || user.rol,
+            );
+        } catch (e) {
             res.status(400);
-            throw new Error('Ese rol no está disponible en esta versión de la app.');
+            throw e;
         }
-        if (!canAssignUserRole(req.user.rol, req.body.rol)) {
-            res.status(403);
-            throw new Error('Solo el administrador del club puede asignar ese rol.');
+        for (const r of resolved.roles) {
+            if (!isAssignableUserRole(r)) {
+                res.status(400);
+                throw new Error('Ese rol no está disponible en esta versión de la app.');
+            }
+            if (!canAssignUserRole(req.user.rol, r)) {
+                res.status(403);
+                throw new Error('Solo el administrador del club puede asignar ese rol.');
+            }
         }
-        user.rol = req.body.rol;
+        user.rol = resolved.rol;
+        user.roles = resolved.roles;
     }
     if (req.body.activo !== undefined) {
         user.estado = req.body.activo === false || req.body.activo === 'false' ? 'inactivo' : 'activo';
     }
     if (req.body.estado) user.estado = req.body.estado;
 
+    const nextRoles = normalizeUserRoles(user);
+    const hasAtleta = nextRoles.includes('atleta');
+    const clientRol = nextRoles.find((r) => CLIENT_USER_ROLES.includes(r));
+    const staffPayrollRol = nextRoles.find((r) => PAYROLL_STAFF_ROLES.includes(r));
+    const payrollRol = hasAtleta ? 'atleta' : staffPayrollRol || user.rol;
+
     if (req.body.cuotasEnApp !== undefined) {
         const habilitar = req.body.cuotasEnApp === true || req.body.cuotasEnApp === 'true';
-        if (user.rol === 'atleta' || req.body.rol === 'atleta') {
+        if (hasAtleta) {
             user.cuotasEnApp = habilitar;
         }
     }
 
-    if (req.body.enNomina !== undefined || req.body.sueldoNomina !== undefined || req.body.rol) {
-        const nextRol = req.body.rol || user.rol;
+    if (req.body.enNomina !== undefined || req.body.sueldoNomina !== undefined || req.body.rol || req.body.roles) {
         try {
-            const payrollFields = parsePayrollFields(req.body, nextRol);
+            const payrollFields = parsePayrollFields(req.body, payrollRol);
             if (payrollFields.clear) {
                 user.enNomina = false;
                 user.sueldoNomina = 0;
-            } else if (nextRol === 'atleta') {
+            } else if (hasAtleta) {
                 if (payrollFields.enNomina !== undefined) user.enNomina = payrollFields.enNomina;
                 if (payrollFields.sueldoNomina !== undefined) {
                     user.sueldoNomina = payrollFields.sueldoNomina;
@@ -381,12 +425,11 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
         }
     }
 
-    if (req.body.exentoCuotaSocial !== undefined || req.body.cuotaSocialAsignada !== undefined || req.body.rol) {
-        const nextRol = req.body.rol || user.rol;
-        if (CLIENT_USER_ROLES.includes(nextRol)) {
+    if (req.body.exentoCuotaSocial !== undefined || req.body.cuotaSocialAsignada !== undefined || req.body.rol || req.body.roles) {
+        if (clientRol) {
             try {
                 const socialAssignment = await resolveUserSocialFeeAssignment(req.models, {
-                    rol: nextRol,
+                    rol: clientRol,
                     exentoCuotaSocial:
                         req.body.exentoCuotaSocial !== undefined
                             ? req.body.exentoCuotaSocial
@@ -410,9 +453,10 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
     }
 
     const updatedUser = await user.save();
+    const updatedRoles = normalizeUserRoles(updatedUser);
 
     if (
-        updatedUser.rol === 'atleta' &&
+        updatedRoles.includes('atleta') &&
         updatedUser.tutorPrincipal &&
         String(updatedUser.tutorPrincipal) !== tutorAnterior
     ) {
@@ -429,16 +473,17 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
         apellido: updatedUser.apellido,
         email: updatedUser.email,
         rol: updatedUser.rol,
+        roles: updatedRoles,
         estado: updatedUser.estado,
         fotoPerfil: updatedUser.fotoPerfil,
-        cuotasEnApp: updatedUser.rol === 'atleta' ? atletaCuotasEnApp(updatedUser) : undefined,
+        cuotasEnApp: updatedRoles.includes('atleta') ? atletaCuotasEnApp(updatedUser) : undefined,
         exentoCuotaSocial: updatedUser.exentoCuotaSocial,
         cuotaSocialAsignada: updatedUser.cuotaSocialAsignada,
         enNomina: updatedUser.enNomina === true,
         sueldoNomina: updatedUser.sueldoNomina || 0,
     });
 
-    if (CLIENT_USER_ROLES.includes(updatedUser.rol)) {
+    if (clientRol) {
         try {
             await ensureCurrentMonthSocialFeeForUser(req.models, updatedUser, req.clubTimezone);
         } catch (e) {
@@ -447,17 +492,17 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
     }
 
     if (
-        rolAnterior === 'atleta' ||
-        rolAnterior === 'socio' ||
-        updatedUser.rol === 'atleta' ||
-        updatedUser.rol === 'socio'
+        rolesAnteriores.includes('atleta') ||
+        rolesAnteriores.includes('socio') ||
+        updatedRoles.includes('atleta') ||
+        updatedRoles.includes('socio')
     ) {
         await syncAthleteCountToSuper(req.models, req.clubIdentifier);
     }
 
     if (
-        PAYROLL_STAFF_ROLES.includes(rolAnterior) ||
-        PAYROLL_STAFF_ROLES.includes(updatedUser.rol) ||
+        rolesAnteriores.some((r) => PAYROLL_STAFF_ROLES.includes(r)) ||
+        updatedRoles.some((r) => PAYROLL_STAFF_ROLES.includes(r)) ||
         (req.body.activo !== undefined || req.body.estado)
     ) {
         await syncStaffGroupChatSafe(req.models);
@@ -615,7 +660,7 @@ const getUsers = asyncHandler(async (req, res) => {
             filter.esPrueba = true;
             filter.estado = { $ne: 'inactivo' };
         } else {
-            filter.rol = rolFilter;
+            Object.assign(filter, roleQuery(rolFilter));
             filter.estado = { $ne: 'inactivo' };
         }
     } else {
@@ -637,14 +682,17 @@ const getUsers = asyncHandler(async (req, res) => {
     const totalPages = Math.ceil(totalUsers / limit);
 
     const tutorIds = users
-        .filter((u) => u.rol === 'tutor' || u.rol === 'admin_club')
+        .filter((u) => {
+            const rs = normalizeUserRoles(u);
+            return rs.includes('tutor') || rs.includes('admin_club');
+        })
         .map((u) => u._id);
 
     const familiaresByTutor = {};
     if (tutorIds.length) {
         try {
             const hijos = await User.find(atletasDeTutoresFilter(tutorIds))
-                .select('nombre apellido rol fotoPerfil tutorPrincipal')
+                .select('nombre apellido rol roles fotoPerfil tutorPrincipal')
                 .lean();
             for (const h of hijos) {
                 const tid = String(h.tutorPrincipal);
@@ -657,12 +705,14 @@ const getUsers = asyncHandler(async (req, res) => {
     }
 
     const usersWithFamily = users.map((u) => {
+        const rs = normalizeUserRoles(u);
         const esTutorDe =
-            u.rol === 'tutor' || u.rol === 'admin_club'
+            rs.includes('tutor') || rs.includes('admin_club')
                 ? familiaresByTutor[String(u._id)] || []
                 : [];
         return {
             ...u.toObject(),
+            roles: rs,
             familiaresACargo: esTutorDe,
         };
     });
@@ -686,20 +736,22 @@ const getMe = asyncHandler(async (req, res) => {
         throw new Error('Usuario no encontrado');
     }
     const edad = calcEdad(user.fechaNacimiento);
+    const roles = normalizeUserRoles(user);
+    const activeRol = req.user.rol;
     const cuotasHabilitadas = atletaCuotasEnApp(user);
     const puedePagarEnApp =
-        req.user.rol === 'tutor' ||
-        req.user.rol === 'socio' ||
-        (req.user.rol === 'atleta' && cuotasHabilitadas && puedePagarComoAtleta(user.fechaNacimiento));
+        activeRol === 'tutor' ||
+        activeRol === 'socio' ||
+        (activeRol === 'atleta' && cuotasHabilitadas && puedePagarComoAtleta(user.fechaNacimiento));
 
     let pruebaPendiente = [];
-    if (user.rol === 'tutor') {
+    if (roles.includes('tutor') && activeRol === 'tutor') {
         pruebaPendiente = await User.find({
             ...hijosDelTutorFilter(user._id),
             esPrueba: true,
             pruebaDecision: 'pendiente',
         }).select('_id nombre apellido esPrueba pruebaHasta pruebaDecision');
-    } else if (user.rol === 'atleta' && trialNeedsMemberDecision(user)) {
+    } else if (roles.includes('atleta') && trialNeedsMemberDecision(user)) {
         // Athletes without an active tutor confirm continue / leave themselves.
         const hasTutor = await athleteHasDecisionTutor(req.models, user);
         if (!hasTutor) {
@@ -714,8 +766,10 @@ const getMe = asyncHandler(async (req, res) => {
 
     res.json({
         ...user.toObject(),
+        rol: activeRol,
+        roles,
         edad,
-        cuotasEnApp: user.rol === 'atleta' ? cuotasHabilitadas : undefined,
+        cuotasEnApp: roles.includes('atleta') ? cuotasHabilitadas : undefined,
         puedePagarEnApp,
         pruebaPendiente: pruebaPendiente.map((a) => (a.toObject ? a.toObject() : a)),
     });

@@ -1,4 +1,5 @@
 import { hijosDelTutorFilter } from '../utils/userQuery.js';
+import { roleQueryMany, normalizeUserRoles } from '../constants/userRoles.js';
 
 export const ADMIN_ROLES = new Set(['admin_club', 'administrativo']);
 export const STAFF_ROLES = new Set(['profe', 'preparador_fisico', 'nutricionista', 'psicologo']);
@@ -9,10 +10,14 @@ export const SOCIO_CHAT_PEER_ROLES = new Set([...ADMIN_ROLES, ...OPS_CHAT_ROLES]
 
 const OPS_NETWORK_ROLES = new Set([...OPS_CHAT_ROLES, ...STAFF_ROLES]);
 
-const USER_SELECT = 'nombre apellido email rol fotoPerfil estado';
+const USER_SELECT = 'nombre apellido email rol roles fotoPerfil estado';
 
 function idStr(v) {
     return String(v?._id || v);
+}
+
+function userHasAnyRole(user, roleSet) {
+    return normalizeUserRoles(user).some((r) => roleSet.has(r));
 }
 
 export function makePairKey(a, b) {
@@ -165,7 +170,7 @@ async function listOpsNetworkPeers(User, user) {
     return User.find({
         estado: 'activo',
         _id: { $ne: user._id },
-        rol: { $in: [...OPS_NETWORK_ROLES] },
+        ...roleQueryMany([...OPS_NETWORK_ROLES]),
     })
         .select(USER_SELECT)
         .lean();
@@ -175,7 +180,7 @@ async function listOpsOnlyPeers(User, user) {
     return User.find({
         estado: 'activo',
         _id: { $ne: user._id },
-        rol: { $in: [...OPS_CHAT_ROLES] },
+        ...roleQueryMany([...OPS_CHAT_ROLES]),
     })
         .select(USER_SELECT)
         .lean();
@@ -197,7 +202,7 @@ export async function listEligibleRecipients(models, user) {
 
     // Siempre: admins del club
     const admins = await User.find({
-        rol: { $in: [...ADMIN_ROLES] },
+        ...roleQueryMany([...ADMIN_ROLES]),
         estado: 'activo',
         _id: { $ne: user._id },
     })
@@ -205,12 +210,11 @@ export async function listEligibleRecipients(models, user) {
         .lean();
     addMany(admins);
 
-    if (ADMIN_ROLES.has(user.rol)) {
+    if (ADMIN_ROLES.has(user.rol) || userHasAnyRole(user, ADMIN_ROLES)) {
         const everyone = await User.find({
             estado: 'activo',
             _id: { $ne: user._id },
-            rol: {
-                $in: [
+            ...roleQueryMany([
                     'admin_club',
                     'administrativo',
                     'control_ingreso',
@@ -222,8 +226,7 @@ export async function listEligibleRecipients(models, user) {
                     'atleta',
                     'tutor',
                     'socio',
-                ],
-            },
+            ]),
         })
             .select(USER_SELECT)
             .lean();
@@ -234,7 +237,7 @@ export async function listEligibleRecipients(models, user) {
     if (OPS_CHAT_ROLES.has(user.rol)) {
         addMany(await listOpsNetworkPeers(User, user));
         addMany(
-            await User.find({ rol: 'socio', estado: 'activo' })
+            await User.find({ ...roleQueryMany(['socio']), estado: 'activo' })
                 .select(USER_SELECT)
                 .lean(),
         );
@@ -270,7 +273,7 @@ export async function listEligibleRecipients(models, user) {
         if (athleteIds.length) {
             const atletas = await User.find({
                 _id: { $in: athleteIds },
-                rol: 'atleta',
+                ...roleQueryMany(['atleta']),
                 estado: 'activo',
             })
                 .select(`${USER_SELECT} tutorPrincipal`)
@@ -297,7 +300,7 @@ export async function listEligibleRecipients(models, user) {
         if (enabledAthleteIds.length) {
             const atletasChat = await User.find({
                 _id: { $in: enabledAthleteIds },
-                rol: 'atleta',
+                ...roleQueryMany(['atleta']),
                 estado: 'activo',
             })
                 .select(USER_SELECT)
