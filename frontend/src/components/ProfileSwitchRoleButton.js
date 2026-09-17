@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { CommonActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { getStoredUserRoles } from '../utils/roleSession';
 import { navigationRef } from '../navigation/navigationRef';
@@ -25,12 +24,7 @@ export default function ProfileSwitchRoleButton({ theme, colorMarca, onPress, st
     onPress ||
     (() => {
       if (navigationRef.isReady()) {
-        navigationRef.dispatch(
-          CommonActions.navigate({
-            name: 'SelectRole',
-            params: { fromProfile: true },
-          }),
-        );
+        navigationRef.navigate('SelectRole', { fromProfile: true });
       }
     });
 
