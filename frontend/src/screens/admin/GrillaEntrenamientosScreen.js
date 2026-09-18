@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Swipeable } from 'react-native-gesture-handler';
+import HoverRevealSwipeable from '../../components/HoverRevealSwipeable';
 
 import { clubApi } from '../../utils/api';
 import { ClubContext } from '../../context/ClubContext';
@@ -286,7 +286,7 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
   };
 
   const renderListItem = ({ item }) => (
-    <Swipeable renderRightActions={() => renderRightActions(item)}>
+    <HoverRevealSwipeable renderRightActions={() => renderRightActions(item)}>
       <DesignCard
         theme={theme}
         isDarkMode={isDarkMode}
@@ -316,7 +316,7 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
           ) : null}
         </View>
       </DesignCard>
-    </Swipeable>
+    </HoverRevealSwipeable>
   );
 
   const dayFilterOptions = useMemo(

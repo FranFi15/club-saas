@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { Swipeable } from 'react-native-gesture-handler';
+import HoverRevealSwipeable from '../../components/HoverRevealSwipeable';
 
 import { clubApi } from '../../utils/api';
 import { ClubContext } from '../../context/ClubContext';
@@ -495,9 +495,9 @@ export default function EspaciosFisicosScreen({ navigation }) {
     if (!canManageSpaces) return card;
 
     return (
-      <Swipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>
+      <HoverRevealSwipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>
         {card}
-      </Swipeable>
+      </HoverRevealSwipeable>
     );
   };
 

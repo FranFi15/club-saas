@@ -10,7 +10,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Swipeable } from 'react-native-gesture-handler';
+import HoverRevealSwipeable from '../../../components/HoverRevealSwipeable';
 import { finanzasStyles as s } from './finanzasStyles';
 import { fmtMoney } from './finanzasConstants';
 import CuotaSocialSection from './CuotaSocialSection';
@@ -139,7 +139,7 @@ export default function PlanesTab({
   const renderPlanCard = (item) => {
     const active = item.activo !== false;
     return (
-      <Swipeable
+      <HoverRevealSwipeable
         key={item._id}
         renderRightActions={() => (
           <View style={{ flexDirection: 'row', marginBottom: 14, borderRadius: 14, overflow: 'hidden' }}>
@@ -197,7 +197,7 @@ export default function PlanesTab({
             </View>
           </View>
         </DesignCard>
-      </Swipeable>
+      </HoverRevealSwipeable>
     );
   };
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useCallback, useMemo } from 're
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, Image, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Swipeable } from 'react-native-gesture-handler';
+import HoverRevealSwipeable from '../../components/HoverRevealSwipeable';
 import * as ImagePicker from 'expo-image-picker';
 import { clubApi } from '../../utils/api';
 import { STAFF_NEWS_AUTHOR_ROLES, CLUB_NEWS_AUTHOR_ROLES } from '../../constants/appRoles';
@@ -496,7 +496,7 @@ export default function NoticiasScreen({ navigation, route }) {
 
   const renderItem = ({ item }) => {
     return (
-      <Swipeable renderRightActions={() => renderRightActions(item)}>
+      <HoverRevealSwipeable renderRightActions={() => renderRightActions(item)}>
         <NewsFeedPost
           item={item}
           theme={theme}
@@ -510,7 +510,7 @@ export default function NoticiasScreen({ navigation, route }) {
             </View>
           }
         />
-      </Swipeable>
+      </HoverRevealSwipeable>
     );
   };
 

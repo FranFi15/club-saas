@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Swipeable } from 'react-native-gesture-handler'; 
+import HoverRevealSwipeable from '../../components/HoverRevealSwipeable';
 
 import { clubApi } from '../../utils/api';
 import { ClubContext } from '../../context/ClubContext';
@@ -254,7 +254,7 @@ export default function CategoriasScreen({ navigation, route }) {
   );
 
   const renderItem = ({ item }) => (
-    <Swipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>
+    <HoverRevealSwipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>
       <DesignCard
         theme={theme}
         isDarkMode={isDarkMode}
@@ -294,7 +294,7 @@ export default function CategoriasScreen({ navigation, route }) {
         </View>
         <Ionicons name="chevron-forward" size={20} color={theme.icon} />
       </DesignCard>
-    </Swipeable>
+    </HoverRevealSwipeable>
   );
 
   return (

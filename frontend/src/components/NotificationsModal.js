@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { Swipeable } from 'react-native-gesture-handler';
+import HoverRevealSwipeable from './HoverRevealSwipeable';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
@@ -346,7 +346,7 @@ export default function NotificationsModal({ visible, onClose }) {
     const { accent, wash } = themeForItem(item, index);
 
     return (
-      <Swipeable
+      <HoverRevealSwipeable
         ref={(ref) => {
           if (ref) swipeRefs.current.set(item.id, ref);
           else swipeRefs.current.delete(item.id);
@@ -407,7 +407,7 @@ export default function NotificationsModal({ visible, onClose }) {
             {formatWhen(item.createdAt)}
           </Text>
         </MessageDesignCard>
-      </Swipeable>
+      </HoverRevealSwipeable>
     );
   };
 
