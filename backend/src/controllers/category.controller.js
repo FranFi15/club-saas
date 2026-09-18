@@ -370,7 +370,9 @@ const putCategoryPlantel = asyncHandler(async (req, res) => {
         throw new Error('atletaIds debe ser un arreglo.');
     }
 
-    const stats = await syncCategoryAthletes(req.models, req.params.id, atletaIds);
+    const stats = await syncCategoryAthletes(req.models, req.params.id, atletaIds, {
+        allowUnderMinAge: Boolean(req.body?.allowUnderMinAge),
+    });
     const payload = await getCategoryRosterContext(req.models, req.params.id, { metaOnly: true });
     res.json({
         message: `Plantel actualizado: ${stats.total} atleta(s) (${stats.altas} alta(s), ${stats.bajas} baja(s)).`,

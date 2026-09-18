@@ -72,6 +72,33 @@ export function matchesCategoryAgeLimits(category, fechaNacimiento) {
     return true;
 }
 
+/** Menor a la edad mínima de la categoría (según corte hasta / hoy). */
+export function isUnderCategoryMinAge(category, fechaNacimiento) {
+    const edadMinima = category?.edadMinima;
+    if (edadMinima == null || !fechaNacimiento) return false;
+    const edadAlCorte = calcEdad(fechaNacimiento, categoryMinAgeAsOf(category));
+    return edadAlCorte !== null && edadAlCorte < edadMinima;
+}
+
+/** Mayor a la edad máxima de la categoría (según corte desde / hoy). */
+export function isOverCategoryMaxAge(category, fechaNacimiento) {
+    const edadMaxima = category?.edadMaxima;
+    if (edadMaxima == null || !fechaNacimiento) return false;
+    const edadAlInicio = calcEdad(fechaNacimiento, categoryMaxAgeAsOf(category));
+    return edadAlInicio !== null && edadAlInicio > edadMaxima;
+}
+
+/**
+ * Elegible para listar al agregar (admin puede forzar menores a la mínima).
+ * Excluye sin DOB si hay límites, y a quienes superan la máxima.
+ */
+export function isEligibleAllowingUnderMinAge(category, fechaNacimiento) {
+    if (category?.edadMinima == null && category?.edadMaxima == null) return true;
+    if (!fechaNacimiento) return false;
+    if (isOverCategoryMaxAge(category, fechaNacimiento)) return false;
+    return true;
+}
+
 /**
  * Rango de fechaNacimiento en Mongo para filtrar atletas elegibles por edad.
  * Alineado con matchesCategoryAgeLimits (usa cortes desde/hasta cuando existen).
@@ -97,4 +124,18 @@ export function birthDateRangeForCategory(category) {
         range.$lte = earliestBirth;
     }
     return range;
+}
+
+/** Como birthDateRangeForCategory pero sin piso de edad mínima (incluye menores). */
+export function birthDateRangeForCategoryAllowUnderMin(category) {
+    const maxAge = category?.edadMaxima;
+    if (maxAge == null) {
+        // Solo mínima o sin límites: no acotar por nacimiento (salvo exigir DOB en el caller).
+        return null;
+    }
+    const ref = categoryMaxAgeAsOf(category);
+    const latestBirth = new Date(ref);
+    latestBirth.setFullYear(latestBirth.getFullYear() - maxAge - 1);
+    latestBirth.setDate(latestBirth.getDate() + 1);
+    return { $gte: latestBirth };
 }

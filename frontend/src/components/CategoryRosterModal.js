@@ -10,6 +10,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../utils/api';
@@ -198,22 +199,54 @@ export default function CategoryRosterModal({
     setSelected(map);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (allowUnderMinAge = false) => {
     const ids = Object.keys(selected);
     if (!ids.length) return;
+
+    if (!allowUnderMinAge) {
+      const underMin = atletas.filter((a) => selected[String(a._id)] && a.menorEdadMinima);
+      // Also under-min who are already enrolled may not be in current page — rely on API if needed.
+      if (underMin.length > 0) {
+        const minAge = categoria?.edadMinima;
+        const names = underMin
+          .map((u) => `${u.nombre} ${u.apellido || ''}`.trim())
+          .slice(0, 5)
+          .join(', ');
+        const extra = underMin.length > 5 ? ` y ${underMin.length - 5} más` : '';
+        const msg =
+          underMin.length === 1
+            ? `${names} es menor a la edad mínima${minAge != null ? ` (${minAge} años)` : ''}. ¿Querés agregarlo igual?`
+            : `${underMin.length} atletas son menores a la edad mínima${minAge != null ? ` (${minAge} años)` : ''}: ${names}${extra}. ¿Querés agregarlos igual?`;
+        Alert.alert('Edad mínima', msg, [
+          { text: 'Volver', style: 'cancel' },
+          { text: 'Agregar igual', onPress: () => handleSave(true) },
+        ]);
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const h = await getHeaders();
       const { data } = await clubApi.put(
         `/categories/${categoryId}/plantel`,
-        { atletaIds: ids },
+        { atletaIds: ids, allowUnderMinAge: Boolean(allowUnderMinAge) },
         { headers: h },
       );
       onSaved(data);
       clearScreenCache(rosterCacheKey);
       onClose();
     } catch (e) {
-      onSaved(null, e.response?.data?.message || 'No se pudo guardar.');
+      const code = e.response?.data?.code;
+      const msg = e.response?.data?.message || 'No se pudo guardar.';
+      if (code === 'UNDER_MIN_AGE' || /edad mínima/i.test(msg)) {
+        Alert.alert('Edad mínima', `${msg}\n\n¿Querés agregarlos igual?`, [
+          { text: 'Volver', style: 'cancel' },
+          { text: 'Agregar igual', onPress: () => handleSave(true) },
+        ]);
+      } else {
+        onSaved(null, msg);
+      }
     } finally {
       setSaving(false);
     }
@@ -259,6 +292,11 @@ export default function CategoryRosterModal({
             {a.edad != null ? `${a.edad} años` : 'Sin edad'}
             {a.dni ? ` · DNI ${a.dni}` : ''}
           </Text>
+          {a.menorEdadMinima ? (
+            <Text style={{ color: '#d97706', fontSize: 11, fontWeight: '700', marginTop: 4 }}>
+              Menor a la edad mínima
+            </Text>
+          ) : null}
           {otras.length > 0 ? (
             <Text style={{ color: '#f59e0b', fontSize: 11, marginTop: 4 }} numberOfLines={2}>
               También en: {otras.map((c) => c.nombre).join(', ')}
@@ -324,7 +362,7 @@ export default function CategoryRosterModal({
       <Text style={[styles.hint, { color: theme.textMuted, textAlign: 'center' }]}>
         {debouncedSearch
           ? 'Ningún resultado para la búsqueda.'
-          : 'No hay atletas que cumplan la edad de esta categoría.'}
+          : 'No hay atletas disponibles (pueden faltar fecha de nacimiento o superar la edad máxima).'}
       </Text>
     );
   };

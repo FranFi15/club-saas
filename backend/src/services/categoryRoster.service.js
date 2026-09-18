@@ -1,4 +1,11 @@
-import { calcEdad, birthDateRangeForCategory, matchesCategoryAgeLimits } from '../utils/ageHelper.js';
+import {
+    calcEdad,
+    birthDateRangeForCategoryAllowUnderMin,
+    matchesCategoryAgeLimits,
+    isUnderCategoryMinAge,
+    isOverCategoryMaxAge,
+    isEligibleAllowingUnderMinAge,
+} from '../utils/ageHelper.js';
 import { applyFamilyDiscountToEnrollment } from './familyDiscount.service.js';
 import { categorySexoError, applyCategorySexoToAthlete } from '../utils/atletaSexo.js';
 import { sortUsersByName, userNameCollation, userNameMongoSort } from '../utils/listSort.js';
@@ -19,7 +26,7 @@ async function applyPreviousBillingClear(models, previousBillingId) {
     if (prev) await clearEnrollmentBilling(prev);
 }
 
-function mapAtletaElegible(u, activeIds, otrasByAtleta) {
+function mapAtletaElegible(u, activeIds, otrasByAtleta, category) {
     return {
         _id: u._id,
         nombre: u.nombre,
@@ -28,6 +35,9 @@ function mapAtletaElegible(u, activeIds, otrasByAtleta) {
         email: u.email,
         fotoPerfil: u.fotoPerfil,
         edad: calcEdad(u.fechaNacimiento),
+        fechaNacimiento: u.fechaNacimiento || null,
+        cumpleEdadCategoria: matchesCategoryAgeLimits(category, u.fechaNacimiento),
+        menorEdadMinima: isUnderCategoryMinAge(category, u.fechaNacimiento),
         inscriptoEnEsta: activeIds.has(String(u._id)),
         otrasCategorias: otrasByAtleta[String(u._id)] || [],
     };
@@ -56,7 +66,7 @@ async function loadOtrasCategoriasMap(Enrollment, categoryId, atletaIds) {
 
 function buildEligibleUserFilter(category, search) {
     const userFilter = { ...roleQuery('atleta'), estado: 'activo' };
-    const birthRange = birthDateRangeForCategory(category);
+    const birthRange = birthDateRangeForCategoryAllowUnderMin(category);
     const hasAgeLimits = category.edadMinima != null || category.edadMaxima != null;
 
     if (birthRange) {
@@ -135,13 +145,13 @@ export async function getCategoryRosterContext(models, categoryId, options = {})
         .limit(limit)
         .lean();
 
-    users = users.filter((u) => matchesCategoryAgeLimits(category, u.fechaNacimiento));
+    users = users.filter((u) => isEligibleAllowingUnderMinAge(category, u.fechaNacimiento));
 
     const elegibleIds = users.map((u) => u._id);
     const otrasByAtleta = await loadOtrasCategoriasMap(Enrollment, categoryId, elegibleIds);
 
     const atletasElegibles = sortUsersByName(
-        users.map((u) => mapAtletaElegible(u, activeIds, otrasByAtleta)),
+        users.map((u) => mapAtletaElegible(u, activeIds, otrasByAtleta, category)),
     );
 
     return {
@@ -154,7 +164,7 @@ export async function getCategoryRosterContext(models, categoryId, options = {})
 }
 
 /** Sincroniza inscripciones activas de la categoría con la lista elegida (altas y bajas). */
-export async function syncCategoryAthletes(models, categoryId, atletaIds) {
+export async function syncCategoryAthletes(models, categoryId, atletaIds, { allowUnderMinAge = false } = {}) {
     const { User, Enrollment, Category } = models;
 
     const ids = [...new Set(atletaIds.map((id) => String(id)))];
@@ -178,12 +188,26 @@ export async function syncCategoryAthletes(models, categoryId, atletaIds) {
         throw err;
     }
 
-    const fueraDeRango = atletas.filter((u) => !matchesCategoryAgeLimits(category, u.fechaNacimiento));
-    if (fueraDeRango.length > 0) {
+    const sinNacimiento =
+        category.edadMinima != null || category.edadMaxima != null
+            ? atletas.filter((u) => !u.fechaNacimiento)
+            : [];
+    const sobreMax = atletas.filter((u) => isOverCategoryMaxAge(category, u.fechaNacimiento));
+    const bajoMin = atletas.filter((u) => isUnderCategoryMinAge(category, u.fechaNacimiento));
+
+    if (sinNacimiento.length > 0 || sobreMax.length > 0) {
         const err = new Error(
-            'Uno o más atletas no cumplen la edad de la categoría o no tienen fecha de nacimiento.',
+            'Uno o más atletas superan la edad máxima de la categoría o no tienen fecha de nacimiento.',
         );
         err.statusCode = 400;
+        throw err;
+    }
+    if (bajoMin.length > 0 && !allowUnderMinAge) {
+        const err = new Error(
+            `Hay atletas menores a la edad mínima (${category.edadMinima} años). Confirmá para agregarlos igual.`,
+        );
+        err.statusCode = 400;
+        err.code = 'UNDER_MIN_AGE';
         throw err;
     }
 

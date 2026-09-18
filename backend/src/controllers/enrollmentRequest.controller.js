@@ -1,5 +1,11 @@
 import asyncHandler from 'express-async-handler';
-import { calcEdad, matchesCategoryAgeLimits } from '../utils/ageHelper.js';
+import {
+    calcEdad,
+    matchesCategoryAgeLimits,
+    isUnderCategoryMinAge,
+    isOverCategoryMaxAge,
+    isEligibleAllowingUnderMinAge,
+} from '../utils/ageHelper.js';
 import { sortUsersByName, userNameCollation, userNameMongoSort } from '../utils/listSort.js';
 import { categorySexoError, applyCategorySexoToAthlete } from '../utils/atletaSexo.js';
 import { applyFamilyDiscountToEnrollment } from '../services/familyDiscount.service.js';
@@ -96,6 +102,7 @@ function mapAthleteForPicker(user, category) {
         fechaNacimiento: user.fechaNacimiento || null,
         edad,
         cumpleEdadCategoria: matchesCategoryAgeLimits(category, user.fechaNacimiento),
+        menorEdadMinima: isUnderCategoryMinAge(category, user.fechaNacimiento),
     };
 }
 
@@ -137,7 +144,7 @@ const getAvailableAthletesForCategory = asyncHandler(async (req, res) => {
 
     const atletas = users
         .filter((u) => !enrolledIds.has(String(u._id)) && !pendingIds.has(String(u._id)))
-        .filter((u) => matchesCategoryAgeLimits(category, u.fechaNacimiento))
+        .filter((u) => isEligibleAllowingUnderMinAge(category, u.fechaNacimiento))
         .map((u) => mapAthleteForPicker(u, category));
 
     res.json({
@@ -182,11 +189,15 @@ const createEnrollmentRequest = asyncHandler(async (req, res) => {
     const athletes = await User.find({ _id: { $in: uniqueIds }, ...roleQuery('atleta') }).select(
         'nombre apellido fechaNacimiento',
     );
-    const fueraDeRango = athletes.filter((u) => !matchesCategoryAgeLimits(category, u.fechaNacimiento));
-    if (fueraDeRango.length > 0) {
+    const fueraDeRango = athletes.filter((u) => isOverCategoryMaxAge(category, u.fechaNacimiento));
+    const sinNacimiento =
+        category.edadMinima != null || category.edadMaxima != null
+            ? athletes.filter((u) => !u.fechaNacimiento)
+            : [];
+    if (fueraDeRango.length > 0 || sinNacimiento.length > 0) {
         res.status(400);
         throw new Error(
-            'Uno o más atletas no cumplen la edad de la categoría o no tienen fecha de nacimiento registrada.',
+            'Uno o más atletas superan la edad máxima de la categoría o no tienen fecha de nacimiento registrada.',
         );
     }
 
@@ -279,8 +290,15 @@ const resolveEnrollmentRequest = asyncHandler(async (req, res) => {
             continue;
         }
 
-        if (!matchesCategoryAgeLimits(category, user.fechaNacimiento)) {
-            omitidos.push({ atletaId, motivo: 'No cumple edad de la categoría' });
+        if (isOverCategoryMaxAge(category, user.fechaNacimiento)) {
+            omitidos.push({ atletaId, motivo: 'Supera la edad máxima de la categoría' });
+            continue;
+        }
+        if (
+            (category.edadMinima != null || category.edadMaxima != null) &&
+            !user.fechaNacimiento
+        ) {
+            omitidos.push({ atletaId, motivo: 'Sin fecha de nacimiento' });
             continue;
         }
 

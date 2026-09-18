@@ -13,7 +13,12 @@ import {
     setEnrollmentAsDisciplineBilling,
 } from '../services/disciplineBilling.service.js';
 import { enrollmentBillingForTrial, isAthleteOnTrial } from '../services/trialAthlete.service.js';
-import { matchesCategoryAgeLimits } from '../utils/ageHelper.js';
+import {
+    calcEdad,
+    matchesCategoryAgeLimits,
+    isUnderCategoryMinAge,
+    isOverCategoryMaxAge,
+} from '../utils/ageHelper.js';
 import { userHasRole } from '../constants/userRoles.js';
 import { isBecaPlan, removeOpenTrainingPaymentsForBeca } from '../services/becaPlan.service.js';
 
@@ -24,10 +29,52 @@ async function applyPreviousBillingClear(models, previousBillingId) {
     if (prev) await clearEnrollmentBilling(prev);
 }
 
+function assertCategoryAgeForEnrollment(category, user, { allowUnderMinAge = false } = {}) {
+    if (category.edadMinima == null && category.edadMaxima == null) return;
+
+    if (!user.fechaNacimiento) {
+        const err = new Error(
+            'El atleta no tiene fecha de nacimiento registrada y la categoría tiene límites de edad',
+        );
+        err.statusCode = 400;
+        throw err;
+    }
+
+    if (isOverCategoryMaxAge(category, user.fechaNacimiento)) {
+        const err = new Error(
+            `El atleta supera la edad máxima de la categoría (${category.edadMaxima} años)`,
+        );
+        err.statusCode = 400;
+        throw err;
+    }
+
+    if (isUnderCategoryMinAge(category, user.fechaNacimiento)) {
+        if (allowUnderMinAge) return;
+        const err = new Error(
+            `El atleta es menor a la edad mínima de la categoría (${category.edadMinima} años)`,
+        );
+        err.statusCode = 400;
+        err.code = 'UNDER_MIN_AGE';
+        throw err;
+    }
+
+    if (!matchesCategoryAgeLimits(category, user.fechaNacimiento)) {
+        const corte =
+            category.edadCorteHasta
+                ? ` (evaluando mínima al ${String(category.edadCorteHasta).slice(0, 10)})`
+                : '';
+        const err = new Error(
+            `El atleta no cumple el rango de edad de la categoría (${category.edadMinima ?? '?'}–${category.edadMaxima ?? '?'} años)${corte}`,
+        );
+        err.statusCode = 400;
+        throw err;
+    }
+}
+
 // @desc    Inscribir un atleta a una categoría
 // @route   POST /api/enrollments
 const enrollAthlete = asyncHandler(async (req, res) => {
-    const { atletaId, categoriaId, aptoMedico, facturacionPreferencia } = req.body;
+    const { atletaId, categoriaId, aptoMedico, facturacionPreferencia, allowUnderMinAge } = req.body;
     
     // Traemos ambos modelos de una sola vez
     const { User, Enrollment, Category } = req.models;
@@ -49,21 +96,13 @@ const enrollAthlete = asyncHandler(async (req, res) => {
         throw new Error('Categoría no encontrada');
     }
 
-    if (category.edadMinima != null || category.edadMaxima != null) {
-        if (!user.fechaNacimiento) {
-            res.status(400);
-            throw new Error('El atleta no tiene fecha de nacimiento registrada y la categoría tiene límites de edad');
-        }
-        if (!matchesCategoryAgeLimits(category, user.fechaNacimiento)) {
-            res.status(400);
-            const corte =
-                category.edadCorteHasta
-                    ? ` (evaluando mínima al ${String(category.edadCorteHasta).slice(0, 10)})`
-                    : '';
-            throw new Error(
-                `El atleta no cumple el rango de edad de la categoría (${category.edadMinima ?? '?'}–${category.edadMaxima ?? '?'} años)${corte}`,
-            );
-        }
+    try {
+        assertCategoryAgeForEnrollment(category, user, {
+            allowUnderMinAge: Boolean(allowUnderMinAge),
+        });
+    } catch (e) {
+        res.status(e.statusCode || 400);
+        throw e;
     }
 
     const sexoErr = categorySexoError(category, user);
@@ -176,13 +215,29 @@ const getAthletesByCategory = asyncHandler(async (req, res) => {
     })
         .populate({
             path: 'atleta',
-            select: 'nombre apellido dni fotoPerfil email estado',
+            select: 'nombre apellido dni fotoPerfil email estado fechaNacimiento',
             match: { estado: 'activo' },
         })
         .populate('plan', 'nombre monto')
         .lean();
 
-    const onlyActiveAthletes = enrollments.filter((e) => e.atleta);
+    const category = await Category.findById(req.params.categoryId)
+        .select('edadMinima edadMaxima edadCorteDesde edadCorteHasta')
+        .lean();
+
+    const onlyActiveAthletes = enrollments
+        .filter((e) => e.atleta)
+        .map((e) => {
+            const menorEdadMinima = isUnderCategoryMinAge(category, e.atleta.fechaNacimiento);
+            return {
+                ...e,
+                atleta: {
+                    ...e.atleta,
+                    edad: calcEdad(e.atleta.fechaNacimiento),
+                    menorEdadMinima,
+                },
+            };
+        });
     res.json(sortEnrollmentsByAtleta(onlyActiveAthletes));
 });
 

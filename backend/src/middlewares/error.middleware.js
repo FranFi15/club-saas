@@ -51,11 +51,16 @@ const errorHandler = (err, req, res, next) => {
         });
     }
 
-    res.status(statusCode).json({
+    const payload = {
         success: false,
         message,
         stack: process.env.NODE_ENV === 'production' ? null : err.stack,
-    });
+    };
+    if (typeof err.code === 'string') {
+        payload.code = err.code;
+    }
+
+    res.status(statusCode).json(payload);
 };
 
 export { notFound, errorHandler };
