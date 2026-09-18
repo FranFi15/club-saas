@@ -13,9 +13,10 @@ import {
 import { feeAutoRoles } from '../models/socialFee.model.js';
 import { markOverduePayments, clampRecargoPct } from '../services/overduePayments.service.js';
 import {
-    applyDiscountToFamilyEnrollments,
+    applyFamilyDiscountAndOptionalPayments,
     getGlobalFamilyDiscountPct,
     setGlobalFamilyDiscountPct,
+    syncAllFamilyDiscounts,
 } from '../services/familyDiscount.service.js';
 import { compareUserByName, sortPaymentsByPriority, sortUsersByName, userNameCollation, userNameMongoSort } from '../utils/listSort.js';
 import { createAppNotification } from '../services/appNotification.service.js';
@@ -738,7 +739,7 @@ const getSiblings = asyncHandler(async (req, res) => {
 // @desc    Aplicar descuento por hermanos a todas las inscripciones de los hijos de un tutor
 // @route   PATCH /api/financial/siblings/discount
 const applySiblingDiscount = asyncHandler(async (req, res) => {
-    const { tutorId, porcentaje } = req.body;
+    const { tutorId, porcentaje, applyOpenPayments, mes, anio } = req.body;
     const { User } = req.models;
 
     const hijos = await User.find(hijosDelTutorFilter(tutorId));
@@ -757,13 +758,68 @@ const applySiblingDiscount = asyncHandler(async (req, res) => {
         throw new Error('Porcentaje inválido (0-100).');
     }
 
-    const { actualizados } = await applyDiscountToFamilyEnrollments(req.models, tutorId, pct, {
+    const scope = ['none', 'current_month', 'all_open'].includes(applyOpenPayments)
+        ? applyOpenPayments
+        : 'none';
+
+    const now = calendarMonthYearInTz(new Date(), req.clubTimezone);
+    const result = await applyFamilyDiscountAndOptionalPayments(req.models, tutorId, pct, {
+        applyOpenPayments: scope,
+        mes: mes || now.mes,
+        anio: anio || now.anio,
         updateTutor: true,
     });
 
+    const parts = [
+        `Descuento del ${pct}% aplicado a las inscripciones activas de la familia (${hijos.length} atleta(s)).`,
+    ];
+    if (result.cuotasActualizadas > 0) {
+        parts.push(`${result.cuotasActualizadas} cuota(s) abierta(s) actualizada(s).`);
+    }
+
     res.json({
-        message: `Descuento del ${pct}% aplicado a las inscripciones activas de la familia (${hijos.length} atleta(s)).`,
-        actualizados,
+        message: parts.join(' '),
+        actualizados: result.actualizados,
+        cuotasActualizadas: result.cuotasActualizadas,
+        cuotasAbiertasSinDto: result.cuotasAbiertasSinDto,
+        cuotasMesSinDto: result.cuotasMesSinDto,
+        needsOpenPaymentChoice:
+            scope === 'none' && result.cuotasAbiertasSinDto > 0,
+    });
+});
+
+// @desc    Buscar familias y aplicar descuentos vigentes (global/override) + opcional cuotas
+// @route   POST /api/financial/siblings/sync-discounts
+const syncSiblingDiscounts = asyncHandler(async (req, res) => {
+    const { applyOpenPayments, mes, anio } = req.body || {};
+    const scope = ['none', 'current_month', 'all_open'].includes(applyOpenPayments)
+        ? applyOpenPayments
+        : 'none';
+
+    const now = calendarMonthYearInTz(new Date(), req.clubTimezone);
+    const result = await syncAllFamilyDiscounts(req.models, {
+        applyOpenPayments: scope,
+        mes: mes || now.mes,
+        anio: anio || now.anio,
+    });
+
+    const parts = [];
+    if (result.familiasActualizadas > 0) {
+        parts.push(
+            `${result.familiasActualizadas} familia(s) con inscripción actualizada (${result.inscripcionesActualizadas} inscripción(es)).`,
+        );
+    } else {
+        parts.push('Las inscripciones familiares ya tenían el descuento vigente.');
+    }
+    if (result.cuotasActualizadas > 0) {
+        parts.push(`${result.cuotasActualizadas} cuota(s) abierta(s) recalculada(s).`);
+    }
+
+    res.json({
+        message: parts.join(' '),
+        ...result,
+        needsOpenPaymentChoice:
+            scope === 'none' && result.cuotasAbiertasSinDto > 0,
     });
 });
 
@@ -1593,6 +1649,7 @@ export {
     reactivatePlan,
     getSiblings,
     applySiblingDiscount,
+    syncSiblingDiscounts,
     getGlobalFamilyDiscount,
     updateGlobalFamilyDiscount,
     getTransferBankSettings,

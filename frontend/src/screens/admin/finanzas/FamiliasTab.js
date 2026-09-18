@@ -39,6 +39,8 @@ export default function FamiliasTab({
   discountInput,
   onDiscountChange,
   onApplyDiscount,
+  onSyncAllDiscounts,
+  isSyncingDiscounts = false,
   onPayCuota,
   onSelectPayments,
   onHistoryAtleta,
@@ -218,13 +220,28 @@ export default function FamiliasTab({
           {expandedAthletes[tutorId]
             ? g.hijos.map((h) => {
                 const cuota = h.cuotaMes;
-                const st = estadoCuota(cuota);
                 const hijoImpagas = h.cuotasImpagas || [];
                 const payables = hijoImpagas.length
                   ? hijoImpagas
                   : cuota && ['pendiente', 'vencido'].includes(cuota.estado)
                     ? [cuota]
                     : [];
+                const totalHijoOriginal = sumPayments(hijoImpagas, 'montoOriginal');
+                const totalHijoFinal = sumPayments(hijoImpagas, 'montoFinal');
+                const totalHijoDto = sumPayments(hijoImpagas, 'descuentoAplicado');
+                const hasDebt = hijoImpagas.length > 0;
+                const displayOriginal = hasDebt ? totalHijoOriginal : cuota?.montoOriginal;
+                const displayFinal = hasDebt ? totalHijoFinal : cuota?.montoFinal;
+                const displayDto = hasDebt ? totalHijoDto : cuota?.descuentoAplicado || 0;
+                const st = hasDebt
+                  ? {
+                      label:
+                        hijoImpagas.length > 1
+                          ? `${hijoImpagas.length} impagas`
+                          : hijoImpagas[0]?.estado || 'impaga',
+                      color: EST_COLOR[hijoImpagas[0]?.estado] || '#ef4444',
+                    }
+                  : estadoCuota(cuota);
 
                 return (
                   <View key={h._id} style={[styles.childBlock, { borderColor: theme.border }]}>
@@ -233,9 +250,9 @@ export default function FamiliasTab({
                       <Text style={{ color: theme.text, flex: 1, fontSize: 14, fontWeight: '600', marginLeft: 10 }}>
                         {h.nombre} {h.apellido}
                       </Text>
-                      {cuota ? (
+                      {displayFinal != null && (hasDebt || cuota) ? (
                         <View style={{ alignItems: 'flex-end' }}>
-                          {cuota.descuentoAplicado > 0 && cuota.montoOriginal > cuota.montoFinal ? (
+                          {displayDto > 0 && displayOriginal > displayFinal ? (
                             <Text
                               style={{
                                 color: theme.textMuted,
@@ -243,15 +260,21 @@ export default function FamiliasTab({
                                 textDecorationLine: 'line-through',
                               }}
                             >
-                              {fmtMoney(cuota.montoOriginal)}
+                              {fmtMoney(displayOriginal)}
                             </Text>
                           ) : null}
-                          <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>
-                            {fmtMoney(cuota.montoFinal)}
+                          <Text
+                            style={{
+                              color: hasDebt ? '#ef4444' : theme.text,
+                              fontWeight: '700',
+                              fontSize: 13,
+                            }}
+                          >
+                            {fmtMoney(displayFinal)}
                           </Text>
-                          {cuota.descuentoAplicado > 0 ? (
+                          {displayDto > 0 ? (
                             <Text style={{ color: '#f59e0b', fontSize: 10, fontWeight: '700' }}>
-                              −{fmtMoney(cuota.descuentoAplicado)} dto
+                              −{fmtMoney(displayDto)} dto
                             </Text>
                           ) : h.descuentoPorcentaje > 0 ? (
                             <Text style={{ color: '#8b5cf6', fontSize: 10, fontWeight: '600' }}>
@@ -262,10 +285,11 @@ export default function FamiliasTab({
                       ) : null}
                     </View>
                     <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8 }}>
-                      {cuota
-                        ? `${MN[mes - 1]} ${anio} · ${cuota.plan?.nombre || 'Cuota'}`
-                        : `Sin cuota en ${MN[mes - 1]} ${anio}`}
-                      {hijoImpagas.length > 1 ? ` · ${hijoImpagas.length} impagas` : ''}
+                      {hasDebt
+                        ? `Deuda total · ${hijoImpagas.length} cuota${hijoImpagas.length === 1 ? '' : 's'}`
+                        : cuota
+                          ? `${MN[mes - 1]} ${anio} · ${cuota.plan?.nombre || 'Cuota'}`
+                          : `Sin cuota en ${MN[mes - 1]} ${anio}`}
                     </Text>
                     <View
                       style={[
@@ -373,6 +397,8 @@ export default function FamiliasTab({
       onHistoryAtleta,
       onDiscountChange,
       onApplyDiscount,
+      onSyncAllDiscounts,
+      isSyncingDiscounts,
     ],
   );
 
@@ -432,6 +458,26 @@ export default function FamiliasTab({
       ) : null}
 
       <Text style={[s.sectionTitle, { color: theme.text, marginTop: 12, marginBottom: 8 }]}>Familias</Text>
+
+      {canManageDiscounts ? (
+        <TouchableOpacity
+          style={[
+            styles.syncDiscountsBtn,
+            { backgroundColor: '#8b5cf6', opacity: isSyncingDiscounts ? 0.65 : 1 },
+          ]}
+          onPress={onSyncAllDiscounts}
+          disabled={isSyncingDiscounts || !onSyncAllDiscounts}
+        >
+          {isSyncingDiscounts ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Ionicons name="pricetag-outline" size={18} color="#fff" />
+          )}
+          <Text style={styles.syncDiscountsBtnTxt}>
+            {isSyncingDiscounts ? 'Aplicando…' : 'Aplicar descuentos'}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
 
       <View style={[styles.searchRow, { backgroundColor: theme.background, borderColor: theme.border }]}>
         <Ionicons name="search" size={18} color={theme.icon} style={{ marginRight: 8 }} />
@@ -585,4 +631,14 @@ const styles = {
   discountInput: { flex: 1, marginBottom: 0, minWidth: 0 },
   applyBtn: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 5 },
   applyBtnTxt: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
+  syncDiscountsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 5,
+    marginBottom: 12,
+  },
+  syncDiscountsBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 14 },
 };

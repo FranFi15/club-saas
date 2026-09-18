@@ -41,6 +41,147 @@ function paymentAmountsFromEnrollment(inscripcion) {
     };
 }
 
+export { paymentAmountsFromEnrollment };
+
+/**
+ * Recalcula montos de cuotas abiertas (pendiente/vencido) según el descuento de la inscripción.
+ * @param {'current_month'|'all_open'} scope
+ */
+export async function retargetOpenPaymentsFromEnrollments(
+    models,
+    athleteIds,
+    { scope = 'all_open', mes, anio } = {},
+) {
+    const { Payment, Enrollment } = models;
+    const ids = [...new Set((athleteIds || []).map((id) => String(id)).filter(Boolean))];
+    if (!ids.length) return { updated: 0, pending: 0 };
+
+    const openFilter = {
+        atleta: { $in: ids },
+        estado: { $in: ['pendiente', 'vencido'] },
+        $or: [{ tipo: 'entrenamiento' }, { tipo: { $exists: false } }, { tipo: null }],
+    };
+    if (scope === 'current_month' && mes && anio) {
+        openFilter.mes = Number(mes);
+        openFilter.anio = Number(anio);
+    }
+
+    const payments = await Payment.find(openFilter).populate('plan');
+    if (!payments.length) return { updated: 0, pending: 0 };
+
+    const enrollments = await Enrollment.find({
+        atleta: { $in: ids },
+        estado: 'activo',
+        esFacturacion: true,
+    }).populate('plan');
+
+    const enrollmentByKey = new Map();
+    for (const e of enrollments) {
+        const aid = String(e.atleta);
+        const planId = String(e.plan?._id || e.plan || '');
+        const catId = String(e.categoria?._id || e.categoria || '');
+        if (planId) enrollmentByKey.set(`${aid}:plan:${planId}`, e);
+        if (catId) enrollmentByKey.set(`${aid}:cat:${catId}`, e);
+        if (!enrollmentByKey.has(`${aid}:any`)) enrollmentByKey.set(`${aid}:any`, e);
+    }
+
+    let updated = 0;
+    for (const p of payments) {
+        const aid = String(p.atleta);
+        const planId = String(p.plan?._id || p.plan || '');
+        const catId = String(p.categoria || '');
+        const insc =
+            enrollmentByKey.get(`${aid}:plan:${planId}`) ||
+            enrollmentByKey.get(`${aid}:cat:${catId}`) ||
+            enrollmentByKey.get(`${aid}:any`);
+        if (!insc) continue;
+
+        const planForAmounts =
+            insc.plan && typeof insc.plan === 'object' ? insc.plan : p.plan;
+        const amounts = paymentAmountsFromEnrollment({
+            ...(insc.toObject?.() || insc),
+            plan: planForAmounts,
+        });
+        if (!amounts) continue;
+
+        const same =
+            Math.abs(Number(p.montoFinal) - amounts.montoAFacturar) < 0.01 &&
+            Math.abs(Number(p.descuentoAplicado || 0) - amounts.dineroDescontado) < 0.01;
+        if (same) continue;
+
+        p.montoOriginal = amounts.valorCuota;
+        p.descuentoAplicado = amounts.dineroDescontado;
+        p.motivoDescuento = amounts.motivoDescuento || p.motivoDescuento || '';
+        p.montoFinal = amounts.montoAFacturar;
+        await p.save();
+        updated += 1;
+    }
+
+    return { updated };
+}
+
+/** Cuenta cuotas abiertas que no coinciden con el descuento de inscripción (sin guardar). */
+export async function countOpenPaymentsNeedingDiscountRetarget(models, athleteIds, { mes, anio } = {}) {
+    const { Payment, Enrollment } = models;
+    const ids = [...new Set((athleteIds || []).map((id) => String(id)).filter(Boolean))];
+    if (!ids.length) return { allOpen: 0, currentMonth: 0 };
+
+    const payments = await Payment.find({
+        atleta: { $in: ids },
+        estado: { $in: ['pendiente', 'vencido'] },
+        $or: [{ tipo: 'entrenamiento' }, { tipo: { $exists: false } }, { tipo: null }],
+    }).populate('plan');
+
+    const enrollments = await Enrollment.find({
+        atleta: { $in: ids },
+        estado: 'activo',
+        esFacturacion: true,
+    }).populate('plan');
+
+    const enrollmentByKey = new Map();
+    for (const e of enrollments) {
+        const aid = String(e.atleta);
+        const planId = String(e.plan?._id || e.plan || '');
+        const catId = String(e.categoria?._id || e.categoria || '');
+        if (planId) enrollmentByKey.set(`${aid}:plan:${planId}`, e);
+        if (catId) enrollmentByKey.set(`${aid}:cat:${catId}`, e);
+        if (!enrollmentByKey.has(`${aid}:any`)) enrollmentByKey.set(`${aid}:any`, e);
+    }
+
+    let allOpen = 0;
+    let currentMonth = 0;
+    const mesN = mes != null ? Number(mes) : null;
+    const anioN = anio != null ? Number(anio) : null;
+
+    for (const p of payments) {
+        const aid = String(p.atleta);
+        const planId = String(p.plan?._id || p.plan || '');
+        const catId = String(p.categoria || '');
+        const insc =
+            enrollmentByKey.get(`${aid}:plan:${planId}`) ||
+            enrollmentByKey.get(`${aid}:cat:${catId}`) ||
+            enrollmentByKey.get(`${aid}:any`);
+        if (!insc) continue;
+        const planForAmounts =
+            insc.plan && typeof insc.plan === 'object' ? insc.plan : p.plan;
+        const amounts = paymentAmountsFromEnrollment({
+            ...(insc.toObject?.() || insc),
+            plan: planForAmounts,
+        });
+        if (!amounts) continue;
+        const same =
+            Math.abs(Number(p.montoFinal) - amounts.montoAFacturar) < 0.01 &&
+            Math.abs(Number(p.descuentoAplicado || 0) - amounts.dineroDescontado) < 0.01;
+        if (same) continue;
+        allOpen += 1;
+        if (mesN && anioN && Number(p.mes) === mesN && Number(p.anio) === anioN) {
+            currentMonth += 1;
+        }
+    }
+
+    return { allOpen, currentMonth };
+}
+
 function disciplinaIdFromEnrollment(inscripcion) {
     const cat = inscripcion.categoria;
     if (!cat) return null;

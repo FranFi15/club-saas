@@ -4,6 +4,10 @@
 
 import { roleQuery, userHasRole } from '../constants/userRoles.js';
 import { hijosDelTutorFilter } from '../utils/userQuery.js';
+import {
+    countOpenPaymentsNeedingDiscountRetarget,
+    retargetOpenPaymentsFromEnrollments,
+} from './generateMonthlyPayments.service.js';
 
 const MIN_ATHLETES_FOR_FAMILY_DISCOUNT = 2;
 
@@ -145,7 +149,23 @@ export async function syncFamilyDiscountForTutor(models, tutorId) {
     const { actualizados } = await applyDiscountToFamilyEnrollments(models, tutorId, pct, {
         updateTutor: false,
     });
-    return { applied: true, porcentaje: pct, actualizados };
+
+    const hijos = await User.find({
+        ...roleQuery('atleta'),
+        tutorPrincipal: tutorId,
+        estado: { $ne: 'inactivo' },
+        esPrueba: { $ne: true },
+    }).select('_id');
+    const athleteIds = hijos.map((h) => h._id);
+    let cuotasActualizadas = 0;
+    if (athleteIds.length) {
+        const retarget = await retargetOpenPaymentsFromEnrollments(models, athleteIds, {
+            scope: 'all_open',
+        });
+        cuotasActualizadas = retarget.updated;
+    }
+
+    return { applied: true, porcentaje: pct, actualizados, cuotasActualizadas };
 }
 
 export async function syncFamilyDiscountForAthlete(models, atletaId) {
@@ -180,4 +200,131 @@ export async function applyFamilyDiscountToEnrollment(models, atletaId, enrollme
     enrollment.motivoDescuento = buildMotivoDescuento(hijos, pct);
     await enrollment.save();
     return enrollment;
+}
+
+/**
+ * Recorre familias (2+ atletas) y aplica el % vigente (override o global) en inscripciones.
+ * Opcionalmente recalcula cuotas abiertas.
+ *
+ * @param {'none'|'current_month'|'all_open'} applyOpenPayments
+ */
+export async function syncAllFamilyDiscounts(
+    models,
+    { applyOpenPayments = 'none', mes, anio } = {},
+) {
+    const { User } = models;
+    const globalPct = await getGlobalFamilyDiscountPct(models);
+
+    const atletas = await User.find({
+        ...roleQuery('atleta'),
+        tutorPrincipal: { $ne: null },
+        estado: { $ne: 'inactivo' },
+        esPrueba: { $ne: true },
+    })
+        .select('_id tutorPrincipal')
+        .lean();
+
+    const byTutor = new Map();
+    for (const a of atletas) {
+        const tid = String(a.tutorPrincipal);
+        if (!byTutor.has(tid)) byTutor.set(tid, []);
+        byTutor.get(tid).push(a._id);
+    }
+
+    let familiasElegibles = 0;
+    let familiasActualizadas = 0;
+    let inscripcionesActualizadas = 0;
+
+    for (const [tutorId, hijoIds] of byTutor.entries()) {
+        if (hijoIds.length < MIN_ATHLETES_FOR_FAMILY_DISCOUNT) continue;
+        familiasElegibles += 1;
+
+        const pct = await getFamilyDiscountPctForTutor(models, tutorId);
+        if (pct <= 0) continue;
+
+        const result = await applyDiscountToFamilyEnrollments(models, tutorId, pct, {
+            updateTutor: false,
+        });
+        if (result.skipped) continue;
+        if (result.actualizados > 0) {
+            familiasActualizadas += 1;
+            inscripcionesActualizadas += result.actualizados;
+        }
+    }
+
+    // Incluir también atletas de familias que ya tenían el % en inscripción pero cuotas viejas sin dto.
+    const allFamilyAthleteIds = [];
+    for (const [tutorId, hijoIds] of byTutor.entries()) {
+        if (hijoIds.length < MIN_ATHLETES_FOR_FAMILY_DISCOUNT) continue;
+        const pct = await getFamilyDiscountPctForTutor(models, tutorId);
+        if (pct <= 0) continue;
+        allFamilyAthleteIds.push(...hijoIds);
+    }
+
+    const openNeeds = await countOpenPaymentsNeedingDiscountRetarget(models, allFamilyAthleteIds, {
+        mes,
+        anio,
+    });
+
+    let cuotasActualizadas = 0;
+    if (applyOpenPayments === 'current_month' || applyOpenPayments === 'all_open') {
+        const retarget = await retargetOpenPaymentsFromEnrollments(models, allFamilyAthleteIds, {
+            scope: applyOpenPayments === 'current_month' ? 'current_month' : 'all_open',
+            mes,
+            anio,
+        });
+        cuotasActualizadas = retarget.updated;
+    }
+
+    return {
+        globalPct,
+        familiasElegibles,
+        familiasActualizadas,
+        inscripcionesActualizadas,
+        cuotasAbiertasSinDto: openNeeds.allOpen,
+        cuotasMesSinDto: openNeeds.currentMonth,
+        cuotasActualizadas,
+        applyOpenPayments,
+    };
+}
+
+/** Aplica descuento a una familia y opcionalmente a cuotas abiertas. */
+export async function applyFamilyDiscountAndOptionalPayments(
+    models,
+    tutorId,
+    porcentaje,
+    { applyOpenPayments = 'none', mes, anio, updateTutor = true } = {},
+) {
+    const applied = await applyDiscountToFamilyEnrollments(models, tutorId, porcentaje, {
+        updateTutor,
+    });
+
+    const { User } = models;
+    const hijos = await User.find(hijosDelTutorFilter(tutorId)).select('_id');
+    const athleteIds = hijos.map((h) => h._id);
+
+    const openNeeds = await countOpenPaymentsNeedingDiscountRetarget(models, athleteIds, {
+        mes,
+        anio,
+    });
+
+    let cuotasActualizadas = 0;
+    if (
+        !applied.skipped &&
+        (applyOpenPayments === 'current_month' || applyOpenPayments === 'all_open')
+    ) {
+        const retarget = await retargetOpenPaymentsFromEnrollments(models, athleteIds, {
+            scope: applyOpenPayments === 'current_month' ? 'current_month' : 'all_open',
+            mes,
+            anio,
+        });
+        cuotasActualizadas = retarget.updated;
+    }
+
+    return {
+        ...applied,
+        cuotasAbiertasSinDto: openNeeds.allOpen,
+        cuotasMesSinDto: openNeeds.currentMonth,
+        cuotasActualizadas,
+    };
 }

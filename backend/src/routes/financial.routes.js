@@ -23,6 +23,7 @@ import {
     getPaymentReceipt,
     getSiblings,
     applySiblingDiscount,
+    syncSiblingDiscounts,
     getGlobalFamilyDiscount,
     updateGlobalFamilyDiscount,
     getTransferBankSettings,
@@ -110,6 +111,7 @@ router.get('/transfer-bank', protect, authorize('admin_club', 'administrativo'),
 router.patch('/transfer-bank', protect, authorize('admin_club'), updateTransferBankSettings);
 router.get('/siblings', protect, authorize('admin_club', 'administrativo'), getSiblings);
 router.patch('/siblings/discount', protect, authorize('admin_club'), applySiblingDiscount);
+router.post('/siblings/sync-discounts', protect, authorize('admin_club'), syncSiblingDiscounts);
 
 // Dashboard de morosidad
 router.get('/stats/morosidad', protect, authorize('admin_club', 'administrativo'), getMorosidad);

@@ -251,6 +251,7 @@ export default function FinanzasScreen({ route }) {
   const [globalFamilyDiscount, setGlobalFamilyDiscount] = useState(0);
   const [globalDiscountInput, setGlobalDiscountInput] = useState('0');
   const [isSavingGlobalDiscount, setIsSavingGlobalDiscount] = useState(false);
+  const [isSyncingDiscounts, setIsSyncingDiscounts] = useState(false);
   const [discountInput, setDiscountInput] = useState({});
 
   const [selectModalOpen, setSelectModalOpen] = useState(false);
@@ -690,16 +691,89 @@ export default function FinanzasScreen({ route }) {
     }
   };
 
-  const applyDiscount = async (tutorId) => {
+  const applyDiscount = async (tutorId, applyOpenPayments = 'none') => {
     const pct = parseInt(discountInput[tutorId], 10);
     if (isNaN(pct) || pct < 0 || pct > 100) return showAlert('Error', 'Porcentaje inválido (0-100).');
     try {
       const h = await getHeaders();
-      const r = await clubApi.patch('/financial/siblings/discount', { tutorId, porcentaje: pct }, { headers: h });
+      const r = await clubApi.patch(
+        '/financial/siblings/discount',
+        { tutorId, porcentaje: pct, applyOpenPayments, mes, anio },
+        { headers: h },
+      );
+      if (r.data.needsOpenPaymentChoice) {
+        const abiertas = r.data.cuotasAbiertasSinDto || 0;
+        const delMes = r.data.cuotasMesSinDto || 0;
+        showAlert(
+          'Cuotas anteriores',
+          `El descuento quedó en las inscripciones, pero hay ${abiertas} cuota(s) abierta(s) sin ese descuento` +
+            (delMes ? ` (${delMes} de este mes)` : '') +
+            '. ¿Querés aplicarlo también a las cuotas?',
+          {
+            showCancel: true,
+            confirmText: 'Todas las abiertas',
+            cancelText: 'Solo este mes',
+            onConfirm: () => {
+              setAlertConfig((p) => ({ ...p, visible: false }));
+              applyDiscount(tutorId, 'all_open');
+            },
+            onCancel: () => {
+              setAlertConfig((p) => ({ ...p, visible: false }));
+              applyDiscount(tutorId, 'current_month');
+            },
+          },
+        );
+        fetchSiblingsFirstPage();
+        return;
+      }
       showAlert('Éxito', r.data.message);
       fetchSiblingsFirstPage();
     } catch (e) {
       showAlert('Error', e.response?.data?.message || 'No se pudo aplicar.');
+    }
+  };
+
+  const syncAllFamilyDiscounts = async (applyOpenPayments = 'none') => {
+    if (isSyncingDiscounts) return;
+    setIsSyncingDiscounts(true);
+    try {
+      const h = await getHeaders();
+      const r = await clubApi.post(
+        '/financial/siblings/sync-discounts',
+        { applyOpenPayments, mes, anio },
+        { headers: h },
+      );
+      if (r.data.needsOpenPaymentChoice) {
+        const abiertas = r.data.cuotasAbiertasSinDto || 0;
+        const delMes = r.data.cuotasMesSinDto || 0;
+        showAlert(
+          'Cuotas anteriores',
+          `Se actualizaron las familias. Hay ${abiertas} cuota(s) abierta(s) sin el descuento aplicado` +
+            (delMes ? ` (${delMes} de este mes)` : '') +
+            '. ¿Aplicar el descuento a las cuotas anteriores también?',
+          {
+            showCancel: true,
+            confirmText: 'Todas las abiertas',
+            cancelText: 'Solo este mes',
+            onConfirm: () => {
+              setAlertConfig((p) => ({ ...p, visible: false }));
+              syncAllFamilyDiscounts('all_open');
+            },
+            onCancel: () => {
+              setAlertConfig((p) => ({ ...p, visible: false }));
+              syncAllFamilyDiscounts('current_month');
+            },
+          },
+        );
+        fetchSiblingsFirstPage();
+        return;
+      }
+      showAlert('Listo', r.data.message || 'Descuentos aplicados.');
+      fetchSiblingsFirstPage();
+    } catch (e) {
+      showAlert('Error', e.response?.data?.message || 'No se pudieron aplicar los descuentos.');
+    } finally {
+      setIsSyncingDiscounts(false);
     }
   };
 
@@ -1339,6 +1413,8 @@ export default function FinanzasScreen({ route }) {
                     discountInput={discountInput}
                     onDiscountChange={(tutorId, v) => setDiscountInput({ ...discountInput, [tutorId]: v })}
                     onApplyDiscount={applyDiscount}
+                    onSyncAllDiscounts={() => syncAllFamilyDiscounts('none')}
+                    isSyncingDiscounts={isSyncingDiscounts}
                     onPayCuota={(p, h) => openPayModal(p, h)}
                     onSelectPayments={(cuotas, subtitle, hijos) =>
                       openSelectPayments(cuotas, subtitle, hijos || [])
