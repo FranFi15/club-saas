@@ -18,6 +18,7 @@ import {
     matchesCategoryAgeLimits,
     isUnderCategoryMinAge,
     isOverCategoryMaxAge,
+    categoryMinAgeAsOf,
 } from '../utils/ageHelper.js';
 import { userHasRole } from '../constants/userRoles.js';
 import { isBecaPlan, removeOpenTrainingPaymentsForBeca } from '../services/becaPlan.service.js';
@@ -50,8 +51,14 @@ function assertCategoryAgeForEnrollment(category, user, { allowUnderMinAge = fal
 
     if (isUnderCategoryMinAge(category, user.fechaNacimiento)) {
         if (allowUnderMinAge) return;
+        const corte = categoryMinAgeAsOf(category);
+        const corteTxt = corte
+            ? `${corte.getFullYear()}-${String(corte.getMonth() + 1).padStart(2, '0')}-${String(corte.getDate()).padStart(2, '0')}`
+            : '';
         const err = new Error(
-            `El atleta es menor a la edad mínima de la categoría (${category.edadMinima} años)`,
+            `El atleta es menor a la edad mínima de la categoría (${category.edadMinima} años)${
+                corteTxt ? ` (evaluando al ${corteTxt})` : ''
+            }`,
         );
         err.statusCode = 400;
         err.code = 'UNDER_MIN_AGE';
@@ -59,12 +66,12 @@ function assertCategoryAgeForEnrollment(category, user, { allowUnderMinAge = fal
     }
 
     if (!matchesCategoryAgeLimits(category, user.fechaNacimiento)) {
-        const corte =
-            category.edadCorteHasta
-                ? ` (evaluando mínima al ${String(category.edadCorteHasta).slice(0, 10)})`
-                : '';
+        const corte = category?.edadCorteHasta ? categoryMinAgeAsOf(category) : null;
+        const corteTxt = corte
+            ? ` (evaluando mínima al ${corte.getFullYear()}-${String(corte.getMonth() + 1).padStart(2, '0')}-${String(corte.getDate()).padStart(2, '0')})`
+            : '';
         const err = new Error(
-            `El atleta no cumple el rango de edad de la categoría (${category.edadMinima ?? '?'}–${category.edadMaxima ?? '?'} años)${corte}`,
+            `El atleta no cumple el rango de edad de la categoría (${category.edadMinima ?? '?'}–${category.edadMaxima ?? '?'} años)${corteTxt}`,
         );
         err.statusCode = 400;
         throw err;

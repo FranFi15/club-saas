@@ -35,19 +35,65 @@ function parseOptionalDate(value) {
     return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/**
- * Fecha de referencia para edad mínima: corte "hasta" (cumple la mínima a esa fecha)
- * o hoy si no está configurado.
- */
-export function categoryMinAgeAsOf(category) {
-    return parseOptionalDate(category?.edadCorteHasta) || new Date();
+function startOfLocalDay(d) {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+/** Same month/day in `year`, clamped if the day doesn't exist (e.g. 29/2). */
+function dateOnYear(year, month, day) {
+    const candidate = new Date(year, month, day);
+    if (candidate.getMonth() !== month) {
+        return new Date(year, month + 1, 0);
+    }
+    return candidate;
 }
 
 /**
- * Fecha de referencia para edad máxima: corte "desde" o hoy.
+ * Cortes de temporada son anuales (día/mes).
+ * Cuando ya pasó ese día calendario, la fecha efectiva pasa al mismo día del año siguiente.
+ * El día "hasta"/"desde" sigue valiendo ese día; el rollover es al día siguiente.
  */
-export function categoryMaxAgeAsOf(category) {
-    return parseOptionalDate(category?.edadCorteDesde) || new Date();
+export function resolveAnnualCutoffDate(storedDate, asOf = new Date()) {
+    const base = parseOptionalDate(storedDate);
+    if (!base) return null;
+    const ref = asOf ? new Date(asOf) : new Date();
+    if (Number.isNaN(ref.getTime())) return null;
+
+    const month = base.getMonth();
+    const day = base.getDate();
+    let year = ref.getFullYear();
+    let candidate = dateOnYear(year, month, day);
+
+    if (startOfLocalDay(ref).getTime() > startOfLocalDay(candidate).getTime()) {
+        candidate = dateOnYear(year + 1, month, day);
+    }
+    return candidate;
+}
+
+/** Si el corte guardado ya venció, devuelve la fecha del próximo ciclo (para persistir/mostrar). */
+export function rolloverCutoffIfNeeded(storedDate, asOf = new Date()) {
+    const resolved = resolveAnnualCutoffDate(storedDate, asOf);
+    if (!resolved) return { date: null, changed: false };
+    const stored = parseOptionalDate(storedDate);
+    if (!stored) return { date: resolved, changed: true };
+    const changed =
+        startOfLocalDay(stored).getTime() !== startOfLocalDay(resolved).getTime();
+    return { date: resolved, changed };
+}
+
+/**
+ * Fecha de referencia para edad mínima: corte "hasta" (cumple la mínima a esa fecha)
+ * o hoy si no está configurado. Se renueva sola cada año.
+ */
+export function categoryMinAgeAsOf(category, asOf = new Date()) {
+    return resolveAnnualCutoffDate(category?.edadCorteHasta, asOf) || new Date(asOf);
+}
+
+/**
+ * Fecha de referencia para edad máxima: corte "desde" o hoy. Se renueva sola cada año.
+ */
+export function categoryMaxAgeAsOf(category, asOf = new Date()) {
+    return resolveAnnualCutoffDate(category?.edadCorteDesde, asOf) || new Date(asOf);
 }
 
 /**

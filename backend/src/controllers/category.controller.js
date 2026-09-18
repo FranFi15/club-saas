@@ -13,6 +13,35 @@ import {
     deactivateCategoryGroupChat,
 } from '../services/categoryGroupChat.service.js';
 import { toPlainWithPlan, hydrateCategoryPlans } from '../utils/hydratePlanDefault.js';
+import { rolloverCutoffIfNeeded } from '../utils/ageHelper.js';
+
+/** Persiste el día/mes al año de temporada vigente si el corte ya venció. */
+async function persistAnnualCutoffRollovers(Category, categories) {
+    const list = Array.isArray(categories) ? categories : [categories];
+    const ops = [];
+    for (const cat of list) {
+        if (!cat) continue;
+        const desde = rolloverCutoffIfNeeded(cat.edadCorteDesde);
+        const hasta = rolloverCutoffIfNeeded(cat.edadCorteHasta);
+        if (!desde.changed && !hasta.changed) continue;
+
+        const $set = {};
+        if (desde.changed) {
+            $set.edadCorteDesde = desde.date;
+            cat.edadCorteDesde = desde.date;
+        }
+        if (hasta.changed) {
+            $set.edadCorteHasta = hasta.date;
+            cat.edadCorteHasta = hasta.date;
+        }
+        if (cat._id) {
+            ops.push(Category.updateOne({ _id: cat._id }, { $set }));
+        } else if (typeof cat.save === 'function') {
+            ops.push(cat.save());
+        }
+    }
+    if (ops.length) await Promise.all(ops);
+}
 
 // @desc    Crear nueva categoría dentro de una disciplina
 // @route   POST /api/categories
@@ -46,8 +75,8 @@ const createCategory = asyncHandler(async (req, res) => {
         descripcion,
         edadMinima,
         edadMaxima,
-        edadCorteDesde: edadCorteDesde || undefined,
-        edadCorteHasta: edadCorteHasta || undefined,
+        edadCorteDesde: rolloverCutoffIfNeeded(edadCorteDesde || null).date || undefined,
+        edadCorteHasta: rolloverCutoffIfNeeded(edadCorteHasta || null).date || undefined,
         sexo: sexo === 'M' || sexo === 'F' ? sexo : 'ambos',
         planDefault: resolvedPlan || undefined,
     });
@@ -71,6 +100,7 @@ const getCategoriesByDiscipline = asyncHandler(async (req, res) => {
         .sort({ nombre: 1 })
         .lean();
 
+    await persistAnnualCutoffRollovers(Category, categories);
     await hydrateCategoryPlans(req.models, categories, req.params.disciplineId);
     res.json(sortByField(categories));
 });
@@ -90,6 +120,7 @@ const getAllCategories = asyncHandler(async (req, res) => {
         .sort({ nombre: 1 })
         .lean();
 
+    await persistAnnualCutoffRollovers(Category, categories);
     await hydrateCategoryPlans(req.models, categories);
     res.json(sortByField(categories));
 });
@@ -130,10 +161,16 @@ const updateCategory = asyncHandler(async (req, res) => {
     if (edadMinima !== undefined) category.edadMinima = edadMinima;
     if (edadMaxima !== undefined) category.edadMaxima = edadMaxima;
     if (edadCorteDesde !== undefined) {
-        category.edadCorteDesde = edadCorteDesde || null;
+        category.edadCorteDesde = rolloverCutoffIfNeeded(edadCorteDesde || null).date;
+    } else {
+        const rolled = rolloverCutoffIfNeeded(category.edadCorteDesde);
+        if (rolled.changed) category.edadCorteDesde = rolled.date;
     }
     if (edadCorteHasta !== undefined) {
-        category.edadCorteHasta = edadCorteHasta || null;
+        category.edadCorteHasta = rolloverCutoffIfNeeded(edadCorteHasta || null).date;
+    } else {
+        const rolled = rolloverCutoffIfNeeded(category.edadCorteHasta);
+        if (rolled.changed) category.edadCorteHasta = rolled.date;
     }
     if (sexo === 'M' || sexo === 'F' || sexo === 'ambos') category.sexo = sexo;
     if (planDefault !== undefined) category.planDefault = planDefault || null;

@@ -392,6 +392,7 @@ export default function CategoriasScreen({ navigation, route }) {
               </Text>
               <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8, marginTop: -4 }}>
                 Si hoy no llega a la mínima, puede inscribirse si cumple esa edad en o antes de “Hasta”.
+                Desde/Hasta se renuevan solos al año siguiente cuando pasa ese día.
               </Text>
               <View style={{ flexDirection: 'row', gap: 15, marginBottom: 25 }}>
                 <View style={{ flex: 1 }}>

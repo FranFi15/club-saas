@@ -33,7 +33,8 @@ const categorySchema = new mongoose.Schema({
     edadMinima: { type: Number },
     edadMaxima: { type: Number },
     /**
-     * Cortes de temporada para evaluar edad.
+     * Cortes de temporada para evaluar edad (día/mes anual).
+     * Cuando pasa el día, la fecha efectiva se renueva sola al mismo día del año siguiente.
      * - edadCorteHasta: si hoy está bajo la mínima, entra si a esta fecha ya cumple edadMinima.
      * - edadCorteDesde: la máxima se mide a esta fecha (inicio de temporada).
      */
