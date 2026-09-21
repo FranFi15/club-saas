@@ -30,6 +30,8 @@ export default function PaymentHistoryModal({
   theme,
   primaryColor,
   onPay,
+  onDeletePayment,
+  canDelete = true,
   refreshKey = 0,
   onDismiss,
 }) {
@@ -41,6 +43,7 @@ export default function PaymentHistoryModal({
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   const fetchPage = useCallback(
     async (pageNum, { append = false } = {}) => {
@@ -94,15 +97,46 @@ export default function PaymentHistoryModal({
     }
   };
 
+  const handleDelete = async (payment) => {
+    if (!payment?._id || deletingId || !onDeletePayment) return;
+    setDeletingId(payment._id);
+    try {
+      await onDeletePayment(payment);
+      setPayments((prev) => prev.filter((p) => String(p._id) !== String(payment._id)));
+      setStats((prev) => {
+        const monto = Number(payment.montoFinal) || 0;
+        if (payment.estado === 'pagado') {
+          return { ...prev, totalPagado: Math.max(0, (Number(prev.totalPagado) || 0) - monto) };
+        }
+        if (payment.estado === 'pendiente' || payment.estado === 'vencido' || payment.estado === 'en_revision') {
+          return { ...prev, totalPendiente: Math.max(0, (Number(prev.totalPendiente) || 0) - monto) };
+        }
+        return prev;
+      });
+    } catch (e) {
+      if (e?.message !== 'cancelled') {
+        // Parent already shows the error alert when the API fails.
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const nombre = atleta ? `${atleta.nombre || ''} ${atleta.apellido || ''}`.trim() : '';
 
   const renderPayment = ({ item: p }) => {
     const ec = EST_COLOR[p.estado] || '#999';
     const showPay = canPayPayment(p) && onPay;
     const showRecibo = p.estado === 'pagado';
+    const showDelete = canDelete && onDeletePayment;
     const metodoLabel = metodoPagoLabel(p.metodoPago);
     const showMetodo = metodoLabel && (p.estado === 'pagado' || p.estado === 'en_revision');
     const busyRecibo = downloadingId === p._id;
+    const busyDelete = deletingId === p._id;
+    const planLabel =
+      p.tipo === 'social'
+        ? p.cuotaSocial?.nombre || 'Cuota social'
+        : p.plan?.nombre || 'Sin plan';
 
     return (
       <DesignCard
@@ -118,7 +152,7 @@ export default function PaymentHistoryModal({
               {MN[(p.mes || 1) - 1]} {p.anio}
             </Text>
             <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
-              {p.plan?.nombre || 'Sin plan'}
+              {planLabel}
               {p.categoria?.nombre ? ` · ${p.categoria.nombre}` : ''}
             </Text>
             {p.fechaPago ? (
@@ -144,13 +178,13 @@ export default function PaymentHistoryModal({
             </View>
           </View>
         </View>
-        {(showPay || showRecibo) && (
+        {(showPay || showRecibo || showDelete) && (
           <View style={styles.actionsRow}>
             {showRecibo ? (
               <TouchableOpacity
                 style={[styles.reciboBtn, contrastOutlineBtn(theme, isDarkMode)]}
                 onPress={() => downloadRecibo(p)}
-                disabled={busyRecibo}
+                disabled={busyRecibo || busyDelete}
                 accessibilityRole="button"
                 accessibilityLabel="Descargar comprobante"
               >
@@ -176,11 +210,30 @@ export default function PaymentHistoryModal({
                   }
                 }}
                 activeOpacity={0.75}
+                disabled={busyDelete}
                 accessibilityRole="button"
                 accessibilityLabel="Pagar cuota"
               >
                 <Ionicons name="cash-outline" size={16} color="#fff" />
                 <Text style={styles.payBtnTxt}>Pagar</Text>
+              </TouchableOpacity>
+            ) : null}
+            {showDelete ? (
+              <TouchableOpacity
+                style={[styles.deleteBtn, contrastOutlineBtn(theme, isDarkMode), { borderColor: '#ef4444' }]}
+                onPress={() => handleDelete(p)}
+                disabled={busyDelete}
+                accessibilityRole="button"
+                accessibilityLabel="Eliminar cuota"
+              >
+                {busyDelete ? (
+                  <ActivityIndicator color="#ef4444" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="trash-outline" size={16} color="#ef4444" />
+                    <Text style={styles.deleteBtnTxt}>Eliminar</Text>
+                  </>
+                )}
               </TouchableOpacity>
             ) : null}
           </View>
@@ -301,5 +354,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#10b981',
   },
   payBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 5,
+    borderWidth: 1,
+    backgroundColor: 'transparent',
+  },
+  deleteBtnTxt: { color: '#ef4444', fontWeight: '700', fontSize: 13 },
   empty: { textAlign: 'center', marginTop: 24, fontSize: 14 },
 });

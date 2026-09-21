@@ -30,6 +30,7 @@ import {
     updateTransferBankSettings,
     checkOverdue,
     adjustPayment,
+    deletePayment,
     getMorosidad,
     sendReminders,
     submitTransferProof,
@@ -100,6 +101,7 @@ router.patch('/payments/:id/approve-transfer', protect, authorize('admin_club', 
 router.patch('/payments/:id/reject-transfer', protect, authorize('admin_club', 'administrativo'), rejectTransferPayment);
 router.patch('/payments/:id/pay', protect, authorize('admin_club', 'administrativo'), registerManualPayment);
 router.patch('/payments/:id/adjust', protect, authorize('admin_club', 'administrativo'), adjustPayment);
+router.delete('/payments/:id', protect, authorize('admin_club', 'administrativo'), deletePayment);
 router.get('/payments/tutor-family', protect, authorize('tutor'), getTutorFamilyPayments);
 router.get('/payments/atleta/:atletaId', protect, getAtletaPayments);
 router.get('/payments/:id/recibo', protect, getPaymentReceipt);

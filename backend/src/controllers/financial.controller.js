@@ -551,6 +551,38 @@ const adjustPayment = asyncHandler(async (req, res) => {
     res.json(updated);
 });
 
+// @desc    Eliminar una cuota específica
+// @route   DELETE /api/financial/payments/:id
+const deletePayment = asyncHandler(async (req, res) => {
+    const { Payment } = req.models;
+    const payment = await Payment.findById(req.params.id)
+        .populate('plan', 'nombre')
+        .populate('cuotaSocial', 'nombre')
+        .populate('atleta', 'nombre apellido');
+
+    if (!payment) {
+        res.status(404);
+        throw new Error('Cuota no encontrada');
+    }
+
+    const label =
+        payment.tipo === 'social'
+            ? payment.cuotaSocial?.nombre || 'Cuota social'
+            : payment.plan?.nombre || 'Cuota';
+    const who = payment.atleta
+        ? `${payment.atleta.nombre || ''} ${payment.atleta.apellido || ''}`.trim()
+        : '';
+    const period = `${payment.mes}/${payment.anio}`;
+    const estado = payment.estado;
+
+    await payment.deleteOne();
+
+    res.json({
+        message: `Cuota eliminada${who ? ` de ${who}` : ''}: ${label} (${period}, ${estado}).`,
+        deletedId: req.params.id,
+    });
+});
+
 // @desc    Obtener grupos de hermanos (mismo tutorPrincipal), paginado por familia
 // @route   GET /api/financial/siblings?mes=&anio=&page=1&limit=30&search=
 const getSiblings = asyncHandler(async (req, res) => {
@@ -1656,6 +1688,7 @@ export {
     updateTransferBankSettings,
     checkOverdue,
     adjustPayment,
+    deletePayment,
     getMorosidad,
     sendReminders,
 };

@@ -862,6 +862,53 @@ export default function FinanzasScreen({ route }) {
     setHistoryModal(true);
   };
 
+  const deleteHistoryPayment = (payment) =>
+    new Promise((resolve, reject) => {
+      if (!payment?._id) {
+        reject(new Error('Cuota inválida'));
+        return;
+      }
+      const periodo = `${MN[(payment.mes || 1) - 1] || payment.mes} ${payment.anio}`;
+      const plan =
+        payment.tipo === 'social'
+          ? payment.cuotaSocial?.nombre || 'Cuota social'
+          : payment.plan?.nombre || 'Cuota';
+      const paidNote =
+        payment.estado === 'pagado'
+          ? '\n\nEsta cuota ya figura como pagada. Se borrará del historial igual.'
+          : '';
+      showAlert(
+        'Eliminar cuota',
+        `¿Eliminar ${plan} de ${periodo} (${payment.estado})?${paidNote}`,
+        {
+          showCancel: true,
+          isDanger: true,
+          confirmText: 'Eliminar',
+          cancelText: 'Volver',
+          onCancel: () => {
+            setAlertConfig((p) => ({ ...p, visible: false }));
+            reject(new Error('cancelled'));
+          },
+          onConfirm: async () => {
+            setAlertConfig((p) => ({ ...p, visible: false }));
+            try {
+              const h = await getHeaders();
+              const r = await clubApi.delete(`/financial/payments/${payment._id}`, { headers: h });
+              showAlert('Listo', r.data?.message || 'Cuota eliminada.');
+              setHistoryRefresh((k) => k + 1);
+              if (tab === 'atletas') reloadPayments?.({ background: true });
+              if (tab === 'familias') fetchSiblingsFirstPage?.();
+              resolve(r.data);
+            } catch (e) {
+              const msg = e.response?.data?.message || 'No se pudo eliminar la cuota.';
+              showAlert('Error', msg);
+              reject(e);
+            }
+          },
+        },
+      );
+    });
+
   const handleRegisterPay = async () => {
     setIsPaying(true);
     try {
@@ -1523,6 +1570,8 @@ export default function FinanzasScreen({ route }) {
         primaryColor={cc}
         refreshKey={historyRefresh}
         onPay={(p) => openPayModal(p, historyAtleta)}
+        onDeletePayment={deleteHistoryPayment}
+        canDelete
         onDismiss={handleNestedModalDismissed}
       />
 

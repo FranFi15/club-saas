@@ -452,14 +452,14 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
       showAlert(
         'Éxito',
         added.length === 1
-          ? `${added[0].atleta.nombre} inscrito correctamente.`
-          : `${added.length} atletas inscritos correctamente.`,
+          ? `${added[0].atleta.nombre} inscripto correctamente.`
+          : `${added.length} atletas inscriptos correctamente.`,
       );
       return;
     }
 
     const parts = [];
-    if (added.length) parts.push(`${added.length} inscrito(s).`);
+    if (added.length) parts.push(`${added.length} inscripto(s).`);
     if (conflicts.length) {
       parts.push(
         `Cuota en conflicto (se mantuvo la actual) para: ${conflicts.join(', ')}. Podés cambiarla desde cada inscripción.`,
@@ -717,7 +717,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
                     <View style={[styles.badge, { backgroundColor: item.estado === 'activo' ? '#10b98120' : '#ef444420' }]}>
                       <Text style={{ color: item.estado === 'activo' ? '#10b981' : '#ef4444', fontSize: 12, fontWeight: 'bold' }}>
-                        {item.estado === 'activo' ? 'Inscrito' : 'Inactivo'}
+                        {item.estado === 'activo' ? 'Inscripto' : 'Inactivo'}
                         {attSt?.total > 0 && attSt.asistenciaPct != null ? ` · ${attSt.asistenciaPct}% asist.` : ''}
                       </Text>
                     </View>
