@@ -14,6 +14,7 @@ import {
 } from '../utils/timeHelper.js';
 import { isBecaPlan, removeOpenTrainingPaymentsForBeca } from './becaPlan.service.js';
 import { userHasRole } from '../constants/userRoles.js';
+import { ensureSocialFeeForUser } from './generateSocialFees.service.js';
 
 function paymentAmountsFromEnrollment(inscripcion) {
     const plan = typeof inscripcion.plan === 'object' && inscripcion.plan
@@ -268,7 +269,7 @@ export async function ensurePaymentForEnrollment(models, enrollment, mes, anio, 
     const ymd = `${anio}-${String(mes).padStart(2, '0')}-${String(amounts.diaVenc).padStart(2, '0')}`;
     const fechaVencimiento = zonedWallTimeToDate(ymd, '23:59', timezone);
 
-    await Payment.create({
+    const doc = await Payment.create({
         atleta: atletaId,
         plan: amounts.planId,
         categoria: categoriaId,
@@ -283,7 +284,7 @@ export async function ensurePaymentForEnrollment(models, enrollment, mes, anio, 
         tipo: 'entrenamiento',
     });
 
-    return { created: true, omitted: false };
+    return { created: true, omitted: false, paymentId: doc._id };
 }
 
 /** Cuota del mes calendario actual (zona del club). */
@@ -338,5 +339,127 @@ export async function generateMonthlyPaymentsForTenant(
         inscripcionesActivas: todasActivas,
         inscripcionesSinPlan,
         inscripcionesConPlan: inscripcionesActivas.length,
+    };
+}
+
+function addCalendarMonths(mes, anio, delta) {
+    const idx = anio * 12 + (mes - 1) + delta;
+    return { mes: (idx % 12) + 1, anio: Math.floor(idx / 12) };
+}
+
+/**
+ * Genera cuotas de entrenamiento (y opcionalmente social) para un atleta
+ * en N meses consecutivos a partir del mes indicado (default: mes actual del club).
+ */
+export async function advancePaymentsForAthlete(
+    models,
+    atletaId,
+    {
+        cantidadMeses = 1,
+        incluirSocial = true,
+        desdeMes,
+        desdeAnio,
+        timezone = DEFAULT_CLUB_TIMEZONE,
+    } = {},
+) {
+    const { Enrollment, User } = models;
+    if (!atletaId) {
+        const err = new Error('Atleta requerido.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const user = await User.findById(atletaId)
+        .select('nombre apellido rol roles estado exentoCuotaSocial cuotaSocialAsignada esPrueba')
+        .lean();
+    if (!user) {
+        const err = new Error('Usuario no encontrado.');
+        err.statusCode = 404;
+        throw err;
+    }
+    if (user.estado === 'inactivo') {
+        const err = new Error('El usuario está inactivo.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const now = calendarMonthYearInTz(new Date(), timezone);
+    const startMes = Number(desdeMes) || now.mes;
+    const startAnio = Number(desdeAnio) || now.anio;
+    if (startMes < 1 || startMes > 12 || !startAnio) {
+        const err = new Error('Mes o año de inicio inválido.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const n = Math.min(24, Math.max(1, Math.floor(Number(cantidadMeses) || 1)));
+
+    const enrollments = await Enrollment.find({
+        atleta: atletaId,
+        estado: 'activo',
+        esFacturacion: true,
+        plan: { $ne: null },
+    })
+        .select('atleta plan categoria descuentoPorcentaje motivoDescuento esFacturacion')
+        .populate('plan')
+        .populate({
+            path: 'categoria',
+            select: 'nombre disciplina',
+            populate: { path: 'disciplina', select: 'nombre' },
+        });
+
+    let cuotasCreadas = 0;
+    let cuotasOmitidas = 0;
+    let socialesCreadas = 0;
+    let socialesOmitidas = 0;
+    const paymentIds = [];
+    const periodos = [];
+
+    for (let i = 0; i < n; i++) {
+        const period = addCalendarMonths(startMes, startAnio, i);
+        periodos.push(period);
+
+        for (const insc of enrollments) {
+            const result = await ensurePaymentForEnrollment(
+                models,
+                insc,
+                period.mes,
+                period.anio,
+                timezone,
+            );
+            if (result.created) {
+                cuotasCreadas += 1;
+                if (result.paymentId) paymentIds.push(String(result.paymentId));
+            } else {
+                cuotasOmitidas += 1;
+            }
+        }
+
+        if (incluirSocial) {
+            const social = await ensureSocialFeeForUser(
+                models,
+                user,
+                period.mes,
+                period.anio,
+                timezone,
+            );
+            if (social.created) {
+                socialesCreadas += 1;
+                if (social.paymentId) paymentIds.push(String(social.paymentId));
+            } else {
+                socialesOmitidas += 1;
+            }
+        }
+    }
+
+    return {
+        cantidadMeses: n,
+        periodos,
+        cuotasCreadas,
+        cuotasOmitidas,
+        socialesCreadas,
+        socialesOmitidas,
+        paymentIds,
+        inscripciones: enrollments.length,
     };
 }

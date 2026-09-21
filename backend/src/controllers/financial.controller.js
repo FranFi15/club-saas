@@ -2,7 +2,7 @@ import asyncHandler from 'express-async-handler';
 import { calendarMonthYearInTz } from '../utils/timeHelper.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
-import { generateMonthlyPaymentsForTenant } from '../services/generateMonthlyPayments.service.js';
+import { generateMonthlyPaymentsForTenant, advancePaymentsForAthlete } from '../services/generateMonthlyPayments.service.js';
 import {
     generateSocialFeesForTenant,
     sanitizeSocialFeeRoles,
@@ -93,6 +93,60 @@ const generarCuotasMes = asyncHandler(async (req, res) => {
         estadisticas,
         cuotaSocial,
     });
+});
+
+// @desc    Adelantar / crear cuotas futuras (entrenamiento + social) para un atleta
+// @route   POST /api/financial/payments/advance
+const advanceAthletePayments = asyncHandler(async (req, res) => {
+    const {
+        atletaId,
+        cantidadMeses,
+        incluirSocial = true,
+        desdeMes,
+        desdeAnio,
+    } = req.body || {};
+
+    if (!atletaId) {
+        res.status(400);
+        throw new Error('Indicá el atleta.');
+    }
+
+    const n = Math.floor(Number(cantidadMeses));
+    if (!Number.isFinite(n) || n < 1 || n > 24) {
+        res.status(400);
+        throw new Error('La cantidad de meses debe ser entre 1 y 24.');
+    }
+
+    try {
+        const result = await advancePaymentsForAthlete(req.models, atletaId, {
+            cantidadMeses: n,
+            incluirSocial: incluirSocial !== false,
+            desdeMes,
+            desdeAnio,
+            timezone: req.clubTimezone,
+        });
+
+        const totalNuevas = result.cuotasCreadas + result.socialesCreadas;
+        const from = result.periodos[0];
+        const to = result.periodos[result.periodos.length - 1];
+        const rango =
+            from && to
+                ? from.mes === to.mes && from.anio === to.anio
+                    ? `${from.mes}/${from.anio}`
+                    : `${from.mes}/${from.anio} → ${to.mes}/${to.anio}`
+                : '';
+
+        res.status(201).json({
+            message:
+                totalNuevas > 0
+                    ? `Se crearon ${totalNuevas} cuota(s) nueva(s)${rango ? ` (${rango})` : ''}.`
+                    : `No se crearon cuotas nuevas${rango ? ` para ${rango}` : ''} (ya existían o no hay plan/asignación).`,
+            ...result,
+        });
+    } catch (e) {
+        if (e.statusCode) res.status(e.statusCode);
+        throw e;
+    }
 });
 
 // @desc    Listado de tipos de cuota social
@@ -784,7 +838,7 @@ const applySiblingDiscount = asyncHandler(async (req, res) => {
         throw new Error('El descuento familiar solo aplica a familias con 2 o más atletas.');
     }
 
-    const pct = parseInt(porcentaje, 10);
+    const pct = Number(String(porcentaje ?? '').trim().replace(',', '.'));
     if (Number.isNaN(pct) || pct < 0 || pct > 100) {
         res.status(400);
         throw new Error('Porcentaje inválido (0-100).');
@@ -1654,6 +1708,7 @@ export {
     createPlan,
     getPlans,
     generarCuotasMes,
+    advanceAthletePayments,
     listSocialFees,
     createSocialFee,
     updateSocialFeeById,

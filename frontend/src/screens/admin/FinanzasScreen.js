@@ -22,7 +22,7 @@ import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
-import { TABS, METODOS, MN, fmtMoney } from './finanzas/finanzasConstants';
+import { TABS, METODOS, MN, fmtMoney, parsePct, sanitizePctInput } from './finanzas/finanzasConstants';
 import { finanzasStyles as s } from './finanzas/finanzasStyles';
 import AtletasPagosTab from './finanzas/AtletasPagosTab';
 import FamiliasTab from './finanzas/FamiliasTab';
@@ -31,6 +31,7 @@ import ComprobantesReviewTab from './finanzas/ComprobantesReviewTab';
 import NominaTab from './finanzas/NominaTab';
 import GastosTab from './finanzas/GastosTab';
 import PaymentHistoryModal from './finanzas/PaymentHistoryModal';
+import AdvancePaymentsModal from './finanzas/AdvancePaymentsModal';
 import SponsorsTab from './finanzas/SponsorsTab';
 import SelectPaymentsModal from '../../components/SelectPaymentsModal';
 import PaymentPaySummary from '../../components/PaymentPaySummary';
@@ -271,6 +272,8 @@ export default function FinanzasScreen({ route }) {
   const [historyModal, setHistoryModal] = useState(false);
   const [historyAtleta, setHistoryAtleta] = useState(null);
   const [historyRefresh, setHistoryRefresh] = useState(0);
+  const [advanceModal, setAdvanceModal] = useState(false);
+  const [advanceAtleta, setAdvanceAtleta] = useState(null);
 
   const [plans, setPlans] = useState([]);
   const [isLoadingPlans, setIsLoadingPlans] = useState(false);
@@ -312,6 +315,7 @@ export default function FinanzasScreen({ route }) {
         options.onCancel ||
         (() => setAlertConfig((p) => ({ ...p, visible: false }))),
     });
+  const closeAlert = () => setAlertConfig((p) => ({ ...p, visible: false }));
 
   const getHeaders = async () => {
     const token = await getToken('userToken');
@@ -348,7 +352,8 @@ export default function FinanzasScreen({ route }) {
       const di = reset ? {} : { ...prev };
       familias.forEach((g) => {
         const pct = g.descuentoFamiliar ?? 0;
-        di[g.tutor._id] = pct != null && pct !== '' ? String(pct) : '';
+        di[g.tutor._id] =
+          pct != null && pct !== '' ? String(pct).replace('.', ',') : '';
       });
       return di;
     });
@@ -453,7 +458,7 @@ export default function FinanzasScreen({ route }) {
       const globalPct = r.data.globalDescuento ?? 0;
       setSiblings(familias);
       setGlobalFamilyDiscount(globalPct);
-      setGlobalDiscountInput(String(globalPct));
+      setGlobalDiscountInput(String(globalPct).replace('.', ','));
       mergeFamiliasDiscountInput(familias, true);
       setSiblingsPage(r.data.page ?? 1);
       setSiblingsHasMore(r.data.hasMore ?? false);
@@ -674,14 +679,14 @@ export default function FinanzasScreen({ route }) {
   };
 
   const saveGlobalFamilyDiscount = async () => {
-    const pct = parseInt(globalDiscountInput, 10);
+    const pct = parsePct(globalDiscountInput);
     if (isNaN(pct) || pct < 0 || pct > 100) return showAlert('Error', 'Porcentaje inválido (0-100).');
     setIsSavingGlobalDiscount(true);
     try {
       const h = await getHeaders();
       const r = await clubApi.patch('/financial/family-discount/global', { porcentaje: pct }, { headers: h });
       setGlobalFamilyDiscount(r.data.descuentoFamiliarGlobal ?? pct);
-      setGlobalDiscountInput(String(r.data.descuentoFamiliarGlobal ?? pct));
+      setGlobalDiscountInput(String(r.data.descuentoFamiliarGlobal ?? pct).replace('.', ','));
       showAlert('Éxito', r.data.message);
       fetchSiblingsFirstPage();
     } catch (e) {
@@ -692,7 +697,7 @@ export default function FinanzasScreen({ route }) {
   };
 
   const applyDiscount = async (tutorId, applyOpenPayments = 'none') => {
-    const pct = parseInt(discountInput[tutorId], 10);
+    const pct = parsePct(discountInput[tutorId]);
     if (isNaN(pct) || pct < 0 || pct > 100) return showAlert('Error', 'Porcentaje inválido (0-100).');
     try {
       const h = await getHeaders();
@@ -802,10 +807,11 @@ export default function FinanzasScreen({ route }) {
   };
 
   const showPayModal = () => {
-    if (Platform.OS === 'ios' && (selectModalOpen || historyModal)) {
+    if (Platform.OS === 'ios' && (selectModalOpen || historyModal || advanceModal)) {
       pendingPayModalRef.current = true;
       setSelectModalOpen(false);
       setHistoryModal(false);
+      setAdvanceModal(false);
       return;
     }
     setPayModal(true);
@@ -862,52 +868,80 @@ export default function FinanzasScreen({ route }) {
     setHistoryModal(true);
   };
 
-  const deleteHistoryPayment = (payment) =>
-    new Promise((resolve, reject) => {
-      if (!payment?._id) {
-        reject(new Error('Cuota inválida'));
-        return;
-      }
-      const periodo = `${MN[(payment.mes || 1) - 1] || payment.mes} ${payment.anio}`;
-      const plan =
-        payment.tipo === 'social'
-          ? payment.cuotaSocial?.nombre || 'Cuota social'
-          : payment.plan?.nombre || 'Cuota';
-      const paidNote =
-        payment.estado === 'pagado'
-          ? '\n\nEsta cuota ya figura como pagada. Se borrará del historial igual.'
-          : '';
-      showAlert(
-        'Eliminar cuota',
-        `¿Eliminar ${plan} de ${periodo} (${payment.estado})?${paidNote}`,
-        {
+  const openAdvance = (atleta) => {
+    setAdvanceAtleta(atleta);
+    setAdvanceModal(true);
+  };
+
+  const handleAdvancePayments = async ({
+    atletaId,
+    cantidadMeses,
+    incluirSocial,
+    desdeMes,
+    desdeAnio,
+  }) => {
+    try {
+      const h = await getHeaders();
+      const r = await clubApi.post(
+        '/financial/payments/advance',
+        { atletaId, cantidadMeses, incluirSocial, desdeMes, desdeAnio },
+        { headers: h },
+      );
+      const createdIds = r.data?.paymentIds || [];
+      setHistoryRefresh((k) => k + 1);
+      if (tab === 'atletas') reloadPayments?.({ background: true });
+      if (tab === 'familias') fetchSiblingsFirstPage?.();
+
+      const totalNuevas = (r.data?.cuotasCreadas || 0) + (r.data?.socialesCreadas || 0);
+      if (totalNuevas > 0 && createdIds.length > 0) {
+        showAlert('Listo', r.data?.message || 'Cuotas creadas.', {
           showCancel: true,
-          isDanger: true,
-          confirmText: 'Eliminar',
-          cancelText: 'Volver',
-          onCancel: () => {
-            setAlertConfig((p) => ({ ...p, visible: false }));
-            reject(new Error('cancelled'));
-          },
+          confirmText: 'Pagar ahora',
+          cancelText: 'Después',
           onConfirm: async () => {
-            setAlertConfig((p) => ({ ...p, visible: false }));
+            closeAlert();
             try {
-              const h = await getHeaders();
-              const r = await clubApi.delete(`/financial/payments/${payment._id}`, { headers: h });
-              showAlert('Listo', r.data?.message || 'Cuota eliminada.');
-              setHistoryRefresh((k) => k + 1);
-              if (tab === 'atletas') reloadPayments?.({ background: true });
-              if (tab === 'familias') fetchSiblingsFirstPage?.();
-              resolve(r.data);
-            } catch (e) {
-              const msg = e.response?.data?.message || 'No se pudo eliminar la cuota.';
-              showAlert('Error', msg);
-              reject(e);
+              const hr = await getHeaders();
+              const hist = await clubApi.get(`/financial/payments/atleta/${atletaId}`, {
+                headers: hr,
+                params: { page: 1, limit: 100 },
+              });
+              const idSet = new Set(createdIds.map(String));
+              const toPay = (hist.data?.payments || []).filter(
+                (p) => idSet.has(String(p._id)) && ['pendiente', 'vencido'].includes(p.estado),
+              );
+              if (!toPay.length) {
+                showAlert('Aviso', 'No se encontraron las cuotas nuevas para pagar.');
+                return;
+              }
+              const nombre = advanceAtleta
+                ? `${advanceAtleta.nombre || ''} ${advanceAtleta.apellido || ''}`.trim()
+                : '';
+              if (toPay.length === 1) openPayModal(toPay[0], advanceAtleta);
+              else openSelectPayments(toPay, nombre || 'Cuotas adelantadas', advanceAtleta ? [advanceAtleta] : []);
+            } catch {
+              showAlert('Error', 'Se crearon las cuotas, pero no se pudo abrir el pago.');
             }
           },
-        },
-      );
-    });
+        });
+      } else {
+        showAlert('Listo', r.data?.message || 'Sin cuotas nuevas.');
+      }
+    } catch (e) {
+      showAlert('Error', e.response?.data?.message || 'No se pudieron crear las cuotas.');
+      throw e;
+    }
+  };
+
+  const deleteHistoryPayment = async (payment) => {
+    if (!payment?._id) throw new Error('Cuota inválida');
+    const h = await getHeaders();
+    const r = await clubApi.delete(`/financial/payments/${payment._id}`, { headers: h });
+    setHistoryRefresh((k) => k + 1);
+    if (tab === 'atletas') reloadPayments?.({ background: true });
+    if (tab === 'familias') fetchSiblingsFirstPage?.();
+    return r.data;
+  };
 
   const handleRegisterPay = async () => {
     setIsPaying(true);
@@ -1428,6 +1462,7 @@ export default function FinanzasScreen({ route }) {
                       openSelectPayments(cuotas, subtitle, hijos || [])
                     }
                     onHistory={openHistory}
+                    onAdvance={openAdvance}
                     hasMorePayments={paymentsHasMore}
                     loadingMorePayments={loadingMorePayments}
                     onLoadMorePayments={loadMorePayments}
@@ -1454,11 +1489,13 @@ export default function FinanzasScreen({ route }) {
                     onLoadMoreFamilias={loadMoreSiblings}
                     globalDiscount={globalFamilyDiscount}
                     globalDiscountInput={globalDiscountInput}
-                    onGlobalDiscountChange={setGlobalDiscountInput}
+                    onGlobalDiscountChange={(v) => setGlobalDiscountInput(sanitizePctInput(v))}
                     onSaveGlobalDiscount={saveGlobalFamilyDiscount}
                     isSavingGlobalDiscount={isSavingGlobalDiscount}
                     discountInput={discountInput}
-                    onDiscountChange={(tutorId, v) => setDiscountInput({ ...discountInput, [tutorId]: v })}
+                    onDiscountChange={(tutorId, v) =>
+                      setDiscountInput({ ...discountInput, [tutorId]: sanitizePctInput(v) })
+                    }
                     onApplyDiscount={applyDiscount}
                     onSyncAllDiscounts={() => syncAllFamilyDiscounts('none')}
                     isSyncingDiscounts={isSyncingDiscounts}
@@ -1571,7 +1608,27 @@ export default function FinanzasScreen({ route }) {
         refreshKey={historyRefresh}
         onPay={(p) => openPayModal(p, historyAtleta)}
         onDeletePayment={deleteHistoryPayment}
+        onAdvance={() => {
+          const a = historyAtleta;
+          setHistoryModal(false);
+          openAdvance(a);
+        }}
         canDelete
+        onDismiss={handleNestedModalDismissed}
+      />
+
+      <AdvancePaymentsModal
+        visible={advanceModal}
+        onClose={() => {
+          setAdvanceModal(false);
+          setAdvanceAtleta(null);
+        }}
+        atleta={advanceAtleta}
+        theme={theme}
+        primaryColor={cc}
+        mes={mes}
+        anio={anio}
+        onConfirm={handleAdvancePayments}
         onDismiss={handleNestedModalDismissed}
       />
 

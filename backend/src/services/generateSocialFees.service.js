@@ -281,7 +281,7 @@ export async function ensureSocialFeeForUser(
     const diaVenc = cuotaSocial.diaVencimiento || 10;
     const ymd = `${anio}-${String(mes).padStart(2, '0')}-${String(diaVenc).padStart(2, '0')}`;
 
-    await Payment.create({
+    const doc = await Payment.create({
         atleta: usuarioId,
         tipo: 'social',
         cuotaSocial: cuotaSocial._id,
@@ -294,7 +294,7 @@ export async function ensureSocialFeeForUser(
         estado: 'pendiente',
     });
 
-    return { created: true, omitted: false };
+    return { created: true, omitted: false, paymentId: doc._id };
 }
 
 /** Cuota social del mes calendario actual (zona del club). */

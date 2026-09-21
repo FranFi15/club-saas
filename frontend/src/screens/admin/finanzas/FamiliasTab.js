@@ -363,9 +363,9 @@ export default function FamiliasTab({
                     styles.discountInput,
                     { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
                   ]}
-                  placeholder="0–100"
+                  placeholder="Ej: 12,5"
                   placeholderTextColor={theme.textMuted}
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
                   value={inputVal}
                   onChangeText={(v) => onDiscountChange(tutorId, v)}
                 />
@@ -439,9 +439,9 @@ export default function FamiliasTab({
                 styles.discountInput,
                 { backgroundColor: theme.background, borderColor: theme.border, color: theme.text },
               ]}
-              placeholder="Ej: 10"
+              placeholder="Ej: 12,5"
               placeholderTextColor={theme.textMuted}
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
               value={globalDiscountInput}
               onChangeText={onGlobalDiscountChange}
             />

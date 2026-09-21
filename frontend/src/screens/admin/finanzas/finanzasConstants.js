@@ -46,6 +46,21 @@ export const EST_COLOR = { pendiente: '#f59e0b', pagado: '#10b981', vencido: '#e
 
 export const fmtMoney = (n) => `$${(n || 0).toLocaleString('es-AR')}`;
 
+/** Parse % accepting comma or dot decimals (e.g. "12,5" → 12.5). */
+export function parsePct(value) {
+  const n = Number(String(value ?? '').trim().replace(',', '.'));
+  return Number.isFinite(n) ? n : NaN;
+}
+
+/** Keep digits and one decimal separator (`,` or `.`). */
+export function sanitizePctInput(text) {
+  const cleaned = String(text ?? '').replace(/[^0-9.,]/g, '');
+  const sep = cleaned.includes(',') ? ',' : cleaned.includes('.') ? '.' : null;
+  if (!sep) return cleaned;
+  const i = cleaned.indexOf(sep);
+  return cleaned.slice(0, i + 1) + cleaned.slice(i + 1).replace(/[.,]/g, '');
+}
+
 /** High-contrast outline control (readable regardless of club brand color). */
 export function contrastOutlineBtn(theme, isDarkMode) {
   return {

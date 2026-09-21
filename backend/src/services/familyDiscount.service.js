@@ -27,7 +27,8 @@ export async function getGlobalFamilyDiscountPct(models) {
 
 export async function setGlobalFamilyDiscountPct(models, porcentaje) {
     const { ClubSettings } = models;
-    const pct = Math.min(100, Math.max(0, Number(porcentaje) || 0));
+    const raw = Number(String(porcentaje ?? '').trim().replace(',', '.'));
+    const pct = Math.min(100, Math.max(0, Number.isFinite(raw) ? raw : 0));
     await getOrCreateClubSettings(ClubSettings);
     await ClubSettings.findOneAndUpdate({}, { descuentoFamiliarGlobal: pct }, { upsert: true });
     return pct;

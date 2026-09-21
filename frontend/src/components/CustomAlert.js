@@ -1,5 +1,5 @@
-import React, { useContext } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Platform, Image } from 'react-native';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Platform, Image, Animated } from 'react-native';
 import { ThemeContext } from '../context/ThemeContext';
 import { ClubContext } from '../context/ClubContext';
 
@@ -24,6 +24,8 @@ const TITLE_MAP = {
   'No se pudo registrar': 'No se pudo registrar',
   'No se pudo ingresar': 'No se pudo ingresar',
 };
+
+const FADE_MS = 180;
 
 function friendlyTitle(title) {
   if (!title) return 'Aviso';
@@ -51,6 +53,55 @@ function ClubMark({ clubData, colorMarca }) {
   );
 }
 
+function AlertBody({
+  theme,
+  clubData,
+  colorMarca,
+  confirmColor,
+  displayTitle,
+  message,
+  showCancel,
+  displayCancel,
+  displayConfirm,
+  onCancel,
+  onConfirm,
+}) {
+  return (
+    <View style={[styles.alertBox, { backgroundColor: theme.surface }]}>
+      <View style={styles.logoWrap}>
+        <ClubMark clubData={clubData} colorMarca={colorMarca} />
+      </View>
+
+      <Text style={[styles.title, { color: theme.text }, !message && { marginBottom: 22 }]}>{displayTitle}</Text>
+      {message ? (
+        <Text style={[styles.message, { color: theme.textMuted }]}>{message}</Text>
+      ) : null}
+
+      <View style={[styles.buttonContainer, !showCancel && styles.buttonSingle]}>
+        {showCancel ? (
+          <TouchableOpacity
+            style={[styles.button, styles.cancelButton, { borderColor: theme.border }]}
+            onPress={onCancel}
+            activeOpacity={0.75}
+            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+          >
+            <Text style={[styles.buttonText, { color: theme.text }]}>{displayCancel}</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: confirmColor }]}
+          onPress={onConfirm}
+          activeOpacity={0.75}
+          hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+        >
+          <Text style={[styles.buttonText, { color: '#ffffff' }]}>{displayConfirm}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 export default function CustomAlert({
   visible,
   title,
@@ -65,6 +116,8 @@ export default function CustomAlert({
 }) {
   const { theme } = useContext(ThemeContext);
   const { clubData } = useContext(ClubContext);
+  const opacity = useRef(new Animated.Value(0)).current;
+  const [mounted, setMounted] = useState(visible);
 
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const confirmColor = isDanger ? '#dc2626' : colorMarca;
@@ -72,46 +125,57 @@ export default function CustomAlert({
   const displayConfirm = confirmText === 'Aceptar' ? 'Entendido' : confirmText;
   const displayCancel = cancelText === 'Cancelar' ? 'Volver' : cancelText;
 
+  useEffect(() => {
+    if (!embedded) return undefined;
+    if (visible) {
+      setMounted(true);
+      opacity.setValue(0);
+      const anim = Animated.timing(opacity, {
+        toValue: 1,
+        duration: FADE_MS,
+        useNativeDriver: true,
+      });
+      anim.start();
+      return () => anim.stop();
+    }
+    const anim = Animated.timing(opacity, {
+      toValue: 0,
+      duration: FADE_MS,
+      useNativeDriver: true,
+    });
+    anim.start(({ finished }) => {
+      if (finished) setMounted(false);
+    });
+    return () => anim.stop();
+  }, [visible, embedded, opacity]);
+
+  const bodyProps = {
+    theme,
+    clubData,
+    colorMarca,
+    confirmColor,
+    displayTitle,
+    message,
+    showCancel,
+    displayCancel,
+    displayConfirm,
+    onCancel,
+    onConfirm,
+  };
+
+  if (embedded) {
+    if (!mounted) return null;
+    return (
+      <Animated.View
+        style={[styles.overlayEmbedded, { opacity }]}
+        pointerEvents={visible ? 'auto' : 'none'}
+      >
+        <AlertBody {...bodyProps} />
+      </Animated.View>
+    );
+  }
+
   if (!visible) return null;
-
-  const content = (
-    <View style={[styles.overlay, embedded && styles.overlayEmbedded]} pointerEvents="box-none">
-      <View style={[styles.alertBox, { backgroundColor: theme.surface }]}>
-        <View style={styles.logoWrap}>
-          <ClubMark clubData={clubData} colorMarca={colorMarca} />
-        </View>
-
-        <Text style={[styles.title, { color: theme.text }, !message && { marginBottom: 22 }]}>{displayTitle}</Text>
-        {message ? (
-          <Text style={[styles.message, { color: theme.textMuted }]}>{message}</Text>
-        ) : null}
-
-        <View style={[styles.buttonContainer, !showCancel && styles.buttonSingle]}>
-          {showCancel ? (
-            <TouchableOpacity
-              style={[styles.button, styles.cancelButton, { borderColor: theme.border }]}
-              onPress={onCancel}
-              activeOpacity={0.75}
-              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-            >
-              <Text style={[styles.buttonText, { color: theme.text }]}>{displayCancel}</Text>
-            </TouchableOpacity>
-          ) : null}
-
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: confirmColor }]}
-            onPress={onConfirm}
-            activeOpacity={0.75}
-            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-          >
-            <Text style={[styles.buttonText, { color: '#ffffff' }]}>{displayConfirm}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  );
-
-  if (embedded) return content;
 
   return (
     <Modal
@@ -121,7 +185,9 @@ export default function CustomAlert({
       presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
       onRequestClose={showCancel ? onCancel : onConfirm}
     >
-      {content}
+      <View style={styles.overlay} pointerEvents="box-none">
+        <AlertBody {...bodyProps} />
+      </View>
     </Modal>
   );
 }
@@ -135,7 +201,19 @@ const styles = StyleSheet.create({
     padding: 24,
     overflow: 'visible',
   },
-  overlayEmbedded: { ...StyleSheet.absoluteFillObject, zIndex: 1000, elevation: 1000 },
+  overlayEmbedded: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    zIndex: 1000,
+    elevation: 1000,
+  },
   alertBox: {
     width: '100%',
     maxWidth: 360,

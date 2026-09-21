@@ -14,6 +14,7 @@ import { clubApi } from '../../../utils/api';
 import { downloadPaymentReceipt } from '../../../utils/paymentReceipt';
 import { MN, EST_COLOR, fmtMoney, metodoPagoLabel, metodoPagoIcon, contrastOutlineBtn } from './finanzasConstants';
 import DesignCard from '../../../components/DesignCard';
+import CustomAlert from '../../../components/CustomAlert';
 import { ThemeContext } from '../../../context/ThemeContext';
 
 const HISTORY_PAGE_SIZE = 30;
@@ -31,6 +32,7 @@ export default function PaymentHistoryModal({
   primaryColor,
   onPay,
   onDeletePayment,
+  onAdvance,
   canDelete = true,
   refreshKey = 0,
   onDismiss,
@@ -44,6 +46,35 @@ export default function PaymentHistoryModal({
   const [hasMore, setHasMore] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    showCancel: false,
+    isDanger: false,
+    confirmText: 'Aceptar',
+    cancelText: 'Cancelar',
+    onConfirm: () => {},
+    onCancel: () => {},
+  });
+
+  const closeAlert = useCallback(() => {
+    setAlertConfig((p) => ({ ...p, visible: false }));
+  }, []);
+
+  const showAlert = useCallback((title, message, options = {}) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      showCancel: options.showCancel || false,
+      isDanger: options.isDanger || false,
+      confirmText: options.confirmText || 'Aceptar',
+      cancelText: options.cancelText || 'Cancelar',
+      onConfirm: options.onConfirm || (() => setAlertConfig((p) => ({ ...p, visible: false }))),
+      onCancel: options.onCancel || (() => setAlertConfig((p) => ({ ...p, visible: false }))),
+    });
+  }, []);
 
   const fetchPage = useCallback(
     async (pageNum, { append = false } = {}) => {
@@ -79,6 +110,10 @@ export default function PaymentHistoryModal({
     fetchPage(1, { append: false });
   }, [visible, atleta?._id, refreshKey, fetchPage]);
 
+  useEffect(() => {
+    if (!visible) closeAlert();
+  }, [visible, closeAlert]);
+
   const loadMore = () => {
     if (loading || loadingMore || !hasMore) return;
     fetchPage(page + 1, { append: true });
@@ -97,29 +132,54 @@ export default function PaymentHistoryModal({
     }
   };
 
-  const handleDelete = async (payment) => {
+  const removePaymentFromList = (payment) => {
+    setPayments((prev) => prev.filter((p) => String(p._id) !== String(payment._id)));
+    setStats((prev) => {
+      const monto = Number(payment.montoFinal) || 0;
+      if (payment.estado === 'pagado') {
+        return { ...prev, totalPagado: Math.max(0, (Number(prev.totalPagado) || 0) - monto) };
+      }
+      if (payment.estado === 'pendiente' || payment.estado === 'vencido' || payment.estado === 'en_revision') {
+        return { ...prev, totalPendiente: Math.max(0, (Number(prev.totalPendiente) || 0) - monto) };
+      }
+      return prev;
+    });
+  };
+
+  const performDelete = async (payment) => {
     if (!payment?._id || deletingId || !onDeletePayment) return;
     setDeletingId(payment._id);
     try {
       await onDeletePayment(payment);
-      setPayments((prev) => prev.filter((p) => String(p._id) !== String(payment._id)));
-      setStats((prev) => {
-        const monto = Number(payment.montoFinal) || 0;
-        if (payment.estado === 'pagado') {
-          return { ...prev, totalPagado: Math.max(0, (Number(prev.totalPagado) || 0) - monto) };
-        }
-        if (payment.estado === 'pendiente' || payment.estado === 'vencido' || payment.estado === 'en_revision') {
-          return { ...prev, totalPendiente: Math.max(0, (Number(prev.totalPendiente) || 0) - monto) };
-        }
-        return prev;
-      });
+      removePaymentFromList(payment);
+      showAlert('Listo', 'Cuota eliminada.');
     } catch (e) {
-      if (e?.message !== 'cancelled') {
-        // Parent already shows the error alert when the API fails.
-      }
+      showAlert('Error', e?.response?.data?.message || e?.message || 'No se pudo eliminar la cuota.');
     } finally {
       setDeletingId(null);
     }
+  };
+
+  const handleDelete = (payment) => {
+    if (!payment?._id || deletingId || !onDeletePayment) return;
+    const periodo = `${MN[(payment.mes || 1) - 1] || payment.mes} ${payment.anio}`;
+    const plan =
+      payment.tipo === 'social'
+        ? payment.cuotaSocial?.nombre || 'Cuota social'
+        : payment.plan?.nombre || 'Cuota';
+    const paidNote =
+      payment.estado === 'pagado'
+        ? '\n\nEsta cuota ya figura como pagada. Se borrará del historial igual.'
+        : '';
+    showAlert('Eliminar cuota', `¿Eliminar ${plan} de ${periodo} (${payment.estado})?${paidNote}`, {
+      showCancel: true,
+      isDanger: true,
+      confirmText: 'Eliminar',
+      onConfirm: () => {
+        closeAlert();
+        performDelete(payment);
+      },
+    });
   };
 
   const nombre = atleta ? `${atleta.nombre || ''} ${atleta.apellido || ''}`.trim() : '';
@@ -255,9 +315,22 @@ export default function PaymentHistoryModal({
         <View style={[styles.sheet, { backgroundColor: theme.surface }]}>
           <View style={styles.header}>
             <Text style={[styles.title, { color: theme.text }]}>Historial de pagos</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={28} color={theme.icon} />
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              {onAdvance ? (
+                <TouchableOpacity
+                  onPress={onAdvance}
+                  style={[styles.advanceBtn, { borderColor: primaryColor }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Adelantar cuotas"
+                >
+                  <Ionicons name="calendar-outline" size={18} color={primaryColor} />
+                  <Text style={[styles.advanceBtnTxt, { color: primaryColor }]}>Adelantar</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity onPress={onClose}>
+                <Ionicons name="close" size={28} color={theme.icon} />
+              </TouchableOpacity>
+            </View>
           </View>
           {nombre ? <Text style={[styles.sub, { color: theme.textMuted }]}>{nombre}</Text> : null}
 
@@ -305,13 +378,30 @@ export default function PaymentHistoryModal({
             </>
           )}
         </View>
+        <CustomAlert
+          embedded
+          visible={alertConfig.visible}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          showCancel={alertConfig.showCancel}
+          isDanger={alertConfig.isDanger}
+          confirmText={alertConfig.confirmText}
+          cancelText={alertConfig.cancelText}
+          onConfirm={alertConfig.onConfirm}
+          onCancel={alertConfig.onCancel || closeAlert}
+        />
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+    position: 'relative',
+  },
   sheet: {
     height: '85%',
     borderTopLeftRadius: 5,
@@ -320,6 +410,17 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  advanceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1.5,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  advanceBtnTxt: { fontSize: 12, fontWeight: '800' },
   title: { fontSize: 18, fontWeight: '800', flex: 1 },
   sub: { fontSize: 14, marginBottom: 12 },
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
