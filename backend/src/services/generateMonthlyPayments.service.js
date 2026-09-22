@@ -418,7 +418,8 @@ function periodAfterCap(period, cap) {
 
 /**
  * Si la categoría tiene grilla con "terminar cuotas al finalizar",
- * el tope de facturación es el mes del máximo vigenteHasta (última sesión).
+ * el tope de facturación es el mes del máximo vigenteHasta (última sesión),
+ * inclusive aunque el fin sea a mitad de mes (ej. 15/12 → se puede crear cuota de diciembre).
  */
 export async function getCategoryBillingCap(models, categoriaId) {
     const { Schedule } = models;
@@ -428,12 +429,15 @@ export async function getCategoryBillingCap(models, categoriaId) {
         .select('vigenteHasta terminarCuotasAlFinalizar')
         .lean();
     if (!slots.length) return null;
-    if (!slots.some((s) => s.terminarCuotasAlFinalizar)) return null;
+
+    const flagged = slots.filter((s) => s.terminarCuotasAlFinalizar);
+    if (!flagged.length) return null;
 
     let maxHasta = null;
-    for (const s of slots) {
+    for (const s of flagged) {
         if (!s.vigenteHasta) continue;
         const d = new Date(s.vigenteHasta);
+        if (Number.isNaN(d.getTime())) continue;
         if (!maxHasta || d > maxHasta) maxHasta = d;
     }
     if (!maxHasta) return null;
@@ -489,16 +493,28 @@ export async function getAthleteAdvanceBillingInfo(
     }
 
     let maxMeses = 24;
+    let effectiveDesdeMes = startMes;
+    let effectiveDesdeAnio = startAnio;
     if (latestCap) {
+        // If Finanzas is already past the grilla end, snap to the last billable month
+        // so the (possibly partial) end month can still be generated.
+        if (monthRank(startMes, startAnio) > monthRank(latestCap.mes, latestCap.anio)) {
+            effectiveDesdeMes = latestCap.mes;
+            effectiveDesdeAnio = latestCap.anio;
+        }
         const delta =
-            monthRank(latestCap.mes, latestCap.anio) - monthRank(startMes, startAnio) + 1;
+            monthRank(latestCap.mes, latestCap.anio) -
+            monthRank(effectiveDesdeMes, effectiveDesdeAnio) +
+            1;
         maxMeses = Math.max(0, Math.min(24, delta));
     }
 
     return {
         atleta: user,
-        desdeMes: startMes,
-        desdeAnio: startAnio,
+        desdeMes: effectiveDesdeMes,
+        desdeAnio: effectiveDesdeAnio,
+        solicitadoMes: startMes,
+        solicitadoAnio: startAnio,
         limitadoPorGrilla: caps.length > 0,
         caps,
         tope: latestCap,
@@ -544,8 +560,8 @@ export async function advancePaymentsForAthlete(
     }
 
     const now = calendarMonthYearInTz(new Date(), timezone);
-    const startMes = Number(desdeMes) || now.mes;
-    const startAnio = Number(desdeAnio) || now.anio;
+    let startMes = Number(desdeMes) || now.mes;
+    let startAnio = Number(desdeAnio) || now.anio;
     if (startMes < 1 || startMes > 12 || !startAnio) {
         const err = new Error('Mes o año de inicio inválido.');
         err.statusCode = 400;
@@ -583,6 +599,15 @@ export async function advancePaymentsForAthlete(
                 latestTrainingCap = cap;
             }
         }
+    }
+
+    // Past the grilla end → still allow generating the last inclusive month (e.g. Dec when hasta=15/12).
+    if (
+        latestTrainingCap &&
+        monthRank(startMes, startAnio) > monthRank(latestTrainingCap.mes, latestTrainingCap.anio)
+    ) {
+        startMes = latestTrainingCap.mes;
+        startAnio = latestTrainingCap.anio;
     }
 
     const allCapped =

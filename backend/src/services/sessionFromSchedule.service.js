@@ -20,21 +20,32 @@ const DEFAULT_MIN_FUTURE = () => {
     return Number.isFinite(n) && n > 0 ? n : 30;
 };
 
-/** YYYY-MM-DD o ISO → fin de ese día calendario (UTC). */
-export function parseCalendarEndDate(isoOrDate) {
+/** Date | YYYY-MM-DD | ISO → YYYY-MM-DD in UTC calendar parts. */
+function toUtcYmd(isoOrDate) {
     if (!isoOrDate) return null;
+    if (isoOrDate instanceof Date) {
+        if (Number.isNaN(isoOrDate.getTime())) return null;
+        const y = isoOrDate.getUTCFullYear();
+        const m = String(isoOrDate.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(isoOrDate.getUTCDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
     const raw = String(isoOrDate).trim();
     const ymd = raw.includes('T') ? raw.split('T')[0] : raw;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
+    return /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? ymd : null;
+}
+
+/** YYYY-MM-DD o ISO → fin de ese día calendario (UTC). */
+export function parseCalendarEndDate(isoOrDate) {
+    const ymd = toUtcYmd(isoOrDate);
+    if (!ymd) return null;
     return new Date(`${ymd}T23:59:59.999Z`);
 }
 
 /** YYYY-MM-DD o ISO → inicio de ese día calendario (UTC). */
 export function parseCalendarStartDate(isoOrDate) {
-    if (!isoOrDate) return null;
-    const raw = String(isoOrDate).trim();
-    const ymd = raw.includes('T') ? raw.split('T')[0] : raw;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
+    const ymd = toUtcYmd(isoOrDate);
+    if (!ymd) return null;
     return new Date(`${ymd}T00:00:00.000Z`);
 }
 

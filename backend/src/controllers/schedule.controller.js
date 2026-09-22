@@ -8,7 +8,27 @@ import {
     trimSessionsBeyondSchedule,
 } from '../services/sessionFromSchedule.service.js';
 import { resumeBillingForCategory } from '../services/endBillingAfterGrilla.service.js';
+import { retargetOpenPaymentsFromEnrollments } from '../services/generateMonthlyPayments.service.js';
 
+async function applyPartialMonthDiscountsToOpenPayments(models, categoriaId, descuentos) {
+    if (!categoriaId || !Array.isArray(descuentos) || !descuentos.length) {
+        return { updated: 0 };
+    }
+    const { Enrollment } = models;
+    const athleteIds = await Enrollment.distinct('atleta', {
+        categoria: categoriaId,
+        estado: 'activo',
+    });
+    if (!athleteIds.length) return { updated: 0 };
+    try {
+        return await retargetOpenPaymentsFromEnrollments(models, athleteIds, {
+            scope: 'all_open',
+        });
+    } catch (e) {
+        console.warn('[schedules] retarget mitad cuotas:', e.message);
+        return { updated: 0 };
+    }
+}
 function parseVigenteHastaRequired(vigenteHasta) {
     const fin = parseCalendarEndDate(vigenteHasta);
     if (!fin) {
@@ -138,6 +158,15 @@ const addSchedule = asyncHandler(async (req, res) => {
         console.warn('[addSchedule] resume billing:', e.message);
     }
 
+    let cuotasMitad = { updated: 0 };
+    if (descuentos.length) {
+        cuotasMitad = await applyPartialMonthDiscountsToOpenPayments(
+            req.models,
+            categoria,
+            descuentos,
+        );
+    }
+
     const partialNote = descuentos.length
         ? ` Mitad de cuota en: ${descuentos.map((d) => `${d.mes}/${d.anio}`).join(', ')}.`
         : '';
@@ -145,15 +174,20 @@ const addSchedule = asyncHandler(async (req, res) => {
         facturacion.resumed > 0
             ? ` Se reanudó la facturación de ${facturacion.resumed} inscripción(es).`
             : '';
+    const retargetNote =
+        cuotasMitad.updated > 0
+            ? ` Se actualizaron ${cuotasMitad.updated} cuota(s) abierta(s) con el descuento.`
+            : '';
 
     res.status(201).json({
         message: terminarCuotas
-            ? `Horarios creados (${schedules.length}). Sesiones desde–hasta la fecha indicada; al finalizar se dejarán de generar cuotas.${partialNote}${resumeNote}`
-            : `Horarios creados (${schedules.length}). El cron generará sesiones en el rango indicado.${partialNote}${resumeNote}`,
+            ? `Horarios creados (${schedules.length}). Sesiones desde–hasta la fecha indicada; al finalizar se dejarán de generar cuotas.${partialNote}${resumeNote}${retargetNote}`
+            : `Horarios creados (${schedules.length}). El cron generará sesiones en el rango indicado.${partialNote}${resumeNote}${retargetNote}`,
         count: schedules.length,
         schedules,
         descuentosMesesParciales: descuentos,
         facturacion,
+        cuotasMitad,
         mesesParcialesSugeridos: computePartialMonths(inicioVigencia, finVigencia, 50),
     });
 });
@@ -296,11 +330,21 @@ const updateSchedule = asyncHandler(async (req, res) => {
         console.warn('[updateSchedule] resume billing:', e.message);
     }
 
+    let cuotasMitad = { updated: 0 };
+    if ((schedule.descuentosMesesParciales || []).length) {
+        cuotasMitad = await applyPartialMonthDiscountsToOpenPayments(
+            req.models,
+            schedule.categoria,
+            schedule.descuentosMesesParciales,
+        );
+    }
+
     res.json({
         ...schedule.toObject(),
         sesionesActualizadas: actualizadas,
         sesionesEliminadas,
         facturacion,
+        cuotasMitad,
     });
 });
 

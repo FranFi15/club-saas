@@ -50,8 +50,8 @@ export default function AdvancePaymentsModal({
   const [loadingInfo, setLoadingInfo] = useState(false);
   const [advanceInfo, setAdvanceInfo] = useState(null);
 
-  const startMes = Number(mes) || new Date().getMonth() + 1;
-  const startAnio = Number(anio) || new Date().getFullYear();
+  const startMes = Number(advanceInfo?.desdeMes) || Number(mes) || new Date().getMonth() + 1;
+  const startAnio = Number(advanceInfo?.desdeAnio) || Number(anio) || new Date().getFullYear();
 
   useEffect(() => {
     if (!visible) return;
@@ -60,6 +60,8 @@ export default function AdvancePaymentsModal({
     setAdvanceInfo(null);
 
     let cancelled = false;
+    const requestMes = Number(mes) || new Date().getMonth() + 1;
+    const requestAnio = Number(anio) || new Date().getFullYear();
     (async () => {
       if (!atleta?._id || !getHeaders) {
         setCantidad(3);
@@ -70,15 +72,16 @@ export default function AdvancePaymentsModal({
         const h = await getHeaders();
         const r = await clubApi.get(`/financial/payments/advance-info/${atleta._id}`, {
           headers: h,
-          params: { mes: startMes, anio: startAnio },
+          params: { mes: requestMes, anio: requestAnio },
         });
         if (cancelled) return;
         const info = r.data || null;
         setAdvanceInfo(info);
         const max = Number(info?.maxMeses);
         if (info?.limitadoPorGrilla && Number.isFinite(max)) {
+          // Default to the full remaining range so the last (possibly partial) month is included.
           if (max < 1) setCantidad(1);
-          else setCantidad(Math.min(3, max));
+          else setCantidad(max);
         } else {
           setCantidad(3);
         }
@@ -95,7 +98,7 @@ export default function AdvancePaymentsModal({
     return () => {
       cancelled = true;
     };
-  }, [visible, atleta?._id, getHeaders, startMes, startAnio]);
+  }, [visible, atleta?._id, getHeaders, mes, anio]);
 
   const maxMeses = useMemo(() => {
     if (advanceInfo?.limitadoPorGrilla && Number.isFinite(Number(advanceInfo.maxMeses))) {
@@ -104,10 +107,13 @@ export default function AdvancePaymentsModal({
     return 24;
   }, [advanceInfo]);
 
-  const presets = useMemo(
-    () => PRESETS.filter((n) => n <= maxMeses || maxMeses <= 0),
-    [maxMeses],
-  );
+  const presets = useMemo(() => {
+    if (maxMeses <= 0) return PRESETS;
+    const base = PRESETS.filter((n) => n <= maxMeses);
+    // Always offer the exact tope (e.g. 4 months Sep→Dic) even if not in PRESETS.
+    if (!base.includes(maxMeses)) base.push(maxMeses);
+    return base.sort((a, b) => a - b);
+  }, [maxMeses]);
 
   const rango = useMemo(() => {
     const capped = maxMeses > 0 ? Math.min(cantidad, maxMeses) : cantidad;
@@ -183,8 +189,16 @@ export default function AdvancePaymentsModal({
                             advanceInfo.tope?.vigenteHasta
                               ? ` (última sesión ${isoToDisplay(advanceInfo.tope.vigenteHasta)})`
                               : ''
-                          }.`}
+                          }. El mes del tope se incluye aunque la grilla termine a mitad de mes.`}
                     </Text>
+                    {advanceInfo?.solicitadoMes &&
+                    (Number(advanceInfo.solicitadoMes) !== Number(advanceInfo.desdeMes) ||
+                      Number(advanceInfo.solicitadoAnio) !== Number(advanceInfo.desdeAnio)) ? (
+                      <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 6 }}>
+                        El mes actual de Finanzas ya pasó el tope; se genera desde{' '}
+                        {periodLabel(advanceInfo.desdeMes, advanceInfo.desdeAnio)}.
+                      </Text>
+                    ) : null}
                     {(advanceInfo.caps || []).length > 1 ? (
                       <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 6 }}>
                         {(advanceInfo.caps || [])
