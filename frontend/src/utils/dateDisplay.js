@@ -48,6 +48,24 @@ export function isoCalendarDateToDisplay(isoOrYmd) {
   return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
+const MONTHS_ES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+];
+
+/** Calendar date → "1 de Enero" (sin año; cortes anuales). */
+export function formatDayMonthLong(isoOrYmd) {
+  if (!isoOrYmd) return '';
+  const raw = String(isoOrYmd).trim();
+  const s = raw.includes('T') ? raw.split('T')[0] : raw;
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return '';
+  const day = Number(m[3]);
+  const month = Number(m[2]);
+  if (!day || month < 1 || month > 12) return '';
+  return `${day} de ${MONTHS_ES[month - 1]}`;
+}
+
 /**
  * DD-MM-AAAA from input → YYYY-MM-DD for APIs / Date templates, or null if invalid/incomplete.
  */

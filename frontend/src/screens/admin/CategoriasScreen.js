@@ -3,7 +3,7 @@ import React, { useState, useContext, useCallback } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, TouchableOpacity, 
   ActivityIndicator, StatusBar, TextInput, Modal,
-  KeyboardAvoidingView, Platform, RefreshControl
+  KeyboardAvoidingView, Platform, RefreshControl, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,7 +19,7 @@ import DesignCard from '../../components/DesignCard';
 import { sortByNombre } from '../../utils/listSort';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import CalendarDateField from '../../components/CalendarDateField';
-import { displayDateToIsoCalendar, isoCalendarDateToDisplay } from '../../utils/dateDisplay';
+import { displayDateToIsoCalendar, isoCalendarDateToDisplay, formatDayMonthLong } from '../../utils/dateDisplay';
 
 export default function CategoriasScreen({ navigation, route }) {
   const { clubData } = useContext(ClubContext);
@@ -285,9 +285,16 @@ export default function CategoriasScreen({ navigation, route }) {
             ) : null}
             {(item.edadCorteDesde || item.edadCorteHasta) ? (
               <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
-                Corte edad
-                {item.edadCorteDesde ? ` desde ${isoCalendarDateToDisplay(String(item.edadCorteDesde).slice(0, 10))}` : ''}
-                {item.edadCorteHasta ? ` hasta ${isoCalendarDateToDisplay(String(item.edadCorteHasta).slice(0, 10))}` : ''}
+                {[
+                  item.edadCorteDesde
+                    ? `desde ${formatDayMonthLong(item.edadCorteDesde)}`
+                    : null,
+                  item.edadCorteHasta
+                    ? `hasta ${formatDayMonthLong(item.edadCorteHasta)}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
               </Text>
             ) : null}
           </View>
@@ -336,10 +343,13 @@ export default function CategoriasScreen({ navigation, route }) {
       </TouchableOpacity>
 
       <Modal visible={isModalVisible} animationType="slide" transparent={true} onRequestClose={closeModal}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
+        >
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-              
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: theme.text }]}>
                   {editingCategory ? "Editar Categoría" : "Nueva Categoría"}
@@ -349,6 +359,11 @@ export default function CategoriasScreen({ navigation, route }) {
                 </TouchableOpacity>
               </View>
 
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.modalScrollContent}
+              >
               <Text style={[styles.modalLabel, { color: theme.textMuted }]}>
                 Nombre (Ej: Primera, U-15, Reserva)
               </Text>
@@ -482,6 +497,7 @@ export default function CategoriasScreen({ navigation, route }) {
                   </Text>
                 )}
               </TouchableOpacity>
+              </ScrollView>
 
             </View>
           </View>
@@ -562,7 +578,20 @@ const styles = StyleSheet.create({
   emptySubText: { fontSize: 14, marginTop: 5, textAlign: 'center' },
   fab: { position: 'absolute', bottom: 20, right: 20, width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 5 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' },
-  modalContent: { borderTopLeftRadius: 5, borderTopRightRadius: 5, padding: 25, paddingBottom: 40, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 20 },
+  modalContent: {
+    borderTopLeftRadius: 5,
+    borderTopRightRadius: 5,
+    paddingHorizontal: 25,
+    paddingTop: 25,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 20,
+    maxHeight: '92%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 20,
+  },
+  modalScrollContent: { paddingBottom: 28 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 20, fontWeight: 'bold' },
   modalLabel: { fontSize: 14, marginBottom: 8, fontWeight: '500' },

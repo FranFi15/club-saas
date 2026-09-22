@@ -31,8 +31,22 @@ export function atletaCuotasEnApp(user) {
 
 function parseOptionalDate(value) {
     if (!value) return null;
+    if (typeof value === 'string') {
+        const raw = value.trim();
+        const ymd = raw.includes('T') ? raw.split('T')[0] : raw;
+        // Calendar day as noon UTC so AR/UTC don't shift the day on save/read.
+        if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
+            return new Date(`${ymd}T12:00:00.000Z`);
+        }
+    }
     const d = new Date(value);
     return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** Parse admin corte input without applying annual rollover. */
+export function parseCutoffDateInput(value) {
+    if (value == null || value === '') return null;
+    return parseOptionalDate(value);
 }
 
 function startOfLocalDay(d) {
@@ -52,6 +66,7 @@ function dateOnYear(year, month, day) {
  * Cortes de temporada son anuales (día/mes).
  * Cuando ya pasó ese día calendario, la fecha efectiva pasa al mismo día del año siguiente.
  * El día "hasta"/"desde" sigue valiendo ese día; el rollover es al día siguiente.
+ * Solo se usa al evaluar edades — no reescribe lo que guardó el admin.
  */
 export function resolveAnnualCutoffDate(storedDate, asOf = new Date()) {
     const base = parseOptionalDate(storedDate);
@@ -59,8 +74,9 @@ export function resolveAnnualCutoffDate(storedDate, asOf = new Date()) {
     const ref = asOf ? new Date(asOf) : new Date();
     if (Number.isNaN(ref.getTime())) return null;
 
-    const month = base.getMonth();
-    const day = base.getDate();
+    // Prefer UTC parts (admin dates are stored as YYYY-MM-DD noon UTC).
+    const month = base.getUTCMonth();
+    const day = base.getUTCDate();
     let year = ref.getFullYear();
     let candidate = dateOnYear(year, month, day);
 
