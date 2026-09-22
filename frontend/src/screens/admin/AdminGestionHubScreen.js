@@ -84,7 +84,7 @@ export default function AdminGestionHubScreen({ navigation }) {
         colorMarca={colorMarca}
         theme={theme}
         kicker="Gestión"
-        title={isClubOwner ? 'Operaciones del club' : 'Comunicación y documentos'}
+        title={canViewOwner ? 'Operaciones del club' : 'Comunicación y documentos'}
         subtitle={clubData?.nombre || 'Tu club'}
       />
       <ScrollView
