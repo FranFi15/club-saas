@@ -390,19 +390,27 @@ export default function AlquileresScreen({ navigation }) {
   };
 
   const handleDeleteRental = (rental, embedded = false) => {
+    const cobrado = Number(rental.señaPagada) || 0;
+    const moneyNote =
+      cobrado > 0
+        ? ` Ya hay ${fmtRentalMoney(cobrado)} cobrados: se conservan en el historial (reembolso manual si corresponde).`
+        : '';
     setRentalAlert({
       visible: true,
-      title: 'Cancelar reserva',
-      message: `¿Cancelamos la reserva de ${rental.nombreCliente}? El horario queda libre y se conservan el registro y los cobros.`,
+      title: 'Cancelar alquiler',
+      message: `¿Cancelamos la reserva de ${rental.nombreCliente}? El horario queda libre.${moneyNote}`,
       showCancel: true,
       isDanger: true,
-      confirmText: 'Cancelar Reserva',
+      confirmText: 'Cancelar alquiler',
       cancelText: 'Volver',
       onConfirm: async () => {
         setRentalAlert({ visible: false }, embedded);
         try {
           const h = await getHeaders();
-          await clubApi.delete(`/rentals/${rental._id}`, { headers: h });
+          await clubApi.delete(`/rentals/${rental._id}`, {
+            headers: h,
+            data: { motivo: 'Cancelada por administración.' },
+          });
           closeDetailRental();
           fetchDayData();
           fetchAllRentals({ page: 1, append: false });
@@ -453,6 +461,7 @@ export default function AlquileresScreen({ navigation }) {
     const saldo = rentalSaldoPendiente(r);
     const cobrado = Number(r.señaPagada) || 0;
     const busy = String(payingRentalId) === String(r._id);
+    const canCancel = r.estadoReserva !== 'cancelada' && r.estadoReserva !== 'completada';
     return (
       <DesignCard
         theme={theme}
@@ -461,22 +470,36 @@ export default function AlquileresScreen({ navigation }) {
         onPress={() => setDetailRental(r)}
         contentStyle={styles.reservaInner}
         footer={
-          rentalNeedsFullPayment(r) ? (
-            <TouchableOpacity
-              style={[styles.payTotalBtn, { backgroundColor: cc, opacity: busy ? 0.7 : 1 }]}
-              onPress={() => handlePayTotal(r)}
-              disabled={busy}
-              activeOpacity={0.75}
-            >
-              {busy ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <>
-                  <Ionicons name="card-outline" size={16} color="#fff" />
-                  <Text style={styles.payTotalBtnTxt}>Pagar total ({fmtRentalMoney(saldo)})</Text>
-                </>
-              )}
-            </TouchableOpacity>
+          canCancel || rentalNeedsFullPayment(r) ? (
+            <View style={styles.reservaFooterActions}>
+              {rentalNeedsFullPayment(r) ? (
+                <TouchableOpacity
+                  style={[styles.payTotalBtn, { backgroundColor: cc, opacity: busy ? 0.7 : 1, flex: 1 }]}
+                  onPress={() => handlePayTotal(r)}
+                  disabled={busy}
+                  activeOpacity={0.75}
+                >
+                  {busy ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="card-outline" size={16} color="#fff" />
+                      <Text style={styles.payTotalBtnTxt}>Pagar total ({fmtRentalMoney(saldo)})</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              ) : null}
+              {canCancel ? (
+                <TouchableOpacity
+                  style={[styles.cancelReservaBtn, { borderColor: '#ef4444' }]}
+                  onPress={() => handleDeleteRental(r, false)}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons name="close-circle-outline" size={16} color="#ef4444" />
+                  <Text style={styles.cancelReservaBtnTxt}>Cancelar</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           ) : null
         }
       >
@@ -1126,8 +1149,8 @@ export default function AlquileresScreen({ navigation }) {
                       onPress={() => handleDeleteRental(detailRental, true)}
                       activeOpacity={0.75}
                     >
-                      <Ionicons name="trash-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
-                      <Text style={styles.saveBtnText}>Cancelar Reserva</Text>
+                      <Ionicons name="close-circle-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+                      <Text style={styles.saveBtnText}>Cancelar alquiler</Text>
                     </TouchableOpacity>
                   </ScrollView>
                 )}
@@ -1186,6 +1209,18 @@ const styles = StyleSheet.create({
   reservaDue:{fontSize:13,fontWeight:'700'},
   payTotalBtn:{height:42,borderRadius:10,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},
   payTotalBtnTxt:{color:'#fff',fontWeight:'800',fontSize:13},
+  reservaFooterActions:{flexDirection:'row',alignItems:'center',gap:8},
+  cancelReservaBtn:{
+    height:42,
+    borderRadius:10,
+    borderWidth:1.5,
+    paddingHorizontal:12,
+    flexDirection:'row',
+    alignItems:'center',
+    justifyContent:'center',
+    gap:6,
+  },
+  cancelReservaBtnTxt:{color:'#ef4444',fontWeight:'800',fontSize:13},
   emptyReservas:{textAlign:'center',marginTop:40,fontSize:15,paddingHorizontal:24},
   spaceChip:{paddingHorizontal:15,paddingVertical:10,borderRadius:20,borderWidth:1,marginRight:8,height:40,justifyContent:'center'},
   calBox:{borderRadius:12,padding:15,marginBottom:20,elevation:2},

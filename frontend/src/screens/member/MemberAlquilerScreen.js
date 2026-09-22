@@ -40,6 +40,29 @@ function isPastDay(ymd) {
   return String(ymd) < todayYmd();
 }
 
+function rentalStartMs(rental) {
+  const fechaIso =
+    typeof rental?.fecha === 'string'
+      ? rental.fecha.slice(0, 10)
+      : rental?.fecha
+        ? new Date(rental.fecha).toISOString().slice(0, 10)
+        : '';
+  const hi = String(rental?.horaInicio || '00:00');
+  if (!fechaIso || !/^\d{4}-\d{2}-\d{2}$/.test(fechaIso)) return null;
+  const [y, m, d] = fechaIso.split('-').map(Number);
+  const [hh, mm] = hi.split(':').map(Number);
+  return new Date(y, m - 1, d, hh || 0, mm || 0, 0, 0).getTime();
+}
+
+function canMemberCancelRental(rental) {
+  if (!rental) return false;
+  if (rental.estadoReserva === 'pendiente_pago') return true;
+  if (rental.estadoReserva !== 'confirmada') return false;
+  const start = rentalStartMs(rental);
+  if (start == null) return false;
+  return Date.now() < start;
+}
+
 const ESTADO_LABEL = {
   pendiente_pago: 'Pendiente de pago',
   confirmada: 'Confirmada',
@@ -67,6 +90,7 @@ export default function MemberAlquilerScreen() {
     title: '',
     message: '',
     showCancel: false,
+    isDanger: false,
     onConfirm: () => {},
     onCancel: () => {},
   });
@@ -78,6 +102,7 @@ export default function MemberAlquilerScreen() {
       title,
       message,
       showCancel: options.showCancel || false,
+      isDanger: options.isDanger || false,
       confirmText: options.confirmText || 'Aceptar',
       cancelText: options.cancelText || 'Cancelar',
       onConfirm: options.onConfirm || closeAlert,
@@ -233,9 +258,17 @@ export default function MemberAlquilerScreen() {
   };
 
   const handleCancelHold = (rental) => {
-    showAlert('Cancelar reserva', 'Se libera el horario para otros socios.', {
+    const pending = rental?.estadoReserva === 'pendiente_pago';
+    const cobrado = Number(rental?.señaPagada) || 0;
+    const msg = pending
+      ? 'Se libera el horario para otros socios.'
+      : cobrado > 0
+        ? 'Se libera el horario. Si ya pagaste, el reembolso lo gestiona el club (no se hace automático).'
+        : 'Se libera el horario para otros socios.';
+    showAlert('Cancelar reserva', msg, {
       showCancel: true,
       confirmText: 'Cancelar reserva',
+      isDanger: true,
       onConfirm: async () => {
         closeAlert();
         try {
@@ -445,6 +478,7 @@ export default function MemberAlquilerScreen() {
           }
           renderItem={({ item }) => {
             const pending = item.estadoReserva === 'pendiente_pago';
+            const canCancel = canMemberCancelRental(item);
             const busy = bookingKey === String(item._id);
             const fechaIso =
               typeof item.fecha === 'string'
@@ -471,24 +505,28 @@ export default function MemberAlquilerScreen() {
                     {ESTADO_LABEL[item.estadoReserva] || item.estadoReserva} · {fmtMoney(item.montoTotal)}
                   </Text>
                 </View>
-                {pending ? (
+                {pending || canCancel ? (
                   <View style={{ gap: 8 }}>
-                    <TouchableOpacity
-                      onPress={() => handleRetryPay(item)}
-                      disabled={!!bookingKey}
-                      style={[styles.miniBtn, { backgroundColor: colorMarca }]}
-                    >
-                      {busy ? (
-                        <ActivityIndicator color="#fff" />
-                      ) : (
-                        <Text style={styles.miniBtnText}>Pagar</Text>
-                      )}
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleCancelHold(item)} disabled={!!bookingKey}>
-                      <Text style={{ color: '#ef4444', fontWeight: '600', fontSize: 12, textAlign: 'center' }}>
-                        Liberar
-                      </Text>
-                    </TouchableOpacity>
+                    {pending ? (
+                      <TouchableOpacity
+                        onPress={() => handleRetryPay(item)}
+                        disabled={!!bookingKey}
+                        style={[styles.miniBtn, { backgroundColor: colorMarca }]}
+                      >
+                        {busy ? (
+                          <ActivityIndicator color="#fff" />
+                        ) : (
+                          <Text style={styles.miniBtnText}>Pagar</Text>
+                        )}
+                      </TouchableOpacity>
+                    ) : null}
+                    {canCancel ? (
+                      <TouchableOpacity onPress={() => handleCancelHold(item)} disabled={!!bookingKey}>
+                        <Text style={{ color: '#ef4444', fontWeight: '600', fontSize: 12, textAlign: 'center' }}>
+                          Cancelar
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
                 ) : null}
               </DesignCard>
@@ -502,6 +540,7 @@ export default function MemberAlquilerScreen() {
         title={alertConfig.title}
         message={alertConfig.message}
         showCancel={alertConfig.showCancel}
+        isDanger={alertConfig.isDanger}
         confirmText={alertConfig.confirmText}
         cancelText={alertConfig.cancelText}
         onConfirm={alertConfig.onConfirm}

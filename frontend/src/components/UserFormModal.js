@@ -1,5 +1,5 @@
 // src/components/UserFormModal.js
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { 
   View, Text, StyleSheet, Modal, TouchableOpacity, 
   TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Switch
@@ -25,6 +25,29 @@ const PAYROLL_STAFF_ROLES = [
   'preparador_fisico',
   'nutricionista',
   'psicologo',
+];
+
+/** Roles disponibles en esta versión de la app (sin médico / kinesiólogo). */
+const ALL_ROLE_OPTIONS = [
+  { label: 'Atleta', value: 'atleta' },
+  { label: 'Tutor', value: 'tutor' },
+  { label: 'Socio', value: 'socio' },
+  { label: 'Profesor', value: 'profe' },
+  { label: 'Preparador Físico', value: 'preparador_fisico' },
+  { label: 'Nutricionista', value: 'nutricionista' },
+  { label: 'Psicólogo', value: 'psicologo' },
+  { label: 'Colaborador', value: 'colaborador' },
+  { label: 'Control de ingreso', value: 'control_ingreso' },
+  { label: 'Administrativo', value: 'administrativo' },
+  { label: 'Dirigente', value: 'dirigente' },
+  { label: 'Administrador del club', value: 'admin_club' },
+];
+
+const ROLE_GROUPS = [
+  { title: 'Miembros', values: ['atleta', 'tutor', 'socio'] },
+  { title: 'Cuerpo técnico', values: ['profe', 'preparador_fisico', 'nutricionista', 'psicologo'] },
+  { title: 'Operación', values: ['colaborador', 'control_ingreso', 'administrativo'] },
+  { title: 'Dirección', values: ['dirigente', 'admin_club'] },
 ];
 
 export default function UserFormModal({
@@ -58,21 +81,22 @@ export default function UserFormModal({
 
   const CLIENT_ROLES_WITH_SOCIAL_FEE = ['atleta', 'tutor', 'socio'];
 
-  const roles = [
-    { label: 'Atleta', value: 'atleta' },
-    { label: 'Profesor', value: 'profe' },
-    { label: 'Preparador Físico', value: 'preparador_fisico' },
-    { label: 'Nutricionista', value: 'nutricionista' },
-    { label: 'Psicólogo', value: 'psicologo' },
-    { label: 'Tutor', value: 'tutor' },
-    { label: 'Socio', value: 'socio' },
-    { label: 'Colaborador', value: 'colaborador' },
-    { label: 'Control de ingreso', value: 'control_ingreso' },
-    { label: 'Administrativo', value: 'administrativo' },
-    { label: 'Dirigente', value: 'dirigente' },
-    { label: 'Administrador del club', value: 'admin_club' },
-  ].filter((r) => isClubOwnerRole(viewerRol) || (r.value !== 'admin_club' && r.value !== 'dirigente'));
-
+  const roles = ALL_ROLE_OPTIONS.filter(
+    (r) => isClubOwnerRole(viewerRol) || (r.value !== 'admin_club' && r.value !== 'dirigente'),
+  );
+  const roleByValue = useMemo(() => {
+    const map = new Map();
+    for (const r of roles) map.set(r.value, r);
+    return map;
+  }, [roles]);
+  const roleGroups = useMemo(
+    () =>
+      ROLE_GROUPS.map((g) => ({
+        title: g.title,
+        items: g.values.map((v) => roleByValue.get(v)).filter(Boolean),
+      })).filter((g) => g.items.length > 0),
+    [roleByValue],
+  );
   const selectedRoles = formData.roles?.length ? formData.roles : [formData.rol || 'atleta'];
   const hasAtleta = selectedRoles.includes('atleta');
   const hasClientFeeRole = selectedRoles.some((r) => CLIENT_ROLES_WITH_SOCIAL_FEE.includes(r));
@@ -462,38 +486,71 @@ export default function UserFormModal({
 
               <Text style={[styles.label, { color: theme.textMuted }]}>Roles en el Club *</Text>
               <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8 }}>
-                Tocá para activar. Mantené pulsado (o tocá de nuevo el activo) para marcar el rol principal.
+                Marcá uno o más. La estrella indica el rol principal (con el que entra a la app).
               </Text>
-              <View style={styles.roleChips}>
-                {roles.map((r) => {
-                  const on = selectedRoles.includes(r.value);
-                  const primary = formData.rol === r.value;
-                  return (
-                    <TouchableOpacity
-                      key={r.value}
-                      onPress={() => toggleRole(r.value)}
-                      onLongPress={() => setPrimaryRole(r.value)}
-                      style={[
-                        styles.roleChip,
-                        {
-                          borderColor: on ? colorMarca : theme.border,
-                          backgroundColor: on ? (primary ? colorMarca : colorMarca + '22') : theme.background,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={{
-                          color: on && primary ? '#fff' : on ? colorMarca : theme.text,
-                          fontWeight: on ? '700' : '500',
-                          fontSize: 13,
-                        }}
-                      >
-                        {r.label}
-                        {primary && on ? ' ★' : ''}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+              <View style={[styles.roleList, { borderColor: theme.border, backgroundColor: theme.background }]}>
+                {roleGroups.map((group, gi) => (
+                  <View key={group.title}>
+                    {gi > 0 ? (
+                      <View style={[styles.roleGroupDivider, { backgroundColor: theme.border }]} />
+                    ) : null}
+                    <Text style={[styles.roleGroupTitle, { color: theme.textMuted }]}>{group.title}</Text>
+                    {group.items.map((r) => {
+                      const on = selectedRoles.includes(r.value);
+                      const primary = formData.rol === r.value;
+                      return (
+                        <View
+                          key={r.value}
+                          style={[
+                            styles.roleRow,
+                            on && { backgroundColor: colorMarca + '12' },
+                          ]}
+                        >
+                          <TouchableOpacity
+                            style={styles.roleRowMain}
+                            onPress={() => toggleRole(r.value)}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons
+                              name={on ? 'checkbox' : 'square-outline'}
+                              size={22}
+                              color={on ? colorMarca : theme.textMuted}
+                            />
+                            <Text
+                              style={{
+                                flex: 1,
+                                marginLeft: 10,
+                                color: theme.text,
+                                fontWeight: on ? '700' : '500',
+                                fontSize: 14,
+                              }}
+                            >
+                              {r.label}
+                            </Text>
+                          </TouchableOpacity>
+                          {on ? (
+                            <TouchableOpacity
+                              onPress={() => setPrimaryRole(r.value)}
+                              hitSlop={8}
+                              style={styles.rolePrimaryBtn}
+                              accessibilityLabel={
+                                primary ? 'Rol principal' : 'Marcar como rol principal'
+                              }
+                            >
+                              <Ionicons
+                                name={primary ? 'star' : 'star-outline'}
+                                size={20}
+                                color={primary ? colorMarca : theme.textMuted}
+                              />
+                            </TouchableOpacity>
+                          ) : (
+                            <View style={styles.rolePrimaryBtn} />
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+                ))}
               </View>
 
               {/* BÚSQUEDA DE TUTOR INTEELIGENTE */}
@@ -781,8 +838,41 @@ const styles = StyleSheet.create({
   input: { height: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 15, marginBottom: 15 },
   row: { flexDirection: 'row' },
   
-  roleChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 15 },
-  roleChip: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 },
+  roleList: {
+    borderWidth: 1,
+    borderRadius: 12,
+    marginBottom: 15,
+    overflow: 'hidden',
+  },
+  roleGroupTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 4,
+  },
+  roleGroupDivider: { height: StyleSheet.hairlineWidth },
+  roleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 12,
+    paddingRight: 8,
+    minHeight: 44,
+  },
+  roleRowMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  rolePrimaryBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   roleSelectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 15 },
   roleSelectText: { fontSize: 15 },
   

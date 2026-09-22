@@ -2,7 +2,7 @@ import asyncHandler from 'express-async-handler';
 import { hasTimeOverlap } from '../utils/timeHelper.js';
 import { syncRentalEstadoPago, rentalSaldoPendiente } from '../utils/rentalPayments.js';
 import { parsePageLimit, paginationMeta } from '../utils/pagination.js';
-import { activeRentalFilter, expirePendingOnlineRentals } from '../services/onlineRental.service.js';
+import { activeRentalFilter, expirePendingOnlineRentals, cancelRentalAndFreeCourt } from '../services/onlineRental.service.js';
 // @desc    Crear un alquiler de cancha externo
 // @route   POST /api/rentals
 const createRental = asyncHandler(async (req, res) => {
@@ -188,7 +188,7 @@ const getRentalsBySpaceAndDate = asyncHandler(async (req, res) => {
 // @desc    Editar estado o pago de un alquiler
 // @route   PUT /api/rentals/:id
 const updateRental = asyncHandler(async (req, res) => {
-    const { Rental, Session } = req.models;
+    const { Rental } = req.models;
     const { estadoPago, señaPagada, notas, estadoReserva } = req.body;
 
     const rental = await Rental.findById(req.params.id);
@@ -199,10 +199,11 @@ const updateRental = asyncHandler(async (req, res) => {
 
     const nextEstado = estadoReserva || rental.estadoReserva;
     if (nextEstado === 'cancelada' && rental.estadoReserva !== 'cancelada') {
-        if (rental.sesionVinculada) {
-            await Session.findByIdAndDelete(rental.sesionVinculada);
-            rental.sesionVinculada = undefined;
-        }
+        await cancelRentalAndFreeCourt(req.models, rental, {
+            motivo: notas || 'Cancelada por administración.',
+        });
+        await rental.populate('espacio', 'nombre');
+        return res.json(rental);
     }
 
     rental.estadoPago = estadoPago || rental.estadoPago;
@@ -388,7 +389,7 @@ const getRentalBalance = asyncHandler(async (req, res) => {
 // @desc    Cancelar un alquiler (soft) y liberar la cancha
 // @route   DELETE /api/rentals/:id
 const deleteRental = asyncHandler(async (req, res) => {
-    const { Rental, Session } = req.models;
+    const { Rental } = req.models;
 
     const rental = await Rental.findById(req.params.id);
     if (!rental) {
@@ -396,19 +397,12 @@ const deleteRental = asyncHandler(async (req, res) => {
         throw new Error('Alquiler no encontrado');
     }
 
-    if (rental.estadoReserva === 'cancelada') {
-        res.status(400);
-        throw new Error('La reserva ya está cancelada.');
-    }
+    const motivo =
+        req.body?.motivo ||
+        req.body?.motivoCancelacion ||
+        'Cancelada por administración.';
 
-    // Liberar el bloqueo del calendario (sesión fantasma)
-    if (rental.sesionVinculada) {
-        await Session.findByIdAndDelete(rental.sesionVinculada);
-        rental.sesionVinculada = undefined;
-    }
-
-    rental.estadoReserva = 'cancelada';
-    await rental.save();
+    await cancelRentalAndFreeCourt(req.models, rental, { motivo });
     await rental.populate('espacio', 'nombre');
 
     res.json({

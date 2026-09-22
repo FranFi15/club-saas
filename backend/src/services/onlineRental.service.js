@@ -3,6 +3,9 @@ import {
     todayYmdClub as todayYmdClubTz,
     nowHhMmClub as nowHhMmClubTz,
     DEFAULT_CLUB_TIMEZONE,
+    sessionCalendarYmd,
+    zonedWallTimeToDate,
+    normalizeHhMm,
 } from '../utils/timeHelper.js';
 
 export const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -302,4 +305,50 @@ export function assertMemberOwnsOnlineRental(rental, userId) {
         err.statusCode = 400;
         throw err;
     }
+}
+
+/** Inicio del turno de alquiler en zona del club. */
+export function rentalStartDate(rental, timezone = DEFAULT_CLUB_TIMEZONE) {
+    if (!rental?.fecha || !rental?.horaInicio) return null;
+    const ymd = sessionCalendarYmd(rental.fecha);
+    if (!ymd) return null;
+    return zonedWallTimeToDate(ymd, normalizeHhMm(rental.horaInicio, '00:00'), timezone);
+}
+
+export function rentalHasStarted(rental, now = new Date(), timezone = DEFAULT_CLUB_TIMEZONE) {
+    const start = rentalStartDate(rental, timezone);
+    if (!start) return false;
+    return now.getTime() >= start.getTime();
+}
+
+/**
+ * Soft-cancel: marca cancelada y libera la sesión fantasma del calendario.
+ */
+export async function cancelRentalAndFreeCourt(models, rental, { motivo } = {}) {
+    const { Session } = models;
+    if (!rental) {
+        const err = new Error('Alquiler no encontrado');
+        err.statusCode = 404;
+        throw err;
+    }
+    if (rental.estadoReserva === 'cancelada') {
+        const err = new Error('La reserva ya está cancelada.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    if (rental.sesionVinculada) {
+        await Session.findByIdAndDelete(rental.sesionVinculada);
+        rental.sesionVinculada = undefined;
+    }
+
+    rental.estadoReserva = 'cancelada';
+    if (motivo) {
+        const note = String(motivo).trim();
+        if (note) {
+            rental.notas = rental.notas ? `${rental.notas} · ${note}` : note;
+        }
+    }
+    await rental.save();
+    return rental;
 }

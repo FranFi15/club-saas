@@ -12,6 +12,8 @@ import {
     weekdayNameFromYmd,
     isPastCalendarDay,
     isSlotInPast,
+    cancelRentalAndFreeCourt,
+    rentalHasStarted,
 } from '../services/onlineRental.service.js';
 
 function memberDisplayName(user) {
@@ -260,7 +262,7 @@ export const listMyOnlineRentals = asyncHandler(async (req, res) => {
     res.json(list);
 });
 
-// @desc    Cancelar hold propio pendiente de pago
+// @desc    Cancelar reserva online propia (hold sin pagar o confirmada antes del inicio)
 // @route   DELETE /api/rentals/online/:id
 export const cancelMyOnlineRental = asyncHandler(async (req, res) => {
     const { Rental } = req.models;
@@ -269,12 +271,37 @@ export const cancelMyOnlineRental = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Reserva no encontrada.');
     }
-    if (rental.estadoReserva !== 'pendiente_pago') {
+    if (rental.origen !== 'online') {
         res.status(400);
-        throw new Error('Solo podés cancelar reservas pendientes de pago.');
+        throw new Error('Solo podés cancelar reservas online propias.');
     }
-    rental.estadoReserva = 'cancelada';
-    rental.notas = 'Cancelada por el usuario antes de pagar.';
-    await rental.save();
+    if (rental.estadoReserva === 'cancelada') {
+        res.status(400);
+        throw new Error('La reserva ya está cancelada.');
+    }
+    if (rental.estadoReserva === 'completada') {
+        res.status(400);
+        throw new Error('No se puede cancelar una reserva ya completada.');
+    }
+
+    const pending = rental.estadoReserva === 'pendiente_pago';
+    const confirmed = rental.estadoReserva === 'confirmada';
+    if (!pending && !confirmed) {
+        res.status(400);
+        throw new Error('No se puede cancelar esta reserva.');
+    }
+
+    if (confirmed && rentalHasStarted(rental, new Date(), req.clubTimezone)) {
+        res.status(400);
+        throw new Error(
+            'El turno ya comenzó. Pedile a administración si necesitás cancelarlo.',
+        );
+    }
+
+    const motivo = pending
+        ? 'Cancelada por el usuario antes de pagar.'
+        : 'Cancelada por el usuario antes del inicio del turno.';
+
+    await cancelRentalAndFreeCourt(req.models, rental, { motivo });
     res.json({ ok: true, rental });
 });
