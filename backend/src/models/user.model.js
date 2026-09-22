@@ -33,7 +33,8 @@ const userSchema = new mongoose.Schema({
     rol: { 
         type: String, 
         enum: [
-            'admin_club', 
+            'admin_club',
+            'dirigente',
             'administrativo',
             'control_ingreso',
             'colaborador',
@@ -57,6 +58,7 @@ const userSchema = new mongoose.Schema({
                 type: String,
                 enum: [
                     'admin_club',
+                    'dirigente',
                     'administrativo',
                     'control_ingreso',
                     'colaborador',

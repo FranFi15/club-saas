@@ -39,7 +39,7 @@ import { useBadges } from '../../context/BadgeContext';
 import BadgeDot from '../../components/BadgeDot';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
-import { isClubOwnerRole, ADMIN_APP_ROLES } from '../../constants/appRoles';
+import { isClubOwnerRole, canViewOwnerAdminUI, canMutateAsAdmin } from '../../constants/appRoles';
 
 const financeHeader = StyleSheet.create({
   iconBtn: {
@@ -136,8 +136,9 @@ export default function FinanzasScreen({ route }) {
   const leavePlanes = () => selectMainTab('atletas');
   const [viewerRol, setViewerRol] = useState('');
   const canManageClubFinances = isClubOwnerRole(viewerRol);
-  const canRunPeriodActions = ADMIN_APP_ROLES.includes(viewerRol);
-  const visibleTabs = canManageClubFinances
+  const canRunPeriodActions = canMutateAsAdmin(viewerRol);
+  const canViewFullFinanzas = canViewOwnerAdminUI(viewerRol);
+  const visibleTabs = canViewFullFinanzas
     ? TABS
     : TABS.filter((t) => t.key === 'atletas' || t.key === 'familias');
   const mainTabIndex = Math.max(
@@ -184,9 +185,9 @@ export default function FinanzasScreen({ route }) {
   }, [route?.params?.initialTab]);
 
   useEffect(() => {
-    if (canManageClubFinances) return;
+    if (canViewFullFinanzas) return;
     if (tab === 'planes' || tab === 'sponsors' || tab === 'nomina' || tab === 'gastos') selectMainTab('atletas');
-  }, [canManageClubFinances, tab, selectMainTab]);
+  }, [canViewFullFinanzas, tab, selectMainTab]);
 
   const now = new Date();
   const [mes, setMes] = useState(now.getMonth() + 1);
@@ -1477,12 +1478,15 @@ export default function FinanzasScreen({ route }) {
                     isSearchPending={isSearchPending}
                     refreshing={tabRefreshing}
                     onRefresh={onRefresh}
-                    onPay={openPayModal}
-                    onSelectPayments={(cuotas, subtitle, hijos) =>
-                      openSelectPayments(cuotas, subtitle, hijos || [])
+                    onPay={canRunPeriodActions ? openPayModal : undefined}
+                    onSelectPayments={
+                      canRunPeriodActions
+                        ? (cuotas, subtitle, hijos) =>
+                            openSelectPayments(cuotas, subtitle, hijos || [])
+                        : undefined
                     }
                     onHistory={openHistory}
-                    onAdvance={openAdvance}
+                    onAdvance={canRunPeriodActions ? openAdvance : undefined}
                     hasMorePayments={paymentsHasMore}
                     loadingMorePayments={loadingMorePayments}
                     onLoadMorePayments={loadMorePayments}
@@ -1519,9 +1523,12 @@ export default function FinanzasScreen({ route }) {
                     onApplyDiscount={applyDiscount}
                     onSyncAllDiscounts={() => syncAllFamilyDiscounts('none')}
                     isSyncingDiscounts={isSyncingDiscounts}
-                    onPayCuota={(p, h) => openPayModal(p, h)}
-                    onSelectPayments={(cuotas, subtitle, hijos) =>
-                      openSelectPayments(cuotas, subtitle, hijos || [])
+                    onPayCuota={canRunPeriodActions ? (p, h) => openPayModal(p, h) : undefined}
+                    onSelectPayments={
+                      canRunPeriodActions
+                        ? (cuotas, subtitle, hijos) =>
+                            openSelectPayments(cuotas, subtitle, hijos || [])
+                        : undefined
                     }
                     onHistoryAtleta={openHistory}
                     canManageDiscounts={canManageClubFinances}

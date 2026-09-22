@@ -40,7 +40,8 @@ const STAFF_ALCANCE_OPTIONS = [
   { value: 'usuario', label: 'Jugadores', icon: 'person-outline' },
   { value: 'tutor', label: 'Tutores', icon: 'people-outline' },
 ];
-const ADMIN_ROLES = ['admin_club', 'administrativo'];
+const ADMIN_ROLES = ['admin_club', 'dirigente', 'administrativo'];
+const ADMIN_NEWS_AUTHOR_ROLES = ['admin_club'];
 
 export default function NoticiasScreen({ navigation, route }) {
   const embeddedStaff = route?.params?.embeddedStaff === true;
@@ -92,8 +93,9 @@ export default function NoticiasScreen({ navigation, route }) {
   );
 
   const isCoachComposer = viewerRol === 'profe';
-  const isAdminComposer = ADMIN_ROLES.includes(viewerRol);
+  const isAdminComposer = ADMIN_NEWS_AUTHOR_ROLES.includes(viewerRol);
   const isStaffComposer = STAFF_NEWS_AUTHOR_ROLES.includes(viewerRol) && !isAdminComposer && !isCoachComposer;
+  const canViewAsAdmin = ADMIN_ROLES.includes(viewerRol);
 
   const categoryPickerItems = useMemo(
     () =>

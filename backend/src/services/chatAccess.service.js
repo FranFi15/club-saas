@@ -1,7 +1,7 @@
 import { hijosDelTutorFilter } from '../utils/userQuery.js';
 import { roleQueryMany, normalizeUserRoles } from '../constants/userRoles.js';
 
-export const ADMIN_ROLES = new Set(['admin_club', 'administrativo']);
+export const ADMIN_ROLES = new Set(['admin_club', 'administrativo', 'dirigente']);
 export const STAFF_ROLES = new Set(['profe', 'preparador_fisico', 'nutricionista', 'psicologo']);
 /** Personal operativo (no atleta/tutor): chat entre sí y con cuerpo técnico. */
 export const OPS_CHAT_ROLES = new Set(['control_ingreso', 'colaborador']);

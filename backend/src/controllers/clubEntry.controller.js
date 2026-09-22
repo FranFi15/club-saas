@@ -152,6 +152,7 @@ const MEMBER_QR_ROLES = [
     'nutricionista',
     'psicologo',
     'admin_club',
+    'dirigente',
     'administrativo',
 ];
 const SCANNER_ROLES = ['admin_club', 'administrativo', 'control_ingreso'];

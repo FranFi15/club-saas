@@ -22,7 +22,7 @@ router.get('/mis-categorias', protect, authorize('profe', 'preparador_fisico', '
 router.get('/mis-atletas', protect, authorize('profe', 'preparador_fisico', 'nutricionista', 'psicologo'), getMisAtletasStaff);
 router.get('/plantel-pendientes', protect, authorize('profe'), getPlantelPendientesCoach);
 router.get('/disciplina/:disciplineId', protect, getCategoriesByDiscipline);
-router.get('/:id/plantel', protect, authorize('admin_club', 'administrativo', 'profe', 'preparador_fisico'), getCategoryPlantel);
+router.get('/:id/plantel', protect, authorize('admin_club', 'dirigente', 'administrativo', 'profe', 'preparador_fisico'), getCategoryPlantel);
 router.put('/:id/plantel', protect, authorize('admin_club', 'administrativo', 'profe'), putCategoryPlantel);
 router.post('/:id/plantel/delegar', protect, authorize('admin_club', 'administrativo'), postDelegarCategoryPlantel);
 router.put('/:id', protect, authorize('admin_club', 'administrativo'), updateCategory); // Edición

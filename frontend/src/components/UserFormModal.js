@@ -17,6 +17,7 @@ import ProfilePhotoField from './ProfilePhotoField';
 /** Roles de personal que ya entran en nómina por su cargo. */
 const PAYROLL_STAFF_ROLES = [
   'admin_club',
+  'dirigente',
   'administrativo',
   'control_ingreso',
   'colaborador',
@@ -42,7 +43,7 @@ export default function UserFormModal({
 
   const [formData, setFormData] = useState({
     nombre: '', apellido: '', email: '', password: '', 
-    dni: '', telefono: '', rol: 'atleta', roles: ['atleta'], tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
+    dni: '', telefono: '', direccion: '', rol: 'atleta', roles: ['atleta'], tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
     cuotasEnApp: true, sexo: '', exentoCuotaSocial: false, cuotaSocialAsignada: null,
     esPrueba: false, diasPrueba: '15', enNomina: false, sueldoNomina: '',
   });
@@ -68,8 +69,9 @@ export default function UserFormModal({
     { label: 'Colaborador', value: 'colaborador' },
     { label: 'Control de ingreso', value: 'control_ingreso' },
     { label: 'Administrativo', value: 'administrativo' },
+    { label: 'Dirigente', value: 'dirigente' },
     { label: 'Administrador del club', value: 'admin_club' },
-  ].filter((r) => isClubOwnerRole(viewerRol) || r.value !== 'admin_club');
+  ].filter((r) => isClubOwnerRole(viewerRol) || (r.value !== 'admin_club' && r.value !== 'dirigente'));
 
   const selectedRoles = formData.roles?.length ? formData.roles : [formData.rol || 'atleta'];
   const hasAtleta = selectedRoles.includes('atleta');
@@ -95,6 +97,7 @@ export default function UserFormModal({
         password: '',
         dni: initialData.dni || '',
         telefono: initialData.telefono || '',
+        direccion: initialData.direccion || '',
         rol: primary,
         roles: initialRoles,
         tutorPrincipal: initialData.tutorPrincipal?._id || initialData.tutorPrincipal || null,
@@ -128,7 +131,7 @@ export default function UserFormModal({
       });
     } else {
       setFormData({
-        nombre: '', apellido: '', email: '', password: '', dni: '', telefono: '', rol: 'atleta', roles: ['atleta'], tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
+        nombre: '', apellido: '', email: '', password: '', dni: '', telefono: '', direccion: '', rol: 'atleta', roles: ['atleta'], tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
         cuotasEnApp: true, sexo: '', exentoCuotaSocial: false, cuotaSocialAsignada: null,
         esPrueba: false, diasPrueba: '15', enNomina: false, sueldoNomina: '',
       });
@@ -408,6 +411,16 @@ export default function UserFormModal({
                     value={formData.telefono} onChangeText={(v) => handleChange('telefono', v)} placeholder="34100000" keyboardType="phone-pad" placeholderTextColor={theme.textMuted} />
                 </View>
               </View>
+
+              <Text style={[styles.label, { color: theme.textMuted }]}>Dirección</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                value={formData.direccion}
+                onChangeText={(v) => handleChange('direccion', v)}
+                placeholder="Calle, número, localidad"
+                placeholderTextColor={theme.textMuted}
+                autoCapitalize="words"
+              />
 
               <Text style={[styles.label, { color: theme.textMuted }]}>Fecha de nacimiento (DD-MM-AAAA)</Text>
               <TextInput style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}

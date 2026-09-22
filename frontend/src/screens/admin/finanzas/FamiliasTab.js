@@ -309,31 +309,35 @@ export default function FamiliasTab({
                       </Text>
                     </View>
                     <View style={styles.childActions}>
-                      <TouchableOpacity
-                        style={[
-                          styles.childBtn,
-                          {
-                            backgroundColor: payables.length ? '#10b981' : theme.background,
-                            borderColor: theme.border,
-                          },
-                        ]}
-                        onPress={() => {
-                          if (!payables.length) return;
-                          if (payables.length === 1) onPayCuota(payables[0], h);
-                          else onSelectPayments(payables, `${h.nombre} ${h.apellido}`, [h]);
-                        }}
-                        disabled={!payables.length}
-                      >
-                        <Text
-                          style={{
-                            color: payables.length ? '#fff' : theme.textMuted,
-                            fontWeight: '700',
-                            fontSize: 12,
+                      {typeof onPayCuota === 'function' ? (
+                        <TouchableOpacity
+                          style={[
+                            styles.childBtn,
+                            {
+                              backgroundColor: payables.length ? '#10b981' : theme.background,
+                              borderColor: theme.border,
+                            },
+                          ]}
+                          onPress={() => {
+                            if (!payables.length) return;
+                            if (payables.length === 1) onPayCuota(payables[0], h);
+                            else if (typeof onSelectPayments === 'function') {
+                              onSelectPayments(payables, `${h.nombre} ${h.apellido}`, [h]);
+                            }
                           }}
+                          disabled={!payables.length}
                         >
-                          Pagar
-                        </Text>
-                      </TouchableOpacity>
+                          <Text
+                            style={{
+                              color: payables.length ? '#fff' : theme.textMuted,
+                              fontWeight: '700',
+                              fontSize: 12,
+                            }}
+                          >
+                            Pagar
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
                       <TouchableOpacity
                         style={[styles.childBtn, styles.childBtnOutline, contrastOutlineBtn(theme, isDarkMode)]}
                         onPress={() => onHistoryAtleta(h)}

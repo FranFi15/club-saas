@@ -1,5 +1,5 @@
-/** Roles que usan la app de administración completa */
-export const ADMIN_APP_ROLES = ['admin_club', 'administrativo'];
+/** Roles que usan la app de administración completa (incluido dirigente solo-lectura) */
+export const ADMIN_APP_ROLES = ['admin_club', 'administrativo', 'dirigente'];
 
 /** Solo escáner QR de ingreso (sin menús de gestión) */
 export const CLUB_SCANNER_ONLY_ROLES = ['control_ingreso'];
@@ -7,17 +7,36 @@ export const CLUB_SCANNER_ONLY_ROLES = ['control_ingreso'];
 /** Personal general del club (mantenimiento, etc.): chat + noticias + perfil */
 export const COLABORADOR_APP_ROLES = ['colaborador'];
 
-/** Dueño del club: personalización, estructura y finanzas avanzadas */
+/** Dueño del club: personalización, estructura y finanzas avanzadas (escritura) */
 export const CLUB_OWNER_ROLES = ['admin_club'];
+
+/** Ver paneles de dueño (admin + dirigente lectura) */
+export const CLUB_OWNER_VIEW_ROLES = ['admin_club', 'dirigente'];
 
 /** Administración operativa del día a día (sin personalizar el club) */
 export const CLUB_OPS_ROLES = ['administrativo'];
+
+/** Quienes pueden mutar como admin operativo (no dirigente) */
+export const ADMIN_WRITE_ROLES = ['admin_club', 'administrativo'];
 
 /** Quienes pueden publicar noticias como admin (alineado con POST /news) */
 export const CLUB_NEWS_AUTHOR_ROLES = ['admin_club'];
 
 export function isClubOwnerRole(rol) {
   return CLUB_OWNER_ROLES.includes(rol);
+}
+
+/** Misma UI de dueño (hubs / tabs), sin necesariamente poder mutar. */
+export function canViewOwnerAdminUI(rol) {
+  return CLUB_OWNER_VIEW_ROLES.includes(rol);
+}
+
+export function canMutateAsAdmin(rol) {
+  return ADMIN_WRITE_ROLES.includes(rol);
+}
+
+export function isDirigenteRole(rol) {
+  return rol === 'dirigente';
 }
 
 export function isClubOpsRole(rol) {

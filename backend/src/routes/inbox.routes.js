@@ -4,6 +4,6 @@ import { getPendingInbox } from '../controllers/inbox.controller.js';
 
 const router = express.Router();
 
-router.get('/pending', protect, authorize('admin_club', 'administrativo'), getPendingInbox);
+router.get('/pending', protect, authorize('admin_club', 'dirigente', 'administrativo'), getPendingInbox);
 
 export default router;

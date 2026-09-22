@@ -212,7 +212,7 @@ export async function assertDeliveryTargets(req, { allowGlobal = true } = {}) {
         return;
     }
 
-    if (['admin_club', 'administrativo'].includes(rol)) {
+    if (['admin_club', 'dirigente', 'administrativo'].includes(rol)) {
         const allowed = allowGlobal
             ? ['global', 'categoria', 'usuario']
             : ['categoria', 'usuario'];

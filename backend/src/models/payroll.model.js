@@ -3,6 +3,7 @@ import { normalizeUserRoles } from '../constants/userRoles.js';
 
 export const PAYROLL_STAFF_ROLES = [
     'admin_club',
+    'dirigente',
     'administrativo',
     'control_ingreso',
     'colaborador',

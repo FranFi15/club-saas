@@ -37,7 +37,7 @@ import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
 import { tabBadgeText } from '../utils/tabBadgeLabel';
 import { getToken } from '../utils/storage';
-import { isClubOwnerRole } from '../constants/appRoles';
+import { canViewOwnerAdminUI } from '../constants/appRoles';
 import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
 
 const Tab = createSwipeBottomTabNavigator();
@@ -117,7 +117,7 @@ export default function AdminTabNavigator() {
     getToken('userRol').then((r) => setViewerRol(r || ''));
   }, []);
 
-  const estructuraTabLabel = isClubOwnerRole(viewerRol) ? 'Estructura' : 'Operaciones';
+  const estructuraTabLabel = canViewOwnerAdminUI(viewerRol) ? 'Estructura' : 'Operaciones';
 
   useFocusEffect(
     useCallback(() => {

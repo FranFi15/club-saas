@@ -22,7 +22,7 @@ import { protect, authorize } from '../middlewares/auth.middleware.js';
 const router = express.Router();
 
 // GET /api/users - Obtener todos los usuarios con paginación
-router.get('/', protect, authorize('admin_club', 'administrativo'), getUsers);
+router.get('/', protect, authorize('admin_club', 'dirigente', 'administrativo'), getUsers);
 
 // POST /api/users — alta de usuarios por staff del club
 router.post('/', protect, authorize('admin_club', 'administrativo'), registerUser);
@@ -47,7 +47,7 @@ router.patch('/profile', protect, updateMyProfile);
 router.get(
     '/:id/cuotas-impagas',
     protect,
-    authorize('admin_club', 'administrativo'),
+    authorize('admin_club', 'dirigente', 'administrativo'),
     getUserUnpaidPaymentsSummary,
 );
 router.patch(

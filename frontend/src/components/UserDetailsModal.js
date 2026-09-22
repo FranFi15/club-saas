@@ -193,27 +193,31 @@ export default function UserDetailsModal({ visible, user, onClose, onEdit, onDel
             )}
 
             <View style={styles.dangerZone}>
-              <TouchableOpacity style={styles.editFullBtn} onPress={() => { onClose(); onEdit(user); }}>
-                <Ionicons name="pencil" size={20} color="#fff" />
-                <Text style={styles.editFullBtnText}> Editar Perfil</Text>
-              </TouchableOpacity>
+              {typeof onEdit === 'function' ? (
+                <TouchableOpacity style={styles.editFullBtn} onPress={() => { onClose(); onEdit(user); }}>
+                  <Ionicons name="pencil" size={20} color="#fff" />
+                  <Text style={styles.editFullBtnText}> Editar Perfil</Text>
+                </TouchableOpacity>
+              ) : null}
               
-              <TouchableOpacity
-                style={[
-                  styles.deleteFullBtn,
-                  user?.estado === 'inactivo' ? styles.activateFullBtn : null,
-                ]}
-                onPress={() => { onClose(); onDelete(user); }}
-              >
-                <Ionicons
-                  name={user?.estado === 'inactivo' ? 'checkmark-circle' : 'trash'}
-                  size={20}
-                  color="#fff"
-                />
-                <Text style={styles.deleteFullBtnText}>
-                  {user?.estado === 'inactivo' ? ' Activar' : ' Dar de Baja'}
-                </Text>
-              </TouchableOpacity>
+              {typeof onDelete === 'function' ? (
+                <TouchableOpacity
+                  style={[
+                    styles.deleteFullBtn,
+                    user?.estado === 'inactivo' ? styles.activateFullBtn : null,
+                  ]}
+                  onPress={() => { onClose(); onDelete(user); }}
+                >
+                  <Ionicons
+                    name={user?.estado === 'inactivo' ? 'checkmark-circle' : 'trash'}
+                    size={20}
+                    color="#fff"
+                  />
+                  <Text style={styles.deleteFullBtnText}>
+                    {user?.estado === 'inactivo' ? ' Activar' : ' Dar de Baja'}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
 
           </ScrollView>

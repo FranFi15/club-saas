@@ -10,14 +10,14 @@ import HubMenuCard from '../../components/HubMenuCard';
 import DesignCard from '../../components/DesignCard';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
-import { isClubOwnerRole } from '../../constants/appRoles';
+import { canViewOwnerAdminUI } from '../../constants/appRoles';
 
 export default function EstructuraHubScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const [viewerRol, setViewerRol] = useState('');
-  const isClubOwner = isClubOwnerRole(viewerRol);
+  const isClubOwner = canViewOwnerAdminUI(viewerRol);
 
   useEffect(() => {
     getToken('userRol').then((r) => setViewerRol(r || ''));

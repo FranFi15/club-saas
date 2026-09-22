@@ -20,9 +20,9 @@ router.get('/online/mine', protect, authorize(...MEMBER_ROLES), listMyOnlineRent
 router.delete('/online/:id', protect, authorize(...MEMBER_ROLES), cancelMyOnlineRental);
 
 router.post('/', protect, authorize('admin_club', 'administrativo'), createRental);
-router.get('/balance', protect, authorize('admin_club', 'administrativo'), getRentalBalance);
-router.get('/', protect, authorize('admin_club', 'administrativo'), getRentals);
-router.get('/espacio/:spaceId', protect, authorize('admin_club', 'administrativo'), getRentalsBySpaceAndDate);
+router.get('/balance', protect, authorize('admin_club', 'dirigente', 'administrativo'), getRentalBalance);
+router.get('/', protect, authorize('admin_club', 'dirigente', 'administrativo'), getRentals);
+router.get('/espacio/:spaceId', protect, authorize('admin_club', 'dirigente', 'administrativo'), getRentalsBySpaceAndDate);
 router.post('/:id/pagar-total', protect, authorize('admin_club', 'administrativo'), payRentalBalance);
 router.put('/:id', protect, authorize('admin_club', 'administrativo'), updateRental);
 router.delete('/:id', protect, authorize('admin_club', 'administrativo'), deleteRental); 

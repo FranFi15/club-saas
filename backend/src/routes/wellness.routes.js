@@ -16,25 +16,25 @@ router.get('/mi-hoy', protect, authorize('atleta', 'tutor'), getMyWellnessToday)
 router.get(
     '/equipo/:categoriaId',
     protect,
-    authorize('admin_club', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'),
+    authorize('admin_club', 'dirigente', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'),
     getTeamWellness,
 );
 router.get(
     '/sesion/:sessionId',
     protect,
-    authorize('admin_club', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'),
+    authorize('admin_club', 'dirigente', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'),
     getSessionWellness,
 );
 router.get(
     '/categoria/:categoriaId/historial',
     protect,
-    authorize('admin_club', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'),
+    authorize('admin_club', 'dirigente', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'),
     getCategoryWellnessHistory,
 );
 router.get(
     '/atleta/:atletaId/historial',
     protect,
-    authorize('admin_club', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo', 'administrativo'),
+    authorize('admin_club', 'dirigente', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo', 'administrativo'),
     getAthleteWellnessHistory,
 );
 

@@ -8,7 +8,7 @@ import { useBadges } from '../../context/BadgeContext';
 import HubMenuCard from '../../components/HubMenuCard';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { getToken } from '../../utils/storage';
-import { isClubOwnerRole } from '../../constants/appRoles';
+import { canViewOwnerAdminUI, isDirigenteRole } from '../../constants/appRoles';
 
 const OWNER_ITEMS = [
   {
@@ -58,7 +58,7 @@ export default function AdminGestionHubScreen({ navigation }) {
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const { hub, refresh } = useBadges();
   const [viewerRol, setViewerRol] = useState('');
-  const isClubOwner = isClubOwnerRole(viewerRol);
+  const canViewOwner = canViewOwnerAdminUI(viewerRol);
 
   useEffect(() => {
     getToken('userRol').then((r) => setViewerRol(r || ''));
@@ -70,7 +70,12 @@ export default function AdminGestionHubScreen({ navigation }) {
     }, [refresh]),
   );
 
-  const items = isClubOwner ? OWNER_ITEMS : OPS_ITEMS;
+  const DIRIGENTE_HIDDEN = new Set(['EscanearIngreso', 'PedirDocumentacion']);
+  const items = canViewOwner
+    ? isDirigenteRole(viewerRol)
+      ? OWNER_ITEMS.filter((i) => !DIRIGENTE_HIDDEN.has(i.route))
+      : OWNER_ITEMS
+    : OPS_ITEMS;
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>

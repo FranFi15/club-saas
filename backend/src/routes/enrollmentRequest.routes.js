@@ -12,7 +12,7 @@ const router = express.Router();
 router.get(
     '/categoria/:categoriaId/disponibles',
     protect,
-    authorize('admin_club', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'),
+    authorize('admin_club', 'dirigente', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'),
     getAvailableAthletesForCategory,
 );
 
@@ -26,7 +26,7 @@ router.post(
 router.get(
     '/pendientes',
     protect,
-    authorize('admin_club', 'administrativo'),
+    authorize('admin_club', 'dirigente', 'administrativo'),
     getPendingEnrollmentRequests,
 );
 

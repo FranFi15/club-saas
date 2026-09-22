@@ -30,7 +30,7 @@ async function assertStaffCategoryAccess(req, res, categoriaId) {
     const rol = req.user.rol;
     const id = categoriaId;
 
-    if (rol === 'admin_club' || rol === 'administrativo') return true;
+    if (rol === 'admin_club' || rol === 'dirigente' || rol === 'administrativo') return true;
 
     if (rol === 'profe') {
         const ok = await Category.findOne({ _id: id, profesores: req.user._id });

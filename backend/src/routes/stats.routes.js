@@ -4,6 +4,6 @@ import { protect, authorize } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
 
-router.get('/club', protect, authorize('admin_club', 'administrativo'), getClubStats);
+router.get('/club', protect, authorize('admin_club', 'dirigente', 'administrativo'), getClubStats);
 
 export default router;

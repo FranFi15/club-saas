@@ -11,6 +11,7 @@ export const USER_ROL_LABELS = {
   control_ingreso: 'Control de ingreso',
   colaborador: 'Colaborador',
   admin_club: 'Admin club',
+  dirigente: 'Dirigente',
 };
 
 export const USER_FILTER_ROLES = [
@@ -25,6 +26,7 @@ export const USER_FILTER_ROLES = [
   'nutricionista',
   'psicologo',
   'administrativo',
+  'dirigente',
   'control_ingreso',
   'colaborador',
 ];

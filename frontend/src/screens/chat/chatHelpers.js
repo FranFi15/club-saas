@@ -3,6 +3,7 @@ import { getToken } from '../../utils/storage';
 
 export const ROL_LABELS = {
   admin_club: 'Administración',
+  dirigente: 'Dirigente',
   administrativo: 'Administración',
   control_ingreso: 'Control de ingreso',
   colaborador: 'Colaborador',
@@ -16,7 +17,7 @@ export const ROL_LABELS = {
 };
 
 export function isAdminChatRole(rol) {
-  return rol === 'admin_club' || rol === 'administrativo';
+  return rol === 'admin_club' || rol === 'dirigente' || rol === 'administrativo';
 }
 
 export function isGroupChatKind(kind) {

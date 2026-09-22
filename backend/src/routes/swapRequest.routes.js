@@ -11,7 +11,7 @@ import { protect, authorize } from '../middlewares/auth.middleware.js';
 const router = express.Router();
 
 router.post('/', protect, authorize('admin_club', 'administrativo', 'profe'), proposeSpaceSwap);
-router.get('/', protect, authorize('admin_club', 'administrativo', 'profe'), listMySwapRequests);
+router.get('/', protect, authorize('admin_club', 'dirigente', 'administrativo', 'profe'), listMySwapRequests);
 router.patch('/:id/accept', protect, authorize('admin_club', 'administrativo', 'profe'), acceptSpaceSwap);
 router.patch('/:id/reject', protect, authorize('admin_club', 'administrativo', 'profe'), rejectSpaceSwap);
 router.patch('/:id/cancel', protect, authorize('admin_club', 'administrativo', 'profe'), cancelSpaceSwap);

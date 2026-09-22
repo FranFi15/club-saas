@@ -197,7 +197,7 @@ export async function countCuotasImpagasUsuario(userId, models) {
 
 async function countDocsRevisionForUser(user, models) {
     const { Submission, Requirement, Enrollment, Category } = models;
-    const isAdmin = ['admin_club', 'administrativo'].includes(user.rol);
+    const isAdmin = ['admin_club', 'dirigente', 'administrativo'].includes(user.rol);
 
     if (isAdmin) {
         return Submission.countDocuments({ estado: 'revision' });
@@ -557,7 +557,7 @@ export async function buildBadgeSummary(req) {
 
     let rolePart = { tabs: {}, hubs: {} };
 
-    if (['admin_club', 'administrativo'].includes(rol)) {
+    if (['admin_club', 'dirigente', 'administrativo'].includes(rol)) {
         rolePart = await adminBadgeSummary(req.models, userId, req.clubTimezone || DEFAULT_CLUB_TIMEZONE);
     } else if (['profe', 'preparador_fisico'].includes(rol)) {
         rolePart = await coachBadgeSummary(req.user, req.models);

@@ -10,8 +10,9 @@ import {
 import { protect, authorize } from '../middlewares/auth.middleware.js';
 
 const STAFF_DOC_ROLES = ['profe', 'preparador_fisico', 'nutricionista', 'psicologo', 'admin_club', 'administrativo'];
+const STAFF_DOC_READ_ROLES = [...STAFF_DOC_ROLES, 'dirigente'];
 
-router.get('/submissions', protect, authorize(...STAFF_DOC_ROLES), getStaffSubmissions);
+router.get('/submissions', protect, authorize(...STAFF_DOC_READ_ROLES), getStaffSubmissions);
 const MEMBER_DOC_ROLES = [
     'atleta',
     'tutor',

@@ -166,7 +166,12 @@ export default function AdminProfileScreen({ navigation }) {
 
   const canManageMercadoPago = userRol === 'admin_club';
   const canEditClubBank = userRol === 'admin_club';
-  const roleBadgeLabel = userRol === 'administrativo' ? 'Administrativo' : 'Admin club';
+  const roleBadgeLabel =
+    userRol === 'administrativo'
+      ? 'Administrativo'
+      : userRol === 'dirigente'
+        ? 'Dirigente'
+        : 'Admin club';
   const clubMpLinked = integration.tokenSource === 'club';
   const mpStatusLabel =
     clubMpLinked || integration.envFallbackActive ? 'Conectado' : 'Falta conexión';

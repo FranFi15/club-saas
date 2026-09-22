@@ -37,25 +37,25 @@ router.post('/', protect, authorize('admin_club', 'profe', 'preparador_fisico', 
 router.post('/generate', protect, authorize('admin_club', 'administrativo'), generateSessionsFromSchedule);
 
 // Consultas
-router.get('/categoria/:categoryId/ultimo-plan', protect, authorize('admin_club', 'profe', 'preparador_fisico'), getLastTrainingPlanForCategory);
+router.get('/categoria/:categoryId/ultimo-plan', protect, authorize('admin_club', 'dirigente', 'profe', 'preparador_fisico'), getLastTrainingPlanForCategory);
 router.get('/categoria/:categoryId', protect, getSessionsByCategory);
 router.get('/espacio/:spaceId', protect, getSessionsBySpace);
 router.get('/profe/agenda', protect, authorize('profe', 'preparador_fisico'), getCoachAgenda);
-router.get('/reubicacion-pendiente', protect, authorize('profe', 'preparador_fisico', 'admin_club', 'administrativo'), getPendingRelocations);
+router.get('/reubicacion-pendiente', protect, authorize('profe', 'preparador_fisico', 'admin_club', 'dirigente', 'administrativo'), getPendingRelocations);
 router.patch('/reubicacion/bulk', protect, authorize('profe', 'preparador_fisico', 'admin_club', 'administrativo'), bulkRelocateSessions);
-router.get('/restauracion-disponible', protect, authorize('profe', 'preparador_fisico', 'admin_club', 'administrativo'), getRestorableSessions);
+router.get('/restauracion-disponible', protect, authorize('profe', 'preparador_fisico', 'admin_club', 'dirigente', 'administrativo'), getRestorableSessions);
 router.patch('/restauracion/bulk', protect, authorize('profe', 'preparador_fisico', 'admin_club', 'administrativo'), bulkRestoreSessions);
 router.get(
     '/profe/stats',
     protect,
-    authorize('profe', 'preparador_fisico', 'admin_club', 'administrativo'),
+    authorize('profe', 'preparador_fisico', 'admin_club', 'dirigente', 'administrativo'),
     getCoachSessionStats,
 );
 router.get('/asistencia/mi-resumen', protect, authorize('atleta'), getMyAttendanceResumen);
 router.get(
     '/categoria/:categoryId/asistencia-resumen',
     protect,
-    authorize('admin_club', 'administrativo', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'),
+    authorize('admin_club', 'dirigente', 'administrativo', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'),
     getCategoryAttendanceResumen,
 );
 router.get('/nutricionista/agenda', protect, authorize('nutricionista'), getNutricionistaAgenda);
@@ -63,7 +63,7 @@ router.get('/psicologo/agenda', protect, authorize('psicologo'), getPsicologoAge
 router.get(
     '/psicologo/atleta/:atletaId/notas',
     protect,
-    authorize('psicologo', 'admin_club'),
+    authorize('psicologo', 'admin_club', 'dirigente'),
     getPsicologoAthleteNotes,
 );
 router.patch('/:id/confirmar-asistencia', protect, authorize('atleta', 'tutor'), confirmConsultAttendance);
@@ -76,7 +76,7 @@ router.patch(
 router.get(
     '/:id/stats',
     protect,
-    authorize('admin_club', 'administrativo', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'),
+    authorize('admin_club', 'dirigente', 'administrativo', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'),
     getSessionStatsById
 );
 router.get('/:id', protect, getSessionById);

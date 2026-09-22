@@ -2,6 +2,7 @@ const CUOTA_TIPOS = ['cuota_vencida', 'cuota_proxima', 'pago_registrado'];
 
 const STAFF_NEWS_ROLES = new Set([
   'admin_club',
+  'dirigente',
   'administrativo',
   'profe',
   'preparador_fisico',
@@ -26,7 +27,7 @@ function staffEquipoTab(rol) {
 }
 
 function staffNewsTarget(rol) {
-  if (rol === 'admin_club' || rol === 'administrativo') {
+  if (rol === 'admin_club' || rol === 'dirigente' || rol === 'administrativo') {
     return { tab: 'Gestión', screen: 'Noticias' };
   }
   const tab = staffCommsTab(rol);
@@ -35,7 +36,7 @@ function staffNewsTarget(rol) {
 }
 
 function staffResourceTarget(rol) {
-  if (rol === 'admin_club' || rol === 'administrativo') {
+  if (rol === 'admin_club' || rol === 'dirigente' || rol === 'administrativo') {
     return { tab: 'Gestión' };
   }
   const tab = staffCommsTab(rol);
@@ -44,7 +45,7 @@ function staffResourceTarget(rol) {
 }
 
 function staffDocsTarget(rol) {
-  if (rol === 'admin_club' || rol === 'administrativo') {
+  if (rol === 'admin_club' || rol === 'dirigente' || rol === 'administrativo') {
     return { tab: 'Gestión', screen: 'PedirDocumentacion' };
   }
   const tab = staffCommsTab(rol);
@@ -63,7 +64,7 @@ export function getNotificationTarget(item, { rol, cuotasEnApp, isTutor }) {
     if (rol === 'atleta') return { tab: 'AthleteProfile', screen: 'AthletePayments' };
     if (rol === 'tutor') return { tab: 'TutorProfile', screen: 'TutorPayments' };
     if (rol === 'socio') return { tab: 'SocioCuotas' };
-    if (rol === 'admin_club' || rol === 'administrativo') return { tab: 'Finanzas', screen: 'FinanzasHome' };
+    if (rol === 'admin_club' || rol === 'dirigente' || rol === 'administrativo') return { tab: 'Finanzas', screen: 'FinanzasHome' };
     return null;
   }
 
@@ -91,7 +92,7 @@ export function getNotificationTarget(item, { rol, cuotasEnApp, isTutor }) {
     if (equipo) {
       return { tab: equipo, screen: 'CoachTeamDocuments' };
     }
-    if (rol === 'admin_club' || rol === 'administrativo') {
+    if (rol === 'admin_club' || rol === 'dirigente' || rol === 'administrativo') {
       return { tab: 'Gestión', screen: 'RevisarDocumentacion' };
     }
     return null;
@@ -114,7 +115,7 @@ export function getNotificationTarget(item, { rol, cuotasEnApp, isTutor }) {
     if (rol === 'preparador_fisico') {
       return { tab: 'PrepSesiones', screen: 'CoachRelocateSessions' };
     }
-    if (rol === 'admin_club' || rol === 'administrativo') {
+    if (rol === 'admin_club' || rol === 'dirigente' || rol === 'administrativo') {
       return { tab: 'Estructura', screen: 'Espacios' };
     }
     return null;
@@ -149,7 +150,7 @@ export function getNotificationTarget(item, { rol, cuotasEnApp, isTutor }) {
     const params = item?.conversationId
       ? { conversationId: item.conversationId }
       : undefined;
-    if (rol === 'admin_club' || rol === 'administrativo') {
+    if (rol === 'admin_club' || rol === 'dirigente' || rol === 'administrativo') {
       return {
         tab: 'Gestión',
         screen: item?.conversationId ? 'ChatThread' : 'ChatInbox',

@@ -1,6 +1,7 @@
 /** Roles disponibles en esta versión de la app (sin médico / kinesiólogo). */
 export const ASSIGNABLE_USER_ROLES = [
     'admin_club',
+    'dirigente',
     'administrativo',
     'control_ingreso',
     'colaborador',
@@ -21,16 +22,52 @@ export const DEPRECATED_USER_ROLES = ['medico', 'kinesiologo'];
 
 export const ALL_USER_ROLES = [...ASSIGNABLE_USER_ROLES, ...DEPRECATED_USER_ROLES];
 
+/** Dueño del club: puede mutar estructura / finanzas avanzadas. */
 export const CLUB_OWNER_ROLES = ['admin_club'];
+
+/**
+ * Lectura de paneles de dueño (admin_club + dirigente).
+ * Dirigente ve lo mismo que el admin, sin crear/editar/borrar.
+ */
+export const CLUB_OWNER_READ_ROLES = ['admin_club', 'dirigente'];
+
+/** Mutaciones exclusivas del dueño. */
+export const CLUB_OWNER_WRITE_ROLES = ['admin_club'];
+
+/** Shell AdminHome: admin, ops y dirigente (solo lectura). */
+export const ADMIN_SHELL_ROLES = ['admin_club', 'administrativo', 'dirigente'];
+
+/**
+ * GETs de administración (listados, stats, historial).
+ * Incluye dirigente (solo lectura).
+ */
+export const ADMIN_READ_ROLES = ['admin_club', 'administrativo', 'dirigente'];
+
+/** POST/PUT/PATCH/DELETE operativos (admin + administrativo; no dirigente). */
+export const ADMIN_WRITE_ROLES = ['admin_club', 'administrativo'];
 
 export function isAssignableUserRole(rol) {
     return ASSIGNABLE_USER_ROLES.includes(rol);
 }
 
-/** Solo admin_club puede crear o asignar el rol admin_club */
+/** Solo admin_club puede crear o asignar admin_club / dirigente */
 export function canAssignUserRole(actorRol, targetRol) {
-    if (targetRol === 'admin_club' && actorRol !== 'admin_club') return false;
+    if ((targetRol === 'admin_club' || targetRol === 'dirigente') && actorRol !== 'admin_club') {
+        return false;
+    }
     return true;
+}
+
+export function isClubOwnerRole(rol) {
+    return CLUB_OWNER_ROLES.includes(rol);
+}
+
+export function canViewOwnerAdmin(rol) {
+    return CLUB_OWNER_READ_ROLES.includes(rol);
+}
+
+export function canMutateAsAdmin(rol) {
+    return ADMIN_WRITE_ROLES.includes(rol);
 }
 
 /**

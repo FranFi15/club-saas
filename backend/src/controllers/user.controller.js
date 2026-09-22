@@ -88,6 +88,8 @@ const registerUser = asyncHandler(async (req, res) => {
         fotoPerfil,
         tutorPrincipal,
         fechaNacimiento,
+        telefono,
+        direccion,
         cuotasEnApp,
         sexo,
         exentoCuotaSocial,
@@ -200,6 +202,8 @@ const registerUser = asyncHandler(async (req, res) => {
         tutorPrincipal: tutorPrincipal || undefined,
         fotoPerfil: fotoPerfil || '',
         fechaNacimiento: fechaNacimiento || undefined,
+        telefono: telefono != null ? String(telefono).trim() : undefined,
+        direccion: direccion != null ? String(direccion).trim() : undefined,
         cuotasEnApp: hasAtleta ? cuotasEnApp !== false : undefined,
         sexo: hasAtleta && (sexo === 'M' || sexo === 'F') ? sexo : '',
         exentoCuotaSocial: trialFields.esPrueba ? true : socialAssignment.exentoCuotaSocial,
@@ -412,8 +416,8 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
     user.nombre = req.body.nombre || user.nombre;
     user.apellido = req.body.apellido || user.apellido;
     user.email = req.body.email || user.email;
-    user.telefono = req.body.telefono || user.telefono;
-    user.direccion = req.body.direccion || user.direccion;
+    if (req.body.telefono !== undefined) user.telefono = String(req.body.telefono || '').trim();
+    if (req.body.direccion !== undefined) user.direccion = String(req.body.direccion || '').trim();
     
     if (req.body.fechaNacimiento !== undefined) {
         user.fechaNacimiento = req.body.fechaNacimiento || undefined;

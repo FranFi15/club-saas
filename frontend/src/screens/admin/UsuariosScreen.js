@@ -22,6 +22,7 @@ import SearchableDropdown from '../../components/SearchableDropdown';
 import { USER_ROL_LABELS, USER_ROLE_FILTROS } from '../../constants/userRoles';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { sortUsersByName } from '../../utils/listSort';
+import { canMutateAsAdmin } from '../../constants/appRoles';
 
 export default function UsuariosScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
@@ -42,6 +43,7 @@ export default function UsuariosScreen({ navigation }) {
   const [isSaving, setIsSaving] = useState(false);
   const [viewerRol, setViewerRol] = useState('');
   const [convertingTrial, setConvertingTrial] = useState(false);
+  const canMutateUsers = canMutateAsAdmin(viewerRol);
 
   useEffect(() => {
     if (!usersCacheKey) return;
@@ -196,11 +198,19 @@ export default function UsuariosScreen({ navigation }) {
   };
 
   const openCreateModal = () => {
+    if (!canMutateUsers) {
+      showAlert('Solo lectura', 'El rol dirigente puede ver usuarios, pero no crearlos.');
+      return;
+    }
     setSelectedUser(null);
     setIsFormVisible(true);
   };
 
   const openEditModal = (user) => {
+    if (!canMutateUsers) {
+      showAlert('Solo lectura', 'El rol dirigente puede ver usuarios, pero no editarlos.');
+      return;
+    }
     if (
       viewerRol === 'administrativo' &&
       (user?.rol === 'admin_club' || (Array.isArray(user?.roles) && user.roles.includes('admin_club')))
@@ -382,6 +392,7 @@ export default function UsuariosScreen({ navigation }) {
   };
 
   const renderRightActions = (item) => {
+    if (!canMutateUsers) return null;
     const inactive = item.estado === 'inactivo';
     return (
       <View style={styles.swipeActionsContainer}>
@@ -564,16 +575,20 @@ export default function UsuariosScreen({ navigation }) {
         )}
       </View>
 
-      <TouchableOpacity
-        style={[styles.fabSecondary, { backgroundColor: theme.surface, borderColor: colorMarca }]}
-        onPress={() => navigation.navigate('InvitarFamilia')}
-      >
-        <Ionicons name="link-outline" size={24} color={colorMarca} />
-      </TouchableOpacity>
+      {canMutateUsers ? (
+        <>
+          <TouchableOpacity
+            style={[styles.fabSecondary, { backgroundColor: theme.surface, borderColor: colorMarca }]}
+            onPress={() => navigation.navigate('InvitarFamilia')}
+          >
+            <Ionicons name="link-outline" size={24} color={colorMarca} />
+          </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.fab, { backgroundColor: colorMarca }]} onPress={openCreateModal}>
-        <Ionicons name="add" size={30} color="#ffffff" />
-      </TouchableOpacity>
+          <TouchableOpacity style={[styles.fab, { backgroundColor: colorMarca }]} onPress={openCreateModal}>
+            <Ionicons name="add" size={30} color="#ffffff" />
+          </TouchableOpacity>
+        </>
+      ) : null}
 
       <UserFormModal 
         visible={isFormVisible} 
@@ -590,8 +605,8 @@ export default function UsuariosScreen({ navigation }) {
         visible={isDetailsVisible} 
         user={selectedUser} 
         onClose={() => setIsDetailsVisible(false)} 
-        onEdit={openEditModal} 
-        onDelete={handleDelete} 
+        onEdit={canMutateUsers ? openEditModal : undefined} 
+        onDelete={canMutateUsers ? handleDelete : undefined} 
       />
 
       <CustomAlert 

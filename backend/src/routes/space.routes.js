@@ -17,7 +17,7 @@ router.post('/', protect, authorize('admin_club'), createSpace);
 router.get('/', protect, getSpaces);
 router.get('/libres', protect, getFreeSpacesForSlot);
 router.post('/libres-para-sesiones', protect, authorize('admin_club', 'administrativo', 'profe', 'preparador_fisico'), getFreeSpacesForSessions);
-router.get('/:id/sesiones-afectadas', protect, authorize('admin_club', 'administrativo'), getAffectedSessions);
+router.get('/:id/sesiones-afectadas', protect, authorize('admin_club', 'dirigente', 'administrativo'), getAffectedSessions);
 router.put('/:id', protect, authorize('admin_club'), updateSpace);
 router.patch('/:id/estado', protect, authorize('admin_club', 'administrativo'), updateSpaceStatus); // Mantenimiento/Clausura
 router.delete('/:id', protect, authorize('admin_club'), deleteSpace);

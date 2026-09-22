@@ -25,7 +25,7 @@ router.post('/public/:token/photo', (req, res, next) => {
     });
 });
 
-router.get('/', protect, authorize('admin_club', 'administrativo'), listFamilyInvites);
+router.get('/', protect, authorize('admin_club', 'dirigente', 'administrativo'), listFamilyInvites);
 router.post('/', protect, authorize('admin_club', 'administrativo'), createFamilyInvite);
 router.patch('/:id/cancel', protect, authorize('admin_club', 'administrativo'), cancelFamilyInvite);
 

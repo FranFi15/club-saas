@@ -66,10 +66,10 @@ function AthleteActionsMenu({
   const nombre = `${atleta?.nombre || ''} ${atleta?.apellido || ''}`.trim();
 
   const handlePay = () => {
-    if (!canPay) return;
+    if (!canPay || typeof onPay !== 'function') return;
     runAfterClose(() => {
       if (payables.length === 1) onPay(payables[0], atleta);
-      else onSelectPayments(payables, nombre, [atleta]);
+      else if (typeof onSelectPayments === 'function') onSelectPayments(payables, nombre, [atleta]);
     });
   };
 
@@ -97,17 +97,19 @@ function AthleteActionsMenu({
           <Text style={[styles.menuTitle, { color: theme.text }]} numberOfLines={1}>
             {nombre}
           </Text>
-          <TouchableOpacity
-            style={[styles.menuItem, !canPay && styles.menuItemDisabled]}
-            onPress={handlePay}
-            disabled={!canPay}
-            activeOpacity={0.75}
-          >
-            <Ionicons name="cash-outline" size={20} color={canPay ? '#10b981' : theme.textMuted} />
-            <Text style={[styles.menuItemText, { color: canPay ? theme.text : theme.textMuted }]}>
-              {payables.length > 1 ? `Pagar (${payables.length})` : 'Pagar'}
-            </Text>
-          </TouchableOpacity>
+          {typeof onPay === 'function' ? (
+            <TouchableOpacity
+              style={[styles.menuItem, !canPay && styles.menuItemDisabled]}
+              onPress={handlePay}
+              disabled={!canPay}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="cash-outline" size={20} color={canPay ? '#10b981' : theme.textMuted} />
+              <Text style={[styles.menuItemText, { color: canPay ? theme.text : theme.textMuted }]}>
+                {payables.length > 1 ? `Pagar (${payables.length})` : 'Pagar'}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity style={styles.menuItem} onPress={handleHistory} activeOpacity={0.75}>
             <Ionicons name="time-outline" size={20} color={theme.text} />
             <Text style={[styles.menuItemText, { color: theme.text }]}>Historial</Text>

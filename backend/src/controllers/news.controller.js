@@ -5,7 +5,7 @@ import {
     buildStaffMuroListFilter,
 } from '../services/notificationFeed.service.js';
 
-const ADMIN_NEWS_VIEW = ['admin_club', 'administrativo'];
+const ADMIN_NEWS_VIEW = ['admin_club', 'dirigente', 'administrativo'];
 const STAFF_NEWS_AUTHOR_ROLES = ['profe', 'preparador_fisico', 'nutricionista', 'psicologo'];
 
 async function assertProfeNewsScope(req) {

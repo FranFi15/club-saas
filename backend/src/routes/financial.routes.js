@@ -69,14 +69,14 @@ import { protect, authorize } from '../middlewares/auth.middleware.js';
 const router = express.Router();
 
 // Planes de pago
-router.get('/plans', protect, authorize('admin_club', 'administrativo'), getPlans);
+router.get('/plans', protect, authorize('admin_club', 'dirigente', 'administrativo'), getPlans);
 router.post('/plans', protect, authorize('admin_club'), createPlan);
 router.put('/plans/:id', protect, authorize('admin_club'), updatePlan); // Para actualizar precios
 router.delete('/plans/:id', protect, authorize('admin_club'), deletePlan); // Baja lógica (activo: false)
 router.patch('/plans/:id/reactivate', protect, authorize('admin_club'), reactivatePlan);
 
 // Cuotas sociales (múltiples tipos + asignación)
-router.get('/social-fees', protect, authorize('admin_club', 'administrativo'), listSocialFees);
+router.get('/social-fees', protect, authorize('admin_club', 'dirigente', 'administrativo'), listSocialFees);
 router.post('/social-fees/generate', protect, authorize('admin_club', 'administrativo'), generarCuotaSocialMes);
 router.post('/social-fees', protect, authorize('admin_club'), createSocialFee);
 router.patch('/social-fees/:id', protect, authorize('admin_club'), updateSocialFeeById);
@@ -84,18 +84,18 @@ router.delete('/social-fees/:id', protect, authorize('admin_club'), deleteSocial
 router.post('/social-fees/:id/assign', protect, authorize('admin_club', 'administrativo'), assignSocialFee);
 
 // Legacy single-config endpoints (compat)
-router.get('/social-fee', protect, authorize('admin_club', 'administrativo'), getSocialFee);
+router.get('/social-fee', protect, authorize('admin_club', 'dirigente', 'administrativo'), getSocialFee);
 router.patch('/social-fee', protect, authorize('admin_club'), updateSocialFee);
 router.post('/social-fee/generate', protect, authorize('admin_club', 'administrativo'), generarCuotaSocialMes);
 
 // Movimientos de dinero
-router.get('/payments', protect, authorize('admin_club', 'administrativo'), getAllPayments);
-router.get('/payments/stats', protect, authorize('admin_club', 'administrativo'), getPaymentStats);
+router.get('/payments', protect, authorize('admin_club', 'dirigente', 'administrativo'), getAllPayments);
+router.get('/payments/stats', protect, authorize('admin_club', 'dirigente', 'administrativo'), getPaymentStats);
 router.post('/payments/generate', protect, authorize('admin_club', 'administrativo'), generarCuotasMes);
 router.post('/payments/advance', protect, authorize('admin_club', 'administrativo'), advanceAthletePayments);
-router.get('/payments/advance-info/:atletaId', protect, authorize('admin_club', 'administrativo'), getAdvancePaymentsInfo);
+router.get('/payments/advance-info/:atletaId', protect, authorize('admin_club', 'dirigente', 'administrativo'), getAdvancePaymentsInfo);
 router.post('/payments/check-overdue', protect, authorize('admin_club', 'administrativo'), checkOverdue);
-router.get('/payments/pending-review', protect, authorize('admin_club', 'administrativo'), getPendingTransferReviews);
+router.get('/payments/pending-review', protect, authorize('admin_club', 'dirigente', 'administrativo'), getPendingTransferReviews);
 router.patch('/payments/transfer-review/approve', protect, authorize('admin_club', 'administrativo'), approveTransferReviewBatch);
 router.patch('/payments/transfer-review/reject', protect, authorize('admin_club', 'administrativo'), rejectTransferReviewBatch);
 router.post('/payments/submit-transfer-bulk', protect, authorize('atleta', 'tutor', 'socio'), submitBulkTransferProof);
@@ -111,29 +111,29 @@ router.get('/payments/atleta/:atletaId', protect, getAtletaPayments);
 router.get('/payments/:id/recibo', protect, getPaymentReceipt);
 
 // Hermanos y descuentos
-router.get('/family-discount/global', protect, authorize('admin_club', 'administrativo'), getGlobalFamilyDiscount);
+router.get('/family-discount/global', protect, authorize('admin_club', 'dirigente', 'administrativo'), getGlobalFamilyDiscount);
 router.patch('/family-discount/global', protect, authorize('admin_club'), updateGlobalFamilyDiscount);
-router.get('/transfer-bank', protect, authorize('admin_club', 'administrativo'), getTransferBankSettings);
+router.get('/transfer-bank', protect, authorize('admin_club', 'dirigente', 'administrativo'), getTransferBankSettings);
 router.patch('/transfer-bank', protect, authorize('admin_club'), updateTransferBankSettings);
-router.get('/siblings', protect, authorize('admin_club', 'administrativo'), getSiblings);
+router.get('/siblings', protect, authorize('admin_club', 'dirigente', 'administrativo'), getSiblings);
 router.patch('/siblings/discount', protect, authorize('admin_club'), applySiblingDiscount);
 router.post('/siblings/sync-discounts', protect, authorize('admin_club'), syncSiblingDiscounts);
 
 // Dashboard de morosidad
-router.get('/stats/morosidad', protect, authorize('admin_club', 'administrativo'), getMorosidad);
+router.get('/stats/morosidad', protect, authorize('admin_club', 'dirigente', 'administrativo'), getMorosidad);
 
 // Notificaciones / Recordatorios
 router.post('/notifications/send-reminders', protect, authorize('admin_club', 'administrativo'), sendReminders);
 
 // Nómina
-router.get('/payroll/staff', protect, authorize('admin_club'), listPayrollStaff);
-router.get('/payroll', protect, authorize('admin_club'), listPayrollEntries);
+router.get('/payroll/staff', protect, authorize('admin_club', 'dirigente'), listPayrollStaff);
+router.get('/payroll', protect, authorize('admin_club', 'dirigente'), listPayrollEntries);
 router.post('/payroll', protect, authorize('admin_club'), createPayrollEntry);
 router.patch('/payroll/:id', protect, authorize('admin_club'), updatePayrollEntry);
 router.delete('/payroll/:id', protect, authorize('admin_club'), deletePayrollEntry);
 
 // Gastos / facturas
-router.get('/bills', protect, authorize('admin_club'), listBills);
+router.get('/bills', protect, authorize('admin_club', 'dirigente'), listBills);
 router.post('/bills', protect, authorize('admin_club'), createBill);
 router.patch('/bills/:id/pay', protect, authorize('admin_club'), payBill);
 router.patch('/bills/:id', protect, authorize('admin_club'), updateBill);
@@ -141,7 +141,7 @@ router.delete('/bills/:id', protect, authorize('admin_club'), deleteBill);
 
 // Sponsors
 router.get('/sponsors/my-benefits', protect, authorize('atleta', 'tutor', 'socio'), getMySponsorBenefits);
-router.get('/sponsors', protect, authorize('admin_club', 'administrativo'), listSponsors);
+router.get('/sponsors', protect, authorize('admin_club', 'dirigente', 'administrativo'), listSponsors);
 router.post('/sponsors', protect, authorize('admin_club'), createSponsor);
 router.patch('/sponsors/:id/pay-month', protect, authorize('admin_club', 'administrativo'), paySponsorMonth);
 router.patch('/sponsors/:id/unpay-month', protect, authorize('admin_club'), unpaySponsorMonth);
