@@ -262,6 +262,7 @@ export default function FinanzasScreen({ route }) {
 
   const [payModal, setPayModal] = useState(false);
   const pendingPayModalRef = useRef(false);
+  const pendingAlertRef = useRef(null);
   const [bulkPayments, setBulkPayments] = useState([]);
   const [bulkLabel, setBulkLabel] = useState('');
   const [selectedPayment, setSelectedPayment] = useState(null);
@@ -316,6 +317,21 @@ export default function FinanzasScreen({ route }) {
         (() => setAlertConfig((p) => ({ ...p, visible: false }))),
     });
   const closeAlert = () => setAlertConfig((p) => ({ ...p, visible: false }));
+
+  const flushPendingAlert = useCallback(() => {
+    const pending = pendingAlertRef.current;
+    if (!pending) return;
+    pendingAlertRef.current = null;
+    showAlert(pending.title, pending.message, pending.options || {});
+  }, []);
+
+  const queueAlertAfterModalsClose = useCallback((title, message, options = {}) => {
+    pendingAlertRef.current = { title, message, options };
+    setAdvanceModal(false);
+    setAdvanceAtleta(null);
+    const delay = Platform.OS === 'ios' ? 450 : 80;
+    setTimeout(() => flushPendingAlert(), delay);
+  }, [flushPendingAlert]);
 
   const getHeaders = async () => {
     const token = await getToken('userToken');
@@ -818,6 +834,7 @@ export default function FinanzasScreen({ route }) {
   };
 
   const handleNestedModalDismissed = () => {
+    flushPendingAlert();
     if (!pendingPayModalRef.current) return;
     pendingPayModalRef.current = false;
     setPayModal(true);
@@ -880,6 +897,7 @@ export default function FinanzasScreen({ route }) {
     desdeMes,
     desdeAnio,
   }) => {
+    const atletaCtx = advanceAtleta;
     try {
       const h = await getHeaders();
       const r = await clubApi.post(
@@ -894,7 +912,7 @@ export default function FinanzasScreen({ route }) {
 
       const totalNuevas = (r.data?.cuotasCreadas || 0) + (r.data?.socialesCreadas || 0);
       if (totalNuevas > 0 && createdIds.length > 0) {
-        showAlert('Listo', r.data?.message || 'Cuotas creadas.', {
+        queueAlertAfterModalsClose('Listo', r.data?.message || 'Cuotas creadas.', {
           showCancel: true,
           confirmText: 'Pagar ahora',
           cancelText: 'Después',
@@ -914,22 +932,24 @@ export default function FinanzasScreen({ route }) {
                 showAlert('Aviso', 'No se encontraron las cuotas nuevas para pagar.');
                 return;
               }
-              const nombre = advanceAtleta
-                ? `${advanceAtleta.nombre || ''} ${advanceAtleta.apellido || ''}`.trim()
+              const nombre = atletaCtx
+                ? `${atletaCtx.nombre || ''} ${atletaCtx.apellido || ''}`.trim()
                 : '';
-              if (toPay.length === 1) openPayModal(toPay[0], advanceAtleta);
-              else openSelectPayments(toPay, nombre || 'Cuotas adelantadas', advanceAtleta ? [advanceAtleta] : []);
+              if (toPay.length === 1) openPayModal(toPay[0], atletaCtx);
+              else openSelectPayments(toPay, nombre || 'Cuotas adelantadas', atletaCtx ? [atletaCtx] : []);
             } catch {
               showAlert('Error', 'Se crearon las cuotas, pero no se pudo abrir el pago.');
             }
           },
         });
       } else {
-        showAlert('Listo', r.data?.message || 'Sin cuotas nuevas.');
+        queueAlertAfterModalsClose('Listo', r.data?.message || 'Sin cuotas nuevas.');
       }
     } catch (e) {
-      showAlert('Error', e.response?.data?.message || 'No se pudieron crear las cuotas.');
-      throw e;
+      queueAlertAfterModalsClose(
+        'Error',
+        e.response?.data?.message || 'No se pudieron crear las cuotas.',
+      );
     }
   };
 
@@ -1628,6 +1648,7 @@ export default function FinanzasScreen({ route }) {
         primaryColor={cc}
         mes={mes}
         anio={anio}
+        getHeaders={getHeaders}
         onConfirm={handleAdvancePayments}
         onDismiss={handleNestedModalDismissed}
       />

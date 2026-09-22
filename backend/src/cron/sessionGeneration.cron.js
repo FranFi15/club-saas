@@ -3,6 +3,10 @@ import cron from 'node-cron';
 import { getTenantDB } from '../config/db.js';
 import { getTenantModels } from '../utils/tenantModels.js';
 import { maintainSessionBufferForTenant } from '../services/sessionFromSchedule.service.js';
+import {
+    endBillingForEndedSchedules,
+    resumeBillingForActiveSchedules,
+} from '../services/endBillingAfterGrilla.service.js';
 import { parseLocalHourEnv, shouldRunClubCron } from '../utils/clubCronTime.js';
 import { DEFAULT_CLUB_TIMEZONE, normalizeClubTimezone } from '../utils/timeHelper.js';
 
@@ -54,6 +58,22 @@ export function startSessionGenerationCron() {
                 const result = await maintainSessionBufferForTenant(models);
                 totalNuevas += result.creadasCount || 0;
                 ran += 1;
+                try {
+                    const resumed = await resumeBillingForActiveSchedules(models);
+                    if (resumed.resumed > 0) {
+                        console.log(
+                            `[cron-sessions] ${t.urlIdentifier}: facturación reanudada — ${resumed.resumed} inscripción(es)`,
+                        );
+                    }
+                    const billing = await endBillingForEndedSchedules(models);
+                    if (billing.inscripcionesSinFacturar > 0) {
+                        console.log(
+                            `[cron-sessions] ${t.urlIdentifier}: cuotas cerradas por grilla — ${billing.inscripcionesSinFacturar} inscripción(es) en ${billing.categoriasCerradas} categoría(s)`,
+                        );
+                    }
+                } catch (be) {
+                    console.error(`[cron-sessions] ${t.urlIdentifier} billing grilla:`, be.message);
+                }
                 if (result.omitido && result.motivo) {
                     console.log(`[cron-sessions] ${t.urlIdentifier}: omitido — ${result.motivo}`);
                 } else if (result.creadasCount > 0) {

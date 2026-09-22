@@ -4,6 +4,10 @@ import { getTenantDB } from '../config/db.js';
 import { getTenantModels } from '../utils/tenantModels.js';
 import { generateMonthlyPaymentsForTenant } from '../services/generateMonthlyPayments.service.js';
 import { generateSocialFeesForTenant } from '../services/generateSocialFees.service.js';
+import {
+    endBillingForEndedSchedules,
+    resumeBillingForActiveSchedules,
+} from '../services/endBillingAfterGrilla.service.js';
 import { parseLocalHourEnv, shouldRunClubCron } from '../utils/clubCronTime.js';
 import {
     calendarMonthYearInTz,
@@ -58,6 +62,12 @@ export function startPaymentGenerationCron() {
                 const cs = String(t.connectionStringDB).replace(/([^:]\/)\/+/g, '$1');
                 const tenantDB = await getTenantDB(t.urlIdentifier, cs);
                 const models = getTenantModels(tenantDB);
+                try {
+                    await resumeBillingForActiveSchedules(models);
+                    await endBillingForEndedSchedules(models);
+                } catch (be) {
+                    console.error(`[cron-payments] ${t.urlIdentifier} billing grilla:`, be.message);
+                }
                 const stats = await generateMonthlyPaymentsForTenant(models, mes, anio, timezone);
                 totalCreadas += stats.cuotasCreadas;
                 ran += 1;

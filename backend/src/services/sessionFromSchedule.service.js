@@ -29,10 +29,53 @@ export function parseCalendarEndDate(isoOrDate) {
     return new Date(`${ymd}T23:59:59.999Z`);
 }
 
+/** YYYY-MM-DD o ISO → inicio de ese día calendario (UTC). */
+export function parseCalendarStartDate(isoOrDate) {
+    if (!isoOrDate) return null;
+    const raw = String(isoOrDate).trim();
+    const ymd = raw.includes('T') ? raw.split('T')[0] : raw;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
+    return new Date(`${ymd}T00:00:00.000Z`);
+}
+
 export function startOfTodayUtc() {
     const d = new Date();
     d.setUTCHours(0, 0, 0, 0);
     return d;
+}
+
+/** Meses del rango [desde, hasta] que no cubren el mes calendario completo. */
+export function computePartialMonths(desdeIsoOrDate, hastaIsoOrDate, porcentaje = 50) {
+    const desde = parseCalendarStartDate(desdeIsoOrDate);
+    const hasta = parseCalendarEndDate(hastaIsoOrDate);
+    if (!desde || !hasta || hasta < desde) return [];
+
+    const dy = desde.getUTCFullYear();
+    const dm = desde.getUTCMonth() + 1;
+    const dd = desde.getUTCDate();
+    const hy = hasta.getUTCFullYear();
+    const hm = hasta.getUTCMonth() + 1;
+    const hd = hasta.getUTCDate();
+
+    const partial = [];
+    let y = dy;
+    let m = dm;
+    while (y < hy || (y === hy && m <= hm)) {
+        const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+        const isFirst = y === dy && m === dm;
+        const isLast = y === hy && m === hm;
+        const coversFromStart = !isFirst || dd === 1;
+        const coversToEnd = !isLast || hd >= daysInMonth;
+        if (!coversFromStart || !coversToEnd) {
+            partial.push({ mes: m, anio: y, porcentaje });
+        }
+        m += 1;
+        if (m > 12) {
+            m = 1;
+            y += 1;
+        }
+    }
+    return partial;
 }
 
 function weekdayNameFromDate(d) {
@@ -146,6 +189,11 @@ async function generateLoop(models, inicio, fin, scheduleExtraQuery = {}) {
         for (const p of plantillas) {
             if (!p.vigenteHasta || current > p.vigenteHasta) {
                 continue;
+            }
+            if (p.vigenteDesde) {
+                const desde = new Date(p.vigenteDesde);
+                desde.setUTCHours(0, 0, 0, 0);
+                if (current < desde) continue;
             }
             const fechaDia = new Date(current);
             const existe = await Session.findOne({

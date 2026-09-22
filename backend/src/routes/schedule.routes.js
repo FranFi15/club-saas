@@ -5,14 +5,22 @@ import {
     updateSchedule,
     deleteSchedule,
     getSchedulesBySpace,
+    previewPartialMonths,
 } from '../controllers/schedule.controller.js';
 import { protect, authorize } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
 
 router.route('/')
-    .post(protect, authorize('admin_club', 'profe'), addSchedule) // Profes y Admin pueden setear horarios
+    .post(protect, authorize('admin_club', 'profe'), addSchedule)
     .get(protect, getFullGrid);
+
+router.post(
+    '/preview-partial-months',
+    protect,
+    authorize('admin_club', 'profe'),
+    previewPartialMonths,
+);
 
 router.get('/espacio/:spaceId', protect, getSchedulesBySpace);
 

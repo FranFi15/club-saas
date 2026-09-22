@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
-import { 
+import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, 
   ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, RefreshControl,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,14 +18,19 @@ import AdminScreenHeader from '../../components/AdminScreenHeader';
 import DesignCard from '../../components/DesignCard';
 import { sortByNombre } from '../../utils/listSort';
 import SearchableDropdown from '../../components/SearchableDropdown';
+import CalendarDateField from '../../components/CalendarDateField';
 import { maskTimeHHMM, isValidTimeHHMM } from '../../utils/timeDisplay';
 import {
-  maskDateDDMMAAAA,
   displayDateToIsoCalendar,
   isoCalendarDateToDisplay,
   formatJsDateToDisplay,
 } from '../../utils/dateDisplay';
+import { todayYmd } from '../../utils/timeSlots';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+
+function defaultVigenteDesdeDisplay() {
+  return formatJsDateToDisplay(new Date());
+}
 
 function defaultVigenteHastaDisplay() {
   const d = new Date();
@@ -34,6 +39,32 @@ function defaultVigenteHastaDisplay() {
 }
 
 const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+const MN_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+function computePartialMonthsClient(desdeIso, hastaIso, porcentaje = 50) {
+  if (!desdeIso || !hastaIso || desdeIso > hastaIso) return [];
+  const [dy, dm, dd] = desdeIso.split('-').map(Number);
+  const [hy, hm, hd] = hastaIso.split('-').map(Number);
+  const partial = [];
+  let y = dy;
+  let m = dm;
+  while (y < hy || (y === hy && m <= hm)) {
+    const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const isFirst = y === dy && m === dm;
+    const isLast = y === hy && m === hm;
+    const coversFromStart = !isFirst || dd === 1;
+    const coversToEnd = !isLast || hd >= daysInMonth;
+    if (!coversFromStart || !coversToEnd) {
+      partial.push({ mes: m, anio: y, porcentaje });
+    }
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  return partial;
+}
 
 const EMPTY_FORM = {
   disciplina: '',
@@ -42,7 +73,9 @@ const EMPTY_FORM = {
   horaInicio: '18:00',
   horaFin: '19:30',
   espacio: '',
+  vigenteDesde: defaultVigenteDesdeDisplay(),
   vigenteHasta: defaultVigenteHastaDisplay(),
+  terminarCuotasAlFinalizar: false,
 };
 
 export default function GrillaEntrenamientosScreen({ navigation, route }) {
@@ -121,8 +154,18 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
     onConfirm: () => {}, onCancel: () => {}
   });
 
-  const showAlert = (title, message) => {
-    setAlertConfig({ visible: true, title, message, onConfirm: () => setAlertConfig(p => ({...p, visible: false})), onCancel: () => setAlertConfig(p => ({...p, visible: false})) });
+  const showAlert = (title, message, options = {}) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      showCancel: options.showCancel || false,
+      isDanger: options.isDanger || false,
+      confirmText: options.confirmText || 'Aceptar',
+      cancelText: options.cancelText || 'Cancelar',
+      onConfirm: options.onConfirm || (() => setAlertConfig((p) => ({ ...p, visible: false }))),
+      onCancel: options.onCancel || (() => setAlertConfig((p) => ({ ...p, visible: false }))),
+    });
   };
 
   const getHeaders = async () => {
@@ -165,17 +208,9 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
 
   const showInitialLoader = isLoading && schedules.length === 0;
 
-  const handleSaveSchedule = async () => {
-    if (!formData.categoria || !formData.espacio || !formData.horaInicio || !formData.horaFin || formData.diasSemana.length === 0) {
-      return showAlert('Error', 'Todos los campos son necesarios. Elegí al menos un día.');
-    }
-    if (!isValidTimeHHMM(formData.horaInicio) || !isValidTimeHHMM(formData.horaFin)) {
-      return showAlert('Error', 'Usá horarios en formato HH:MM (24 h), por ejemplo 18:30.');
-    }
-    const vigenteIso = displayDateToIsoCalendar(formData.vigenteHasta);
-    if (!vigenteIso) {
-      return showAlert('Error', 'Indicá hasta qué fecha crear sesiones para este horario (DD-MM-AAAA).');
-    }
+  const persistSchedule = async (aplicarMitadMesesParciales) => {
+    const vigenteDesdeIso = displayDateToIsoCalendar(formData.vigenteDesde);
+    const vigenteHastaIso = displayDateToIsoCalendar(formData.vigenteHasta);
     setIsSaving(true);
     try {
       const headers = await getHeaders();
@@ -184,7 +219,10 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
         horaInicio: formData.horaInicio,
         horaFin: formData.horaFin,
         espacio: formData.espacio,
-        vigenteHasta: vigenteIso,
+        vigenteDesde: vigenteDesdeIso,
+        vigenteHasta: vigenteHastaIso,
+        terminarCuotasAlFinalizar: Boolean(formData.terminarCuotasAlFinalizar),
+        aplicarMitadMesesParciales: Boolean(aplicarMitadMesesParciales),
       };
       if (isEditingId) {
         const { data } = await clubApi.put(
@@ -197,6 +235,9 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
         let msg = 'Horario actualizado.';
         if (n > 0) msg = `Horario actualizado. Se ajustaron ${n} sesión(es) programadas.`;
         if (del > 0) msg += ` Se quitaron ${del} sesión(es) posteriores a la nueva fecha límite.`;
+        if (data.facturacion?.resumed > 0) {
+          msg += ` Se reanudó la facturación de ${data.facturacion.resumed} inscripción(es).`;
+        }
         showAlert('Éxito', msg);
       } else {
         const { data } = await clubApi.post(
@@ -206,16 +247,68 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
         );
         showAlert('Éxito', data.message || 'Horario guardado en la grilla.');
       }
-      
+
       reload({ background: true });
       setIsModalVisible(false);
-      setFormData({ ...EMPTY_FORM, vigenteHasta: defaultVigenteHastaDisplay() });
+      setFormData({
+        ...EMPTY_FORM,
+        vigenteDesde: defaultVigenteDesdeDisplay(),
+        vigenteHasta: defaultVigenteHastaDisplay(),
+      });
       setIsEditingId(null);
     } catch (error) {
       showAlert('Error', error.response?.data?.message || 'No se pudo guardar el horario. Revisá que no se pise con otro.');
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleSaveSchedule = async () => {
+    if (!formData.categoria || !formData.espacio || !formData.horaInicio || !formData.horaFin || formData.diasSemana.length === 0) {
+      return showAlert('Error', 'Todos los campos son necesarios. Elegí al menos un día.');
+    }
+    if (!isValidTimeHHMM(formData.horaInicio) || !isValidTimeHHMM(formData.horaFin)) {
+      return showAlert('Error', 'Usá horarios en formato HH:MM (24 h), por ejemplo 18:30.');
+    }
+    const vigenteDesdeIso = displayDateToIsoCalendar(formData.vigenteDesde);
+    const vigenteHastaIso = displayDateToIsoCalendar(formData.vigenteHasta);
+    if (!vigenteDesdeIso) {
+      return showAlert('Error', 'Indicá desde qué fecha crear sesiones.');
+    }
+    if (!vigenteHastaIso) {
+      return showAlert('Error', 'Indicá hasta qué fecha crear sesiones.');
+    }
+    if (vigenteDesdeIso > vigenteHastaIso) {
+      return showAlert('Error', 'La fecha de inicio no puede ser posterior a la de fin.');
+    }
+
+    const parciales = computePartialMonthsClient(vigenteDesdeIso, vigenteHastaIso, 50);
+    if (parciales.length > 0) {
+      const labels = parciales.map((p) => `${MN_CORTOS[p.mes - 1]} ${p.anio}`).join(', ');
+      setIsModalVisible(false);
+      setTimeout(() => {
+        showAlert(
+          'Meses parciales',
+          `${labels} no cubren el mes completo. ¿Aplicar mitad de cuota (50%) en esos meses?`,
+          {
+            showCancel: true,
+            confirmText: 'Sí, mitad',
+            cancelText: 'No',
+            onConfirm: () => {
+              setAlertConfig((p) => ({ ...p, visible: false }));
+              persistSchedule(true);
+            },
+            onCancel: () => {
+              setAlertConfig((p) => ({ ...p, visible: false }));
+              persistSchedule(false);
+            },
+          },
+        );
+      }, Platform.OS === 'ios' ? 400 : 80);
+      return;
+    }
+
+    await persistSchedule(false);
   };
 
   const openEditModal = (item) => {
@@ -227,9 +320,13 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
       horaInicio: item.horaInicio,
       horaFin: item.horaFin,
       espacio: item.espacio?._id || '',
+      vigenteDesde: item.vigenteDesde
+        ? isoCalendarDateToDisplay(String(item.vigenteDesde).split('T')[0])
+        : defaultVigenteDesdeDisplay(),
       vigenteHasta: item.vigenteHasta
         ? isoCalendarDateToDisplay(String(item.vigenteHasta).split('T')[0])
         : defaultVigenteHastaDisplay(),
+      terminarCuotasAlFinalizar: Boolean(item.terminarCuotasAlFinalizar),
     });
     setIsModalVisible(true);
   };
@@ -306,11 +403,37 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
             <Ionicons name="map-outline" size={14} color={theme.textMuted} />
             <Text style={{ marginLeft: 5, color: theme.textMuted, fontSize: 12 }}>{item.espacio?.nombre || 'Espacio no asignado'}</Text>
           </View>
-          {item.vigenteHasta ? (
+          {item.vigenteDesde || item.vigenteHasta ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
               <Ionicons name="calendar-outline" size={14} color={theme.textMuted} />
               <Text style={{ marginLeft: 5, color: theme.textMuted, fontSize: 12 }}>
-                Sesiones hasta {isoCalendarDateToDisplay(String(item.vigenteHasta).split('T')[0])}
+                Sesiones{' '}
+                {item.vigenteDesde
+                  ? `desde ${isoCalendarDateToDisplay(String(item.vigenteDesde).split('T')[0])}`
+                  : ''}
+                {item.vigenteDesde && item.vigenteHasta ? ' ' : ''}
+                {item.vigenteHasta
+                  ? `hasta ${isoCalendarDateToDisplay(String(item.vigenteHasta).split('T')[0])}`
+                  : ''}
+              </Text>
+            </View>
+          ) : null}
+          {item.terminarCuotasAlFinalizar ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+              <Ionicons name="wallet-outline" size={14} color={theme.textMuted} />
+              <Text style={{ marginLeft: 5, color: theme.textMuted, fontSize: 12 }}>
+                Termina cuotas al cerrar
+              </Text>
+            </View>
+          ) : null}
+          {Array.isArray(item.descuentosMesesParciales) && item.descuentosMesesParciales.length > 0 ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+              <Ionicons name="pricetag-outline" size={14} color={theme.textMuted} />
+              <Text style={{ marginLeft: 5, color: theme.textMuted, fontSize: 12 }}>
+                Mitad de cuota:{' '}
+                {item.descuentosMesesParciales
+                  .map((d) => `${MN_CORTOS[(d.mes || 1) - 1]} ${d.anio}`)
+                  .join(', ')}
               </Text>
             </View>
           ) : null}
@@ -501,7 +624,11 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
           style={[styles.fab, { backgroundColor: colorMarca }]}
           onPress={() => {
             setIsEditingId(null);
-            setFormData({ ...EMPTY_FORM, vigenteHasta: defaultVigenteHastaDisplay() });
+            setFormData({
+              ...EMPTY_FORM,
+              vigenteDesde: defaultVigenteDesdeDisplay(),
+              vigenteHasta: defaultVigenteHastaDisplay(),
+            });
             setIsModalVisible(true);
           }}
         >
@@ -517,7 +644,11 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
                  <Text style={[styles.modalTitle, { color: theme.text }]}>{isEditingId ? 'Editar Horario' : 'Agregar a la Grilla'}</Text>
                  <TouchableOpacity onPress={() => {
                    setIsModalVisible(false);
-                   setFormData({ ...EMPTY_FORM, vigenteHasta: defaultVigenteHastaDisplay() });
+                   setFormData({
+                     ...EMPTY_FORM,
+                     vigenteDesde: defaultVigenteDesdeDisplay(),
+                     vigenteHasta: defaultVigenteHastaDisplay(),
+                   });
                    setIsEditingId(null);
                  }}>
                     <Ionicons name="close" size={28} color={theme.icon} />
@@ -610,21 +741,53 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
               </View>
 
               <Text style={[styles.label, { color: theme.textMuted, marginTop: 15 }]}>
-                Crear sesiones hasta (DD-MM-AAAA)
+                Crear sesiones desde
               </Text>
               <Text style={[styles.hint, { color: theme.textMuted }]}>
-                El cron diario genera entrenamientos para este horario solo hasta esta fecha (cada horario tiene su
-                propio límite).
+                Primera fecha en la que se generan entrenamientos de este horario.
               </Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text, marginBottom: 8 }]}
-                placeholder="DD-MM-AAAA"
-                placeholderTextColor={theme.textMuted}
-                keyboardType="number-pad"
-                maxLength={10}
-                value={formData.vigenteHasta}
-                onChangeText={(v) => setFormData({ ...formData, vigenteHasta: maskDateDDMMAAAA(v) })}
+              <CalendarDateField
+                theme={theme}
+                colorMarca={colorMarca}
+                value={formData.vigenteDesde}
+                onChange={(v) => setFormData({ ...formData, vigenteDesde: v })}
+                placeholder="Elegí desde qué día"
+                style={{ backgroundColor: theme.background, marginBottom: 12 }}
               />
+
+              <Text style={[styles.label, { color: theme.textMuted, marginTop: 8 }]}>
+                Crear sesiones hasta
+              </Text>
+              <Text style={[styles.hint, { color: theme.textMuted }]}>
+                Última fecha inclusiva. Si el rango no cubre meses enteros, te vamos a preguntar por mitad de cuota.
+              </Text>
+              <CalendarDateField
+                theme={theme}
+                colorMarca={colorMarca}
+                value={formData.vigenteHasta}
+                onChange={(v) => setFormData({ ...formData, vigenteHasta: v })}
+                placeholder="Elegí hasta qué día"
+                minYmd={displayDateToIsoCalendar(formData.vigenteDesde) || todayYmd()}
+                style={{ backgroundColor: theme.background, marginBottom: 12 }}
+              />
+
+              <View style={[styles.switchRow, { borderColor: theme.border }]}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={[styles.switchLabel, { color: theme.text }]}>
+                    Terminar cuotas al finalizar última sesión
+                  </Text>
+                  <Text style={[styles.hint, { color: theme.textMuted, marginBottom: 0, marginLeft: 0 }]}>
+                    Cuando pase el último día de sesiones de esta categoría, se deja de facturar a los inscriptos (siguen en el plantel).
+                  </Text>
+                </View>
+                <Switch
+                  value={Boolean(formData.terminarCuotasAlFinalizar)}
+                  onValueChange={(v) => setFormData({ ...formData, terminarCuotasAlFinalizar: v })}
+                  trackColor={{ false: theme.border, true: `${colorMarca}88` }}
+                  thumbColor={formData.terminarCuotasAlFinalizar ? colorMarca : '#f4f4f5'}
+                />
+              </View>
+
               {isEditingId ? (
                 <Text style={[styles.hint, { color: theme.textMuted }]}>
                   Si cambiás el día u horario, se actualizan las sesiones programadas que aún no empezaron. Si acortás
@@ -671,6 +834,15 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 25, borderTopRightRadius: 25, padding: 25, paddingBottom: 40, maxHeight: '90%' },
   hint: { fontSize: 12, lineHeight: 17, marginBottom: 8, marginLeft: 4 },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginBottom: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  switchLabel: { fontSize: 14, fontWeight: '700', marginBottom: 4 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 20, fontWeight: 'bold' },
   label: { fontSize: 13, marginBottom: 5, fontWeight: '600', marginLeft: 4 },

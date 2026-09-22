@@ -2,7 +2,7 @@ import asyncHandler from 'express-async-handler';
 import { calendarMonthYearInTz } from '../utils/timeHelper.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
-import { generateMonthlyPaymentsForTenant, advancePaymentsForAthlete } from '../services/generateMonthlyPayments.service.js';
+import { generateMonthlyPaymentsForTenant, advancePaymentsForAthlete, getAthleteAdvanceBillingInfo } from '../services/generateMonthlyPayments.service.js';
 import {
     generateSocialFeesForTenant,
     sanitizeSocialFeeRoles,
@@ -136,17 +136,40 @@ const advanceAthletePayments = asyncHandler(async (req, res) => {
                     : `${from.mes}/${from.anio} → ${to.mes}/${to.anio}`
                 : '';
 
+        let message =
+            totalNuevas > 0
+                ? `Se crearon ${totalNuevas} cuota(s) nueva(s)${rango ? ` (${rango})` : ''}.`
+                : `No se crearon cuotas nuevas${rango ? ` para ${rango}` : ''} (ya existían o no hay plan/asignación).`;
+        if (result.limitadoPorGrilla && result.topeGrilla) {
+            message += ` Tope por grilla: ${result.topeGrilla.mes}/${result.topeGrilla.anio}.`;
+        }
+
         res.status(201).json({
-            message:
-                totalNuevas > 0
-                    ? `Se crearon ${totalNuevas} cuota(s) nueva(s)${rango ? ` (${rango})` : ''}.`
-                    : `No se crearon cuotas nuevas${rango ? ` para ${rango}` : ''} (ya existían o no hay plan/asignación).`,
+            message,
             ...result,
         });
     } catch (e) {
         if (e.statusCode) res.status(e.statusCode);
         throw e;
     }
+});
+
+// @desc    Preview de tope de adelanto (grilla + terminar cuotas)
+// @route   GET /api/financial/payments/advance-info/:atletaId
+const getAdvancePaymentsInfo = asyncHandler(async (req, res) => {
+    const atletaId = req.params.atletaId;
+    if (!atletaId) {
+        res.status(400);
+        throw new Error('Indicá el atleta.');
+    }
+    const desdeMes = req.query.mes != null ? Number(req.query.mes) : undefined;
+    const desdeAnio = req.query.anio != null ? Number(req.query.anio) : undefined;
+    const info = await getAthleteAdvanceBillingInfo(req.models, atletaId, {
+        desdeMes,
+        desdeAnio,
+        timezone: req.clubTimezone,
+    });
+    res.json(info);
 });
 
 // @desc    Listado de tipos de cuota social
@@ -1709,6 +1732,7 @@ export {
     getPlans,
     generarCuotasMes,
     advanceAthletePayments,
+    getAdvancePaymentsInfo,
     listSocialFees,
     createSocialFee,
     updateSocialFeeById,

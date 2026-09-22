@@ -10,6 +10,7 @@ import {
   Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { clubApi } from '../../../utils/api';
 import { MN } from './finanzasConstants';
 
 const PRESETS = [1, 2, 3, 6, 12];
@@ -23,6 +24,14 @@ function periodLabel(mes, anio) {
   return `${MN[(mes || 1) - 1] || mes} ${anio}`;
 }
 
+function isoToDisplay(iso) {
+  if (!iso) return '';
+  const ymd = String(iso).split('T')[0];
+  const [y, m, d] = ymd.split('-');
+  if (!y || !m || !d) return ymd;
+  return `${d}-${m}-${y}`;
+}
+
 export default function AdvancePaymentsModal({
   visible,
   onClose,
@@ -31,40 +40,95 @@ export default function AdvancePaymentsModal({
   primaryColor,
   mes,
   anio,
+  getHeaders,
   onConfirm,
   onDismiss,
 }) {
   const [cantidad, setCantidad] = useState(3);
   const [incluirSocial, setIncluirSocial] = useState(true);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!visible) return;
-    setCantidad(3);
-    setIncluirSocial(true);
-    setSaving(false);
-  }, [visible]);
+  const [loadingInfo, setLoadingInfo] = useState(false);
+  const [advanceInfo, setAdvanceInfo] = useState(null);
 
   const startMes = Number(mes) || new Date().getMonth() + 1;
   const startAnio = Number(anio) || new Date().getFullYear();
 
+  useEffect(() => {
+    if (!visible) return;
+    setIncluirSocial(true);
+    setSaving(false);
+    setAdvanceInfo(null);
+
+    let cancelled = false;
+    (async () => {
+      if (!atleta?._id || !getHeaders) {
+        setCantidad(3);
+        return;
+      }
+      setLoadingInfo(true);
+      try {
+        const h = await getHeaders();
+        const r = await clubApi.get(`/financial/payments/advance-info/${atleta._id}`, {
+          headers: h,
+          params: { mes: startMes, anio: startAnio },
+        });
+        if (cancelled) return;
+        const info = r.data || null;
+        setAdvanceInfo(info);
+        const max = Number(info?.maxMeses);
+        if (info?.limitadoPorGrilla && Number.isFinite(max)) {
+          if (max < 1) setCantidad(1);
+          else setCantidad(Math.min(3, max));
+        } else {
+          setCantidad(3);
+        }
+      } catch {
+        if (!cancelled) {
+          setAdvanceInfo(null);
+          setCantidad(3);
+        }
+      } finally {
+        if (!cancelled) setLoadingInfo(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, atleta?._id, getHeaders, startMes, startAnio]);
+
+  const maxMeses = useMemo(() => {
+    if (advanceInfo?.limitadoPorGrilla && Number.isFinite(Number(advanceInfo.maxMeses))) {
+      return Math.max(0, Number(advanceInfo.maxMeses));
+    }
+    return 24;
+  }, [advanceInfo]);
+
+  const presets = useMemo(
+    () => PRESETS.filter((n) => n <= maxMeses || maxMeses <= 0),
+    [maxMeses],
+  );
+
   const rango = useMemo(() => {
+    const capped = maxMeses > 0 ? Math.min(cantidad, maxMeses) : cantidad;
     const from = { mes: startMes, anio: startAnio };
-    const to = addMonths(startMes, startAnio, Math.max(0, cantidad - 1));
-    return { from, to };
-  }, [startMes, startAnio, cantidad]);
+    const to = addMonths(startMes, startAnio, Math.max(0, capped - 1));
+    return { from, to, capped };
+  }, [startMes, startAnio, cantidad, maxMeses]);
 
   const nombre = atleta
     ? `${atleta.nombre || ''} ${atleta.apellido || ''}`.trim()
     : '';
 
+  const grillaBloqueada = advanceInfo?.limitadoPorGrilla && maxMeses < 1;
+
   const handleConfirm = async () => {
-    if (!atleta?._id || saving) return;
+    if (!atleta?._id || saving || grillaBloqueada) return;
     setSaving(true);
     try {
       await onConfirm?.({
         atletaId: atleta._id,
-        cantidadMeses: cantidad,
+        cantidadMeses: grillaBloqueada ? 1 : Math.max(1, rango.capped),
         incluirSocial,
         desdeMes: startMes,
         desdeAnio: startAnio,
@@ -97,72 +161,126 @@ export default function AdvancePaymentsModal({
           {nombre ? (
             <Text style={[styles.sub, { color: theme.textMuted }]}>{nombre}</Text>
           ) : null}
-          <Text style={[styles.hint, { color: theme.textMuted }]}>
-            Se crean cuotas pendientes desde {periodLabel(rango.from.mes, rango.from.anio)}
-            {cantidad > 1
-              ? ` hasta ${periodLabel(rango.to.mes, rango.to.anio)}`
-              : ''}
-            . Las que ya existan se omiten.
-          </Text>
 
-          <Text style={[styles.label, { color: theme.text }]}>Cantidad de meses</Text>
-          <View style={styles.presets}>
-            {PRESETS.map((n) => {
-              const active = cantidad === n;
-              return (
-                <TouchableOpacity
-                  key={n}
-                  style={[
-                    styles.preset,
-                    {
-                      borderColor: active ? primaryColor : theme.border,
-                      backgroundColor: active ? `${primaryColor}18` : theme.background,
-                    },
-                  ]}
-                  onPress={() => setCantidad(n)}
-                  activeOpacity={0.75}
-                >
-                  <Text
-                    style={{
-                      color: active ? primaryColor : theme.text,
-                      fontWeight: '800',
-                      fontSize: 15,
-                    }}
-                  >
-                    {n}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          {loadingInfo ? (
+            <ActivityIndicator color={primaryColor} style={{ marginVertical: 20 }} />
+          ) : (
+            <>
+              {advanceInfo?.limitadoPorGrilla ? (
+                <View style={[styles.capBox, { backgroundColor: `${primaryColor}14`, borderColor: primaryColor }]}>
+                  <Ionicons name="calendar-outline" size={18} color={primaryColor} />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={[styles.capTitle, { color: theme.text }]}>
+                      Tope por fin de grilla
+                    </Text>
+                    <Text style={{ color: theme.textMuted, fontSize: 12, lineHeight: 17 }}>
+                      {grillaBloqueada
+                        ? 'La grilla ya terminó y tiene “terminar cuotas” activo. No hay meses de entrenamiento para adelantar.'
+                        : `Con “terminar cuotas al finalizar” solo se pueden crear cuotas de entrenamiento hasta ${periodLabel(
+                            advanceInfo.tope?.mes,
+                            advanceInfo.tope?.anio,
+                          )}${
+                            advanceInfo.tope?.vigenteHasta
+                              ? ` (última sesión ${isoToDisplay(advanceInfo.tope.vigenteHasta)})`
+                              : ''
+                          }.`}
+                    </Text>
+                    {(advanceInfo.caps || []).length > 1 ? (
+                      <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 6 }}>
+                        {(advanceInfo.caps || [])
+                          .map(
+                            (c) =>
+                              `${c.categoriaNombre}: ${periodLabel(c.mes, c.anio)}`,
+                          )
+                          .join(' · ')}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
 
-          <View style={[styles.switchRow, { borderColor: theme.border }]}>
-            <View style={{ flex: 1, paddingRight: 12 }}>
-              <Text style={[styles.switchLabel, { color: theme.text }]}>Incluir cuota social</Text>
-              <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
-                Si tiene tipo asignado y no está exento.
+              <Text style={[styles.hint, { color: theme.textMuted }]}>
+                {grillaBloqueada
+                  ? 'Podés generar solo cuota social si corresponde.'
+                  : `Se crean cuotas pendientes desde ${periodLabel(rango.from.mes, rango.from.anio)}${
+                      rango.capped > 1
+                        ? ` hasta ${periodLabel(rango.to.mes, rango.to.anio)}`
+                        : ''
+                    }. Las que ya existan se omiten.`}
               </Text>
-            </View>
-            <Switch
-              value={incluirSocial}
-              onValueChange={setIncluirSocial}
-              trackColor={{ false: theme.border, true: `${primaryColor}88` }}
-              thumbColor={incluirSocial ? primaryColor : '#f4f4f5'}
-            />
-          </View>
 
-          <TouchableOpacity
-            style={[styles.confirm, { backgroundColor: primaryColor, opacity: saving ? 0.65 : 1 }]}
-            onPress={handleConfirm}
-            disabled={saving}
-            activeOpacity={0.8}
-          >
-            {saving ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.confirmTxt}>Crear cuotas</Text>
-            )}
-          </TouchableOpacity>
+              {!grillaBloqueada ? (
+                <>
+                  <Text style={[styles.label, { color: theme.text }]}>Cantidad de meses</Text>
+                  <View style={styles.presets}>
+                    {(presets.length ? presets : [Math.max(1, maxMeses)]).map((n) => {
+                      const active = cantidad === n;
+                      return (
+                        <TouchableOpacity
+                          key={n}
+                          style={[
+                            styles.preset,
+                            {
+                              borderColor: active ? primaryColor : theme.border,
+                              backgroundColor: active ? `${primaryColor}18` : theme.background,
+                            },
+                          ]}
+                          onPress={() => setCantidad(n)}
+                          activeOpacity={0.75}
+                        >
+                          <Text
+                            style={{
+                              color: active ? primaryColor : theme.text,
+                              fontWeight: '800',
+                              fontSize: 15,
+                            }}
+                          >
+                            {n}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </>
+              ) : null}
+
+              <View style={[styles.switchRow, { borderColor: theme.border }]}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={[styles.switchLabel, { color: theme.text }]}>Incluir cuota social</Text>
+                  <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
+                    Si tiene tipo asignado y no está exento. No está limitada por la grilla.
+                  </Text>
+                </View>
+                <Switch
+                  value={incluirSocial}
+                  onValueChange={setIncluirSocial}
+                  trackColor={{ false: theme.border, true: `${primaryColor}88` }}
+                  thumbColor={incluirSocial ? primaryColor : '#f4f4f5'}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.confirm,
+                  {
+                    backgroundColor: primaryColor,
+                    opacity: saving || (grillaBloqueada && !incluirSocial) ? 0.55 : 1,
+                  },
+                ]}
+                onPress={handleConfirm}
+                disabled={saving || (grillaBloqueada && !incluirSocial)}
+                activeOpacity={0.8}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.confirmTxt}>
+                    {grillaBloqueada ? 'Crear cuota social' : 'Crear cuotas'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </View>
     </Modal>
@@ -197,6 +315,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  capBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+  },
+  capTitle: { fontSize: 13, fontWeight: '800', marginBottom: 2 },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',

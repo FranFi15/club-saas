@@ -24,8 +24,26 @@ const scheduleSchema = new mongoose.Schema({
         ref: 'Space', 
         required: true 
     },
+    /** Desde qué fecha (inclusive) el cron crea sesiones para este horario. */
+    vigenteDesde: { type: Date, default: null },
     /** Hasta qué fecha (inclusive) el cron crea sesiones para este horario. */
     vigenteHasta: { type: Date, required: true },
+    /**
+     * Si es true, al pasar el último día de sesiones de la categoría
+     * (máx. vigenteHasta entre sus horarios) se deja de facturar a los inscriptos.
+     */
+    terminarCuotasAlFinalizar: { type: Boolean, default: false },
+    /**
+     * Meses con cobertura parcial (inicio/fin a mitad de mes) donde se aplica
+     * un % extra de descuento al generar la cuota (ej. mitad de cuota = 50).
+     */
+    descuentosMesesParciales: [
+        {
+            mes: { type: Number, min: 1, max: 12, required: true },
+            anio: { type: Number, required: true },
+            porcentaje: { type: Number, min: 0, max: 100, default: 50 },
+        },
+    ],
 }, { timestamps: true });
 
 // Índice para evitar que una categoría tenga el mismo horario duplicado

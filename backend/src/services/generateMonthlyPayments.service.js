@@ -16,7 +16,7 @@ import { isBecaPlan, removeOpenTrainingPaymentsForBeca } from './becaPlan.servic
 import { userHasRole } from '../constants/userRoles.js';
 import { ensureSocialFeeForUser } from './generateSocialFees.service.js';
 
-function paymentAmountsFromEnrollment(inscripcion) {
+function paymentAmountsFromEnrollment(inscripcion, { partialMonthPct = 0 } = {}) {
     const plan = typeof inscripcion.plan === 'object' && inscripcion.plan
         ? inscripcion.plan
         : null;
@@ -24,13 +24,29 @@ function paymentAmountsFromEnrollment(inscripcion) {
     if (isBecaPlan(plan)) return null;
 
     const valorCuota = Number(plan.monto) || 0;
-    let dineroDescontado = 0;
     let montoAFacturar = valorCuota;
-    const pct = Number(inscripcion.descuentoPorcentaje) || 0;
-    if (pct > 0) {
-        dineroDescontado = (valorCuota * pct) / 100;
-        montoAFacturar = valorCuota - dineroDescontado;
+    let dineroDescontado = 0;
+    const motivos = [];
+
+    const familyPct = Number(inscripcion.descuentoPorcentaje) || 0;
+    if (familyPct > 0) {
+        const d = (montoAFacturar * familyPct) / 100;
+        dineroDescontado += d;
+        montoAFacturar -= d;
+        if (inscripcion.motivoDescuento) motivos.push(inscripcion.motivoDescuento);
+        else motivos.push(`Descuento ${familyPct}%`);
     }
+
+    const parcial = Math.min(100, Math.max(0, Number(partialMonthPct) || 0));
+    if (parcial > 0) {
+        const d = (montoAFacturar * parcial) / 100;
+        dineroDescontado += d;
+        montoAFacturar -= d;
+        motivos.push(
+            parcial === 50 ? 'Mitad de cuota (mes parcial)' : `Descuento mes parcial ${parcial}%`,
+        );
+    }
+
     const diaVenc = plan.diaVencimiento || 10;
     return {
         planId: plan._id || plan.id,
@@ -38,11 +54,34 @@ function paymentAmountsFromEnrollment(inscripcion) {
         dineroDescontado,
         montoAFacturar,
         diaVenc,
-        motivoDescuento: inscripcion.motivoDescuento,
+        motivoDescuento: motivos.filter(Boolean).join(' · ') || undefined,
     };
 }
 
 export { paymentAmountsFromEnrollment };
+
+async function getCategoryPartialMonthPct(models, categoriaId, mes, anio) {
+    if (!categoriaId) return 0;
+    const { Schedule } = models;
+    const slots = await Schedule.find({
+        categoria: categoriaId,
+        descuentosMesesParciales: {
+            $elemMatch: { mes: Number(mes), anio: Number(anio) },
+        },
+    })
+        .select('descuentosMesesParciales')
+        .lean();
+
+    let max = 0;
+    for (const s of slots) {
+        for (const d of s.descuentosMesesParciales || []) {
+            if (Number(d.mes) === Number(mes) && Number(d.anio) === Number(anio)) {
+                max = Math.max(max, Number(d.porcentaje) || 0);
+            }
+        }
+    }
+    return max;
+}
 
 /**
  * Recalcula montos de cuotas abiertas (pendiente/vencido) según el descuento de la inscripción.
@@ -99,10 +138,20 @@ export async function retargetOpenPaymentsFromEnrollments(
 
         const planForAmounts =
             insc.plan && typeof insc.plan === 'object' ? insc.plan : p.plan;
-        const amounts = paymentAmountsFromEnrollment({
-            ...(insc.toObject?.() || insc),
-            plan: planForAmounts,
-        });
+        const catForPartial = insc.categoria?._id || insc.categoria || p.categoria;
+        const partialPct = await getCategoryPartialMonthPct(
+            models,
+            catForPartial,
+            p.mes,
+            p.anio,
+        );
+        const amounts = paymentAmountsFromEnrollment(
+            {
+                ...(insc.toObject?.() || insc),
+                plan: planForAmounts,
+            },
+            { partialMonthPct: partialPct },
+        );
         if (!amounts) continue;
 
         const same =
@@ -165,10 +214,20 @@ export async function countOpenPaymentsNeedingDiscountRetarget(models, athleteId
         if (!insc) continue;
         const planForAmounts =
             insc.plan && typeof insc.plan === 'object' ? insc.plan : p.plan;
-        const amounts = paymentAmountsFromEnrollment({
-            ...(insc.toObject?.() || insc),
-            plan: planForAmounts,
-        });
+        const catForPartial = insc.categoria?._id || insc.categoria || p.categoria;
+        const partialPct = await getCategoryPartialMonthPct(
+            models,
+            catForPartial,
+            p.mes,
+            p.anio,
+        );
+        const amounts = paymentAmountsFromEnrollment(
+            {
+                ...(insc.toObject?.() || insc),
+                plan: planForAmounts,
+            },
+            { partialMonthPct: partialPct },
+        );
         if (!amounts) continue;
         const same =
             Math.abs(Number(p.montoFinal) - amounts.montoAFacturar) < 0.01 &&
@@ -239,11 +298,12 @@ export async function ensurePaymentForEnrollment(models, enrollment, mes, anio, 
         }
     }
 
-    const amounts = paymentAmountsFromEnrollment(insc);
+    const categoriaId = insc.categoria?._id || insc.categoria;
+    const partialPct = await getCategoryPartialMonthPct(models, categoriaId, mes, anio);
+    const amounts = paymentAmountsFromEnrollment(insc, { partialMonthPct: partialPct });
     if (!amounts) return { created: false, omitted: true, reason: 'sin_plan' };
 
     const atletaId = insc.atleta?._id || insc.atleta;
-    const categoriaId = insc.categoria?._id || insc.categoria;
     const disciplinaId = disciplinaIdFromEnrollment(insc);
 
     if (disciplinaId) {
@@ -347,9 +407,109 @@ function addCalendarMonths(mes, anio, delta) {
     return { mes: (idx % 12) + 1, anio: Math.floor(idx / 12) };
 }
 
+function monthRank(mes, anio) {
+    return Number(anio) * 12 + Number(mes);
+}
+
+function periodAfterCap(period, cap) {
+    if (!cap) return false;
+    return monthRank(period.mes, period.anio) > monthRank(cap.mes, cap.anio);
+}
+
+/**
+ * Si la categoría tiene grilla con "terminar cuotas al finalizar",
+ * el tope de facturación es el mes del máximo vigenteHasta (última sesión).
+ */
+export async function getCategoryBillingCap(models, categoriaId) {
+    const { Schedule } = models;
+    if (!categoriaId) return null;
+
+    const slots = await Schedule.find({ categoria: categoriaId })
+        .select('vigenteHasta terminarCuotasAlFinalizar')
+        .lean();
+    if (!slots.length) return null;
+    if (!slots.some((s) => s.terminarCuotasAlFinalizar)) return null;
+
+    let maxHasta = null;
+    for (const s of slots) {
+        if (!s.vigenteHasta) continue;
+        const d = new Date(s.vigenteHasta);
+        if (!maxHasta || d > maxHasta) maxHasta = d;
+    }
+    if (!maxHasta) return null;
+
+    return {
+        mes: maxHasta.getUTCMonth() + 1,
+        anio: maxHasta.getUTCFullYear(),
+        vigenteHasta: maxHasta,
+    };
+}
+
+/** Preview de tope de adelanto por grilla (terminar cuotas). */
+export async function getAthleteAdvanceBillingInfo(
+    models,
+    atletaId,
+    { desdeMes, desdeAnio, timezone = DEFAULT_CLUB_TIMEZONE } = {},
+) {
+    const { Enrollment, User } = models;
+    const now = calendarMonthYearInTz(new Date(), timezone);
+    const startMes = Number(desdeMes) || now.mes;
+    const startAnio = Number(desdeAnio) || now.anio;
+
+    const user = await User.findById(atletaId).select('nombre apellido').lean();
+    const enrollments = await Enrollment.find({
+        atleta: atletaId,
+        estado: 'activo',
+        esFacturacion: true,
+        plan: { $ne: null },
+    })
+        .select('categoria')
+        .populate('categoria', 'nombre');
+
+    const caps = [];
+    let latestCap = null;
+    for (const insc of enrollments) {
+        const catId = insc.categoria?._id || insc.categoria;
+        const cap = await getCategoryBillingCap(models, catId);
+        if (!cap) continue;
+        const entry = {
+            categoriaId: String(catId),
+            categoriaNombre: insc.categoria?.nombre || 'Categoría',
+            mes: cap.mes,
+            anio: cap.anio,
+            vigenteHasta: cap.vigenteHasta,
+        };
+        caps.push(entry);
+        if (
+            !latestCap ||
+            monthRank(entry.mes, entry.anio) > monthRank(latestCap.mes, latestCap.anio)
+        ) {
+            latestCap = entry;
+        }
+    }
+
+    let maxMeses = 24;
+    if (latestCap) {
+        const delta =
+            monthRank(latestCap.mes, latestCap.anio) - monthRank(startMes, startAnio) + 1;
+        maxMeses = Math.max(0, Math.min(24, delta));
+    }
+
+    return {
+        atleta: user,
+        desdeMes: startMes,
+        desdeAnio: startAnio,
+        limitadoPorGrilla: caps.length > 0,
+        caps,
+        tope: latestCap,
+        maxMeses,
+    };
+}
+
 /**
  * Genera cuotas de entrenamiento (y opcionalmente social) para un atleta
  * en N meses consecutivos a partir del mes indicado (default: mes actual del club).
+ * Respeta tope de grilla cuando "terminar cuotas al finalizar" está activo.
  */
 export async function advancePaymentsForAthlete(
     models,
@@ -392,7 +552,7 @@ export async function advancePaymentsForAthlete(
         throw err;
     }
 
-    const n = Math.min(24, Math.max(1, Math.floor(Number(cantidadMeses) || 1)));
+    let n = Math.min(24, Math.max(1, Math.floor(Number(cantidadMeses) || 1)));
 
     const enrollments = await Enrollment.find({
         atleta: atletaId,
@@ -408,8 +568,51 @@ export async function advancePaymentsForAthlete(
             populate: { path: 'disciplina', select: 'nombre' },
         });
 
+    const capByCategory = new Map();
+    let latestTrainingCap = null;
+    for (const insc of enrollments) {
+        const catId = String(insc.categoria?._id || insc.categoria || '');
+        if (!catId || capByCategory.has(catId)) continue;
+        const cap = await getCategoryBillingCap(models, catId);
+        capByCategory.set(catId, cap);
+        if (cap) {
+            if (
+                !latestTrainingCap ||
+                monthRank(cap.mes, cap.anio) > monthRank(latestTrainingCap.mes, latestTrainingCap.anio)
+            ) {
+                latestTrainingCap = cap;
+            }
+        }
+    }
+
+    const allCapped =
+        enrollments.length > 0 &&
+        enrollments.every((insc) => {
+            const catId = String(insc.categoria?._id || insc.categoria || '');
+            return Boolean(capByCategory.get(catId));
+        });
+    if (allCapped && latestTrainingCap) {
+        const delta =
+            monthRank(latestTrainingCap.mes, latestTrainingCap.anio) -
+            monthRank(startMes, startAnio) +
+            1;
+        if (delta < 1) {
+            if (!incluirSocial) {
+                const err = new Error(
+                    'La grilla de entrenamiento ya terminó (terminar cuotas al finalizar). No hay meses para adelantar.',
+                );
+                err.statusCode = 400;
+                throw err;
+            }
+            // Solo social: igual generamos el rango pedido sin cuotas de entrenamiento.
+        } else {
+            n = Math.min(n, delta);
+        }
+    }
+
     let cuotasCreadas = 0;
     let cuotasOmitidas = 0;
+    let cuotasFueraDeGrilla = 0;
     let socialesCreadas = 0;
     let socialesOmitidas = 0;
     const paymentIds = [];
@@ -420,6 +623,12 @@ export async function advancePaymentsForAthlete(
         periodos.push(period);
 
         for (const insc of enrollments) {
+            const catId = String(insc.categoria?._id || insc.categoria || '');
+            const cap = capByCategory.get(catId);
+            if (periodAfterCap(period, cap)) {
+                cuotasFueraDeGrilla += 1;
+                continue;
+            }
             const result = await ensurePaymentForEnrollment(
                 models,
                 insc,
@@ -457,9 +666,14 @@ export async function advancePaymentsForAthlete(
         periodos,
         cuotasCreadas,
         cuotasOmitidas,
+        cuotasFueraDeGrilla,
         socialesCreadas,
         socialesOmitidas,
         paymentIds,
         inscripciones: enrollments.length,
+        limitadoPorGrilla: [...capByCategory.values()].some(Boolean),
+        topeGrilla: latestTrainingCap
+            ? { mes: latestTrainingCap.mes, anio: latestTrainingCap.anio }
+            : null,
     };
 }
