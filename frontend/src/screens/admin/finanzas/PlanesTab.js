@@ -255,7 +255,7 @@ export default function PlanesTab({
           canEdit={canEditSocialFee}
         />
 
-        <Text style={[s.sectionTitle, { color: theme.text, marginTop: 24 }]}>Planes de cuota</Text>
+        <Text style={[s.sectionTitle, { color: theme.text, marginTop: 24 }]}>Cuotas y Planes</Text>
         <Text style={[s.sectionSub, { color: theme.textMuted, marginBottom: 10 }]}>
           Creá y editá los montos. Luego asignalos a cada disciplina o categoría.
         </Text>

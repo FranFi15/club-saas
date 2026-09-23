@@ -449,7 +449,7 @@ export default function EspaciosFisicosScreen({ navigation }) {
         theme={theme}
         isDarkMode={isDarkMode}
         accent={statusColor}
-        onPress={() => openStatusModal(item)}
+        onPress={canManageSpaces ? () => openStatusModal(item) : undefined}
         style={{ marginBottom: canManageSpaces ? 12 : undefined }}
         contentStyle={styles.cardInner}
       >

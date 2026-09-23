@@ -37,7 +37,16 @@ function formatDate(value) {
   }
 }
 
-export default function GastosTab({ clubData, theme, primaryColor, getHeaders, showAlert, mes, anio }) {
+export default function GastosTab({
+  clubData,
+  theme,
+  primaryColor,
+  getHeaders,
+  showAlert,
+  mes,
+  anio,
+  canMutate = true,
+}) {
   const { isDarkMode } = useContext(ThemeContext);
   const cc = primaryColor;
   const cacheKey = clubData?.urlIdentifier ? `finanzas-gastos:${clubData.urlIdentifier}` : '';
@@ -368,14 +377,16 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
         </View>
 
         <View style={[s.financeCardActions, { borderTopColor: theme.border }]}>
-          <TouchableOpacity
-            style={[s.financeCardActionBtn, contrastOutlineBtn(theme, isDarkMode)]}
-            onPress={() => openEdit(item)}
-            hitSlop={6}
-          >
-            <Ionicons name="create-outline" size={15} color={theme.text} />
-            <Text style={[s.financeCardActionTxt, { color: theme.text }]}>Editar</Text>
-          </TouchableOpacity>
+          {canMutate ? (
+            <TouchableOpacity
+              style={[s.financeCardActionBtn, contrastOutlineBtn(theme, isDarkMode)]}
+              onPress={() => openEdit(item)}
+              hitSlop={6}
+            >
+              <Ionicons name="create-outline" size={15} color={theme.text} />
+              <Text style={[s.financeCardActionTxt, { color: theme.text }]}>Editar</Text>
+            </TouchableOpacity>
+          ) : null}
           {!!item.facturaUrl && (
             <TouchableOpacity
               style={[s.financeCardActionBtn, contrastOutlineBtn(theme, isDarkMode)]}
@@ -404,7 +415,7 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
               <Text style={[s.financeCardActionTxt, { color: theme.text }]}>Comprobante</Text>
             </TouchableOpacity>
           )}
-          {!isPaid && (
+          {canMutate && !isPaid ? (
             <TouchableOpacity
               style={[s.financeCardActionBtn, { borderColor: '#a7f3d0', backgroundColor: '#ecfdf5' }]}
               onPress={() => openPayFor(item)}
@@ -413,18 +424,20 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
               <Ionicons name="checkmark-circle-outline" size={15} color="#10b981" />
               <Text style={[s.financeCardActionTxt, { color: '#10b981' }]}>Registrar pago</Text>
             </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={[s.financeCardActionBtn, { borderColor: '#fecaca', backgroundColor: '#fef2f2' }]}
-            onPress={() => confirmDelete(item)}
-            disabled={busy}
-            hitSlop={6}
-          >
-            <Ionicons name="trash-outline" size={15} color="#ef4444" />
-            <Text style={[s.financeCardActionTxt, { color: '#ef4444' }]}>
-              {busy ? 'Eliminando…' : 'Eliminar'}
-            </Text>
-          </TouchableOpacity>
+          ) : null}
+          {canMutate ? (
+            <TouchableOpacity
+              style={[s.financeCardActionBtn, { borderColor: '#fecaca', backgroundColor: '#fef2f2' }]}
+              onPress={() => confirmDelete(item)}
+              disabled={busy}
+              hitSlop={6}
+            >
+              <Ionicons name="trash-outline" size={15} color="#ef4444" />
+              <Text style={[s.financeCardActionTxt, { color: '#ef4444' }]}>
+                {busy ? 'Eliminando…' : 'Eliminar'}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </DesignCard>
     );
@@ -483,16 +496,20 @@ export default function GastosTab({ clubData, theme, primaryColor, getHeaders, s
               <Ionicons name="receipt-outline" size={40} color={theme.textMuted} />
               <Text style={[s.emptyTxt, { color: theme.text }]}>Sin facturas</Text>
               <Text style={[s.emptySub, { color: theme.textMuted }]}>
-                Tocá + para crear una factura o pagar una existente.
+                {canMutate
+                  ? 'Tocá + para crear una factura o pagar una existente.'
+                  : 'No hay facturas en este período.'}
               </Text>
             </View>
           }
         />
       )}
 
-      <TouchableOpacity style={[s.fab, { backgroundColor: cc }]} onPress={() => setModeModal(true)}>
-        <Ionicons name="add" size={28} color="#fff" />
-      </TouchableOpacity>
+      {canMutate ? (
+        <TouchableOpacity style={[s.fab, { backgroundColor: cc }]} onPress={() => setModeModal(true)}>
+          <Ionicons name="add" size={28} color="#fff" />
+        </TouchableOpacity>
+      ) : null}
 
       {/* Choose flow */}
       <Modal visible={modeModal} animationType="fade" transparent onRequestClose={() => setModeModal(false)}>

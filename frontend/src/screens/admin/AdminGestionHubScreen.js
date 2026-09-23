@@ -70,10 +70,19 @@ export default function AdminGestionHubScreen({ navigation }) {
     }, [refresh]),
   );
 
-  const DIRIGENTE_HIDDEN = new Set(['EscanearIngreso', 'PedirDocumentacion']);
+  const DIRIGENTE_HIDDEN = new Set([
+    'Pendientes',
+    'EscanearIngreso',
+    'PedirDocumentacion',
+    'RevisarDocumentacion',
+  ]);
   const items = canViewOwner
     ? isDirigenteRole(viewerRol)
-      ? OWNER_ITEMS.filter((i) => !DIRIGENTE_HIDDEN.has(i.route))
+      ? OWNER_ITEMS.filter((i) => !DIRIGENTE_HIDDEN.has(i.route)).map((i) =>
+          i.route === 'ChatInbox'
+            ? { ...i, subtitle: 'Mensajes con staff y administración' }
+            : i,
+        )
       : OWNER_ITEMS
     : OPS_ITEMS;
 

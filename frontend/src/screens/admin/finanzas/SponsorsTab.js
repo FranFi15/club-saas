@@ -48,7 +48,16 @@ function benefitLines(text) {
     .filter(Boolean);
 }
 
-export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders, showAlert, mes, anio }) {
+export default function SponsorsTab({
+  clubData,
+  theme,
+  primaryColor,
+  getHeaders,
+  showAlert,
+  mes,
+  anio,
+  canMutate = true,
+}) {
   const { isDarkMode } = useContext(ThemeContext);
   const cc = primaryColor;
   const periodMes = mes || new Date().getMonth() + 1;
@@ -353,39 +362,42 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
           </View>
         </View>
 
-        <View style={[styles.actionsRow, { borderTopColor: theme.border }]}>
-          <TouchableOpacity
-            style={[styles.actionBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
-            onPress={() => openEdit(item)}
-          >
-            <Ionicons name="pencil-outline" size={15} color={theme.text} />
-            <Text style={[styles.actionTxt, { color: theme.text }]}>Editar</Text>
-          </TouchableOpacity>
-          {!paid ? (
-            <TouchableOpacity
-              style={[styles.actionBtn, { borderColor: '#a7f3d0', backgroundColor: '#ecfdf5' }]}
-              onPress={() => openPay(item)}
-            >
-              <Ionicons name="checkmark-circle-outline" size={15} color="#10b981" />
-              <Text style={[styles.actionTxt, { color: '#10b981' }]}>Confirmar</Text>
-            </TouchableOpacity>
-          ) : (
-            <>
-              {pago?.comprobanteUrl ? (
-                <TouchableOpacity
-                  style={[styles.actionBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
-                  onPress={async () => {
-                    try {
-                      await openAttachmentUrl(pago.comprobanteUrl);
-                    } catch (e) {
-                      showAlert('Error', e.message || 'No se pudo abrir el comprobante.');
-                    }
-                  }}
-                >
-                  <Ionicons name="image-outline" size={15} color={theme.text} />
-                  <Text style={[styles.actionTxt, { color: theme.text }]}>Comprobante</Text>
-                </TouchableOpacity>
-              ) : null}
+        {(canMutate || (paid && pago?.comprobanteUrl)) ? (
+          <View style={[styles.actionsRow, { borderTopColor: theme.border }]}>
+            {canMutate ? (
+              <TouchableOpacity
+                style={[styles.actionBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+                onPress={() => openEdit(item)}
+              >
+                <Ionicons name="pencil-outline" size={15} color={theme.text} />
+                <Text style={[styles.actionTxt, { color: theme.text }]}>Editar</Text>
+              </TouchableOpacity>
+            ) : null}
+            {canMutate && !paid ? (
+              <TouchableOpacity
+                style={[styles.actionBtn, { borderColor: '#a7f3d0', backgroundColor: '#ecfdf5' }]}
+                onPress={() => openPay(item)}
+              >
+                <Ionicons name="checkmark-circle-outline" size={15} color="#10b981" />
+                <Text style={[styles.actionTxt, { color: '#10b981' }]}>Confirmar</Text>
+              </TouchableOpacity>
+            ) : null}
+            {paid && pago?.comprobanteUrl ? (
+              <TouchableOpacity
+                style={[styles.actionBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
+                onPress={async () => {
+                  try {
+                    await openAttachmentUrl(pago.comprobanteUrl);
+                  } catch (e) {
+                    showAlert('Error', e.message || 'No se pudo abrir el comprobante.');
+                  }
+                }}
+              >
+                <Ionicons name="image-outline" size={15} color={theme.text} />
+                <Text style={[styles.actionTxt, { color: theme.text }]}>Comprobante</Text>
+              </TouchableOpacity>
+            ) : null}
+            {canMutate && paid ? (
               <TouchableOpacity
                 style={[styles.actionBtn, { borderColor: '#fde68a', backgroundColor: '#fffbeb' }]}
                 onPress={() => openPay(item)}
@@ -393,16 +405,18 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
                 <Ionicons name="create-outline" size={15} color="#d97706" />
                 <Text style={[styles.actionTxt, { color: '#d97706' }]}>Actualizar</Text>
               </TouchableOpacity>
-            </>
-          )}
-          <TouchableOpacity
-            style={[styles.actionBtn, { borderColor: '#fecaca', backgroundColor: '#fef2f2' }]}
-            onPress={() => confirmDelete(item)}
-          >
-            <Ionicons name="trash-outline" size={15} color="#ef4444" />
-            <Text style={[styles.actionTxt, { color: '#ef4444' }]}>Eliminar</Text>
-          </TouchableOpacity>
-        </View>
+            ) : null}
+            {canMutate ? (
+              <TouchableOpacity
+                style={[styles.actionBtn, { borderColor: '#fecaca', backgroundColor: '#fef2f2' }]}
+                onPress={() => confirmDelete(item)}
+              >
+                <Ionicons name="trash-outline" size={15} color="#ef4444" />
+                <Text style={[styles.actionTxt, { color: '#ef4444' }]}>Eliminar</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
       </DesignCard>
     );
   };
@@ -423,13 +437,17 @@ export default function SponsorsTab({ clubData, theme, primaryColor, getHeaders,
       <View style={styles.topBar}>
         <View style={{ flex: 1 }}>
           <Text style={{ color: theme.textMuted, fontSize: 13 }}>
-            Confirmá el pago y adjuntá el comprobante
+            {canMutate
+              ? 'Confirmá el pago y adjuntá el comprobante'
+              : 'Sponsors del club (solo lectura)'}
           </Text>
         </View>
-        <TouchableOpacity style={[styles.addBtn, { backgroundColor: cc }]} onPress={openCreate}>
-          <Ionicons name="add" size={18} color="#fff" />
-          <Text style={styles.addBtnTxt}>Nuevo</Text>
-        </TouchableOpacity>
+        {canMutate ? (
+          <TouchableOpacity style={[styles.addBtn, { backgroundColor: cc }]} onPress={openCreate}>
+            <Ionicons name="add" size={18} color="#fff" />
+            <Text style={styles.addBtnTxt}>Nuevo</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {loading && !sponsors.length ? (

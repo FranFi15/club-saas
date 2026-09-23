@@ -30,6 +30,7 @@ import {
 import { pickPaginatedRows } from '../../utils/paginatedApi';
 import { copyText } from '../../utils/copyText';
 import DesignCard from '../../components/DesignCard';
+import { canMutateAsAdmin } from '../../constants/appRoles';
 
 const MN = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DN = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
@@ -48,6 +49,9 @@ export default function AlquileresScreen({ navigation }) {
   const { theme, isDarkMode } = useContext(ThemeContext);
   const cc = clubData?.primaryColor || '#3b82f6';
   const spacesCacheKey = clubData?.urlIdentifier ? `admin-alquileres-spaces:${clubData.urlIdentifier}` : '';
+
+  const [viewerRol, setViewerRol] = useState('');
+  const canMutateRentals = canMutateAsAdmin(viewerRol);
 
   const [spaces, setSpaces] = useState(() => readScreenCache(spacesCacheKey)?.list ?? []);
   const [selectedSpace, setSelectedSpace] = useState(null);
@@ -106,6 +110,10 @@ export default function AlquileresScreen({ navigation }) {
     const token = await getToken('userToken');
     return { 'x-club-identifier': clubData.urlIdentifier, 'Authorization': `Bearer ${token}` };
   };
+
+  useEffect(() => {
+    getToken('userRol').then((r) => setViewerRol(r || ''));
+  }, []);
 
   const fetchMpReady = useCallback(async () => {
     if (!clubData?.urlIdentifier) return;
@@ -470,7 +478,7 @@ export default function AlquileresScreen({ navigation }) {
         onPress={() => setDetailRental(r)}
         contentStyle={styles.reservaInner}
         footer={
-          canCancel || rentalNeedsFullPayment(r) ? (
+          canMutateRentals && (canCancel || rentalNeedsFullPayment(r)) ? (
             <View style={styles.reservaFooterActions}>
               {rentalNeedsFullPayment(r) ? (
                 <TouchableOpacity
@@ -574,16 +582,27 @@ export default function AlquileresScreen({ navigation }) {
         <Text style={{ color: isDarkMode ? '#d1d5db' : '#6b7280', fontSize: 12 }}>No disponible</Text>
       );
       onTap = null;
-    } else {
+    } else if (canMutateRentals) {
       icon = <Ionicons name="add-circle-outline" size={18} color="#10b981" />;
       label = 'Disponible';
       sub = <Text style={{color:'#10b981',fontSize:12}}>Toque para reservar</Text>;
       onTap = () => openNewRental(slot.horaInicio);
+    } else {
+      icon = <Ionicons name="ellipse-outline" size={18} color={theme.textMuted} />;
+      label = 'Libre';
+      sub = <Text style={{color:theme.textMuted,fontSize:12}}>Sin reserva</Text>;
+      onTap = null;
     }
 
     const isUnavailable = status.tipo === 'entrenamiento';
     const accent =
-      status.tipo === 'alquiler' ? '#f59e0b' : status.tipo === 'entrenamiento' ? (isDarkMode ? '#9ca3af' : '#6b7280') : '#10b981';
+      status.tipo === 'alquiler'
+        ? '#f59e0b'
+        : status.tipo === 'entrenamiento'
+          ? (isDarkMode ? '#9ca3af' : '#6b7280')
+          : canMutateRentals
+            ? '#10b981'
+            : theme.textMuted;
 
     return (
       <DesignCard
@@ -807,7 +826,7 @@ export default function AlquileresScreen({ navigation }) {
         )}
       </ScrollView>
 
-      {activeTab === 'calendario' ? (
+      {activeTab === 'calendario' && canMutateRentals ? (
       <TouchableOpacity style={[styles.fab, { backgroundColor: '#10b981' }]} onPress={()=>openNewRental(null)}>
         <Ionicons name="calendar-outline" size={24} color="#fff" />
       </TouchableOpacity>
@@ -1110,7 +1129,7 @@ export default function AlquileresScreen({ navigation }) {
                         </Text>
                       </View>
                     ) : null}
-                    {rentalNeedsFullPayment(detailRental) ? (
+                    {canMutateRentals && rentalNeedsFullPayment(detailRental) ? (
                       <TouchableOpacity
                         style={[
                           styles.saveBtn,
@@ -1134,7 +1153,7 @@ export default function AlquileresScreen({ navigation }) {
                         )}
                       </TouchableOpacity>
                     ) : null}
-                    {mpReady && rentalNeedsFullPayment(detailRental) ? (
+                    {canMutateRentals && mpReady && rentalNeedsFullPayment(detailRental) ? (
                       <TouchableOpacity
                         style={[styles.saveBtn, { backgroundColor: '#009EE3', marginBottom: 12 }]}
                         onPress={() => openMpCobro(detailRental)}
@@ -1144,14 +1163,16 @@ export default function AlquileresScreen({ navigation }) {
                         <Text style={styles.saveBtnText}>Cobrar con Mercado Pago</Text>
                       </TouchableOpacity>
                     ) : null}
-                    <TouchableOpacity
-                      style={[styles.saveBtn, { backgroundColor: '#ef4444' }]}
-                      onPress={() => handleDeleteRental(detailRental, true)}
-                      activeOpacity={0.75}
-                    >
-                      <Ionicons name="close-circle-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
-                      <Text style={styles.saveBtnText}>Cancelar alquiler</Text>
-                    </TouchableOpacity>
+                    {canMutateRentals ? (
+                      <TouchableOpacity
+                        style={[styles.saveBtn, { backgroundColor: '#ef4444' }]}
+                        onPress={() => handleDeleteRental(detailRental, true)}
+                        activeOpacity={0.75}
+                      >
+                        <Ionicons name="close-circle-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+                        <Text style={styles.saveBtnText}>Cancelar alquiler</Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </ScrollView>
                 )}
 

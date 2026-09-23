@@ -49,6 +49,7 @@ export default function NominaTab({
   showAlert,
   mes,
   anio,
+  canMutate = true,
 }) {
   const { isDarkMode } = useContext(ThemeContext);
   const cc = primaryColor;
@@ -297,41 +298,47 @@ export default function NominaTab({
           </View>
         </View>
 
-        <View style={[s.financeCardActions, { borderTopColor: theme.border }]}>
-          <TouchableOpacity
-            style={[s.financeCardActionBtn, contrastOutlineBtn(theme, isDarkMode)]}
-            onPress={() => openEdit(item)}
-            hitSlop={6}
-          >
-            <Ionicons name="create-outline" size={15} color={theme.text} />
-            <Text style={[s.financeCardActionTxt, { color: theme.text }]}>Editar</Text>
-          </TouchableOpacity>
-          {!!item.comprobanteUrl && (
-            <TouchableOpacity
-              style={[s.financeCardActionBtn, contrastOutlineBtn(theme, isDarkMode)]}
-              onPress={() =>
-                openAttachmentUrl(item.comprobanteUrl).catch((e) =>
-                  showAlert('Error', e.message || 'No se pudo abrir.'),
-                )
-              }
-              hitSlop={6}
-            >
-              <Ionicons name="document-attach-outline" size={15} color={theme.text} />
-              <Text style={[s.financeCardActionTxt, { color: theme.text }]}>Comprobante</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={[s.financeCardActionBtn, { borderColor: '#fecaca', backgroundColor: '#fef2f2' }]}
-            onPress={() => confirmDelete(item)}
-            disabled={busy}
-            hitSlop={6}
-          >
-            <Ionicons name="trash-outline" size={15} color="#ef4444" />
-            <Text style={[s.financeCardActionTxt, { color: '#ef4444' }]}>
-              {busy ? 'Eliminando…' : 'Eliminar'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {(canMutate || !!item.comprobanteUrl) ? (
+          <View style={[s.financeCardActions, { borderTopColor: theme.border }]}>
+            {canMutate ? (
+              <TouchableOpacity
+                style={[s.financeCardActionBtn, contrastOutlineBtn(theme, isDarkMode)]}
+                onPress={() => openEdit(item)}
+                hitSlop={6}
+              >
+                <Ionicons name="create-outline" size={15} color={theme.text} />
+                <Text style={[s.financeCardActionTxt, { color: theme.text }]}>Editar</Text>
+              </TouchableOpacity>
+            ) : null}
+            {!!item.comprobanteUrl && (
+              <TouchableOpacity
+                style={[s.financeCardActionBtn, contrastOutlineBtn(theme, isDarkMode)]}
+                onPress={() =>
+                  openAttachmentUrl(item.comprobanteUrl).catch((e) =>
+                    showAlert('Error', e.message || 'No se pudo abrir.'),
+                  )
+                }
+                hitSlop={6}
+              >
+                <Ionicons name="document-attach-outline" size={15} color={theme.text} />
+                <Text style={[s.financeCardActionTxt, { color: theme.text }]}>Comprobante</Text>
+              </TouchableOpacity>
+            )}
+            {canMutate ? (
+              <TouchableOpacity
+                style={[s.financeCardActionBtn, { borderColor: '#fecaca', backgroundColor: '#fef2f2' }]}
+                onPress={() => confirmDelete(item)}
+                disabled={busy}
+                hitSlop={6}
+              >
+                <Ionicons name="trash-outline" size={15} color="#ef4444" />
+                <Text style={[s.financeCardActionTxt, { color: '#ef4444' }]}>
+                  {busy ? 'Eliminando…' : 'Eliminar'}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
       </DesignCard>
     );
   };
@@ -400,9 +407,11 @@ export default function NominaTab({
         />
       )}
 
-      <TouchableOpacity style={[s.fab, { backgroundColor: cc }]} onPress={openCreate}>
-        <Ionicons name="add" size={28} color="#fff" />
-      </TouchableOpacity>
+      {canMutate ? (
+        <TouchableOpacity style={[s.fab, { backgroundColor: cc }]} onPress={openCreate}>
+          <Ionicons name="add" size={28} color="#fff" />
+        </TouchableOpacity>
+      ) : null}
 
       <Modal visible={modalOpen} animationType="slide" transparent onRequestClose={closeModal}>
         <KeyboardAvoidingView

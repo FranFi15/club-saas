@@ -138,6 +138,7 @@ export default function FinanzasScreen({ route }) {
   const canManageClubFinances = isClubOwnerRole(viewerRol);
   const canRunPeriodActions = canMutateAsAdmin(viewerRol);
   const canViewFullFinanzas = canViewOwnerAdminUI(viewerRol);
+  const showAccionesMenu = canRunPeriodActions || canManageClubFinances;
   const visibleTabs = canViewFullFinanzas
     ? TABS
     : TABS.filter((t) => t.key === 'atletas' || t.key === 'familias');
@@ -1242,12 +1243,18 @@ export default function FinanzasScreen({ route }) {
         theme={theme}
         colorMarca={cc}
         kicker="Finanzas"
-        title={showRevisionHeader ? 'Revisión' : showPlanesHeader ? 'Planes' : 'Pagos'}
+        title={
+          showRevisionHeader
+            ? 'Revisión'
+            : showPlanesHeader
+              ? 'Cuotas y Planes'
+              : 'Pagos'
+        }
         subtitle={
           showRevisionHeader
             ? 'Comprobantes pendientes'
             : showPlanesHeader
-              ? 'Planes de cuota'
+              ? 'Planes y cuota social'
               : showVencidosHeader
                 ? 'Todas las cuotas vencidas'
                 : undefined
@@ -1260,28 +1267,30 @@ export default function FinanzasScreen({ route }) {
             : undefined
         }
         rightAccessory={
-          <TouchableOpacity
-            style={financeHeader.iconBtn}
-            onPress={() => setMoreOpen(true)}
-            accessibilityLabel="Más acciones"
-          >
-            <Ionicons name="ellipsis-horizontal" size={20} color="#fff" />
-            {revisionBadge > 0 && !showRevisionHeader ? (
-              <View
-                style={{
-                  position: 'absolute',
-                  top: 4,
-                  right: 4,
-                  width: 8,
-                  height: 8,
-                  borderRadius: 4,
-                  backgroundColor: '#ef4444',
-                  borderWidth: 1,
-                  borderColor: '#fff',
-                }}
-              />
-            ) : null}
-          </TouchableOpacity>
+          showAccionesMenu ? (
+            <TouchableOpacity
+              style={financeHeader.iconBtn}
+              onPress={() => setMoreOpen(true)}
+              accessibilityLabel="Más acciones"
+            >
+              <Ionicons name="ellipsis-horizontal" size={20} color="#fff" />
+              {revisionBadge > 0 && !showRevisionHeader ? (
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: 4,
+                    right: 4,
+                    width: 8,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: '#ef4444',
+                    borderWidth: 1,
+                    borderColor: '#fff',
+                  }}
+                />
+              ) : null}
+            </TouchableOpacity>
+          ) : undefined
         }
         bottomRightAccessory={
           showMonthNav ? (
@@ -1310,7 +1319,12 @@ export default function FinanzasScreen({ route }) {
         }
       />
 
-      <Modal visible={moreOpen} transparent animationType="fade" onRequestClose={() => setMoreOpen(false)}>
+      <Modal
+        visible={moreOpen && showAccionesMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMoreOpen(false)}
+      >
         <Pressable style={financeHeader.menuOverlay} onPress={() => setMoreOpen(false)}>
           <Pressable style={[financeHeader.menuSheet, { backgroundColor: theme.surface }]} onPress={(e) => e.stopPropagation()}>
             <View style={financeHeader.menuHandle} />
@@ -1337,7 +1351,7 @@ export default function FinanzasScreen({ route }) {
                 }}
               >
                 <Ionicons name="document-text-outline" size={20} color={theme.text} />
-                <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Planes de cuota</Text>
+                <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Cuotas y Planes</Text>
               </TouchableOpacity>
             ) : null}
             {canRunPeriodActions && (showCuotaPeriodActions || showVencidosHeader) ? (
@@ -1543,6 +1557,7 @@ export default function FinanzasScreen({ route }) {
                     showAlert={showAlert}
                     mes={mes}
                     anio={anio}
+                    canMutate={canManageClubFinances}
                   />
                 ) : null}
                 {t.key === 'gastos' ? (
@@ -1554,6 +1569,7 @@ export default function FinanzasScreen({ route }) {
                     showAlert={showAlert}
                     mes={mes}
                     anio={anio}
+                    canMutate={canManageClubFinances}
                   />
                 ) : null}
                 {t.key === 'sponsors' ? (
@@ -1565,6 +1581,7 @@ export default function FinanzasScreen({ route }) {
                     showAlert={showAlert}
                     mes={mes}
                     anio={anio}
+                    canMutate={canManageClubFinances}
                   />
                 ) : null}
               </View>
@@ -1633,14 +1650,18 @@ export default function FinanzasScreen({ route }) {
         theme={theme}
         primaryColor={cc}
         refreshKey={historyRefresh}
-        onPay={(p) => openPayModal(p, historyAtleta)}
-        onDeletePayment={deleteHistoryPayment}
-        onAdvance={() => {
-          const a = historyAtleta;
-          setHistoryModal(false);
-          openAdvance(a);
-        }}
-        canDelete
+        onPay={canRunPeriodActions ? (p) => openPayModal(p, historyAtleta) : undefined}
+        onDeletePayment={canRunPeriodActions ? deleteHistoryPayment : undefined}
+        onAdvance={
+          canRunPeriodActions
+            ? () => {
+                const a = historyAtleta;
+                setHistoryModal(false);
+                openAdvance(a);
+              }
+            : undefined
+        }
+        canDelete={canRunPeriodActions}
         onDismiss={handleNestedModalDismissed}
       />
 

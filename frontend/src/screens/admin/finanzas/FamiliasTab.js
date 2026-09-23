@@ -76,7 +76,7 @@ export default function FamiliasTab({
       const pctActual = Number(familyDiscountDisplay(g)) || 0;
       const inputVal = discountInput[tutorId] ?? (pctActual ? String(pctActual) : '');
       const impagas = g.cuotasImpagas || [];
-      const canPayAll = impagas.length > 0;
+      const canPayAll = impagas.length > 0 && typeof onSelectPayments === 'function';
       const accent = g.totalImpago > 0 ? '#ef4444' : '#10b981';
       const totalOriginal = sumPayments(impagas, 'montoOriginal') || g.totalImpago || 0;
       const totalDto = sumPayments(impagas, 'descuentoAplicado');

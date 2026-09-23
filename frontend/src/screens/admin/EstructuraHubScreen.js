@@ -10,7 +10,7 @@ import HubMenuCard from '../../components/HubMenuCard';
 import DesignCard from '../../components/DesignCard';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
-import { canViewOwnerAdminUI } from '../../constants/appRoles';
+import { canViewOwnerAdminUI, canMutateAsAdmin } from '../../constants/appRoles';
 
 export default function EstructuraHubScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
@@ -18,6 +18,8 @@ export default function EstructuraHubScreen({ navigation }) {
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const [viewerRol, setViewerRol] = useState('');
   const isClubOwner = canViewOwnerAdminUI(viewerRol);
+  const canInviteFamily = canMutateAsAdmin(viewerRol);
+  const canSeeEnrollmentRequests = canMutateAsAdmin(viewerRol);
 
   useEffect(() => {
     getToken('userRol').then((r) => setViewerRol(r || ''));
@@ -154,14 +156,16 @@ export default function EstructuraHubScreen({ navigation }) {
               colorMarca={colorMarca}
               onPress={() => navigation.navigate('Usuarios')}
             />
-            <HubMenuCard
-              title="Invitar familia"
-              subtitle="Generá un enlace para que el tutor se registre"
-              icon="link"
-              theme={theme}
-              colorMarca={colorMarca}
-              onPress={() => navigation.navigate('InvitarFamilia')}
-            />
+            {canInviteFamily ? (
+              <HubMenuCard
+                title="Invitar familia"
+                subtitle="Generá un enlace para que el tutor se registre"
+                icon="link"
+                theme={theme}
+                colorMarca={colorMarca}
+                onPress={() => navigation.navigate('InvitarFamilia')}
+              />
+            ) : null}
             <HubMenuCard
               title="Estructura deportiva"
               subtitle="Disciplinas y categorías"
@@ -186,15 +190,17 @@ export default function EstructuraHubScreen({ navigation }) {
               colorMarca={colorMarca}
               onPress={() => navigation.navigate('Grilla')}
             />
-            <HubMenuCard
-              title="Solicitudes de inscripción"
-              subtitle="Altas de atletas pedidas por el cuerpo técnico"
-              icon="person-add"
-              badge={hub('solicitudesInscripcion')}
-              theme={theme}
-              colorMarca={colorMarca}
-              onPress={() => navigation.navigate('SolicitudesInscripcion')}
-            />
+            {canSeeEnrollmentRequests ? (
+              <HubMenuCard
+                title="Solicitudes de inscripción"
+                subtitle="Altas de atletas pedidas por el cuerpo técnico"
+                icon="person-add"
+                badge={hub('solicitudesInscripcion')}
+                theme={theme}
+                colorMarca={colorMarca}
+                onPress={() => navigation.navigate('SolicitudesInscripcion')}
+              />
+            ) : null}
           </>
         ) : (
           <>
@@ -222,23 +228,27 @@ export default function EstructuraHubScreen({ navigation }) {
               colorMarca={colorMarca}
               onPress={() => navigation.navigate('Usuarios')}
             />
-            <HubMenuCard
-              title="Invitar familia"
-              subtitle="Enlace para alta de tutor y atletas"
-              icon="link"
-              theme={theme}
-              colorMarca={colorMarca}
-              onPress={() => navigation.navigate('InvitarFamilia')}
-            />
-            <HubMenuCard
-              title="Solicitudes de inscripción"
-              subtitle="Altas de atletas pedidas por el cuerpo técnico"
-              icon="person-add"
-              badge={hub('solicitudesInscripcion')}
-              theme={theme}
-              colorMarca={colorMarca}
-              onPress={() => navigation.navigate('SolicitudesInscripcion')}
-            />
+            {canInviteFamily ? (
+              <HubMenuCard
+                title="Invitar familia"
+                subtitle="Enlace para alta de tutor y atletas"
+                icon="link"
+                theme={theme}
+                colorMarca={colorMarca}
+                onPress={() => navigation.navigate('InvitarFamilia')}
+              />
+            ) : null}
+            {canSeeEnrollmentRequests ? (
+              <HubMenuCard
+                title="Solicitudes de inscripción"
+                subtitle="Altas de atletas pedidas por el cuerpo técnico"
+                icon="person-add"
+                badge={hub('solicitudesInscripcion')}
+                theme={theme}
+                colorMarca={colorMarca}
+                onPress={() => navigation.navigate('SolicitudesInscripcion')}
+              />
+            ) : null}
             <HubMenuCard
               title="Espacios físicos"
               subtitle="Mantenimiento y clausuras"

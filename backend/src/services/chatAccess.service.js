@@ -124,6 +124,11 @@ export async function canChat(models, userA, userB) {
     const rolA = userA.rol;
     const rolB = userB.rol;
 
+    // Dirigente: solo staff y administración (no atletas/tutores/socios/ops)
+    const dirigentePeerOk = (otherRol) => ADMIN_ROLES.has(otherRol) || STAFF_ROLES.has(otherRol);
+    if (rolA === 'dirigente') return dirigentePeerOk(rolB);
+    if (rolB === 'dirigente') return dirigentePeerOk(rolA);
+
     if (ADMIN_ROLES.has(rolA) || ADMIN_ROLES.has(rolB)) return true;
 
     // Control ingreso / colaborador ↔ entre sí y con cuerpo técnico (no abre staff↔staff)
@@ -210,12 +215,26 @@ export async function listEligibleRecipients(models, user) {
         .lean();
     addMany(admins);
 
+    // Dirigente: solo administración + cuerpo técnico
+    if (user.rol === 'dirigente') {
+        const staff = await User.find({
+            estado: 'activo',
+            _id: { $ne: user._id },
+            ...roleQueryMany([...STAFF_ROLES]),
+        })
+            .select(USER_SELECT)
+            .lean();
+        addMany(staff);
+        return [...out.values()].sort(sortByName);
+    }
+
     if (ADMIN_ROLES.has(user.rol) || userHasAnyRole(user, ADMIN_ROLES)) {
         const everyone = await User.find({
             estado: 'activo',
             _id: { $ne: user._id },
             ...roleQueryMany([
                     'admin_club',
+                    'dirigente',
                     'administrativo',
                     'control_ingreso',
                     'colaborador',

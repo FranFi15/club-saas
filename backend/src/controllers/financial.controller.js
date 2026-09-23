@@ -1537,7 +1537,7 @@ async function assertMemberCanViewAtletaPayments(req, atletaId) {
         }
         return;
     }
-    if (['admin_club', 'administrativo'].includes(rol)) {
+    if (['admin_club', 'dirigente', 'administrativo'].includes(rol)) {
         return;
     }
     deny(403, 'No autorizado.');

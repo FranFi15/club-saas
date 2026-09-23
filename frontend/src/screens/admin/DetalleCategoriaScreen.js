@@ -106,18 +106,25 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
 
   const [alertConfig, setAlertConfig] = useState({
     visible: false, title: '', message: '', showCancel: false, isDanger: false,
-    onConfirm: () => {}, onCancel: () => {}
+    embedded: false, onConfirm: () => {}, onCancel: () => {},
   });
 
   const showAlert = (title, message, options = {}) => {
     setAlertConfig({
       visible: true, title, message,
       showCancel: options.showCancel || false, isDanger: options.isDanger || false,
+      embedded: Boolean(options.embedded),
       confirmText: options.confirmText || 'Aceptar', cancelText: options.cancelText || 'Cancelar',
-      onConfirm: options.onConfirm || closeAlert, onCancel: closeAlert
+      onConfirm: options.onConfirm || closeAlert, onCancel: options.onCancel || closeAlert,
     });
   };
-  const closeAlert = () => setAlertConfig(prev => ({ ...prev, visible: false }));
+  const closeAlert = () => setAlertConfig((prev) => ({ ...prev, visible: false, embedded: false }));
+
+  // RN freezes / hides second Modal if CustomAlert opens while the picker Modal is mounted.
+  const alertAfterPickerClose = (title, message, options = {}) => {
+    setIsPickerVisible(false);
+    setTimeout(() => showAlert(title, message, options), 350);
+  };
 
   const getHeaders = async () => {
     const token = await getToken('userToken');
@@ -444,12 +451,11 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
     if (added.length) {
       setEnrollments((prev) => sortEnrollmentsByAtleta([...prev, ...added]));
     }
-    setIsPickerVisible(false);
     setSelectedAthleteIds(new Set());
     setSubmittingAthletes(false);
 
     if (added.length && !errors.length && !conflicts.length) {
-      showAlert(
+      alertAfterPickerClose(
         'Éxito',
         added.length === 1
           ? `${added[0].atleta.nombre} inscripto correctamente.`
@@ -466,12 +472,12 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
       );
     }
     if (errors.length) parts.push(`Errores:\n${errors.join('\n')}`);
-    showAlert(added.length ? 'Listo' : 'Error', parts.join('\n\n') || 'No se pudo vincular.');
+    alertAfterPickerClose(added.length ? 'Listo' : 'Error', parts.join('\n\n') || 'No se pudo vincular.');
   };
 
   const submitSelectedAthletes = async () => {
     if (selectedAthleteIds.size === 0) {
-      showAlert('Atletas', 'Seleccioná al menos un atleta.');
+      showAlert('Atletas', 'Seleccioná al menos un atleta.', { embedded: true });
       return;
     }
     const picked = availableUsers.filter((u) => selectedAthleteIds.has(u._id));
@@ -486,6 +492,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
           ? `${names} es menor a la edad mínima${minAge != null ? ` (${minAge} años)` : ''}. ¿Querés agregarlo igual?`
           : `${underMin.length} atletas son menores a la edad mínima${minAge != null ? ` (${minAge} años)` : ''}: ${names}. ¿Querés agregarlos igual?`;
       showAlert('Edad mínima', msg, {
+        embedded: true,
         showCancel: true,
         confirmText: 'Agregar igual',
         cancelText: 'Volver',
@@ -510,7 +517,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
         const nuevosProfes = [...profesores.map(p => p._id), user._id];
         await clubApi.put(`/categories/${categoria._id}`, { profesores: nuevosProfes }, { headers: await getHeaders() });
         setProfesores([...profesores, user]);
-        showAlert('Éxito', `${user.nombre} añadido como profesor/a.`);
+        setTimeout(() => showAlert('Éxito', `${user.nombre} añadido como profesor/a.`), 350);
       } else if (activeTab === 'preparadores') {
         const nuevos = [...preparadoresFisicos.map((p) => p._id), user._id];
         await clubApi.put(
@@ -519,20 +526,23 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
           { headers: await getHeaders() },
         );
         setPreparadoresFisicos([...preparadoresFisicos, user]);
-        showAlert('Éxito', `${user.nombre} añadido/a como preparador/a físico/a.`);
+        setTimeout(() => showAlert('Éxito', `${user.nombre} añadido/a como preparador/a físico/a.`), 350);
       } else if (activeTab === 'nutricionistas') {
         const nuevos = [...nutricionistas.map((p) => p._id), user._id];
         await clubApi.put(`/categories/${categoria._id}`, { nutricionistas: nuevos }, { headers: await getHeaders() });
         setNutricionistas([...nutricionistas, user]);
-        showAlert('Éxito', `${user.nombre} añadido/a como nutricionista.`);
+        setTimeout(() => showAlert('Éxito', `${user.nombre} añadido/a como nutricionista.`), 350);
       } else {
         const nuevos = [...psicologos.map((p) => p._id), user._id];
         await clubApi.put(`/categories/${categoria._id}`, { psicologos: nuevos }, { headers: await getHeaders() });
         setPsicologos([...psicologos, user]);
-        showAlert('Éxito', `${user.nombre} añadido/a como psicólogo/a.`);
+        setTimeout(() => showAlert('Éxito', `${user.nombre} añadido/a como psicólogo/a.`), 350);
       }
     } catch (error) {
-      showAlert('Error', error.response?.data?.message || 'No se pudo vincular.');
+      setTimeout(
+        () => showAlert('Error', error.response?.data?.message || 'No se pudo vincular.'),
+        350,
+      );
     }
   };
 
@@ -974,7 +984,12 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
                                : 'Psicólogo/a'
                        }`}
                  </Text>
-                 <TouchableOpacity onPress={() => setIsPickerVisible(false)}>
+                 <TouchableOpacity
+                   onPress={() => {
+                     closeAlert();
+                     setIsPickerVisible(false);
+                   }}
+                 >
                     <Ionicons name="close" size={28} color={theme.icon} />
                  </TouchableOpacity>
               </View>
@@ -1093,6 +1108,18 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
                 </TouchableOpacity>
               ) : null}
            </View>
+           <CustomAlert
+             embedded
+             visible={alertConfig.visible && alertConfig.embedded}
+             title={alertConfig.title}
+             message={alertConfig.message}
+             showCancel={alertConfig.showCancel}
+             isDanger={alertConfig.isDanger}
+             confirmText={alertConfig.confirmText}
+             onConfirm={alertConfig.onConfirm}
+             cancelText={alertConfig.cancelText}
+             onCancel={alertConfig.onCancel}
+           />
         </View>
       </Modal>
 
@@ -1159,7 +1186,8 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
       </Modal>
 
       <CustomAlert 
-        visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message}
+        visible={alertConfig.visible && !alertConfig.embedded}
+        title={alertConfig.title} message={alertConfig.message}
         showCancel={alertConfig.showCancel} isDanger={alertConfig.isDanger}
         confirmText={alertConfig.confirmText} onConfirm={alertConfig.onConfirm}
         cancelText={alertConfig.cancelText} onCancel={alertConfig.onCancel}

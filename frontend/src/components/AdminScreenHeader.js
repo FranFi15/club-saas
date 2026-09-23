@@ -21,12 +21,18 @@ export default function AdminScreenHeader({
   showNotifications = true,
   showClubLogo = true,
 }) {
-  // Toolbar solo con volver: en hubs (sin back) logo/título quedan centrados más arriba.
+  // Con volver: acciones + campana van juntos arriba a la derecha (evita solaparse con el título).
   const showTopToolbar = !!onBack;
   const midRightAccessory = !onBack ? rightAccessory : null;
-  const toolbarRightAccessory = onBack ? rightAccessory : null;
-  const showMidRight = showNotifications || !!midRightAccessory;
+  const showMidRight = !onBack && (showNotifications || !!midRightAccessory);
   const midRightWide = showNotifications && !!midRightAccessory;
+  const toolbarRightContent =
+    onBack && (rightAccessory || showNotifications) ? (
+      <>
+        {rightAccessory}
+        {showNotifications ? <NotificationBell /> : null}
+      </>
+    ) : null;
 
   return (
     <View style={[styles.headerWrap, { backgroundColor: theme.background }]}>
@@ -54,8 +60,8 @@ export default function AdminScreenHeader({
               </CoachHeaderActions>
             </View>
             <View style={styles.toolbarRight}>
-              {toolbarRightAccessory ? (
-                <CoachHeaderActions>{toolbarRightAccessory}</CoachHeaderActions>
+              {toolbarRightContent ? (
+                <CoachHeaderActions>{toolbarRightContent}</CoachHeaderActions>
               ) : null}
             </View>
           </View>
@@ -68,6 +74,7 @@ export default function AdminScreenHeader({
             showClubLogo && styles.headerBodyWithLogo,
             showMidRight && (midRightWide ? styles.headerBodyWithMidRightWide : styles.headerBodyWithMidRight),
             bottomRightAccessory && styles.headerBodyWithBottomRight,
+            showTopToolbar && styles.headerBodyWithToolbar,
           ]}
         >
           {showClubLogo ? <HeaderClubLogo size={HEADER_CLUB_LOGO_SIZE} /> : null}
@@ -186,6 +193,9 @@ const styles = StyleSheet.create({
   },
   headerBodyCentered: {
     paddingVertical: 4,
+  },
+  headerBodyWithToolbar: {
+    paddingTop: 0,
   },
   headerBodyWithMidRight: {
     paddingRight: BACK_BTN_SIZE + 10,
