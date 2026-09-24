@@ -50,6 +50,52 @@ function toObjectIds(ids) {
         .filter(Boolean);
 }
 
+/**
+ * Aplica filtros de audiencia sobre el match de Payment:
+ * - categoria / disciplina → pagos de esa categoría
+ * - grupo=socios → titulares con rol socio
+ * - search → nombre/email/dni entre clientes
+ */
+async function applyPaymentsAudienceFilter(models, filter, { categoria, disciplina, grupo, search } = {}) {
+    const { Category, User } = models;
+
+    if (categoria) {
+        const oid = toObjectIds([categoria])[0];
+        if (oid) Object.assign(filter, { categoria: oid });
+    } else if (disciplina) {
+        const cats = await Category.find({ disciplina }).select('_id').lean();
+        Object.assign(filter, { categoria: { $in: cats.map((c) => c._id) } });
+    }
+
+    let audienceIds = null;
+
+    if (String(grupo || '') === 'socios') {
+        const socios = await User.find({
+            ...roleQuery('socio'),
+            estado: 'activo',
+        })
+            .select('_id')
+            .lean();
+        audienceIds = socios.map((u) => u._id);
+    }
+
+    if (search && String(search).trim()) {
+        const athleteFilter = buildUserSearchFilter(search, { roles: CLIENT_USER_ROLES });
+        const matchingUsers = await User.find(athleteFilter).select('_id').lean();
+        const searchIds = matchingUsers.map((u) => u._id);
+        if (audienceIds) {
+            const set = new Set(audienceIds.map(String));
+            audienceIds = searchIds.filter((id) => set.has(String(id)));
+        } else {
+            audienceIds = searchIds;
+        }
+    }
+
+    if (audienceIds) {
+        filter.atleta = { $in: audienceIds.length ? toObjectIds(audienceIds) : [null] };
+    }
+}
+
 // @desc    Crear un nuevo Plan/Cuota
 // @route   POST /api/financial/plans
 const createPlan = asyncHandler(async (req, res) => {
@@ -378,8 +424,8 @@ const generarCuotaSocialMes = asyncHandler(async (req, res) => {
 // @desc    Obtener pagos agrupados por atleta (paginado por atleta)
 // @route   GET /api/financial/payments?mes=5&anio=2026&estado=pendiente&page=1&limit=50
 const getAllPayments = asyncHandler(async (req, res) => {
-    const { Payment, Category, User } = req.models;
-    const { mes, anio, estado, categoria, disciplina, search } = req.query;
+    const { Payment } = req.models;
+    const { mes, anio, estado, categoria, disciplina, grupo, search } = req.query;
     const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 50, maxLimit: 100 });
 
     const isAllVencidos = estado === 'vencido';
@@ -391,22 +437,7 @@ const getAllPayments = asyncHandler(async (req, res) => {
     }
     if (estado && estado !== 'todos') filter.estado = estado;
 
-    let categoryFilter = {};
-    if (categoria) {
-        categoryFilter = { categoria };
-    } else if (disciplina) {
-        const cats = await Category.find({ disciplina }).select('_id').lean();
-        categoryFilter = { categoria: { $in: cats.map((c) => c._id) } };
-    }
-    Object.assign(filter, categoryFilter);
-
-    if (search && String(search).trim()) {
-        // Include multi-role clients (e.g. profe+atleta) and socios, not only primary rol=atleta.
-        const athleteFilter = buildUserSearchFilter(search, { roles: CLIENT_USER_ROLES });
-        const matchingUsers = await User.find(athleteFilter).select('_id').lean();
-        const ids = matchingUsers.map((u) => u._id);
-        filter.atleta = { $in: ids.length ? ids : [null] };
-    }
+    await applyPaymentsAudienceFilter(req.models, filter, { categoria, disciplina, grupo, search });
 
     const becaPlanIds = await getBecaPlanIds(req.models);
     const becaExclude = excludeBecaPaymentsFilter(becaPlanIds);
@@ -490,16 +521,11 @@ const getAllPayments = asyncHandler(async (req, res) => {
 // @route   GET /api/financial/payments/stats?mes=5&anio=2026
 // @route   GET /api/financial/payments/stats?scope=vencidos
 const getPaymentStats = asyncHandler(async (req, res) => {
-    const { Payment, Category } = req.models;
-    const { mes, anio, categoria, disciplina, scope } = req.query;
+    const { Payment } = req.models;
+    const { mes, anio, categoria, disciplina, grupo, scope } = req.query;
 
-    let categoryFilter = {};
-    if (categoria) {
-        categoryFilter = { categoria };
-    } else if (disciplina) {
-        const cats = await Category.find({ disciplina }).select('_id').lean();
-        categoryFilter = { categoria: { $in: cats.map((c) => c._id) } };
-    }
+    const categoryFilter = {};
+    await applyPaymentsAudienceFilter(req.models, categoryFilter, { categoria, disciplina, grupo });
 
     const becaPlanIds = await getBecaPlanIds(req.models);
     const becaExclude = excludeBecaPaymentsFilter(becaPlanIds);

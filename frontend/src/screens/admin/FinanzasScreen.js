@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useRef, useMemo } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -195,13 +195,14 @@ export default function FinanzasScreen({ route }) {
   const [anio, setAnio] = useState(now.getFullYear());
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [filtroBusqueda, setFiltroBusqueda] = useState('');
+  const [filtroGrupo, setFiltroGrupo] = useState('');
   const [debouncedBusqueda, setDebouncedBusqueda] = useState('');
 
   const paymentsCacheKey =
     clubData?.urlIdentifier && tab === 'atletas'
       ? filtroEstado === 'vencido'
-        ? `finanzas-atletas:${clubData.urlIdentifier}:vencidos:${debouncedBusqueda}`
-        : `finanzas-atletas:${clubData.urlIdentifier}:${mes}:${anio}:${filtroEstado}:${debouncedBusqueda}`
+        ? `finanzas-atletas:${clubData.urlIdentifier}:vencidos:${debouncedBusqueda}:${filtroGrupo || 'all'}`
+        : `finanzas-atletas:${clubData.urlIdentifier}:${mes}:${anio}:${filtroEstado}:${debouncedBusqueda}:${filtroGrupo || 'all'}`
       : '';
 
   const showMonthNav =
@@ -282,6 +283,27 @@ export default function FinanzasScreen({ route }) {
   const [isLoadingPlans, setIsLoadingPlans] = useState(false);
   const [disciplines, setDisciplines] = useState([]);
   const [categories, setCategories] = useState([]);
+
+  const grupoFilterOptions = useMemo(() => {
+    const discName = (cat) => {
+      const d = cat.disciplina;
+      if (!d) return '';
+      if (typeof d === 'object') return d.nombre || '';
+      const found = disciplines.find((x) => String(x._id) === String(d));
+      return found?.nombre || '';
+    };
+    const cats = [...(categories || [])]
+      .map((c) => ({
+        value: String(c._id),
+        label: discName(c) ? `${discName(c)} · ${c.nombre}` : c.nombre,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es', { sensitivity: 'base' }));
+    return [
+      { value: '', label: 'Todos' },
+      { value: 'socios', label: 'Socios' },
+      ...cats,
+    ];
+  }, [categories, disciplines]);
   const [isLoadingStructure, setIsLoadingStructure] = useState(false);
   const [isSavingAssignment, setIsSavingAssignment] = useState(false);
   const [planFormVisible, setPlanFormVisible] = useState(false);
@@ -378,9 +400,17 @@ export default function FinanzasScreen({ route }) {
   }, []);
 
   const buildPaymentStatsUrl = useCallback(() => {
-    if (filtroEstado === 'vencido') return '/financial/payments/stats?scope=vencidos';
-    return `/financial/payments/stats?mes=${mes}&anio=${anio}`;
-  }, [mes, anio, filtroEstado]);
+    let url =
+      filtroEstado === 'vencido'
+        ? '/financial/payments/stats?scope=vencidos'
+        : `/financial/payments/stats?mes=${mes}&anio=${anio}`;
+    if (filtroGrupo === 'socios') {
+      url += `${url.includes('?') ? '&' : '?'}grupo=socios`;
+    } else if (filtroGrupo) {
+      url += `${url.includes('?') ? '&' : '?'}categoria=${encodeURIComponent(filtroGrupo)}`;
+    }
+    return url;
+  }, [mes, anio, filtroEstado, filtroGrupo]);
 
   const fetchPaymentStats = useCallback(async () => {
     if (tab !== 'atletas') return;
@@ -398,7 +428,7 @@ export default function FinanzasScreen({ route }) {
 
   useEffect(() => {
     if (tab === 'atletas') fetchPaymentStats();
-  }, [tab, mes, anio, filtroEstado, fetchPaymentStats]);
+  }, [tab, mes, anio, filtroEstado, filtroGrupo, fetchPaymentStats]);
 
   const buildPaymentsUrl = useCallback(
     (page) => {
@@ -407,9 +437,11 @@ export default function FinanzasScreen({ route }) {
         url += `&mes=${mes}&anio=${anio}`;
       }
       if (debouncedBusqueda) url += `&search=${encodeURIComponent(debouncedBusqueda)}`;
+      if (filtroGrupo === 'socios') url += '&grupo=socios';
+      else if (filtroGrupo) url += `&categoria=${encodeURIComponent(filtroGrupo)}`;
       return url;
     },
-    [mes, anio, filtroEstado, debouncedBusqueda],
+    [mes, anio, filtroEstado, debouncedBusqueda, filtroGrupo],
   );
 
   const fetchPaymentsData = useCallback(async () => {
@@ -518,9 +550,11 @@ export default function FinanzasScreen({ route }) {
   }, [mes, anio, tab, debouncedFamiliasBusqueda, fetchSiblingsFirstPage]);
 
   useEffect(() => {
+    if (tab === 'planes' || tab === 'atletas') {
+      fetchStructure();
+    }
     if (tab === 'planes') {
       fetchPlans();
-      fetchStructure();
     }
   }, [tab]);
 
@@ -1489,6 +1523,9 @@ export default function FinanzasScreen({ route }) {
                     setFiltroBusqueda={setFiltroBusqueda}
                     filtroEstado={filtroEstado}
                     setFiltroEstado={setFiltroEstado}
+                    filtroGrupo={filtroGrupo}
+                    setFiltroGrupo={setFiltroGrupo}
+                    grupoOptions={grupoFilterOptions}
                     isSearchPending={isSearchPending}
                     refreshing={tabRefreshing}
                     onRefresh={onRefresh}

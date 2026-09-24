@@ -141,6 +141,9 @@ export default function AtletasPagosTab({
   setFiltroBusqueda,
   filtroEstado,
   setFiltroEstado,
+  filtroGrupo = '',
+  setFiltroGrupo,
+  grupoOptions = [],
   isSearchPending = false,
   refreshing,
   onRefresh,
@@ -162,7 +165,12 @@ export default function AtletasPagosTab({
   const [menuOpen, setMenuOpen] = useState(false);
   const [showResumen, setShowResumen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [grupoOpen, setGrupoOpen] = useState(false);
   const stats = paymentStats || {};
+
+  const grupoLabel =
+    grupoOptions.find((o) => String(o.value) === String(filtroGrupo || ''))?.label || 'Todos';
+  const hasGrupoFilter = Boolean(filtroGrupo);
 
   const openMenu = useCallback((item) => {
     setMenuItem(item);
@@ -234,40 +242,57 @@ export default function AtletasPagosTab({
       <View style={s.empty}>
         <Ionicons name="people-outline" size={50} color={theme.icon} />
         <Text style={[s.emptyTxt, { color: theme.text }]}>
-          {isTodosView ? 'Sin usuarios con cuotas en este mes' : 'Sin usuarios para este filtro'}
+          {isTodosView && !hasGrupoFilter
+            ? 'Sin usuarios con cuotas en este mes'
+            : 'Sin usuarios para este filtro'}
         </Text>
         <Text style={[s.emptySub, { color: theme.textMuted }]}>
-          {isTodosView
+          {isTodosView && !hasGrupoFilter
             ? 'Generá las cuotas del período o probá otro mes.'
-            : 'Probá otro estado, mes o generá las cuotas del período.'}
+            : 'Probá otro estado, categoría, mes o generá las cuotas del período.'}
         </Text>
       </View>
     );
-  }, [isLoadingPay, cc, theme, isTodosView]);
+  }, [isLoadingPay, cc, theme, isTodosView, hasGrupoFilter]);
 
   return (
     <View style={s.tabPanel}>
       <View style={styles.headerBlock}>
-        <View style={styles.resumenToggleRow}>
-          <Text style={[s.sectionTitle, { color: theme.text, marginBottom: 0 }]}>Resumen</Text>
-          <View style={styles.headerBtns}>
-            <TouchableOpacity
-              style={[styles.resumenToggleBtn, contrastOutlineBtn(theme, isDarkMode)]}
-              onPress={() => setFilterOpen(true)}
+        <View style={styles.filtersRow}>
+          <TouchableOpacity
+            style={[
+              styles.filterChip,
+              contrastOutlineBtn(theme, isDarkMode),
+              hasGrupoFilter && { borderColor: cc, backgroundColor: `${cc}14` },
+            ]}
+            onPress={() => setGrupoOpen(true)}
+          >
+            <Ionicons name="people-outline" size={15} color={hasGrupoFilter ? cc : theme.text} />
+            <Text
+              style={[styles.filterChipTxt, { color: hasGrupoFilter ? cc : theme.text }]}
+              numberOfLines={1}
             >
-              <Ionicons name="funnel-outline" size={16} color={theme.text} />
-              <Text style={{ color: theme.text, fontSize: 12, fontWeight: '600', marginLeft: 6 }}>Filtrar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.resumenToggleBtn, contrastOutlineBtn(theme, isDarkMode)]}
-              onPress={() => setShowResumen((v) => !v)}
-            >
-              <Ionicons name={showResumen ? 'eye-off-outline' : 'eye-outline'} size={16} color={theme.text} />
-              <Text style={{ color: theme.text, fontSize: 12, fontWeight: '600', marginLeft: 6 }}>
-                {showResumen ? 'Ocultar' : 'Mostrar'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+              {grupoLabel}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.filterChip, contrastOutlineBtn(theme, isDarkMode)]}
+            onPress={() => setFilterOpen(true)}
+          >
+            <Ionicons name="funnel-outline" size={15} color={theme.text} />
+            <Text style={[styles.filterChipTxt, { color: theme.text }]} numberOfLines={1}>
+              {ESTADO_FILTROS.find((o) => o.value === filtroEstado)?.label || 'Estado'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.filterChip, contrastOutlineBtn(theme, isDarkMode)]}
+            onPress={() => setShowResumen((v) => !v)}
+          >
+            <Ionicons name={showResumen ? 'eye-off-outline' : 'eye-outline'} size={15} color={theme.text} />
+            <Text style={[styles.filterChipTxt, { color: theme.text }]} numberOfLines={1}>
+              {showResumen ? 'Ocultar' : 'Mostrar'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {showResumen ? (
@@ -432,6 +457,48 @@ export default function AtletasPagosTab({
         </View>
       </Modal>
 
+      <Modal visible={grupoOpen} transparent animationType="fade" onRequestClose={() => setGrupoOpen(false)}>
+        <View style={styles.menuOverlay}>
+          <Pressable style={styles.menuBackdrop} onPress={() => setGrupoOpen(false)} />
+          <View style={[styles.menuSheet, styles.grupoSheet, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.menuTitle, { color: theme.text }]}>Filtrar por</Text>
+            <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8, paddingHorizontal: 4 }}>
+              Socios o categoría de atletas
+            </Text>
+            <FlatList
+              data={grupoOptions}
+              keyExtractor={(item) => String(item.value || 'todos')}
+              style={{ maxHeight: 360 }}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item: opt }) => {
+                const active = String(filtroGrupo || '') === String(opt.value || '');
+                return (
+                  <TouchableOpacity
+                    style={[styles.menuItem, active && { backgroundColor: `${cc}14` }]}
+                    onPress={() => {
+                      setFiltroGrupo?.(opt.value);
+                      setGrupoOpen(false);
+                    }}
+                  >
+                    <Ionicons
+                      name={active ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={20}
+                      color={active ? cc : theme.textMuted}
+                    />
+                    <Text style={[styles.menuItemText, { color: active ? cc : theme.text }]}>{opt.label}</Text>
+                  </TouchableOpacity>
+                );
+              }}
+              ListEmptyComponent={
+                <Text style={{ color: theme.textMuted, textAlign: 'center', paddingVertical: 16 }}>
+                  No hay categorías cargadas.
+                </Text>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
+
       <AthleteActionsMenu
         visible={menuOpen}
         item={menuItem}
@@ -462,21 +529,31 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   searchInput: { flex: 1, fontSize: 15 },
-  resumenToggleRow: {
+  filtersRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
     gap: 8,
+    marginBottom: 10,
   },
-  headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
-  resumenToggleBtn: {
+  filterChip: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
+    minWidth: 0,
+  },
+  filterChipTxt: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 5,
+    flexShrink: 1,
+  },
+  grupoSheet: {
+    maxHeight: '78%',
   },
   cardInner: {
     paddingHorizontal: 14,
