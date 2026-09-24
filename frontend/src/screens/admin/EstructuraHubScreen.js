@@ -17,9 +17,9 @@ export default function EstructuraHubScreen({ navigation }) {
   const { theme, isDarkMode } = useContext(ThemeContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const [viewerRol, setViewerRol] = useState('');
-  // Mismo menú que admin_club (dirigente ve todo; mutaciones se bloquean en cada pantalla).
+  // Mismo menú que admin_club; dirigente ve estructura sin invitar familia.
   const showAdminHubCards = canMutateAsAdmin(viewerRol) || isDirigenteRole(viewerRol);
-  const canInviteFamily = showAdminHubCards;
+  const canInviteFamily = canMutateAsAdmin(viewerRol);
   const canSeeEnrollmentRequests = showAdminHubCards;
   const canSeeEstructuraDeportiva = showAdminHubCards;
   const showStructureStats = showAdminHubCards;

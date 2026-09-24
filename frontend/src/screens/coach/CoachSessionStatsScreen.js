@@ -174,10 +174,12 @@ export default function CoachSessionStatsScreen({ navigation, route }) {
           <Text style={[styles.intro, { color: theme.textMuted }]}>
             {isSingleSession
               ? 'Datos de esta sesión: asistencia registrada y minutos por enfoque táctico (bloques ejecutados o plan).'
-              : 'Filtrá por categoría y período para ver asistencia y distribución por enfoque.'}
+              : isAdminVariant
+                ? 'Elegí el período para ver asistencia y distribución por enfoque.'
+                : 'Filtrá por categoría y período para ver asistencia y distribución por enfoque.'}
           </Text>
 
-          {!isSingleSession && categories.length > 0 ? (
+          {!isSingleSession && !isAdminVariant && categories.length > 0 ? (
             <CoachCategoryFilter
               categories={categories}
               selectedId={selectedCategoryId}

@@ -32,6 +32,8 @@ const GESTION_ITEMS = [
   },
 ];
 
+const DIRIGENTE_HIDDEN = new Set(['Pendientes', 'PedirDocumentacion', 'RevisarDocumentacion']);
+
 export default function AdminGestionHubScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
@@ -50,7 +52,7 @@ export default function AdminGestionHubScreen({ navigation }) {
   );
 
   const items = isDirigenteRole(viewerRol)
-    ? GESTION_ITEMS.map((i) =>
+    ? GESTION_ITEMS.filter((i) => !DIRIGENTE_HIDDEN.has(i.route)).map((i) =>
         i.route === 'ChatInbox'
           ? { ...i, subtitle: 'Mensajes con staff y administración' }
           : i,
