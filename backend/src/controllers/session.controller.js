@@ -409,8 +409,8 @@ async function resolveCoachCategoriesFilter(req, res) {
     const rol = req.user.rol;
 
     let misCats;
-    if (rol === 'admin_club' || rol === 'administrativo') {
-        // Club staff: all categories (tenant-scoped models).
+    if (rol === 'admin_club' || rol === 'administrativo' || rol === 'dirigente') {
+        // Club staff / board: all categories (tenant-scoped models).
         misCats = await Category.find({}).select('_id nombre').sort({ nombre: 1 });
     } else {
         const catFilter =
@@ -490,7 +490,7 @@ function parseAttendanceDays(queryDias) {
 async function assertCategoryStaffAccess(req, res, categoriaId) {
     const { Category } = req.models;
     const rol = req.user.rol;
-    if (rol === 'admin_club' || rol === 'administrativo') return;
+    if (rol === 'admin_club' || rol === 'administrativo' || rol === 'dirigente') return;
 
     if (rol === 'profe') {
         const ok = await Category.findOne({ _id: categoriaId, profesores: req.user._id });
@@ -940,7 +940,7 @@ const getSessionById = asyncHandler(async (req, res) => {
     }
 
     const rol = req.user.rol;
-    if (['admin_club', 'administrativo'].includes(rol)) {
+    if (['admin_club', 'administrativo', 'dirigente'].includes(rol)) {
         return res.json(session);
     }
     if (!session.categoria?._id) {
