@@ -1,5 +1,5 @@
 // src/screens/admin/CategoriasScreen.js
-import React, { useState, useContext, useCallback } from 'react';
+import React, { useState, useContext, useCallback, useEffect } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, TouchableOpacity, 
   ActivityIndicator, StatusBar, TextInput, Modal,
@@ -20,6 +20,7 @@ import { sortByNombre } from '../../utils/listSort';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import CalendarDateField from '../../components/CalendarDateField';
 import { displayDateToIsoCalendar, isoCalendarDateToDisplay, formatDayMonthLong } from '../../utils/dateDisplay';
+import { isClubOwnerRole } from '../../constants/appRoles';
 
 export default function CategoriasScreen({ navigation, route }) {
   const { clubData } = useContext(ClubContext);
@@ -31,6 +32,9 @@ export default function CategoriasScreen({ navigation, route }) {
     clubData?.urlIdentifier && disciplina?._id
       ? `admin-categorias:${clubData.urlIdentifier}:${disciplina._id}`
       : '';
+
+  const [viewerRol, setViewerRol] = useState('');
+  const canEditStructure = isClubOwnerRole(viewerRol);
 
   const [categories, setCategories] = useState(() => readScreenCache(categoriesCacheKey)?.list ?? []);
 
@@ -76,6 +80,10 @@ export default function CategoriasScreen({ navigation, route }) {
   };
 
   const closeAlert = () => setAlertConfig(prev => ({ ...prev, visible: false }));
+
+  useEffect(() => {
+    getToken('userRol').then((r) => setViewerRol(r || ''));
+  }, []);
 
   const fetchCategorias = useCallback(async () => {
     const response = await clubApi.get(`/categories/disciplina/${disciplina._id}`, { headers: await getHeaders() });
@@ -253,8 +261,8 @@ export default function CategoriasScreen({ navigation, route }) {
     </View>
   );
 
-  const renderItem = ({ item }) => (
-    <HoverRevealSwipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>
+  const renderItem = ({ item }) => {
+    const card = (
       <DesignCard
         theme={theme}
         isDarkMode={isDarkMode}
@@ -301,8 +309,14 @@ export default function CategoriasScreen({ navigation, route }) {
         </View>
         <Ionicons name="chevron-forward" size={20} color={theme.icon} />
       </DesignCard>
-    </HoverRevealSwipeable>
-  );
+    );
+    if (!canEditStructure) return card;
+    return (
+      <HoverRevealSwipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>
+        {card}
+      </HoverRevealSwipeable>
+    );
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
@@ -331,16 +345,22 @@ export default function CategoriasScreen({ navigation, route }) {
               <View style={styles.emptyState}>
                 <Ionicons name="people-outline" size={60} color={theme.icon} />
                 <Text style={[styles.emptyText, { color: theme.text }]}>No hay categorías en {disciplina.nombre}.</Text>
-                <Text style={[styles.emptySubText, { color: theme.textMuted }]}>Tocá el botón "+" para agregar divisiones.</Text>
+                <Text style={[styles.emptySubText, { color: theme.textMuted }]}>
+                  {canEditStructure
+                    ? 'Tocá el botón "+" para agregar divisiones.'
+                    : 'Entrá a una categoría para gestionar el plantel.'}
+                </Text>
               </View>
             }
           />
         )}
       </View>
 
-      <TouchableOpacity style={[styles.fab, { backgroundColor: colorMarca }]} onPress={openCreateModal}>
-        <Ionicons name="add" size={30} color="#ffffff" />
-      </TouchableOpacity>
+      {canEditStructure ? (
+        <TouchableOpacity style={[styles.fab, { backgroundColor: colorMarca }]} onPress={openCreateModal}>
+          <Ionicons name="add" size={30} color="#ffffff" />
+        </TouchableOpacity>
+      ) : null}
 
       <Modal visible={isModalVisible} animationType="slide" transparent={true} onRequestClose={closeModal}>
         <KeyboardAvoidingView

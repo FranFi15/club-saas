@@ -20,12 +20,16 @@ import AdminScreenHeader from '../../components/AdminScreenHeader';
 import DesignCard from '../../components/DesignCard';
 import { sortByNombre } from '../../utils/listSort';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { isClubOwnerRole } from '../../constants/appRoles';
 
 export default function EstructuraScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext); 
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const estructuraCacheKey = clubData?.urlIdentifier ? `admin-estructura:${clubData.urlIdentifier}` : '';
+
+  const [viewerRol, setViewerRol] = useState('');
+  const canEditStructure = isClubOwnerRole(viewerRol);
 
   const [disciplines, setDisciplines] = useState(() => readScreenCache(estructuraCacheKey)?.list ?? []);
   
@@ -65,6 +69,10 @@ export default function EstructuraScreen({ navigation }) {
   };
 
   const closeAlert = () => setAlertConfig(prev => ({ ...prev, visible: false }));
+
+  useEffect(() => {
+    getToken('userRol').then((r) => setViewerRol(r || ''));
+  }, []);
 
   const getHeaders = async () => {
     const token = await getToken('userToken');
@@ -211,8 +219,8 @@ export default function EstructuraScreen({ navigation }) {
     );
   };
 
- const renderItem = ({ item }) => (
-    <HoverRevealSwipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>
+ const renderItem = ({ item }) => {
+    const card = (
       <DesignCard
         theme={theme}
         isDarkMode={isDarkMode}
@@ -232,8 +240,14 @@ export default function EstructuraScreen({ navigation }) {
         </View>
         <Ionicons name="chevron-forward" size={20} color={theme.icon} />
       </DesignCard>
-    </HoverRevealSwipeable>
-  );
+    );
+    if (!canEditStructure) return card;
+    return (
+      <HoverRevealSwipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>
+        {card}
+      </HoverRevealSwipeable>
+    );
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
@@ -284,7 +298,11 @@ export default function EstructuraScreen({ navigation }) {
                   {disciplines.length === 0 ? "No hay disciplinas cargadas." : "No se encontraron resultados."}
                 </Text>
                 <Text style={[styles.emptySubText, { color: theme.textMuted }]}>
-                  {disciplines.length === 0 ? "Tocá el botón '+' para crear la primera." : "Intentá con otro nombre."}
+                  {disciplines.length === 0
+                    ? canEditStructure
+                      ? "Tocá el botón '+' para crear la primera."
+                      : 'Pedile al admin del club que cargue las disciplinas.'
+                    : 'Intentá con otro nombre.'}
                 </Text>
               </View>
             }
@@ -292,9 +310,11 @@ export default function EstructuraScreen({ navigation }) {
         )}
       </View>
 
-      <TouchableOpacity style={[styles.fab, { backgroundColor: colorMarca }]} onPress={openCreateModal}>
-        <Ionicons name="add" size={30} color="#ffffff" />
-      </TouchableOpacity>
+      {canEditStructure ? (
+        <TouchableOpacity style={[styles.fab, { backgroundColor: colorMarca }]} onPress={openCreateModal}>
+          <Ionicons name="add" size={30} color="#ffffff" />
+        </TouchableOpacity>
+      ) : null}
 
       <Modal visible={isModalVisible} animationType="slide" transparent={true} onRequestClose={closeModal}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>

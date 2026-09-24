@@ -20,6 +20,7 @@ export default function EstructuraHubScreen({ navigation }) {
   const isClubOwner = canViewOwnerAdminUI(viewerRol);
   const canInviteFamily = canMutateAsAdmin(viewerRol);
   const canSeeEnrollmentRequests = canMutateAsAdmin(viewerRol);
+  const canSeeEstructuraDeportiva = isClubOwner || canMutateAsAdmin(viewerRol);
 
   useEffect(() => {
     getToken('userRol').then((r) => setViewerRol(r || ''));
@@ -100,7 +101,7 @@ export default function EstructuraHubScreen({ navigation }) {
               </>
             )}
           </DesignCard>
-          {isClubOwner ? (
+          {canSeeEstructuraDeportiva ? (
             <>
               <DesignCard
                 theme={theme}
@@ -247,6 +248,16 @@ export default function EstructuraHubScreen({ navigation }) {
                 theme={theme}
                 colorMarca={colorMarca}
                 onPress={() => navigation.navigate('SolicitudesInscripcion')}
+              />
+            ) : null}
+            {canSeeEstructuraDeportiva ? (
+              <HubMenuCard
+                title="Estructura deportiva"
+                subtitle="Disciplinas y categorías · planteles"
+                icon="trophy"
+                theme={theme}
+                colorMarca={colorMarca}
+                onPress={() => navigation.navigate('EstructuraDeportiva')}
               />
             ) : null}
             <HubMenuCard
