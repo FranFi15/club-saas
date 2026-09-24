@@ -844,9 +844,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
         subtitle={
           plantelEdicionEstado === 'delegado_coach'
             ? 'Plantel pendiente del profesor'
-            : categoria.edadMinima != null && categoria.edadMaxima != null
-              ? `${totalInscriptosPlantel} atleta(s) · ${categoria.edadMinima}–${categoria.edadMaxima} años`
-              : `${totalInscriptosPlantel} atleta(s) · Sin límite de edad`
+            : `${totalInscriptosPlantel} atleta(s)`
         }
         onBack={() => navigation.goBack()}
         bottomRightAccessory={headerPlantelBtn}
