@@ -32,6 +32,7 @@ import UserAvatar from '../../components/UserAvatar';
 import CategoryRosterModal from '../../components/CategoryRosterModal';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { isoCalendarDateToDisplay } from '../../utils/dateDisplay';
+import { canMutateAsAdmin } from '../../constants/appRoles';
 
 function ageRangeHint(cat) {
   if (!cat) return '';
@@ -49,6 +50,8 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   
   const { categoria } = route.params;
+  const [viewerRol, setViewerRol] = useState('');
+  const canEditRoster = canMutateAsAdmin(viewerRol);
   const plantelCacheKey =
     clubData?.urlIdentifier && categoria?._id
       ? `admin-detalle-categoria:${clubData.urlIdentifier}:${categoria._id}`
@@ -119,6 +122,10 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
     });
   };
   const closeAlert = () => setAlertConfig((prev) => ({ ...prev, visible: false, embedded: false }));
+
+  useEffect(() => {
+    getToken('userRol').then((r) => setViewerRol(r || ''));
+  }, []);
 
   // RN freezes / hides second Modal if CustomAlert opens while the picker Modal is mounted.
   const alertAfterPickerClose = (title, message, options = {}) => {
@@ -259,14 +266,16 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
       >
         <Ionicons name="stats-chart-outline" size={20} color="#fff" />
       </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.headerIconBtn}
-        onPress={() => setPlantelModalOpen(true)}
-        accessibilityRole="button"
-        accessibilityLabel="Actualizar plantel"
-      >
-        <Ionicons name="people-outline" size={20} color="#fff" />
-      </TouchableOpacity>
+      {canEditRoster ? (
+        <TouchableOpacity
+          style={styles.headerIconBtn}
+          onPress={() => setPlantelModalOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Actualizar plantel"
+        >
+          <Ionicons name="people-outline" size={20} color="#fff" />
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 
@@ -655,8 +664,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
       ? attendanceStats[attKey] || { total: 0, asistenciaPct: null }
       : null;
 
-    return (
-      <HoverRevealSwipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>
+    const card = (
         <DesignCard
           theme={theme}
           isDarkMode={isDarkMode}
@@ -743,25 +751,34 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
                     <Text style={[styles.planText, { color: theme.textMuted }]} numberOfLines={1}>
                       Plan: {planName}
                     </Text>
-                    <TouchableOpacity
-                      style={[
-                        styles.planBtn,
-                        {
-                          borderColor: theme.text,
-                          backgroundColor: isDarkMode ? 'transparent' : '#ffffff',
-                        },
-                      ]}
-                      onPress={() => openPlanModal(item)}
-                    >
-                      <Ionicons name="cash-outline" size={16} color={theme.text} />
-                      <Text style={[styles.planBtnText, { color: theme.text }]}>Asignar</Text>
-                    </TouchableOpacity>
+                    {canEditRoster ? (
+                      <TouchableOpacity
+                        style={[
+                          styles.planBtn,
+                          {
+                            borderColor: theme.text,
+                            backgroundColor: isDarkMode ? 'transparent' : '#ffffff',
+                          },
+                        ]}
+                        onPress={() => openPlanModal(item)}
+                      >
+                        <Ionicons name="cash-outline" size={16} color={theme.text} />
+                        <Text style={[styles.planBtnText, { color: theme.text }]}>Asignar</Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
                 </>
               )}
             </View>
           </View>
         </DesignCard>
+    );
+
+    if (!canEditRoster) return card;
+
+    return (
+      <HoverRevealSwipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>
+        {card}
       </HoverRevealSwipeable>
     );
   };
@@ -847,7 +864,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
               <Switch
                 value={chatAtletaProfesionalEnabled}
                 onValueChange={toggleChatAtletaProfesional}
-                disabled={chatToggleSaving}
+                disabled={chatToggleSaving || !canEditRoster}
                 trackColor={{ false: theme.border, true: colorMarca + '99' }}
                 thumbColor={chatAtletaProfesionalEnabled ? colorMarca : '#f4f3f4'}
               />
@@ -860,7 +877,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
               <Switch
                 value={chatGrupalCategoriaEnabled}
                 onValueChange={toggleChatGrupalCategoria}
-                disabled={chatGrupalToggleSaving}
+                disabled={chatGrupalToggleSaving || !canEditRoster}
                 trackColor={{ false: theme.border, true: colorMarca + '99' }}
                 thumbColor={chatGrupalCategoriaEnabled ? colorMarca : '#f4f3f4'}
               />
@@ -962,9 +979,11 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
         )}
       </View>
 
-      <TouchableOpacity style={[styles.fab, { backgroundColor: colorMarca }]} onPress={openAddPicker}>
-        <Ionicons name="add" size={30} color="#ffffff" />
-      </TouchableOpacity>
+      {canEditRoster ? (
+        <TouchableOpacity style={[styles.fab, { backgroundColor: colorMarca }]} onPress={openAddPicker}>
+          <Ionicons name="add" size={30} color="#ffffff" />
+        </TouchableOpacity>
+      ) : null}
 
       {/* Modal Buscador para Añadir */}
       <Modal visible={isPickerVisible} animationType="slide" transparent={true}>

@@ -1,4 +1,4 @@
-import React, { useContext, useCallback, useState, useEffect } from 'react';
+import React, { useContext, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Platform } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -36,8 +36,6 @@ import MemberClubEntryScreen from '../screens/member/MemberClubEntryScreen';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
 import { tabBadgeText } from '../utils/tabBadgeLabel';
-import { getToken } from '../utils/storage';
-import { canViewOwnerAdminUI } from '../constants/appRoles';
 import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
 
 const Tab = createSwipeBottomTabNavigator();
@@ -60,8 +58,6 @@ function EstructuraStackNavigator() {
       <EstructuraStack.Screen name="CoachSessionStats" component={CoachSessionStatsScreen} />
       <EstructuraStack.Screen name="Espacios" component={EspaciosFisicosScreen} />
       <EstructuraStack.Screen name="Grilla" component={GrillaEntrenamientosScreen} />
-      <EstructuraStack.Screen name="EscanearIngreso" component={AdminClubEntryScanScreen} />
-      <EstructuraStack.Screen name="Alquileres" component={AlquileresScreen} />
     </EstructuraStack.Navigator>
   );
 }
@@ -111,13 +107,6 @@ export default function AdminTabNavigator() {
   const { theme, isDarkMode } = useContext(ThemeContext);
   const { tab, refresh } = useBadges();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
-  const [viewerRol, setViewerRol] = useState('');
-
-  useEffect(() => {
-    getToken('userRol').then((r) => setViewerRol(r || ''));
-  }, []);
-
-  const estructuraTabLabel = canViewOwnerAdminUI(viewerRol) ? 'Estructura' : 'Operaciones';
 
   useFocusEffect(
     useCallback(() => {
@@ -154,7 +143,7 @@ export default function AdminTabNavigator() {
           })[name],
         getLabel: (name) =>
           ({
-            Estructura: estructuraTabLabel,
+            Estructura: 'Estructura',
             Gestión: 'Gestión',
             Finanzas: 'Finanzas',
             Perfil: 'Perfil',

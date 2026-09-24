@@ -18,7 +18,7 @@ router.route('/:id')
     .delete(protect, authorize('admin_club', 'profe', 'administrativo'), unenrollAthlete);
 
 router.route('/categoria/:categoryId')
-    .get(protect, authorize('admin_club', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo', 'administrativo'), getAthletesByCategory);
+    .get(protect, authorize('admin_club', 'dirigente', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo', 'administrativo'), getAthletesByCategory);
 
 router.route('/atleta/:atletaId')
     .get(protect, authorize('admin_club', 'profe', 'administrativo', 'atleta', 'tutor'), getCategoriesByAthlete);

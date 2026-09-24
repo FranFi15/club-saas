@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useState } from 'react';
+import React, { useCallback, useContext, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import AdminScreenHeader from '../../components/AdminScreenHeader';
 import DesignCard from '../../components/DesignCard';
 import { useBadges } from '../../context/BadgeContext';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { canMutateAsAdmin } from '../../constants/appRoles';
 
 export default function AdminEnrollmentRequestsScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
@@ -27,6 +28,12 @@ export default function AdminEnrollmentRequestsScreen({ navigation }) {
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const { refresh } = useBadges();
   const requestsCacheKey = clubData?.urlIdentifier ? `admin-enrollment-requests:${clubData.urlIdentifier}` : '';
+  const [viewerRol, setViewerRol] = useState('');
+  const canResolve = canMutateAsAdmin(viewerRol);
+
+  useEffect(() => {
+    getToken('userRol').then((r) => setViewerRol(r || ''));
+  }, []);
 
   const [list, setList] = useState(() => readScreenCache(requestsCacheKey) ?? []);
   const [resolvingId, setResolvingId] = useState(null);
@@ -128,26 +135,32 @@ export default function AdminEnrollmentRequestsScreen({ navigation }) {
         {item.mensaje ? (
           <Text style={[styles.msg, { color: theme.textMuted }]}>{item.mensaje}</Text>
         ) : null}
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.btn, { backgroundColor: colorMarca, opacity: busy ? 0.6 : 1 }]}
-            disabled={busy}
-            onPress={() => resolve(item._id, 'aprobar')}
-          >
-            {busy ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={styles.btnTxt}>Aprobar</Text>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.btnOutline, { borderColor: '#ef4444', opacity: busy ? 0.6 : 1 }]}
-            disabled={busy}
-            onPress={() => confirmReject(item)}
-          >
-            <Text style={{ color: '#ef4444', fontWeight: '700' }}>Rechazar</Text>
-          </TouchableOpacity>
-        </View>
+        {canResolve ? (
+          <View style={styles.actions}>
+            <TouchableOpacity
+              style={[styles.btn, { backgroundColor: colorMarca, opacity: busy ? 0.6 : 1 }]}
+              disabled={busy}
+              onPress={() => resolve(item._id, 'aprobar')}
+            >
+              {busy ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.btnTxt}>Aprobar</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.btnOutline, { borderColor: '#ef4444', opacity: busy ? 0.6 : 1 }]}
+              disabled={busy}
+              onPress={() => confirmReject(item)}
+            >
+              <Text style={{ color: '#ef4444', fontWeight: '700' }}>Rechazar</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <Text style={[styles.msg, { color: theme.textMuted, marginTop: 12 }]}>
+            Solo lectura: un administrador puede aprobar o rechazar.
+          </Text>
+        )}
       </DesignCard>
     );
   };

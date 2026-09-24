@@ -23,6 +23,7 @@ import CustomAlert from '../../components/CustomAlert';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import SearchableDropdown from '../../components/SearchableDropdown';
 import { sortByNombre } from '../../utils/listSort';
+import { canMutateAsAdmin } from '../../constants/appRoles';
 
 function emptySlot() {
   return { disciplina: '', categoria: '' };
@@ -32,6 +33,8 @@ export default function InvitarFamiliaScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
+  const [viewerRol, setViewerRol] = useState('');
+  const canCreateInvite = canMutateAsAdmin(viewerRol);
 
   const [disciplines, setDisciplines] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -87,6 +90,10 @@ export default function InvitarFamiliaScreen({ navigation }) {
       setLoadingMeta(false);
     }
   }, [clubData?.urlIdentifier]);
+
+  useEffect(() => {
+    getToken('userRol').then((r) => setViewerRol(r || ''));
+  }, []);
 
   useEffect(() => {
     loadMeta();
@@ -189,7 +196,12 @@ export default function InvitarFamiliaScreen({ navigation }) {
         <ActivityIndicator color={colorMarca} style={{ marginTop: 40 }} />
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          {created?.url ? (
+          {!canCreateInvite ? (
+            <Text style={[styles.sectionHint, { color: theme.textMuted }]}>
+              Solo lectura: podés ver invitaciones recientes. Un administrador genera nuevos enlaces.
+            </Text>
+          ) : null}
+          {canCreateInvite && created?.url ? (
             <View style={[styles.resultCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <Text style={[styles.resultTitle, { color: theme.text }]}>Enlace listo</Text>
               <Text style={[styles.resultHint, { color: theme.textMuted }]}>
@@ -239,7 +251,7 @@ export default function InvitarFamiliaScreen({ navigation }) {
                 </Text>
               </TouchableOpacity>
             </View>
-          ) : (
+          ) : canCreateInvite ? (
             <>
               <Text style={[styles.sectionLabel, { color: theme.text }]}>Tipo de alta</Text>
               <View style={styles.modeRow}>
@@ -394,7 +406,7 @@ export default function InvitarFamiliaScreen({ navigation }) {
                 )}
               </TouchableOpacity>
             </>
-          )}
+          ) : null}
 
           {recent.length > 0 ? (
             <View style={{ marginTop: 28 }}>

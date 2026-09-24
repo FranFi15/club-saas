@@ -8,9 +8,9 @@ import { useBadges } from '../../context/BadgeContext';
 import HubMenuCard from '../../components/HubMenuCard';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { getToken } from '../../utils/storage';
-import { canViewOwnerAdminUI, isDirigenteRole } from '../../constants/appRoles';
+import { isDirigenteRole } from '../../constants/appRoles';
 
-const OWNER_ITEMS = [
+const GESTION_ITEMS = [
   {
     title: 'Pendientes',
     subtitle: 'Transferencias, docs, solicitudes, alquileres y chat',
@@ -32,33 +32,12 @@ const OWNER_ITEMS = [
   },
 ];
 
-const OPS_ITEMS = [
-  {
-    title: 'Pendientes',
-    subtitle: 'Transferencias, docs, solicitudes, alquileres y chat',
-    icon: 'file-tray-full',
-    route: 'Pendientes',
-    badgeKey: 'pendientes',
-  },
-  { title: 'Chat', subtitle: 'Mensajes con cualquier usuario del club', icon: 'chatbubbles', route: 'ChatInbox', badgeKey: 'chat' },
-  { title: 'Muro de noticias', subtitle: 'Comunicados al club', icon: 'newspaper', route: 'Noticias' },
-  { title: 'Pedir documentación', subtitle: 'Solicitá archivos a categorías o atletas', icon: 'document-text', route: 'PedirDocumentacion' },
-  {
-    title: 'Revisar documentación',
-    subtitle: 'Aprobá o rechazá lo que subieron los atletas',
-    icon: 'folder-open',
-    route: 'RevisarDocumentacion',
-    badgeKey: 'docsRevision',
-  },
-];
-
 export default function AdminGestionHubScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const { hub, refresh } = useBadges();
   const [viewerRol, setViewerRol] = useState('');
-  const canViewOwner = canViewOwnerAdminUI(viewerRol);
 
   useEffect(() => {
     getToken('userRol').then((r) => setViewerRol(r || ''));
@@ -70,21 +49,13 @@ export default function AdminGestionHubScreen({ navigation }) {
     }, [refresh]),
   );
 
-  const DIRIGENTE_HIDDEN = new Set([
-    'Pendientes',
-    'EscanearIngreso',
-    'PedirDocumentacion',
-    'RevisarDocumentacion',
-  ]);
-  const items = canViewOwner
-    ? isDirigenteRole(viewerRol)
-      ? OWNER_ITEMS.filter((i) => !DIRIGENTE_HIDDEN.has(i.route)).map((i) =>
-          i.route === 'ChatInbox'
-            ? { ...i, subtitle: 'Mensajes con staff y administración' }
-            : i,
-        )
-      : OWNER_ITEMS
-    : OPS_ITEMS;
+  const items = isDirigenteRole(viewerRol)
+    ? GESTION_ITEMS.map((i) =>
+        i.route === 'ChatInbox'
+          ? { ...i, subtitle: 'Mensajes con staff y administración' }
+          : i,
+      )
+    : GESTION_ITEMS;
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
@@ -93,7 +64,7 @@ export default function AdminGestionHubScreen({ navigation }) {
         colorMarca={colorMarca}
         theme={theme}
         kicker="Gestión"
-        title={canViewOwner ? 'Operaciones del club' : 'Comunicación y documentos'}
+        title="Operaciones del club"
         subtitle={clubData?.nombre || 'Tu club'}
       />
       <ScrollView
