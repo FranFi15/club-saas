@@ -19,7 +19,7 @@ import DesignCard from '../../components/DesignCard';
 import SearchableDropdown from '../../components/SearchableDropdown';
 import { isoCalendarDateToDisplay, displayDateToIsoCalendar, formatJsDateToDisplay, maskDateDDMMAAAA } from '../../utils/dateDisplay';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
-import { isClubOwnerRole } from '../../constants/appRoles';
+import { isClubOwnerRole, canMutateAsAdmin } from '../../constants/appRoles';
 
 function defaultIndisponibleHastaDisplay() {
   const d = new Date();
@@ -75,7 +75,8 @@ export default function EspaciosFisicosScreen({ navigation }) {
   const [reubicarEspacioId, setReubicarEspacioId] = useState('');
   const [savingStatus, setSavingStatus] = useState(false);
   const [viewerRol, setViewerRol] = useState('');
-  const canManageSpaces = isClubOwnerRole(viewerRol);
+  const canEditSpaces = isClubOwnerRole(viewerRol);
+  const canChangeSpaceStatus = canMutateAsAdmin(viewerRol);
 
   useEffect(() => {
     getToken('userRol').then((r) => setViewerRol(r || ''));
@@ -449,8 +450,8 @@ export default function EspaciosFisicosScreen({ navigation }) {
         theme={theme}
         isDarkMode={isDarkMode}
         accent={statusColor}
-        onPress={canManageSpaces ? () => openStatusModal(item) : undefined}
-        style={{ marginBottom: canManageSpaces ? 12 : undefined }}
+        onPress={canChangeSpaceStatus ? () => openStatusModal(item) : undefined}
+        style={{ marginBottom: canChangeSpaceStatus || canEditSpaces ? 12 : undefined }}
         contentStyle={styles.cardInner}
       >
           <View style={[styles.avatar, { backgroundColor: colorMarca + '20' }]}>
@@ -492,7 +493,7 @@ export default function EspaciosFisicosScreen({ navigation }) {
         </DesignCard>
     );
 
-    if (!canManageSpaces) return card;
+    if (!canEditSpaces) return card;
 
     return (
       <HoverRevealSwipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>
@@ -535,7 +536,7 @@ export default function EspaciosFisicosScreen({ navigation }) {
         )}
       </View>
 
-      {canManageSpaces ? (
+      {canEditSpaces ? (
         <TouchableOpacity style={[styles.fab, { backgroundColor: colorMarca }]} onPress={() => openForm()}>
           <Ionicons name="add" size={30} color="#ffffff" />
         </TouchableOpacity>
