@@ -15,8 +15,6 @@ const HEADERS = [
   'Obra social',
   'Disponibilidad',
   'Estado inscripción',
-  'Plan',
-  'Monto plan',
   'Tutor',
   'Tel. tutor',
   'Email tutor',
@@ -38,13 +36,6 @@ function formatBirth(fecha) {
   } catch {
     return '';
   }
-}
-
-function formatMoney(n) {
-  if (n == null || n === '') return '';
-  const num = Number(n);
-  if (Number.isNaN(num)) return String(n);
-  return num.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
 function safeFilePart(name) {
@@ -80,8 +71,6 @@ export function buildCategoryAthletesCsv(enrollments = []) {
         a.obraSocial || '',
         a.disponibilidad || '',
         e.estado || '',
-        e.plan?.nombre || '',
-        formatMoney(e.plan?.monto),
         tutorName,
         tutor?.telefono || '',
         tutor?.email || '',
