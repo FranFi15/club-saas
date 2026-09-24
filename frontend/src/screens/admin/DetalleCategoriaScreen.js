@@ -33,6 +33,7 @@ import CategoryRosterModal from '../../components/CategoryRosterModal';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { isoCalendarDateToDisplay } from '../../utils/dateDisplay';
 import { canMutateAsAdmin } from '../../constants/appRoles';
+import { shareCategoryAthletesSheet } from '../../utils/exportCategoryAthletesSheet';
 
 function ageRangeHint(cat) {
   if (!cat) return '';
@@ -106,6 +107,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
   const [chatToggleSaving, setChatToggleSaving] = useState(false);
   const [chatGrupalToggleSaving, setChatGrupalToggleSaving] = useState(false);
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
+  const [exportingSheet, setExportingSheet] = useState(false);
 
   const [alertConfig, setAlertConfig] = useState({
     visible: false, title: '', message: '', showCancel: false, isDanger: false,
@@ -251,8 +253,42 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
     }
   };
 
+  const exportAthletesSheet = async () => {
+    if (exportingSheet) return;
+    const rows = enrollments.filter((e) => e?.atleta);
+    if (rows.length === 0) {
+      showAlert('Sin atletas', 'No hay atletas inscriptos para exportar en esta categoría.');
+      return;
+    }
+    setExportingSheet(true);
+    try {
+      await shareCategoryAthletesSheet({
+        enrollments: rows,
+        categoryName: categoria?.nombre,
+        onError: (msg) => showAlert('Error', msg),
+      });
+    } catch (e) {
+      showAlert('Error', e?.message || 'No se pudo generar la planilla.');
+    } finally {
+      setExportingSheet(false);
+    }
+  };
+
   const headerPlantelBtn = (
     <View style={styles.headerActions}>
+      <TouchableOpacity
+        style={styles.headerIconBtn}
+        onPress={exportAthletesSheet}
+        disabled={exportingSheet}
+        accessibilityRole="button"
+        accessibilityLabel="Descargar planilla de atletas"
+      >
+        {exportingSheet ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <Ionicons name="download-outline" size={20} color="#fff" />
+        )}
+      </TouchableOpacity>
       <TouchableOpacity
         style={styles.headerIconBtn}
         onPress={() =>

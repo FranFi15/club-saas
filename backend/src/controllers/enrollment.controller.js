@@ -222,8 +222,13 @@ const getAthletesByCategory = asyncHandler(async (req, res) => {
     })
         .populate({
             path: 'atleta',
-            select: 'nombre apellido dni fotoPerfil email estado fechaNacimiento',
+            select:
+                'nombre apellido dni fotoPerfil email estado fechaNacimiento telefono direccion contactoEmergencia obraSocial sexo disponibilidad tutorPrincipal',
             match: { estado: 'activo' },
+            populate: {
+                path: 'tutorPrincipal',
+                select: 'nombre apellido telefono email',
+            },
         })
         .populate('plan', 'nombre monto')
         .lean();
