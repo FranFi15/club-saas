@@ -314,6 +314,17 @@ export default function LoginScreen({ navigation }) {
         </View>
 
         <TouchableOpacity
+          onPress={() => navigation.navigate('ForgotPassword')}
+          style={styles.forgotBtn}
+          disabled={isLoading}
+          hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
+        >
+          <Text style={[styles.forgotText, { color: clubData.primaryColor || '#3b82f6' }]}>
+            Olvidé mi contraseña
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.buttonGeneric, { backgroundColor: clubData.primaryColor }]}
           onPress={() => handleLoginRef.current?.()}
           disabled={isLoading}
@@ -415,6 +426,8 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   buttonText: { color: '#ffffff', fontSize: 16, fontWeight: 'bold' },
+  forgotBtn: { alignSelf: 'flex-end', marginBottom: 16, marginTop: -4, paddingVertical: 4 },
+  forgotText: { fontSize: 14, fontWeight: '600' },
   backButton: { marginTop: 16, padding: 10 },
   backButtonText: { fontSize: 14, textDecorationLine: 'underline' }
 });

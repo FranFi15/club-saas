@@ -58,6 +58,7 @@ export default ({ config }) => ({
         data: [
           { scheme: 'https', host: APP_WEB_HOST, pathPrefix: '/mp-oauth' },
           { scheme: 'https', host: APP_WEB_HOST, pathPrefix: '/pago' },
+          { scheme: 'https', host: APP_WEB_HOST, pathPrefix: '/reset-password' },
         ],
         category: ['BROWSABLE', 'DEFAULT'],
       },

@@ -163,6 +163,8 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/refresh', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/reset-password', authLimiter);
 
 const uploadLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,

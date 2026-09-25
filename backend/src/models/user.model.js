@@ -131,6 +131,10 @@ const userSchema = new mongoose.Schema({
     acceptedTermsVersion: { type: String, default: '', trim: true },
     acceptedTermsAt: { type: Date, default: null },
 
+    /** Reset de contraseña (hash SHA-256 del token enviado por email). */
+    passwordResetToken: { type: String, select: false, default: null },
+    passwordResetExpires: { type: Date, select: false, default: null },
+
     // --- ESTADO DEPORTIVO / MÉDICO (Semáforo para el DT) ---
     disponibilidad: {
         type: String,

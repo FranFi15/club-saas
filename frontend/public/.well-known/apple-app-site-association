@@ -4,7 +4,7 @@
     "details": [
       {
         "appID": "REPLACE_APPLE_TEAM_ID.com.hermesclubapp.app",
-        "paths": ["/mp-oauth/*", "/pago/*"]
+        "paths": ["/mp-oauth/*", "/pago/*", "/reset-password", "/reset-password/*"]
       }
     ]
   }

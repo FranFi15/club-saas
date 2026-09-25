@@ -6,6 +6,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import WorkspaceSearchScreen from '../screens/WorkspaceSearchScreen';
 import LoginScreen from '../screens/LoginScreen';
+import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
+import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import TermsAcceptanceScreen from '../screens/TermsAcceptanceScreen';
 import SelectRoleScreen from '../screens/SelectRoleScreen';
 import MemberPlaceholderScreen from '../screens/staff/MemberPlaceholderScreen';
@@ -21,6 +23,7 @@ import { navigationRef } from './navigationRef';
 import PushNotificationHandler from '../components/PushNotificationHandler';
 import PushNotificationPrompt from '../components/PushNotificationPrompt';
 import MercadoPagoDeepLinkHandler from '../components/MercadoPagoDeepLinkHandler';
+import PasswordResetDeepLinkHandler from '../components/PasswordResetDeepLinkHandler';
 import { ClubContext } from '../context/ClubContext';
 import { ThemeContext } from '../context/ThemeContext';
 import { buildNavigationTheme } from './buildNavigationTheme';
@@ -51,12 +54,15 @@ export default function AppNavigator() {
       <PushNotificationHandler />
       <PushNotificationPrompt />
       <MercadoPagoDeepLinkHandler />
+      <PasswordResetDeepLinkHandler />
       <Stack.Navigator
         initialRouteName={initialRoute}
         screenOptions={{ headerShown: false }}
       >
         <Stack.Screen name="WorkspaceSearch" component={WorkspaceSearchScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+        <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
         <Stack.Screen name="SelectRole" component={SelectRoleScreen} />
         <Stack.Screen name="TermsAcceptance" component={TermsAcceptanceScreen} />
         <Stack.Screen name="AdminHome" component={AdminTabNavigator} />
