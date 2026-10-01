@@ -72,7 +72,7 @@ const router = express.Router();
 router.get('/plans', protect, authorize('admin_club', 'dirigente', 'administrativo'), getPlans);
 router.post('/plans', protect, authorize('admin_club'), createPlan);
 router.put('/plans/:id', protect, authorize('admin_club'), updatePlan); // Para actualizar precios
-router.delete('/plans/:id', protect, authorize('admin_club'), deletePlan); // Baja lógica (activo: false)
+router.delete('/plans/:id', protect, authorize('admin_club'), deletePlan); // Eliminar (si no hay historial)
 router.patch('/plans/:id/reactivate', protect, authorize('admin_club'), reactivatePlan);
 
 // Cuotas sociales (múltiples tipos + asignación)

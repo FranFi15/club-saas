@@ -149,13 +149,18 @@ export default function PlanesTab({
                   <Ionicons name="pencil" size={20} color="#fff" />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => onArchivePlan(item)} style={[s.actionBtn, { backgroundColor: '#ef4444' }]}>
-                  <Ionicons name="archive" size={20} color="#fff" />
+                  <Ionicons name="trash" size={20} color="#fff" />
                 </TouchableOpacity>
               </>
             ) : (
-              <TouchableOpacity onPress={() => onReactivatePlan(item)} style={[s.actionBtn, { backgroundColor: '#10b981' }]}>
-                <Ionicons name="refresh" size={20} color="#fff" />
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity onPress={() => onReactivatePlan(item)} style={[s.actionBtn, { backgroundColor: '#10b981' }]}>
+                  <Ionicons name="refresh" size={20} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => onArchivePlan(item)} style={[s.actionBtn, { backgroundColor: '#ef4444' }]}>
+                  <Ionicons name="trash" size={20} color="#fff" />
+                </TouchableOpacity>
+              </>
             )}
           </View>
         )}

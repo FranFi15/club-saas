@@ -1744,13 +1744,46 @@ const updatePlan = asyncHandler(async (req, res) => {
     res.json(plan);
 });
 
-// @desc    Desactivar un plan (Soft Delete)
+// @desc    Eliminar un plan (hard delete si no tiene historial)
 // @route   DELETE /api/financial/plans/:id
 const deletePlan = asyncHandler(async (req, res) => {
-    const { Plan } = req.models;
-    const plan = await Plan.findByIdAndUpdate(req.params.id, { activo: false }, { returnDocument: 'after' });
-    if (!plan) { res.status(404); throw new Error('Plan no encontrado'); }
-    res.json({ message: 'Plan archivado (ya no se podrá asignar, pero mantiene el historial)' });
+    const { Plan, Payment, Enrollment, Category, Discipline } = req.models;
+    const planId = req.params.id;
+
+    const plan = await Plan.findById(planId);
+    if (!plan) {
+        res.status(404);
+        throw new Error('Plan no encontrado');
+    }
+
+    const [paymentsCount, enrollmentsCount, categoriesCount, disciplinesCount] = await Promise.all([
+        Payment.countDocuments({ plan: planId }),
+        Enrollment.countDocuments({ plan: planId }),
+        Category.countDocuments({ planDefault: planId }),
+        Discipline.countDocuments({ planDefault: planId }),
+    ]);
+
+    if (paymentsCount > 0) {
+        res.status(400);
+        throw new Error(
+            'No se puede eliminar: hay cuotas históricas con este plan. Cambiá las inscripciones o dejá el plan sin usar.',
+        );
+    }
+    if (enrollmentsCount > 0) {
+        res.status(400);
+        throw new Error(
+            'No se puede eliminar: hay inscripciones que todavía tienen este plan asignado.',
+        );
+    }
+    if (categoriesCount > 0 || disciplinesCount > 0) {
+        res.status(400);
+        throw new Error(
+            'No se puede eliminar: es el plan por defecto de una categoría o disciplina. Cambiá el plan default primero.',
+        );
+    }
+
+    await Plan.findByIdAndDelete(planId);
+    res.json({ message: 'Plan eliminado.' });
 });
 
 export {

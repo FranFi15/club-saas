@@ -649,23 +649,23 @@ export default function FinanzasScreen({ route }) {
     }
   };
 
-  const archivePlan = (plan) => {
+  const deletePlan = (plan) => {
     setAlertConfig({
       visible: true,
-      title: 'Archivar plan',
-      message: `¿Archivamos "${plan.nombre}"? No se va a asignar a inscripciones nuevas.`,
+      title: 'Eliminar plan',
+      message: `¿Eliminamos "${plan.nombre}"? Solo se puede si no tiene cuotas ni inscripciones asociadas.`,
       showCancel: true,
       isDanger: true,
-      confirmText: 'Archivar',
+      confirmText: 'Eliminar',
       onConfirm: async () => {
         setAlertConfig((p) => ({ ...p, visible: false }));
         try {
           const h = await getHeaders();
           await clubApi.delete(`/financial/plans/${plan._id}`, { headers: h });
-          showAlert('Listo', 'Plan archivado.');
+          showAlert('Listo', 'Plan eliminado.');
           fetchPlans();
         } catch (e) {
-          showAlert('Error', e.response?.data?.message || 'No se pudo archivar.');
+          showAlert('Error', e.response?.data?.message || 'No se pudo eliminar.');
         }
       },
       onCancel: () => setAlertConfig((p) => ({ ...p, visible: false })),
@@ -1656,7 +1656,7 @@ export default function FinanzasScreen({ route }) {
           onRefresh={onRefresh}
           onCreatePlan={() => openPlanForm(null)}
           onEditPlan={openPlanForm}
-          onArchivePlan={archivePlan}
+          onArchivePlan={deletePlan}
           onReactivatePlan={reactivatePlan}
           onAssignPlan={assignPlan}
           isSavingAssignment={isSavingAssignment}
