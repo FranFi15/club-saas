@@ -92,6 +92,11 @@ function safeImage(doc, source, x, y, opts) {
     }
 }
 
+function textAt(doc, str, x, y, opts = {}) {
+    // Absolute placement: never advance the flow cursor onto a new page.
+    doc.text(String(str ?? ''), x, y, { lineBreak: false, ...opts });
+}
+
 function buildPdfBuffer({
     clubNombre,
     primaryColor,
@@ -101,7 +106,9 @@ function buildPdfBuffer({
     atleta,
 }) {
     return new Promise((resolve, reject) => {
-        const doc = new PDFDocument({ size: 'A4', margin: PAGE_MARGIN });
+        // margin: 0 — we place content with PAGE_MARGIN; PDFKit's default margin
+        // triggers automatic page breaks when the text cursor crosses it.
+        const doc = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: true });
         const chunks = [];
         doc.on('data', (c) => chunks.push(c));
         doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -140,17 +147,15 @@ function buildPdfBuffer({
 
         // Club name + title
         const textLeft = clubLogoBuf ? PAGE_MARGIN + logoSize + 14 : PAGE_MARGIN;
-        doc.fillColor('#ffffff')
-            .font('Helvetica-Bold')
-            .fontSize(18)
-            .text(clubNombre || 'Club', textLeft, 34, {
-                width: CONTENT_WIDTH - (clubLogoBuf ? logoSize + 14 : 0) - 70,
-                ellipsis: true,
-            });
-        doc.font('Helvetica')
-            .fontSize(11)
-            .fillColor('#e8eef6')
-            .text('COMPROBANTE DE PAGO', textLeft, 60);
+        const headerTextWidth = CONTENT_WIDTH - (clubLogoBuf ? logoSize + 14 : 0) - 70;
+        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(18);
+        textAt(doc, clubNombre || 'Club', textLeft, 34, {
+            width: headerTextWidth,
+            ellipsis: true,
+            height: 22,
+        });
+        doc.font('Helvetica').fontSize(11).fillColor('#e8eef6');
+        textAt(doc, 'COMPROBANTE DE PAGO', textLeft, 60, { width: headerTextWidth });
 
         // Hermes mark (right) — white badge so the black-bg asset reads cleanly
         const hermesX = doc.page.width - PAGE_MARGIN - 62;
@@ -164,11 +169,9 @@ function buildPdfBuffer({
 
         // —— Meta row ——
         let y = headerH + 28;
-        doc.fillColor('#64748b')
-            .font('Helvetica')
-            .fontSize(9)
-            .text(`Nº ${reciboId}`, PAGE_MARGIN, y);
-        doc.text(`Emitido: ${emitido}`, PAGE_MARGIN, y, { width: CONTENT_WIDTH, align: 'right' });
+        doc.fillColor('#64748b').font('Helvetica').fontSize(9);
+        textAt(doc, `Nº ${reciboId}`, PAGE_MARGIN, y, { width: 200 });
+        textAt(doc, `Emitido: ${emitido}`, PAGE_MARGIN, y, { width: CONTENT_WIDTH, align: 'right' });
 
         y += 22;
         doc.moveTo(PAGE_MARGIN, y).lineTo(PAGE_MARGIN + CONTENT_WIDTH, y).strokeColor('#e2e8f0').lineWidth(1).stroke();
@@ -196,15 +199,14 @@ function buildPdfBuffer({
 
         let rowY = y + cardPad;
         for (const [label, value] of rows) {
-            doc.fillColor('#64748b').font('Helvetica').fontSize(9).text(label, PAGE_MARGIN + cardPad, rowY, {
-                width: 120,
+            doc.fillColor('#64748b').font('Helvetica').fontSize(9);
+            textAt(doc, label, PAGE_MARGIN + cardPad, rowY, { width: 120, height: rowH });
+            doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(10);
+            textAt(doc, value, PAGE_MARGIN + 140, rowY, {
+                width: CONTENT_WIDTH - 140 - cardPad * 2,
+                height: rowH,
+                ellipsis: true,
             });
-            doc.fillColor('#0f172a')
-                .font('Helvetica-Bold')
-                .fontSize(10)
-                .text(String(value), PAGE_MARGIN + 140, rowY, {
-                    width: CONTENT_WIDTH - 140 - cardPad * 2,
-                });
             rowY += rowH;
         }
 
@@ -212,17 +214,13 @@ function buildPdfBuffer({
         y += cardH + 22;
         const totalH = 72;
         drawRoundedRect(doc, PAGE_MARGIN, y, CONTENT_WIDTH, totalH, 8, color);
-        doc.fillColor('#e8eef6')
-            .font('Helvetica')
-            .fontSize(10)
-            .text('TOTAL PAGADO', PAGE_MARGIN, y + 16, { width: CONTENT_WIDTH, align: 'center' });
-        doc.fillColor('#ffffff')
-            .font('Helvetica-Bold')
-            .fontSize(26)
-            .text(formatMoney(payment.montoFinal), PAGE_MARGIN, y + 34, {
-                width: CONTENT_WIDTH,
-                align: 'center',
-            });
+        doc.fillColor('#e8eef6').font('Helvetica').fontSize(10);
+        textAt(doc, 'TOTAL PAGADO', PAGE_MARGIN, y + 16, { width: CONTENT_WIDTH, align: 'center' });
+        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(26);
+        textAt(doc, formatMoney(payment.montoFinal), PAGE_MARGIN, y + 34, {
+            width: CONTENT_WIDTH,
+            align: 'center',
+        });
 
         // —— Footer ——
         const footerY = doc.page.height - 64;
@@ -233,18 +231,23 @@ function buildPdfBuffer({
             .stroke();
 
         safeImage(doc, hermesLogoPath, PAGE_MARGIN, footerY + 10, { fit: [28, 28] });
-        doc.fillColor('#64748b')
-            .font('Helvetica')
-            .fontSize(8)
-            .text(
-                'Comprobante generado por Hermes Club App. Conservalo como constancia de pago.',
-                PAGE_MARGIN + 36,
-                footerY + 14,
-                { width: CONTENT_WIDTH - 36 },
-            );
-        doc.fillColor('#94a3b8')
-            .fontSize(7)
-            .text(`ID ${payment._id}`, PAGE_MARGIN + 36, footerY + 28, { width: CONTENT_WIDTH - 36 });
+        doc.fillColor('#64748b').font('Helvetica').fontSize(8);
+        textAt(
+            doc,
+            'Comprobante generado por Hermes Club App. Conservalo como constancia de pago.',
+            PAGE_MARGIN + 36,
+            footerY + 14,
+            { width: CONTENT_WIDTH - 36, ellipsis: true },
+        );
+        doc.fillColor('#94a3b8').fontSize(7);
+        textAt(doc, `ID ${payment._id}`, PAGE_MARGIN + 36, footerY + 28, {
+            width: CONTENT_WIDTH - 36,
+            ellipsis: true,
+        });
+
+        // Keep the flow cursor on the first page so doc.end() cannot spawn blanks.
+        doc.x = PAGE_MARGIN;
+        doc.y = Math.min(footerY + 40, doc.page.height - 24);
 
         doc.end();
     });
