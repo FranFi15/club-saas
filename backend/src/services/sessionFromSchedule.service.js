@@ -55,37 +55,36 @@ export function startOfTodayUtc() {
     return d;
 }
 
-/** Meses del rango [desde, hasta] que no cubren el mes calendario completo. */
+/**
+ * Meses con cuota a la mitad según las fechas que eligió el admin.
+ * Solo importa el primer y el último mes del rango:
+ * - primer mes incompleto si no arranca el día 1
+ * - último mes incompleto si no termina el último día del mes (o el 30/31)
+ * Los meses del medio nunca son parciales.
+ */
 export function computePartialMonths(desdeIsoOrDate, hastaIsoOrDate, porcentaje = 50) {
-    const desde = parseCalendarStartDate(desdeIsoOrDate);
-    const hasta = parseCalendarEndDate(hastaIsoOrDate);
-    if (!desde || !hasta || hasta < desde) return [];
+    const desdeYmd = toUtcYmd(desdeIsoOrDate);
+    const hastaYmd = toUtcYmd(hastaIsoOrDate);
+    if (!desdeYmd || !hastaYmd || hastaYmd < desdeYmd) return [];
 
-    const dy = desde.getUTCFullYear();
-    const dm = desde.getUTCMonth() + 1;
-    const dd = desde.getUTCDate();
-    const hy = hasta.getUTCFullYear();
-    const hm = hasta.getUTCMonth() + 1;
-    const hd = hasta.getUTCDate();
+    const [dy, dm, dd] = desdeYmd.split('-').map(Number);
+    const [hy, hm, hd] = hastaYmd.split('-').map(Number);
+
+    const daysInLastMonth = new Date(Date.UTC(hy, hm, 0)).getUTCDate();
+    const firstMonthFull = dd === 1;
+    // 30/31 cuentan como fin de mes; en feb (28/29) basta el último día real.
+    const lastMonthFull = hd >= daysInLastMonth || hd >= 30;
+
+    if (dy === hy && dm === hm) {
+        if (!firstMonthFull || !lastMonthFull) {
+            return [{ mes: dm, anio: dy, porcentaje }];
+        }
+        return [];
+    }
 
     const partial = [];
-    let y = dy;
-    let m = dm;
-    while (y < hy || (y === hy && m <= hm)) {
-        const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
-        const isFirst = y === dy && m === dm;
-        const isLast = y === hy && m === hm;
-        const coversFromStart = !isFirst || dd === 1;
-        const coversToEnd = !isLast || hd >= daysInMonth;
-        if (!coversFromStart || !coversToEnd) {
-            partial.push({ mes: m, anio: y, porcentaje });
-        }
-        m += 1;
-        if (m > 12) {
-            m = 1;
-            y += 1;
-        }
-    }
+    if (!firstMonthFull) partial.push({ mes: dm, anio: dy, porcentaje });
+    if (!lastMonthFull) partial.push({ mes: hm, anio: hy, porcentaje });
     return partial;
 }
 

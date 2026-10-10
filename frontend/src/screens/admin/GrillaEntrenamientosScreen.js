@@ -41,28 +41,25 @@ function defaultVigenteHastaDisplay() {
 const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 const MN_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
+/** Solo primer/último mes: día 1 al inicio; fin = último día del mes o 30/31. */
 function computePartialMonthsClient(desdeIso, hastaIso, porcentaje = 50) {
   if (!desdeIso || !hastaIso || desdeIso > hastaIso) return [];
   const [dy, dm, dd] = desdeIso.split('-').map(Number);
   const [hy, hm, hd] = hastaIso.split('-').map(Number);
-  const partial = [];
-  let y = dy;
-  let m = dm;
-  while (y < hy || (y === hy && m <= hm)) {
-    const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
-    const isFirst = y === dy && m === dm;
-    const isLast = y === hy && m === hm;
-    const coversFromStart = !isFirst || dd === 1;
-    const coversToEnd = !isLast || hd >= daysInMonth;
-    if (!coversFromStart || !coversToEnd) {
-      partial.push({ mes: m, anio: y, porcentaje });
+  const daysInLastMonth = new Date(Date.UTC(hy, hm, 0)).getUTCDate();
+  const firstMonthFull = dd === 1;
+  const lastMonthFull = hd >= daysInLastMonth || hd >= 30;
+
+  if (dy === hy && dm === hm) {
+    if (!firstMonthFull || !lastMonthFull) {
+      return [{ mes: dm, anio: dy, porcentaje }];
     }
-    m += 1;
-    if (m > 12) {
-      m = 1;
-      y += 1;
-    }
+    return [];
   }
+
+  const partial = [];
+  if (!firstMonthFull) partial.push({ mes: dm, anio: dy, porcentaje });
+  if (!lastMonthFull) partial.push({ mes: hm, anio: hy, porcentaje });
   return partial;
 }
 
@@ -289,7 +286,7 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
       setTimeout(() => {
         showAlert(
           'Meses parciales',
-          `${labels} no cubren el mes completo. ¿Aplicar mitad de cuota (50%) en esos meses?`,
+          `${labels}: el rango no arranca el día 1 o no termina el 30/31. ¿Aplicar mitad de cuota (50%) en esos meses?`,
           {
             showCancel: true,
             confirmText: 'Sí, mitad',
