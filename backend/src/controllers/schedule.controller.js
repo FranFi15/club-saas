@@ -6,6 +6,8 @@ import {
     computePartialMonths,
     syncFutureSessionsForSchedule,
     trimSessionsBeyondSchedule,
+    generateSessionsForScheduleIds,
+    startOfTodayUtc,
 } from '../services/sessionFromSchedule.service.js';
 import { resumeBillingForCategory } from '../services/endBillingAfterGrilla.service.js';
 import { retargetOpenPaymentsFromEnrollments } from '../services/generateMonthlyPayments.service.js';
@@ -151,6 +153,20 @@ const addSchedule = asyncHandler(async (req, res) => {
 
     const schedules = await Schedule.insertMany(schedulesToInsert);
 
+    const genStart =
+        inicioVigencia && inicioVigencia > startOfTodayUtc() ? inicioVigencia : startOfTodayUtc();
+    let sesionesGeneradas = { creadasCount: 0 };
+    try {
+        sesionesGeneradas = await generateSessionsForScheduleIds(
+            req.models,
+            schedules.map((s) => s._id),
+            genStart,
+            finVigencia,
+        );
+    } catch (e) {
+        console.warn('[addSchedule] generate sessions:', e.message);
+    }
+
     let facturacion = { resumed: 0 };
     try {
         facturacion = await resumeBillingForCategory(req.models, categoria);
@@ -178,13 +194,18 @@ const addSchedule = asyncHandler(async (req, res) => {
         cuotasMitad.updated > 0
             ? ` Se actualizaron ${cuotasMitad.updated} cuota(s) abierta(s) con el descuento.`
             : '';
+    const sesionesNote =
+        sesionesGeneradas.creadasCount > 0
+            ? ` Se crearon ${sesionesGeneradas.creadasCount} sesión(es) hasta la fecha de fin.`
+            : '';
 
     res.status(201).json({
         message: terminarCuotas
-            ? `Horarios creados (${schedules.length}). Sesiones desde–hasta la fecha indicada; al finalizar se dejarán de generar cuotas.${partialNote}${resumeNote}${retargetNote}`
-            : `Horarios creados (${schedules.length}). El cron generará sesiones en el rango indicado.${partialNote}${resumeNote}${retargetNote}`,
+            ? `Horarios creados (${schedules.length}). Sesiones desde–hasta la fecha indicada; al finalizar se dejarán de generar cuotas.${sesionesNote}${partialNote}${resumeNote}${retargetNote}`
+            : `Horarios creados (${schedules.length}).${sesionesNote}${partialNote}${resumeNote}${retargetNote}`,
         count: schedules.length,
         schedules,
+        sesionesGeneradas,
         descuentosMesesParciales: descuentos,
         facturacion,
         cuotasMitad,
@@ -323,6 +344,23 @@ const updateSchedule = asyncHandler(async (req, res) => {
 
     const { actualizadas } = await syncFutureSessionsForSchedule(req.models, schedule, previous);
 
+    let sesionesCreadas = 0;
+    try {
+        const genStart =
+            schedule.vigenteDesde && schedule.vigenteDesde > startOfTodayUtc()
+                ? schedule.vigenteDesde
+                : startOfTodayUtc();
+        const gen = await generateSessionsForScheduleIds(
+            req.models,
+            [schedule._id],
+            genStart,
+            schedule.vigenteHasta,
+        );
+        sesionesCreadas = gen.creadasCount || 0;
+    } catch (e) {
+        console.warn('[updateSchedule] generate sessions:', e.message);
+    }
+
     let facturacion = { resumed: 0 };
     try {
         facturacion = await resumeBillingForCategory(req.models, schedule.categoria);
@@ -343,6 +381,7 @@ const updateSchedule = asyncHandler(async (req, res) => {
         ...schedule.toObject(),
         sesionesActualizadas: actualizadas,
         sesionesEliminadas,
+        sesionesCreadas,
         facturacion,
         cuotasMitad,
     });

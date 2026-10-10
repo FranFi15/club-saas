@@ -288,6 +288,17 @@ export async function generateSessionsInDateRange(models, fechaInicio, fechaFin)
     return generateLoop(models, inicio, fin, {});
 }
 
+/** Genera sesiones solo para los horarios indicados (alta/edición de grilla). */
+export async function generateSessionsForScheduleIds(models, scheduleIds, fechaInicio, fechaFin) {
+    const ids = (Array.isArray(scheduleIds) ? scheduleIds : []).filter(Boolean);
+    if (!ids.length) {
+        return { creadasCount: 0, detalles: [], errores: [], omitidas: [] };
+    }
+    const inicio = new Date(fechaInicio);
+    const fin = new Date(fechaFin);
+    return generateLoop(models, inicio, fin, { _id: { $in: ids } });
+}
+
 /**
  * Cron diario: si hay menos de N sesiones futuras, crea las faltantes respetando el vigenteHasta de cada horario.
  */

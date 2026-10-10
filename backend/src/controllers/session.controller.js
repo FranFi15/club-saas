@@ -458,8 +458,13 @@ const getCoachAgenda = asyncHandler(async (req, res) => {
         end = new Date(hasta);
         end.setUTCHours(23, 59, 59, 999);
     } else {
+        // Agenda por defecto: ~4 meses para cubrir grillas largas (oct–ene, etc.).
+        const agendaDays = Math.min(
+            366,
+            Math.max(21, parseInt(process.env.COACH_AGENDA_DEFAULT_DAYS || '120', 10) || 120),
+        );
         end = new Date(start);
-        end.setUTCDate(end.getUTCDate() + 21);
+        end.setUTCDate(end.getUTCDate() + agendaDays);
         end.setUTCHours(23, 59, 59, 999);
     }
 
@@ -861,8 +866,13 @@ const getNutricionistaAgenda = asyncHandler(async (req, res) => {
         end = new Date(hasta);
         end.setUTCHours(23, 59, 59, 999);
     } else {
+        // Agenda por defecto: ~4 meses para cubrir grillas largas (oct–ene, etc.).
+        const agendaDays = Math.min(
+            366,
+            Math.max(21, parseInt(process.env.COACH_AGENDA_DEFAULT_DAYS || '120', 10) || 120),
+        );
         end = new Date(start);
-        end.setUTCDate(end.getUTCDate() + 21);
+        end.setUTCDate(end.getUTCDate() + agendaDays);
         end.setUTCHours(23, 59, 59, 999);
     }
 
@@ -899,8 +909,13 @@ const getPsicologoAgenda = asyncHandler(async (req, res) => {
         end = new Date(hasta);
         end.setUTCHours(23, 59, 59, 999);
     } else {
+        // Agenda por defecto: ~4 meses para cubrir grillas largas (oct–ene, etc.).
+        const agendaDays = Math.min(
+            366,
+            Math.max(21, parseInt(process.env.COACH_AGENDA_DEFAULT_DAYS || '120', 10) || 120),
+        );
         end = new Date(start);
-        end.setUTCDate(end.getUTCDate() + 21);
+        end.setUTCDate(end.getUTCDate() + agendaDays);
         end.setUTCHours(23, 59, 59, 999);
     }
 
