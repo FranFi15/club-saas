@@ -525,7 +525,13 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
       showAlert('Atletas', 'Seleccioná al menos un atleta.', { embedded: true });
       return;
     }
-    const picked = availableUsers.filter((u) => selectedAthleteIds.has(u._id));
+    const picked = availableUsers.filter(
+      (u) => selectedAthleteIds.has(u._id) && u.seleccionable !== false,
+    );
+    if (picked.length === 0) {
+      showAlert('Atletas', 'Seleccioná al menos un atleta dentro del rango de edad.', { embedded: true });
+      return;
+    }
     const underMin = picked.filter((u) => u.menorEdadMinima);
     if (underMin.length > 0) {
       const minAge = pickerCategory?.edadMinima ?? categoria?.edadMinima;
@@ -1050,11 +1056,19 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
               {activeTab === 'atletas' ? (
                 <>
                   <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 8 }}>
-                    Elegí uno o más atletas. Los menores a la edad mínima se pueden agregar con confirmación.
+                    Se listan todos los atletas activos. Los que superan la edad máxima no se pueden seleccionar; los menores a la mínima piden confirmación.
                   </Text>
-                  <Text style={{ color: colorMarca, fontSize: 13, fontWeight: '600', marginBottom: 10 }}>
+                  <Text style={{ color: colorMarca, fontSize: 13, fontWeight: '600', marginBottom: 4 }}>
                     {ageRangeHint(pickerCategory || categoria)}
                   </Text>
+                  {availableUsers.length > 0 ? (
+                    <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 10 }}>
+                      {availableUsers.length} disponible{availableUsers.length === 1 ? '' : 's'}
+                      {searchQuery.trim().length >= 2 ? ' (búsqueda)' : ''}
+                    </Text>
+                  ) : (
+                    <View style={{ height: 6 }} />
+                  )}
                 </>
               ) : null}
               
@@ -1081,6 +1095,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
                      const sel = selectedAthleteIds.has(item._id);
                      const nac = isoCalendarDateToDisplay(item.fechaNacimiento);
                      const edadTxt = item.edad != null ? `${item.edad} años` : null;
+                     const blocked = item.seleccionable === false;
                      return (
                        <TouchableOpacity
                          style={[
@@ -1090,8 +1105,10 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
                              backgroundColor: sel ? colorMarca + '15' : 'transparent',
                              flexDirection: 'row',
                              alignItems: 'center',
+                             opacity: blocked ? 0.45 : 1,
                            },
                          ]}
+                         disabled={blocked}
                          onPress={() => toggleAthleteSelect(item._id)}
                        >
                          <Ionicons
@@ -1108,6 +1125,16 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
                                .filter(Boolean)
                                .join(' · ')}
                            </Text>
+                           {item.mayorEdadMaxima ? (
+                             <Text style={{ color: '#ef4444', fontSize: 11, fontWeight: '700', marginTop: 4 }}>
+                               Supera la edad máxima
+                             </Text>
+                           ) : null}
+                           {item.sinNacimiento ? (
+                             <Text style={{ color: '#ef4444', fontSize: 11, fontWeight: '700', marginTop: 4 }}>
+                               Falta fecha de nacimiento
+                             </Text>
+                           ) : null}
                            {item.menorEdadMinima ? (
                              <Text style={{ color: '#d97706', fontSize: 11, fontWeight: '700', marginTop: 4 }}>
                                Menor a la edad mínima
@@ -1124,7 +1151,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
                     </TouchableOpacity>
                    );
                  }}
-                 style={{ marginTop: 15, maxHeight: 320 }}
+                 style={{ marginTop: 10, flexGrow: 0, maxHeight: 420 }}
                  ListEmptyComponent={
                    <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 20 }}>
                      {addLoading || isSearching
@@ -1132,9 +1159,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
                        : activeTab === 'atletas'
                          ? searchQuery.trim().length >= 2
                            ? 'Sin resultados para esta búsqueda.'
-                           : pickerCategory?.edadMinima != null || pickerCategory?.edadMaxima != null
-                             ? 'No hay atletas disponibles (o superan la edad máxima / falta fecha de nacimiento).'
-                             : 'No hay atletas disponibles para agregar.'
+                           : 'No hay atletas activos para agregar (todos ya están en esta categoría).'
                          : !isSearching && searchQuery
                            ? 'No se encontraron usuarios disponibles.'
                            : 'Escribe para buscar...'}

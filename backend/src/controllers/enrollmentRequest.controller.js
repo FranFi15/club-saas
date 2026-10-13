@@ -4,8 +4,6 @@ import {
     matchesCategoryAgeLimits,
     isUnderCategoryMinAge,
     isOverCategoryMaxAge,
-    isEligibleAllowingUnderMinAge,
-    birthDateRangeForCategoryAllowUnderMin,
 } from '../utils/ageHelper.js';
 import { sortUsersByName, userNameCollation, userNameMongoSort } from '../utils/listSort.js';
 import { categorySexoError, applyCategorySexoToAthlete } from '../utils/atletaSexo.js';
@@ -93,6 +91,8 @@ async function enrolledAndPendingIds(req, categoriaId) {
 
 function mapAthleteForPicker(user, category) {
     const edad = calcEdad(user.fechaNacimiento);
+    const sinNacimiento =
+        (category?.edadMinima != null || category?.edadMaxima != null) && !user.fechaNacimiento;
     return {
         _id: user._id,
         nombre: user.nombre,
@@ -104,6 +104,10 @@ function mapAthleteForPicker(user, category) {
         edad,
         cumpleEdadCategoria: matchesCategoryAgeLimits(category, user.fechaNacimiento),
         menorEdadMinima: isUnderCategoryMinAge(category, user.fechaNacimiento),
+        mayorEdadMaxima: isOverCategoryMaxAge(category, user.fechaNacimiento),
+        sinNacimiento,
+        /** Se puede seleccionar para inscribir (admin confirma menores; máximos no). */
+        seleccionable: !sinNacimiento && !isOverCategoryMaxAge(category, user.fechaNacimiento),
     };
 }
 
@@ -125,9 +129,9 @@ const getAvailableAthletesForCategory = asyncHandler(async (req, res) => {
 
     const { enrolledIds, pendingIds } = await enrolledAndPendingIds(req, categoriaId);
     const excludeIds = [...enrolledIds, ...pendingIds];
-    const hasAgeLimits = category.edadMinima != null || category.edadMaxima != null;
-    const birthRange = birthDateRangeForCategoryAllowUnderMin(category);
 
+    // Lista a todos los atletas activos no inscritos (la edad se marca en cada fila;
+    // antes el filtro de edad dejaba "pocos" en categorías chicas como PREMINI).
     const and = [roleQuery('atleta'), { estado: 'activo' }];
     if (excludeIds.length) {
         and.push({ _id: { $nin: excludeIds } });
@@ -136,24 +140,16 @@ const getAvailableAthletesForCategory = asyncHandler(async (req, res) => {
         const re = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
         and.push({ $or: [{ nombre: re }, { apellido: re }, { dni: re }, { email: re }] });
     }
-    if (birthRange) {
-        and.push({ fechaNacimiento: { ...birthRange, $exists: true, $ne: null } });
-    } else if (hasAgeLimits) {
-        and.push({ fechaNacimiento: { $exists: true, $ne: null } });
-    }
     const filter = { $and: and };
 
-    // Excluye ya inscritos en la query (antes del limit) para no quedarse con pocos resultados.
     const users = await User.find(filter)
         .select('nombre apellido dni fotoPerfil email fechaNacimiento')
         .collation(userNameCollation)
         .sort(userNameMongoSort)
-        .limit(200)
+        .limit(500)
         .lean();
 
-    const atletas = users
-        .filter((u) => isEligibleAllowingUnderMinAge(category, u.fechaNacimiento))
-        .map((u) => mapAthleteForPicker(u, category));
+    const atletas = users.map((u) => mapAthleteForPicker(u, category));
 
     res.json({
         categoria: {
@@ -163,6 +159,7 @@ const getAvailableAthletesForCategory = asyncHandler(async (req, res) => {
             edadMaxima: category.edadMaxima ?? null,
         },
         atletas: sortUsersByName(atletas),
+        total: atletas.length,
     });
 });
 
