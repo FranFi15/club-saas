@@ -391,6 +391,34 @@ export default function UsuariosScreen({ navigation }) {
     );
   };
 
+  const handlePermanentDelete = (item) => {
+    if (item.estado !== 'inactivo') {
+      showAlert('Aviso', 'Primero das de baja al usuario; después podés eliminarlo.');
+      return;
+    }
+    showAlert(
+      'Eliminar definitivamente',
+      `¿Eliminar a ${item.nombre} ${item.apellido}? Esta acción no se puede deshacer: se borran el usuario y sus datos vinculados (inscripciones, cuotas, etc.).`,
+      {
+        showCancel: true,
+        isDanger: true,
+        confirmText: 'Eliminar',
+        onConfirm: async () => {
+          closeAlert();
+          try {
+            const headers = await getHeaders();
+            await clubApi.delete(`/users/${item._id}`, { headers });
+            showAlert('Éxito', 'Usuario eliminado.');
+            setIsDetailsVisible(false);
+            onRefresh();
+          } catch (error) {
+            showAlert('Error', error.response?.data?.message || 'No se pudo eliminar el usuario.');
+          }
+        },
+      },
+    );
+  };
+
   const renderRightActions = (item) => {
     if (!canMutateUsers) return null;
     const inactive = item.estado === 'inactivo';
@@ -403,8 +431,16 @@ export default function UsuariosScreen({ navigation }) {
           style={[styles.swipeBtn, { backgroundColor: inactive ? '#10b981' : '#ef4444' }]}
           onPress={() => handleDelete(item)}
         >
-          <Ionicons name={inactive ? 'checkmark-circle' : 'trash'} size={22} color="#ffffff" />
+          <Ionicons name={inactive ? 'checkmark-circle' : 'ban'} size={22} color="#ffffff" />
         </TouchableOpacity>
+        {inactive ? (
+          <TouchableOpacity
+            style={[styles.swipeBtn, { backgroundColor: '#ef4444' }]}
+            onPress={() => handlePermanentDelete(item)}
+          >
+            <Ionicons name="trash" size={22} color="#ffffff" />
+          </TouchableOpacity>
+        ) : null}
       </View>
     );
   };
@@ -606,7 +642,8 @@ export default function UsuariosScreen({ navigation }) {
         user={selectedUser} 
         onClose={() => setIsDetailsVisible(false)} 
         onEdit={canMutateUsers ? openEditModal : undefined} 
-        onDelete={canMutateUsers ? handleDelete : undefined} 
+        onDelete={canMutateUsers ? handleDelete : undefined}
+        onPermanentDelete={canMutateUsers ? handlePermanentDelete : undefined}
       />
 
       <CustomAlert 

@@ -4,6 +4,7 @@ import {
     updateMyProfile,
     updateUserAsAdmin,
     deactivateAthlete,
+    deleteInactiveUser,
     getUserUnpaidPaymentsSummary,
     reactivateUser,
     continueTrialAthlete,
@@ -56,6 +57,7 @@ router.patch(
     authorize('admin_club', 'administrativo'),
     reactivateUser,
 );
+router.delete('/:id', protect, authorize('admin_club', 'administrativo'), deleteInactiveUser);
 router.patch('/:id', protect, authorize('admin_club', 'administrativo'), updateUserAsAdmin);
 router.patch('/atletas/:id/deactivate', protect, authorize('admin_club', 'administrativo'), deactivateAthlete);
 router.post(

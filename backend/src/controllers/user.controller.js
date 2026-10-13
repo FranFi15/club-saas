@@ -687,6 +687,137 @@ const deactivateAthlete = asyncHandler(async (req, res) => {
     });
 });
 
+// @desc    Eliminar definitivamente un usuario inactivo (y datos vinculados)
+// @route   DELETE /api/users/:id
+const deleteInactiveUser = asyncHandler(async (req, res) => {
+    const {
+        User,
+        Enrollment,
+        Payment,
+        Submission,
+        Measurement,
+        Wellness,
+        Notification,
+        Injury,
+        MedicalAppointment,
+        ClinicalNote,
+        Category,
+        Session,
+        EnrollmentRequest,
+        SwapRequest,
+        FamilyInvite,
+        ClubEntry,
+        PayrollEntry,
+        ChatConversation,
+        ChatMessage,
+    } = req.models;
+
+    const userId = req.params.id;
+    if (String(req.user._id) === String(userId)) {
+        res.status(400);
+        throw new Error('No podés eliminar tu propia cuenta.');
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+        res.status(404);
+        throw new Error('Usuario no encontrado');
+    }
+    if (user.estado !== 'inactivo') {
+        res.status(400);
+        throw new Error('Solo se pueden eliminar usuarios dados de baja. Desactivalo primero.');
+    }
+
+    const uid = user._id;
+
+    const safe = (p) => Promise.resolve(p).catch((e) => {
+        console.log('deleteInactiveUser cleanup:', e.message);
+        return null;
+    });
+
+    await Promise.all([
+        safe(Enrollment?.deleteMany({ atleta: uid })),
+        safe(Payment?.deleteMany({ atleta: uid })),
+        safe(Submission?.deleteMany({ atleta: uid })),
+        safe(Measurement?.deleteMany({ atleta: uid })),
+        safe(Wellness?.deleteMany({ atleta: uid })),
+        safe(Notification?.deleteMany({ usuario: uid })),
+        safe(Injury?.deleteMany({ atleta: uid })),
+        safe(MedicalAppointment?.deleteMany({
+            $or: [{ atleta: uid }, { profesional: uid }],
+        })),
+        safe(ClinicalNote?.deleteMany({
+            $or: [{ atleta: uid }, { autor: uid }],
+        })),
+        safe(ClubEntry?.deleteMany({ $or: [{ user: uid }, { scannedBy: uid }] })),
+        safe(PayrollEntry?.deleteMany({
+            $or: [{ staff: uid }, { registradoPor: uid }],
+        })),
+        safe(FamilyInvite?.deleteMany({
+            $or: [{ creadoPor: uid }, { tutorCreado: uid }, { atletasCreados: uid }],
+        })),
+        safe(SwapRequest?.deleteMany({ solicitante: uid })),
+        safe(EnrollmentRequest?.deleteMany({ solicitante: uid })),
+        safe(EnrollmentRequest?.updateMany({ atletas: uid }, { $pull: { atletas: uid } })),
+        safe(Category?.updateMany(
+            {},
+            {
+                $pull: {
+                    profesores: uid,
+                    preparadoresFisicos: uid,
+                    nutricionistas: uid,
+                    psicologos: uid,
+                },
+            },
+        )),
+        safe(Session?.updateMany({}, { $pull: { asistencia: { atleta: uid } } })),
+        safe(Session?.updateMany(
+            { atletaIndividual: uid },
+            { $unset: { atletaIndividual: 1 } },
+        )),
+        safe(User.updateMany({ tutorPrincipal: uid }, { $unset: { tutorPrincipal: 1 } })),
+    ]);
+
+    if (ChatConversation && ChatMessage) {
+        // DMs: borrar conversación + mensajes. Grupos: solo sacar al participante.
+        const dms = await ChatConversation.find({
+            kind: 'direct',
+            participants: uid,
+        })
+            .select('_id')
+            .lean()
+            .catch(() => []);
+        const dmIds = (dms || []).map((c) => c._id);
+        if (dmIds.length) {
+            await safe(ChatMessage.deleteMany({ conversation: { $in: dmIds } }));
+            await safe(ChatConversation.deleteMany({ _id: { $in: dmIds } }));
+        }
+        await safe(ChatConversation.updateMany(
+            { participants: uid },
+            { $pull: { participants: uid } },
+        ));
+    }
+
+    const nombre = `${user.nombre || ''} ${user.apellido || ''}`.trim();
+    await user.deleteOne();
+
+    try {
+        await syncAthleteCountToSuper(req.models, req.clubIdentifier);
+    } catch (e) {
+        console.log('syncAthleteCountToSuper after delete:', e.message);
+    }
+    try {
+        await syncStaffGroupChatSafe(req.models);
+    } catch (e) {
+        console.log('syncStaffGroupChatSafe after delete:', e.message);
+    }
+
+    res.json({
+        message: `Usuario eliminado${nombre ? `: ${nombre}` : '.'}`,
+        deletedId: userId,
+    });
+});
+
 // @desc    Reactivar usuario; opcionalmente perdonar cuotas abiertas
 // @route   PATCH /api/users/:id/reactivate
 const reactivateUser = asyncHandler(async (req, res) => {
@@ -1077,6 +1208,7 @@ export {
     updateMyProfile,
     updateUserAsAdmin,
     deactivateAthlete,
+    deleteInactiveUser,
     getUserUnpaidPaymentsSummary,
     reactivateUser,
     continueTrialAthlete,

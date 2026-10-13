@@ -12,7 +12,7 @@ import { getToken } from '../utils/storage';
 import UserAvatar from './UserAvatar';
 
 
-export default function UserDetailsModal({ visible, user, onClose, onEdit, onDelete }) {
+export default function UserDetailsModal({ visible, user, onClose, onEdit, onDelete, onPermanentDelete }) {
   const { theme } = useContext(ThemeContext);
   const { clubData } = useContext(ClubContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
@@ -209,13 +209,23 @@ export default function UserDetailsModal({ visible, user, onClose, onEdit, onDel
                   onPress={() => { onClose(); onDelete(user); }}
                 >
                   <Ionicons
-                    name={user?.estado === 'inactivo' ? 'checkmark-circle' : 'trash'}
+                    name={user?.estado === 'inactivo' ? 'checkmark-circle' : 'ban'}
                     size={20}
                     color="#fff"
                   />
                   <Text style={styles.deleteFullBtnText}>
                     {user?.estado === 'inactivo' ? ' Activar' : ' Dar de Baja'}
                   </Text>
+                </TouchableOpacity>
+              ) : null}
+
+              {user?.estado === 'inactivo' && typeof onPermanentDelete === 'function' ? (
+                <TouchableOpacity
+                  style={styles.deleteFullBtn}
+                  onPress={() => { onClose(); onPermanentDelete(user); }}
+                >
+                  <Ionicons name="trash" size={20} color="#fff" />
+                  <Text style={styles.deleteFullBtnText}> Eliminar definitivamente</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
