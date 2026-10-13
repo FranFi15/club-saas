@@ -5,6 +5,7 @@ import {
     isUnderCategoryMinAge,
     isOverCategoryMaxAge,
     isEligibleAllowingUnderMinAge,
+    birthDateRangeForCategoryAllowUnderMin,
 } from '../utils/ageHelper.js';
 import { sortUsersByName, userNameCollation, userNameMongoSort } from '../utils/listSort.js';
 import { categorySexoError, applyCategorySexoToAthlete } from '../utils/atletaSexo.js';
@@ -123,27 +124,34 @@ const getAvailableAthletesForCategory = asyncHandler(async (req, res) => {
     }
 
     const { enrolledIds, pendingIds } = await enrolledAndPendingIds(req, categoriaId);
+    const excludeIds = [...enrolledIds, ...pendingIds];
     const hasAgeLimits = category.edadMinima != null || category.edadMaxima != null;
+    const birthRange = birthDateRangeForCategoryAllowUnderMin(category);
 
-    const and = [roleQuery('atleta')];
+    const and = [roleQuery('atleta'), { estado: 'activo' }];
+    if (excludeIds.length) {
+        and.push({ _id: { $nin: excludeIds } });
+    }
     if (search.length >= 2) {
         const re = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
         and.push({ $or: [{ nombre: re }, { apellido: re }, { dni: re }, { email: re }] });
     }
-    if (hasAgeLimits) {
+    if (birthRange) {
+        and.push({ fechaNacimiento: { ...birthRange, $exists: true, $ne: null } });
+    } else if (hasAgeLimits) {
         and.push({ fechaNacimiento: { $exists: true, $ne: null } });
     }
     const filter = { $and: and };
 
+    // Excluye ya inscritos en la query (antes del limit) para no quedarse con pocos resultados.
     const users = await User.find(filter)
         .select('nombre apellido dni fotoPerfil email fechaNacimiento')
         .collation(userNameCollation)
         .sort(userNameMongoSort)
-        .limit(80)
+        .limit(200)
         .lean();
 
     const atletas = users
-        .filter((u) => !enrolledIds.has(String(u._id)) && !pendingIds.has(String(u._id)))
         .filter((u) => isEligibleAllowingUnderMinAge(category, u.fechaNacimiento))
         .map((u) => mapAthleteForPicker(u, category));
 
