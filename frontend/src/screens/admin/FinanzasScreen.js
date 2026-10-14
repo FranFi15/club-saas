@@ -1642,8 +1642,6 @@ export default function FinanzasScreen({ route }) {
           clubData={clubData}
           getHeaders={getHeaders}
           showAlert={showAlert}
-          mes={mes}
-          anio={anio}
           canEditSocialFee={canManageClubFinances}
           theme={theme}
           primaryColor={cc}

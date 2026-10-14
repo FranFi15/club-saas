@@ -28,11 +28,6 @@ const ROLES_APLICABLES = [
   { value: 'socio', label: 'Socios' },
 ];
 
-const MESES = [
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-];
-
 function rolesLabel(roles) {
   if (!Array.isArray(roles) || !roles.length) return 'Sin auto-asignación';
   return ROLES_APLICABLES.filter((r) => roles.includes(r.value))
@@ -56,8 +51,6 @@ export default function CuotaSocialSection({
   primaryColor,
   getHeaders,
   showAlert,
-  mes,
-  anio,
   canEdit = true,
 }) {
   const { isDarkMode } = useContext(ThemeContext);
@@ -69,7 +62,6 @@ export default function CuotaSocialSection({
   const [editingFee, setEditingFee] = useState(null);
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState(null);
-  const [generating, setGenerating] = useState(false);
 
   const [formNombre, setFormNombre] = useState('');
   const [formDescripcion, setFormDescripcion] = useState('');
@@ -212,25 +204,6 @@ export default function CuotaSocialSection({
     });
   };
 
-  const generateNow = async () => {
-    setGenerating(true);
-    try {
-      const headers = await getHeaders();
-      const { data } = await clubApi.post('/financial/social-fees/generate', { mes, anio }, { headers });
-      const stats = data?.estadisticas || {};
-      showAlert(
-        'Cuota social',
-        stats.omitido
-          ? stats.motivo || 'No hay cuotas para generar.'
-          : `Se generaron ${stats.cuotasCreadas || 0} cuota(s) de ${MESES[(mes || 1) - 1]} ${anio}. Omitidas: ${stats.cuotasOmitidas || 0}.`,
-      );
-    } catch (e) {
-      showAlert('Error', e.response?.data?.message || 'No se pudieron generar las cuotas sociales.');
-    } finally {
-      setGenerating(false);
-    }
-  };
-
   const openAssign = (fee) => {
     setAssignFee(fee);
     setAssignRole('atleta');
@@ -301,8 +274,6 @@ export default function CuotaSocialSection({
     }
   };
 
-  const hasActiveFee = fees.some((f) => f.activo && Number(f.monto) > 0);
-
   return (
     <>
       <View style={styles.sectionHead}>
@@ -319,34 +290,16 @@ export default function CuotaSocialSection({
             onPress={openCreate}
           >
             <Ionicons name="add" size={16} color={theme.text} />
-            <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>Nuevo tipo</Text>
+            <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>Nueva cuota</Text>
           </TouchableOpacity>
         ) : null}
-        <TouchableOpacity
-          style={[
-            styles.toolbarBtn,
-            contrastOutlineBtn(theme, isDarkMode),
-            { opacity: hasActiveFee ? 1 : 0.5 },
-          ]}
-          onPress={generateNow}
-          disabled={!hasActiveFee || generating}
-        >
-          {generating ? (
-            <ActivityIndicator color={theme.text} size="small" />
-          ) : (
-            <>
-              <Ionicons name="refresh-outline" size={16} color={theme.text} />
-              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>Generar mes</Text>
-            </>
-          )}
-        </TouchableOpacity>
       </View>
 
       {loading && fees.length === 0 ? (
         <ActivityIndicator color={theme.text} style={{ marginTop: 16, marginBottom: 16 }} />
       ) : fees.length === 0 ? (
         <Text style={{ color: theme.textMuted, marginBottom: 16 }}>
-          Todavía no hay tipos de cuota social. Creá el primero.
+          Todavía no hay cuotas sociales. Creá la primera.
         </Text>
       ) : (
         fees.map((fee) => {
@@ -469,7 +422,7 @@ export default function CuotaSocialSection({
           <View style={[s.modalContent, { backgroundColor: theme.surface, maxHeight: '88%' }]}>
             <View style={s.modalHeader}>
               <Text style={[s.modalTitle, { color: theme.text, flex: 1 }]}>
-                {editingFee ? 'Editar tipo' : 'Nuevo tipo de cuota social'}
+                {editingFee ? 'Editar cuota social' : 'Nueva cuota social'}
               </Text>
               <TouchableOpacity onPress={() => setModalOpen(false)} disabled={saving}>
                 <Ionicons name="close" size={28} color={theme.icon} />

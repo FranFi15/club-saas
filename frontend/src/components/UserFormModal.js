@@ -66,7 +66,7 @@ export default function UserFormModal({
 
   const [formData, setFormData] = useState({
     nombre: '', apellido: '', email: '', password: '', 
-    dni: '', telefono: '', direccion: '', rol: 'atleta', roles: ['atleta'], tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
+    dni: '', telefono: '', direccion: '', obraSocial: '', rol: 'atleta', roles: ['atleta'], tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
     cuotasEnApp: true, sexo: '', exentoCuotaSocial: false, cuotaSocialAsignada: null,
     esPrueba: false, diasPrueba: '15', enNomina: false, sueldoNomina: '',
   });
@@ -122,6 +122,7 @@ export default function UserFormModal({
         dni: initialData.dni || '',
         telefono: initialData.telefono || '',
         direccion: initialData.direccion || '',
+        obraSocial: initialData.obraSocial || '',
         rol: primary,
         roles: initialRoles,
         tutorPrincipal: initialData.tutorPrincipal?._id || initialData.tutorPrincipal || null,
@@ -155,7 +156,7 @@ export default function UserFormModal({
       });
     } else {
       setFormData({
-        nombre: '', apellido: '', email: '', password: '', dni: '', telefono: '', direccion: '', rol: 'atleta', roles: ['atleta'], tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
+        nombre: '', apellido: '', email: '', password: '', dni: '', telefono: '', direccion: '', obraSocial: '', rol: 'atleta', roles: ['atleta'], tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
         cuotasEnApp: true, sexo: '', exentoCuotaSocial: false, cuotaSocialAsignada: null,
         esPrueba: false, diasPrueba: '15', enNomina: false, sueldoNomina: '',
       });
@@ -442,6 +443,16 @@ export default function UserFormModal({
                 value={formData.direccion}
                 onChangeText={(v) => handleChange('direccion', v)}
                 placeholder="Calle, número, localidad"
+                placeholderTextColor={theme.textMuted}
+                autoCapitalize="words"
+              />
+
+              <Text style={[styles.label, { color: theme.textMuted }]}>Obra social</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                value={formData.obraSocial}
+                onChangeText={(v) => handleChange('obraSocial', v)}
+                placeholder="Ej. OSDE, Swiss Medical, PAMI"
                 placeholderTextColor={theme.textMuted}
                 autoCapitalize="words"
               />

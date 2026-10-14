@@ -237,6 +237,19 @@ const cancelFamilyInvite = asyncHandler(async (req, res) => {
     res.json({ success: true, estado: invite.estado });
 });
 
+// @desc    Eliminar invitación de la lista (recientes)
+// @route   DELETE /api/family-invites/:id
+const deleteFamilyInvite = asyncHandler(async (req, res) => {
+    const { FamilyInvite } = req.models;
+    const invite = await FamilyInvite.findById(req.params.id);
+    if (!invite) {
+        res.status(404);
+        throw new Error('Invitación no encontrada.');
+    }
+    await invite.deleteOne();
+    res.json({ success: true, deletedId: req.params.id });
+});
+
 // @desc    Vista pública de la invitación (sin auth)
 // @route   GET /api/family-invites/public/:token
 const getPublicFamilyInvite = asyncHandler(async (req, res) => {
@@ -362,6 +375,7 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
             telefono: tutor.telefono ? String(tutor.telefono).trim() : undefined,
             dni: tutor.dni ? String(tutor.dni).trim() : undefined,
             direccion: String(tutor.direccion).trim(),
+            obraSocial: tutor.obraSocial ? String(tutor.obraSocial).trim() : undefined,
             fotoPerfil: String(tutor.fotoPerfil).trim(),
             rol: 'tutor',
             acceptedTermsVersion: CURRENT_TERMS_VERSION,
@@ -399,6 +413,7 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
                 sexo: a.sexo === 'M' || a.sexo === 'F' ? a.sexo : '',
                 telefono: a.telefono ? String(a.telefono).trim() : undefined,
                 direccion: !createdTutor && a.direccion ? String(a.direccion).trim() : undefined,
+                obraSocial: a.obraSocial ? String(a.obraSocial).trim() : undefined,
                 fotoPerfil: String(a.fotoPerfil || '').trim(),
                 rol: 'atleta',
                 tutorPrincipal: createdTutor?._id || undefined,
@@ -555,6 +570,7 @@ export {
     createFamilyInvite,
     listFamilyInvites,
     cancelFamilyInvite,
+    deleteFamilyInvite,
     getPublicFamilyInvite,
     redeemFamilyInvite,
     uploadPublicFamilyInvitePhoto,

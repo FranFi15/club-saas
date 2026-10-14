@@ -3,6 +3,7 @@ import {
     createFamilyInvite,
     listFamilyInvites,
     cancelFamilyInvite,
+    deleteFamilyInvite,
     getPublicFamilyInvite,
     redeemFamilyInvite,
     uploadPublicFamilyInvitePhoto,
@@ -28,5 +29,6 @@ router.post('/public/:token/photo', (req, res, next) => {
 router.get('/', protect, authorize('admin_club', 'dirigente', 'administrativo'), listFamilyInvites);
 router.post('/', protect, authorize('admin_club', 'administrativo'), createFamilyInvite);
 router.patch('/:id/cancel', protect, authorize('admin_club', 'administrativo'), cancelFamilyInvite);
+router.delete('/:id', protect, authorize('admin_club', 'administrativo'), deleteFamilyInvite);
 
 export default router;

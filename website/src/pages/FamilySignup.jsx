@@ -13,8 +13,36 @@ function emptyAthlete() {
     dni: '',
     telefono: '',
     direccion: '',
+    obraSocial: '',
     fotoPerfil: '',
   };
+}
+
+function PasswordField({ label, value, onChange, required, autoComplete = 'new-password' }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <label className="fs-field">
+      <span>{label}</span>
+      <div className="fs-password-wrap">
+        <input
+          required={required}
+          type={visible ? 'text' : 'password'}
+          minLength={6}
+          autoComplete={autoComplete}
+          value={value}
+          onChange={onChange}
+        />
+        <button
+          type="button"
+          className="fs-password-toggle"
+          onClick={() => setVisible((v) => !v)}
+          aria-label={visible ? 'Ocultar contraseña' : 'Ver contraseña'}
+        >
+          {visible ? 'Ocultar' : 'Ver'}
+        </button>
+      </div>
+    </label>
+  );
 }
 
 function queryParams() {
@@ -169,6 +197,7 @@ export default function FamilySignup() {
     telefono: '',
     dni: '',
     direccion: '',
+    obraSocial: '',
     fotoPerfil: '',
   });
   const [atletas, setAtletas] = useState([]);
@@ -382,17 +411,12 @@ export default function FamilySignup() {
                   onChange={(e) => updateTutor('email', e.target.value)}
                 />
               </label>
-              <label className="fs-field">
-                <span>Contraseña</span>
-                <input
-                  required
-                  type="password"
-                  minLength={6}
-                  autoComplete="new-password"
-                  value={tutor.password}
-                  onChange={(e) => updateTutor('password', e.target.value)}
-                />
-              </label>
+              <PasswordField
+                label="Contraseña"
+                required
+                value={tutor.password}
+                onChange={(e) => updateTutor('password', e.target.value)}
+              />
               <label className="fs-field">
                 <span>Teléfono</span>
                 <input value={tutor.telefono} onChange={(e) => updateTutor('telefono', e.target.value)} />
@@ -400,6 +424,14 @@ export default function FamilySignup() {
               <label className="fs-field">
                 <span>DNI</span>
                 <input value={tutor.dni} onChange={(e) => updateTutor('dni', e.target.value)} />
+              </label>
+              <label className="fs-field">
+                <span>Obra social</span>
+                <input
+                  value={tutor.obraSocial}
+                  onChange={(e) => updateTutor('obraSocial', e.target.value)}
+                  placeholder="Ej. OSDE, Swiss Medical"
+                />
               </label>
               <label className="fs-field fs-field--full">
                 <span>Dirección</span>
@@ -470,16 +502,12 @@ export default function FamilySignup() {
                   abajo.
                 </small>
               </label>
-              <label className="fs-field">
-                <span>Contraseña</span>
-                <input
-                  required
-                  type="password"
-                  minLength={6}
-                  value={atletas[index]?.password || ''}
-                  onChange={(e) => updateAthlete(index, 'password', e.target.value)}
-                />
-              </label>
+              <PasswordField
+                label="Contraseña"
+                required
+                value={atletas[index]?.password || ''}
+                onChange={(e) => updateAthlete(index, 'password', e.target.value)}
+              />
               <label className="fs-field">
                 <span>Fecha de nacimiento</span>
                 <input
@@ -506,6 +534,14 @@ export default function FamilySignup() {
                 <input
                   value={atletas[index]?.dni || ''}
                   onChange={(e) => updateAthlete(index, 'dni', e.target.value)}
+                />
+              </label>
+              <label className="fs-field">
+                <span>Obra social</span>
+                <input
+                  value={atletas[index]?.obraSocial || ''}
+                  onChange={(e) => updateAthlete(index, 'obraSocial', e.target.value)}
+                  placeholder="Ej. OSDE, Swiss Medical"
                 />
               </label>
               {!requiereTutor ? (

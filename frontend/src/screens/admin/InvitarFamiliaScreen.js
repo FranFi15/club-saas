@@ -51,15 +51,27 @@ export default function InvitarFamiliaScreen({ navigation }) {
     visible: false,
     title: '',
     message: '',
+    showCancel: false,
+    isDanger: false,
+    confirmText: 'OK',
+    cancelText: 'Cancelar',
     onConfirm: () => {},
+    onCancel: () => {},
   });
 
-  const showAlert = (title, message) => {
+  const closeAlert = () => setAlertConfig((p) => ({ ...p, visible: false }));
+
+  const showAlert = (title, message, options = {}) => {
     setAlertConfig({
       visible: true,
       title,
       message,
-      onConfirm: () => setAlertConfig((p) => ({ ...p, visible: false })),
+      showCancel: !!options.showCancel,
+      isDanger: !!options.isDanger,
+      confirmText: options.confirmText || 'OK',
+      cancelText: options.cancelText || 'Cancelar',
+      onConfirm: options.onConfirm || closeAlert,
+      onCancel: options.onCancel || closeAlert,
     });
   };
 
@@ -178,6 +190,34 @@ export default function InvitarFamiliaScreen({ navigation }) {
   const copyUrl = async (url) => {
     await copyText(url);
     showAlert('Listo', 'Enlace copiado. Podés mandarlo por WhatsApp.');
+  };
+
+  const handleDeleteRecent = (inv) => {
+    if (!canCreateInvite) return;
+    const label =
+      inv.requiereTutor === false
+        ? `solo atleta · ${inv.athleteCount} atleta${inv.athleteCount === 1 ? '' : 's'}`
+        : `familia · ${inv.athleteCount} atleta${inv.athleteCount === 1 ? '' : 's'}`;
+    showAlert(
+      'Eliminar invitación',
+      `¿Querés sacar esta invitación de recientes (${label}, ${inv.estado})? El enlace dejará de funcionar si aún estaba pendiente.`,
+      {
+        showCancel: true,
+        isDanger: true,
+        confirmText: 'Eliminar',
+        onConfirm: async () => {
+          closeAlert();
+          try {
+            const h = await getHeaders();
+            await clubApi.delete(`/family-invites/${inv._id}`, { headers: h });
+            setRecent((prev) => prev.filter((r) => r._id !== inv._id));
+            if (created?._id && String(created._id) === String(inv._id)) setCreated(null);
+          } catch (e) {
+            showAlert('Error', e.response?.data?.message || 'No se pudo eliminar la invitación.');
+          }
+        },
+      },
+    );
   };
 
   return (
@@ -426,11 +466,18 @@ export default function InvitarFamiliaScreen({ navigation }) {
                       {(inv.slots || []).map((s) => `${s.disciplina || '?'} / ${s.categoria || '?'}`).join(' · ')}
                     </Text>
                   </View>
-                  {inv.url ? (
-                    <TouchableOpacity onPress={() => copyUrl(inv.url)} hitSlop={8}>
-                      <Ionicons name="copy-outline" size={20} color={colorMarca} />
-                    </TouchableOpacity>
-                  ) : null}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                    {inv.url ? (
+                      <TouchableOpacity onPress={() => copyUrl(inv.url)} hitSlop={8}>
+                        <Ionicons name="copy-outline" size={20} color={colorMarca} />
+                      </TouchableOpacity>
+                    ) : null}
+                    {canCreateInvite ? (
+                      <TouchableOpacity onPress={() => handleDeleteRecent(inv)} hitSlop={8}>
+                        <Ionicons name="trash-outline" size={20} color="#ef4444" />
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
                 </View>
               ))}
             </View>
@@ -442,8 +489,12 @@ export default function InvitarFamiliaScreen({ navigation }) {
         visible={alertConfig.visible}
         title={alertConfig.title}
         message={alertConfig.message}
+        showCancel={alertConfig.showCancel}
+        isDanger={alertConfig.isDanger}
+        confirmText={alertConfig.confirmText}
+        cancelText={alertConfig.cancelText}
         onConfirm={alertConfig.onConfirm}
-        onCancel={alertConfig.onConfirm}
+        onCancel={alertConfig.onCancel}
       />
     </SafeAreaView>
   );

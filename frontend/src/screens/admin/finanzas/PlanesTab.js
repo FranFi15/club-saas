@@ -13,7 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import HoverRevealSwipeable from '../../../components/HoverRevealSwipeable';
 import { finanzasStyles as s } from './finanzasStyles';
-import { fmtMoney } from './finanzasConstants';
+import { fmtMoney, contrastOutlineBtn } from './finanzasConstants';
 import CuotaSocialSection from './CuotaSocialSection';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
@@ -23,8 +23,6 @@ export default function PlanesTab({
   clubData,
   getHeaders,
   showAlert,
-  mes,
-  anio,
   canEditSocialFee,
   theme,
   primaryColor,
@@ -291,7 +289,7 @@ export default function PlanesTab({
     <View style={s.tabPanel}>
       <ScrollView
         style={s.tabScroll}
-        contentContainerStyle={{ paddingBottom: 100, paddingTop: 8 }}
+        contentContainerStyle={{ paddingBottom: 40, paddingTop: 8 }}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           onRefresh ? (
@@ -306,27 +304,11 @@ export default function PlanesTab({
           ) : undefined
         }
       >
-        <CuotaSocialSection
-          clubData={clubData}
-          theme={theme}
-          primaryColor={cc}
-          getHeaders={getHeaders}
-          showAlert={showAlert}
-          mes={mes}
-          anio={anio}
-          canEdit={canEditSocialFee}
-        />
-
-        <Text style={[s.sectionTitle, { color: theme.text, marginTop: 24 }]}>Cuotas y Planes</Text>
-        <Text style={[s.sectionSub, { color: theme.textMuted, marginBottom: 10 }]}>
-          Creá y editá los montos. Luego asignalos a cada disciplina o categoría.
-        </Text>
-
         <DesignCard
           theme={theme}
           isDarkMode={isDarkMode}
           accent={cc}
-          style={{ marginBottom: 14 }}
+          style={{ marginBottom: 16 }}
           contentStyle={styles.autoGenCard}
         >
           <View style={{ flex: 1, paddingRight: 12 }}>
@@ -350,6 +332,34 @@ export default function PlanesTab({
             />
           )}
         </DesignCard>
+
+        <CuotaSocialSection
+          clubData={clubData}
+          theme={theme}
+          primaryColor={cc}
+          getHeaders={getHeaders}
+          showAlert={showAlert}
+          canEdit={canEditSocialFee}
+        />
+
+        <View style={{ marginTop: 24, marginBottom: 10 }}>
+          <Text style={[s.sectionTitle, { color: theme.text, marginBottom: 4 }]}>Cuotas y Planes</Text>
+          <Text style={[s.sectionSub, { color: theme.textMuted, marginBottom: 0 }]}>
+            Creá y editá los montos. Luego asignalos a cada disciplina o categoría.
+          </Text>
+        </View>
+
+        <View style={styles.toolbar}>
+          {canEditSocialFee ? (
+            <TouchableOpacity
+              style={[styles.toolbarBtn, contrastOutlineBtn(theme, isDarkMode)]}
+              onPress={onCreatePlan}
+            >
+              <Ionicons name="add" size={16} color={theme.text} />
+              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>Nuevo plan</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
 
         <View style={[styles.searchRow, { backgroundColor: theme.background, borderColor: theme.border }]}>
           <Ionicons name="search" size={18} color={theme.icon} style={{ marginRight: 8 }} />
@@ -375,7 +385,7 @@ export default function PlanesTab({
             <Ionicons name="document-text-outline" size={50} color={theme.icon} />
             <Text style={[s.emptyTxt, { color: theme.text }]}>{planSearch ? 'Sin resultados' : 'Sin planes'}</Text>
             <Text style={[s.emptySub, { color: theme.textMuted }]}>
-              {planSearch ? 'Probá otro nombre.' : 'Tocá + para crear el primer plan.'}
+              {planSearch ? 'Probá otro nombre.' : 'Creá el primero con “Nuevo plan”.'}
             </Text>
           </View>
         ) : (
@@ -473,10 +483,6 @@ export default function PlanesTab({
         )}
       </ScrollView>
 
-      <TouchableOpacity style={[s.fab, { backgroundColor: cc }]} onPress={onCreatePlan}>
-        <Ionicons name="add" size={30} color="#fff" />
-      </TouchableOpacity>
-
       <Modal visible={!!assignTarget} animationType="slide" transparent>
         <View style={s.modalOverlay}>
           <View style={[s.modalContent, { backgroundColor: theme.surface, maxHeight: '85%' }]}>
@@ -534,6 +540,16 @@ const styles = {
   autoGenCard: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  toolbarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   searchRow: {
     flexDirection: 'row',
