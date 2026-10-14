@@ -22,6 +22,7 @@ import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
+import BusyOverlay from '../../components/BusyOverlay';
 import { TABS, METODOS, MN, fmtMoney, parsePct, sanitizePctInput } from './finanzas/finanzasConstants';
 import { finanzasStyles as s } from './finanzas/finanzasStyles';
 import AtletasPagosTab from './finanzas/AtletasPagosTab';
@@ -174,7 +175,18 @@ export default function FinanzasScreen({ route }) {
     [visibleTabs, tab, selectMainTab],
   );
   const [periodBusy, setPeriodBusy] = useState(false);
+  const [periodBusyLabel, setPeriodBusyLabel] = useState('Procesando…');
   const [moreOpen, setMoreOpen] = useState(false);
+
+  const startPeriodBusy = (label) => {
+    setPeriodBusyLabel(label || 'Procesando…');
+    setPeriodBusy(true);
+  };
+
+  const stopPeriodBusy = () => {
+    setPeriodBusy(false);
+    setPeriodBusyLabel('Procesando…');
+  };
 
   useEffect(() => {
     getToken('userRol').then((r) => setViewerRol(r || ''));
@@ -1068,7 +1080,7 @@ export default function FinanzasScreen({ route }) {
       confirmText: 'Generar',
       onConfirm: async () => {
         setAlertConfig((p) => ({ ...p, visible: false }));
-        setPeriodBusy(true);
+        startPeriodBusy(`Generando cuotas de ${MN[mes - 1]} ${anio}…`);
         try {
           const h = await getHeaders();
           const { data } = await clubApi.post(
@@ -1077,16 +1089,16 @@ export default function FinanzasScreen({ route }) {
             { headers: h },
           );
           const st = data?.estadisticas || {};
+          await fetchPayments();
+          refresh?.();
+          stopPeriodBusy();
           showAlert(
             'Listo',
             `Creadas: ${st.cuotasCreadas || 0}. Omitidas: ${st.cuotasOmitidas || 0}. Sin plan: ${st.inscripcionesSinPlan || 0}.`,
           );
-          await fetchPayments();
-          refresh?.();
         } catch (e) {
+          stopPeriodBusy();
           showAlert('Error', e.response?.data?.message || 'No se pudieron generar las cuotas.');
-        } finally {
-          setPeriodBusy(false);
         }
       },
       onCancel: () => setAlertConfig((p) => ({ ...p, visible: false })),
@@ -1102,17 +1114,17 @@ export default function FinanzasScreen({ route }) {
       confirmText: 'Chequear',
       onConfirm: async () => {
         setAlertConfig((p) => ({ ...p, visible: false }));
-        setPeriodBusy(true);
+        startPeriodBusy('Chequeando cuotas vencidas…');
         try {
           const h = await getHeaders();
           const { data } = await clubApi.post('/financial/payments/check-overdue', {}, { headers: h });
-          showAlert('Listo', data?.message || `Vencidas: ${data?.vencidas || 0}.`);
           await fetchPayments();
           refresh?.();
+          stopPeriodBusy();
+          showAlert('Listo', data?.message || `Vencidas: ${data?.vencidas || 0}.`);
         } catch (e) {
+          stopPeriodBusy();
           showAlert('Error', e.response?.data?.message || 'No se pudo chequear vencidos.');
-        } finally {
-          setPeriodBusy(false);
         }
       },
       onCancel: () => setAlertConfig((p) => ({ ...p, visible: false })),
@@ -1129,7 +1141,7 @@ export default function FinanzasScreen({ route }) {
       confirmText: 'Avisar',
       onConfirm: async () => {
         setAlertConfig((p) => ({ ...p, visible: false }));
-        setPeriodBusy(true);
+        startPeriodBusy('Enviando avisos a morosos…');
         try {
           const h = await getHeaders();
           const { data } = await clubApi.post(
@@ -1137,11 +1149,11 @@ export default function FinanzasScreen({ route }) {
             { force: true, onlyVencidas: true, morosos: true },
             { headers: h },
           );
+          stopPeriodBusy();
           showAlert('Listo', data?.message || 'Avisos enviados.');
         } catch (e) {
+          stopPeriodBusy();
           showAlert('Error', e.response?.data?.message || 'No se pudieron enviar los avisos.');
-        } finally {
-          setPeriodBusy(false);
         }
       },
       onCancel: () => setAlertConfig((p) => ({ ...p, visible: false })),
@@ -1158,7 +1170,7 @@ export default function FinanzasScreen({ route }) {
       confirmText: 'Sincronizar',
       onConfirm: async () => {
         setAlertConfig((p) => ({ ...p, visible: false }));
-        setPeriodBusy(true);
+        startPeriodBusy('Sincronizando Mercado Pago…');
         try {
           const h = await getHeaders();
           const { data } = await clubApi.post(
@@ -1166,16 +1178,16 @@ export default function FinanzasScreen({ route }) {
             { days: 30 },
             { headers: h },
           );
-          showAlert('Listo', data?.message || 'Sincronización terminada.');
           await fetchPayments();
           refresh?.();
+          stopPeriodBusy();
+          showAlert('Listo', data?.message || 'Sincronización terminada.');
         } catch (e) {
+          stopPeriodBusy();
           showAlert(
             'Error',
             e.response?.data?.message || 'No se pudo sincronizar con Mercado Pago.',
           );
-        } finally {
-          setPeriodBusy(false);
         }
       },
       onCancel: () => setAlertConfig((p) => ({ ...p, visible: false })),
@@ -1827,6 +1839,13 @@ export default function FinanzasScreen({ route }) {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <BusyOverlay
+        visible={periodBusy}
+        title={periodBusyLabel}
+        theme={theme}
+        color={cc}
+      />
 
       <CustomAlert
         visible={alertConfig.visible}

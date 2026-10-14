@@ -18,6 +18,7 @@ import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
 import { clubApi } from '../../utils/api';
 import CustomAlert from '../../components/CustomAlert';
+import BusyOverlay from '../../components/BusyOverlay';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import { isoCalendarDateToDisplay, isoCalendarWeekday } from '../../utils/dateDisplay';
 import { sessionDisplayName } from '../../utils/sessionDisplay';
@@ -282,6 +283,7 @@ export default function CoachRelocateSessionsScreen({ navigation }) {
           .join('\n')}`;
       }
       await reload({ background: true });
+      setSaving(false);
       showAlert(data.errorCount ? 'Guardado parcial' : 'Listo', msg, () => {
         setAlertConfig((p) => ({ ...p, visible: false }));
         if (data.savedCount > 0 && data.errorCount === 0) {
@@ -289,9 +291,8 @@ export default function CoachRelocateSessionsScreen({ navigation }) {
         }
       });
     } catch (e) {
-      showAlert('Error', e.response?.data?.message || 'No se pudieron guardar los lugares.');
-    } finally {
       setSaving(false);
+      showAlert('Error', e.response?.data?.message || 'No se pudieron guardar los lugares.');
     }
   };
 
@@ -419,6 +420,13 @@ export default function CoachRelocateSessionsScreen({ navigation }) {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+      <BusyOverlay
+        visible={saving}
+        title="Guardando reubicación de sesiones…"
+        theme={theme}
+        color={colorMarca}
+      />
+
       <CustomAlert
         visible={alertConfig.visible}
         title={alertConfig.title}

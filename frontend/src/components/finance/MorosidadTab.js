@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import BusyOverlay from '../BusyOverlay';
 
 const MN = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
@@ -29,9 +30,12 @@ export default function MorosidadTab({ theme, cc, getHeaders, clubApi, showAlert
     try {
       const h = await getHeaders();
       const r = await clubApi.post('/financial/notifications/send-reminders', {}, { headers: h });
+      setSending(false);
       showAlert('Éxito', r.data.message);
-    } catch(e) { showAlert('Error','No se pudieron enviar.'); }
-    finally { setSending(false); }
+    } catch(e) {
+      setSending(false);
+      showAlert('Error','No se pudieron enviar.');
+    }
   };
 
   const chgMonth = (d) => {
@@ -49,6 +53,13 @@ export default function MorosidadTab({ theme, cc, getHeaders, clubApi, showAlert
   const diff = mesActual.porcentajeCobranza - (mesAnterior.porcentaje || 0);
 
   return (
+    <View style={{ flex: 1 }}>
+    <BusyOverlay
+      visible={sending}
+      title="Enviando recordatorios…"
+      theme={theme}
+      color={cc}
+    />
     <ScrollView style={{flex:1,paddingHorizontal:20}} contentContainerStyle={{paddingBottom:30}} showsVerticalScrollIndicator={false}>
       {/* Month */}
       <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',padding:15,borderRadius:12,marginTop:15,marginBottom:10,backgroundColor:theme.surface}}>
@@ -128,5 +139,6 @@ export default function MorosidadTab({ theme, cc, getHeaders, clubApi, showAlert
         </View>
       )}
     </ScrollView>
+    </View>
   );
 }

@@ -24,6 +24,7 @@ import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext'; 
 import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
+import BusyOverlay from '../../components/BusyOverlay';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import DesignCard from '../../components/DesignCard';
 import { sortEnrollmentsByAtleta, sortUsersByName } from '../../utils/listSort';
@@ -1262,6 +1263,13 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
           </View>
         </View>
       </Modal>
+
+      <BusyOverlay
+        visible={exportingSheet}
+        title="Generando planilla de atletas…"
+        theme={theme}
+        color={colorMarca}
+      />
 
       <CustomAlert 
         visible={alertConfig.visible && !alertConfig.embedded}

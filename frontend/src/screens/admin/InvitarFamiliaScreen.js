@@ -20,6 +20,7 @@ import { clubApi } from '../../utils/api';
 import { getToken } from '../../utils/storage';
 import { copyText } from '../../utils/copyText';
 import CustomAlert from '../../components/CustomAlert';
+import BusyOverlay from '../../components/BusyOverlay';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import SearchableDropdown from '../../components/SearchableDropdown';
 import { sortByNombre } from '../../utils/listSort';
@@ -484,6 +485,13 @@ export default function InvitarFamiliaScreen({ navigation }) {
           ) : null}
         </ScrollView>
       )}
+
+      <BusyOverlay
+        visible={saving}
+        title="Generando enlace de invitación…"
+        theme={theme}
+        color={colorMarca}
+      />
 
       <CustomAlert
         visible={alertConfig.visible}

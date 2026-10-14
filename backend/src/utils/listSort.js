@@ -1,6 +1,6 @@
 /** Orden alfabético en español (insensible a mayúsculas y acentos). */
 
-export const userNameMongoSort = { nombre: 1, apellido: 1, _id: 1 };
+export const userNameMongoSort = { apellido: 1, nombre: 1, _id: 1 };
 export const userNameCollation = { locale: 'es', strength: 1 };
 
 export function compareText(a, b) {
@@ -14,9 +14,9 @@ export function compareByField(a, b, field = 'nombre') {
 }
 
 export function compareUserByName(a, b) {
-    const cmpNombre = compareText(a?.nombre, b?.nombre);
-    if (cmpNombre !== 0) return cmpNombre;
-    return compareText(a?.apellido, b?.apellido);
+    const cmpApellido = compareText(a?.apellido, b?.apellido);
+    if (cmpApellido !== 0) return cmpApellido;
+    return compareText(a?.nombre, b?.nombre);
 }
 
 export function sortByField(list, field = 'nombre') {

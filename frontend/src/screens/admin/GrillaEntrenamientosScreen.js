@@ -14,6 +14,7 @@ import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext'; 
 import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
+import BusyOverlay from '../../components/BusyOverlay';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import DesignCard from '../../components/DesignCard';
 import { sortByNombre } from '../../utils/listSort';
@@ -221,6 +222,7 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
         terminarCuotasAlFinalizar: Boolean(formData.terminarCuotasAlFinalizar),
         aplicarMitadMesesParciales: Boolean(aplicarMitadMesesParciales),
       };
+      let successMsg = '';
       if (isEditingId) {
         const { data } = await clubApi.put(
           `/schedules/${isEditingId}`,
@@ -235,14 +237,14 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
         if (data.facturacion?.resumed > 0) {
           msg += ` Se reanudó la facturación de ${data.facturacion.resumed} inscripción(es).`;
         }
-        showAlert('Éxito', msg);
+        successMsg = msg;
       } else {
         const { data } = await clubApi.post(
           '/schedules',
           { ...payload, diasSemana: formData.diasSemana },
           { headers },
         );
-        showAlert('Éxito', data.message || 'Horario guardado en la grilla.');
+        successMsg = data.message || 'Horario guardado en la grilla.';
       }
 
       reload({ background: true });
@@ -253,10 +255,11 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
         vigenteHasta: defaultVigenteHastaDisplay(),
       });
       setIsEditingId(null);
-    } catch (error) {
-      showAlert('Error', error.response?.data?.message || 'No se pudo guardar el horario. Revisá que no se pise con otro.');
-    } finally {
       setIsSaving(false);
+      showAlert('Éxito', successMsg);
+    } catch (error) {
+      setIsSaving(false);
+      showAlert('Error', error.response?.data?.message || 'No se pudo guardar el horario. Revisá que no se pise con otro.');
     }
   };
 
@@ -802,6 +805,13 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
         </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <BusyOverlay
+        visible={isSaving}
+        title={isEditingId ? 'Actualizando grilla y sesiones…' : 'Generando sesiones de la grilla…'}
+        theme={theme}
+        color={colorMarca}
+      />
 
       <CustomAlert 
         visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message}

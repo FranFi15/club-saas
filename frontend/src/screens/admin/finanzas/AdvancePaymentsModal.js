@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
+import BusyOverlay from '../../../components/BusyOverlay';
 import { MN } from './finanzasConstants';
 
 const PRESETS = [1, 2, 3, 6, 12];
@@ -160,7 +161,7 @@ export default function AdvancePaymentsModal({
         <View style={[styles.sheet, { backgroundColor: theme.surface }]}>
           <View style={styles.header}>
             <Text style={[styles.title, { color: theme.text }]}>Adelantar cuotas</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={10}>
+            <TouchableOpacity onPress={onClose} hitSlop={10} disabled={saving}>
               <Ionicons name="close" size={24} color={theme.icon} />
             </TouchableOpacity>
           </View>
@@ -296,6 +297,17 @@ export default function AdvancePaymentsModal({
             </>
           )}
         </View>
+        <BusyOverlay
+          visible={saving}
+          asModal={false}
+          title={
+            grillaBloqueada
+              ? 'Creando cuota social…'
+              : `Creando cuotas${rango.capped > 1 ? ` (${rango.capped} meses)` : ''}…`
+          }
+          theme={theme}
+          color={primaryColor}
+        />
       </View>
     </Modal>
   );
