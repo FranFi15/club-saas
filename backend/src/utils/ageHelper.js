@@ -151,13 +151,12 @@ export function isOverCategoryMaxAge(category, fechaNacimiento) {
 }
 
 /**
- * Elegible para listar al agregar (admin puede forzar menores a la mínima).
- * Excluye sin DOB si hay límites, y a quienes superan la máxima.
+ * Elegible para listar al agregar (admin puede confirmar fuera de rango).
+ * Excluye sin DOB si hay límites; incluye menores a la mínima y mayores a la máxima.
  */
 export function isEligibleAllowingUnderMinAge(category, fechaNacimiento) {
     if (category?.edadMinima == null && category?.edadMaxima == null) return true;
     if (!fechaNacimiento) return false;
-    if (isOverCategoryMaxAge(category, fechaNacimiento)) return false;
     return true;
 }
 
@@ -188,16 +187,10 @@ export function birthDateRangeForCategory(category) {
     return range;
 }
 
-/** Como birthDateRangeForCategory pero sin piso de edad mínima (incluye menores). */
-export function birthDateRangeForCategoryAllowUnderMin(category) {
-    const maxAge = category?.edadMaxima;
-    if (maxAge == null) {
-        // Solo mínima o sin límites: no acotar por nacimiento (salvo exigir DOB en el caller).
-        return null;
-    }
-    const ref = categoryMaxAgeAsOf(category);
-    const latestBirth = new Date(ref);
-    latestBirth.setFullYear(latestBirth.getFullYear() - maxAge - 1);
-    latestBirth.setDate(latestBirth.getDate() + 1);
-    return { $gte: latestBirth };
+/**
+ * Como birthDateRangeForCategory pero sin acotar por min/max
+ * (incluye menores a la mínima y mayores a la máxima; el caller exige DOB si hay límites).
+ */
+export function birthDateRangeForCategoryAllowUnderMin(_category) {
+    return null;
 }

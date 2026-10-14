@@ -38,6 +38,7 @@ function mapAtletaElegible(u, activeIds, otrasByAtleta, category) {
         fechaNacimiento: u.fechaNacimiento || null,
         cumpleEdadCategoria: matchesCategoryAgeLimits(category, u.fechaNacimiento),
         menorEdadMinima: isUnderCategoryMinAge(category, u.fechaNacimiento),
+        mayorEdadMaxima: isOverCategoryMaxAge(category, u.fechaNacimiento),
         inscriptoEnEsta: activeIds.has(String(u._id)),
         otrasCategorias: otrasByAtleta[String(u._id)] || [],
     };
@@ -164,7 +165,12 @@ export async function getCategoryRosterContext(models, categoryId, options = {})
 }
 
 /** Sincroniza inscripciones activas de la categoría con la lista elegida (altas y bajas). */
-export async function syncCategoryAthletes(models, categoryId, atletaIds, { allowUnderMinAge = false } = {}) {
+export async function syncCategoryAthletes(
+    models,
+    categoryId,
+    atletaIds,
+    { allowUnderMinAge = false, allowOverMaxAge = false } = {},
+) {
     const { User, Enrollment, Category } = models;
 
     const ids = [...new Set(atletaIds.map((id) => String(id)))];
@@ -195,11 +201,19 @@ export async function syncCategoryAthletes(models, categoryId, atletaIds, { allo
     const sobreMax = atletas.filter((u) => isOverCategoryMaxAge(category, u.fechaNacimiento));
     const bajoMin = atletas.filter((u) => isUnderCategoryMinAge(category, u.fechaNacimiento));
 
-    if (sinNacimiento.length > 0 || sobreMax.length > 0) {
+    if (sinNacimiento.length > 0) {
         const err = new Error(
-            'Uno o más atletas superan la edad máxima de la categoría o no tienen fecha de nacimiento.',
+            'Uno o más atletas no tienen fecha de nacimiento y la categoría tiene límites de edad.',
         );
         err.statusCode = 400;
+        throw err;
+    }
+    if (sobreMax.length > 0 && !allowOverMaxAge) {
+        const err = new Error(
+            `Hay atletas que superan la edad máxima (${category.edadMaxima} años). Confirmá para agregarlos igual.`,
+        );
+        err.statusCode = 400;
+        err.code = 'OVER_MAX_AGE';
         throw err;
     }
     if (bajoMin.length > 0 && !allowUnderMinAge) {

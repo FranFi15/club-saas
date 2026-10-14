@@ -30,7 +30,11 @@ async function applyPreviousBillingClear(models, previousBillingId) {
     if (prev) await clearEnrollmentBilling(prev);
 }
 
-function assertCategoryAgeForEnrollment(category, user, { allowUnderMinAge = false } = {}) {
+function assertCategoryAgeForEnrollment(
+    category,
+    user,
+    { allowUnderMinAge = false, allowOverMaxAge = false } = {},
+) {
     if (category.edadMinima == null && category.edadMaxima == null) return;
 
     if (!user.fechaNacimiento) {
@@ -42,10 +46,12 @@ function assertCategoryAgeForEnrollment(category, user, { allowUnderMinAge = fal
     }
 
     if (isOverCategoryMaxAge(category, user.fechaNacimiento)) {
+        if (allowOverMaxAge) return;
         const err = new Error(
             `El atleta supera la edad máxima de la categoría (${category.edadMaxima} años)`,
         );
         err.statusCode = 400;
+        err.code = 'OVER_MAX_AGE';
         throw err;
     }
 
@@ -81,7 +87,14 @@ function assertCategoryAgeForEnrollment(category, user, { allowUnderMinAge = fal
 // @desc    Inscribir un atleta a una categoría
 // @route   POST /api/enrollments
 const enrollAthlete = asyncHandler(async (req, res) => {
-    const { atletaId, categoriaId, aptoMedico, facturacionPreferencia, allowUnderMinAge } = req.body;
+    const {
+        atletaId,
+        categoriaId,
+        aptoMedico,
+        facturacionPreferencia,
+        allowUnderMinAge,
+        allowOverMaxAge,
+    } = req.body;
     
     // Traemos ambos modelos de una sola vez
     const { User, Enrollment, Category } = req.models;
@@ -106,6 +119,7 @@ const enrollAthlete = asyncHandler(async (req, res) => {
     try {
         assertCategoryAgeForEnrollment(category, user, {
             allowUnderMinAge: Boolean(allowUnderMinAge),
+            allowOverMaxAge: Boolean(allowOverMaxAge),
         });
     } catch (e) {
         res.status(e.statusCode || 400);
@@ -241,12 +255,14 @@ const getAthletesByCategory = asyncHandler(async (req, res) => {
         .filter((e) => e.atleta)
         .map((e) => {
             const menorEdadMinima = isUnderCategoryMinAge(category, e.atleta.fechaNacimiento);
+            const mayorEdadMaxima = isOverCategoryMaxAge(category, e.atleta.fechaNacimiento);
             return {
                 ...e,
                 atleta: {
                     ...e.atleta,
                     edad: calcEdad(e.atleta.fechaNacimiento),
                     menorEdadMinima,
+                    mayorEdadMaxima,
                 },
             };
         });

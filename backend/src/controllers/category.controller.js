@@ -373,6 +373,7 @@ const putCategoryPlantel = asyncHandler(async (req, res) => {
 
     const stats = await syncCategoryAthletes(req.models, req.params.id, atletaIds, {
         allowUnderMinAge: Boolean(req.body?.allowUnderMinAge),
+        allowOverMaxAge: Boolean(req.body?.allowOverMaxAge),
     });
     const payload = await getCategoryRosterContext(req.models, req.params.id, { metaOnly: true });
     res.json({

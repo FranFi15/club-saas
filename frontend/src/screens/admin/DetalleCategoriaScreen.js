@@ -456,7 +456,10 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
     });
   };
 
-  const enrollAthletes = async (picked, { allowUnderMinAge = false } = {}) => {
+  const enrollAthletes = async (
+    picked,
+    { allowUnderMinAge = false, allowOverMaxAge = false } = {},
+  ) => {
     setSubmittingAthletes(true);
     const h = await getHeaders();
     const added = [];
@@ -472,6 +475,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
             categoriaId: categoria._id,
             aptoMedico: false,
             ...(user.menorEdadMinima || allowUnderMinAge ? { allowUnderMinAge: true } : {}),
+            ...(user.mayorEdadMaxima || allowOverMaxAge ? { allowOverMaxAge: true } : {}),
           },
           { headers: h },
         );
@@ -482,6 +486,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
           atleta: {
             ...user,
             menorEdadMinima: Boolean(user.menorEdadMinima),
+            mayorEdadMaxima: Boolean(user.mayorEdadMaxima),
           },
         });
         if (billingConflict?.code === 'DISCIPLINE_BILLING_CHOICE') {
@@ -530,27 +535,48 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
       (u) => selectedAthleteIds.has(u._id) && u.seleccionable !== false,
     );
     if (picked.length === 0) {
-      showAlert('Atletas', 'Seleccioná al menos un atleta dentro del rango de edad.', { embedded: true });
+      showAlert('Atletas', 'Seleccioná al menos un atleta con fecha de nacimiento.', { embedded: true });
       return;
     }
     const underMin = picked.filter((u) => u.menorEdadMinima);
-    if (underMin.length > 0) {
+    const overMax = picked.filter((u) => u.mayorEdadMaxima);
+    if (underMin.length > 0 || overMax.length > 0) {
       const minAge = pickerCategory?.edadMinima ?? categoria?.edadMinima;
-      const names = underMin
-        .map((u) => `${u.nombre} ${u.apellido || ''}`.trim())
-        .join(', ');
-      const msg =
-        underMin.length === 1
-          ? `${names} es menor a la edad mínima${minAge != null ? ` (${minAge} años)` : ''}. ¿Querés agregarlo igual?`
-          : `${underMin.length} atletas son menores a la edad mínima${minAge != null ? ` (${minAge} años)` : ''}: ${names}. ¿Querés agregarlos igual?`;
-      showAlert('Edad mínima', msg, {
+      const maxAge = pickerCategory?.edadMaxima ?? categoria?.edadMaxima;
+      const parts = [];
+      if (underMin.length > 0) {
+        const names = underMin.map((u) => `${u.nombre} ${u.apellido || ''}`.trim()).join(', ');
+        parts.push(
+          underMin.length === 1
+            ? `${names} es menor a la edad mínima${minAge != null ? ` (${minAge} años)` : ''}.`
+            : `${underMin.length} atletas son menores a la edad mínima${minAge != null ? ` (${minAge} años)` : ''}: ${names}.`,
+        );
+      }
+      if (overMax.length > 0) {
+        const names = overMax.map((u) => `${u.nombre} ${u.apellido || ''}`.trim()).join(', ');
+        parts.push(
+          overMax.length === 1
+            ? `${names} supera la edad máxima${maxAge != null ? ` (${maxAge} años)` : ''}.`
+            : `${overMax.length} atletas superan la edad máxima${maxAge != null ? ` (${maxAge} años)` : ''}: ${names}.`,
+        );
+      }
+      const title =
+        underMin.length > 0 && overMax.length > 0
+          ? 'Fuera de rango de edad'
+          : underMin.length > 0
+            ? 'Edad mínima'
+            : 'Edad máxima';
+      showAlert(title, `${parts.join('\n\n')}\n\n¿Querés agregarlos igual?`, {
         embedded: true,
         showCancel: true,
         confirmText: 'Agregar igual',
         cancelText: 'Volver',
         onConfirm: () => {
           closeAlert();
-          enrollAthletes(picked, { allowUnderMinAge: true });
+          enrollAthletes(picked, {
+            allowUnderMinAge: underMin.length > 0,
+            allowOverMaxAge: overMax.length > 0,
+          });
         },
       });
       return;
@@ -786,6 +812,13 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
                       <View style={[styles.badge, { backgroundColor: '#f59e0b22' }]}>
                         <Text style={{ color: '#d97706', fontSize: 12, fontWeight: 'bold' }}>
                           Menor edad mín.{user?.edad != null ? ` · ${user.edad} años` : ''}
+                        </Text>
+                      </View>
+                    ) : null}
+                    {user?.mayorEdadMaxima ? (
+                      <View style={[styles.badge, { backgroundColor: '#ef444422' }]}>
+                        <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: 'bold' }}>
+                          Mayor edad máx.{user?.edad != null ? ` · ${user.edad} años` : ''}
                         </Text>
                       </View>
                     ) : null}
@@ -1057,7 +1090,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
               {activeTab === 'atletas' ? (
                 <>
                   <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 8 }}>
-                    Se listan todos los atletas activos. Los que superan la edad máxima no se pueden seleccionar; los menores a la mínima piden confirmación.
+                    Se listan todos los atletas activos. Quienes están fuera del rango de edad (menor a la mínima o mayor a la máxima) piden confirmación al agregarlos.
                   </Text>
                   <Text style={{ color: colorMarca, fontSize: 13, fontWeight: '600', marginBottom: 4 }}>
                     {ageRangeHint(pickerCategory || categoria)}

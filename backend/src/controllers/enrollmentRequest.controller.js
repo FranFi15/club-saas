@@ -106,8 +106,8 @@ function mapAthleteForPicker(user, category) {
         menorEdadMinima: isUnderCategoryMinAge(category, user.fechaNacimiento),
         mayorEdadMaxima: isOverCategoryMaxAge(category, user.fechaNacimiento),
         sinNacimiento,
-        /** Se puede seleccionar para inscribir (admin confirma menores; máximos no). */
-        seleccionable: !sinNacimiento && !isOverCategoryMaxAge(category, user.fechaNacimiento),
+        /** Se puede seleccionar (admin/coach confirma fuera de rango de edad). */
+        seleccionable: !sinNacimiento,
     };
 }
 
@@ -194,15 +194,14 @@ const createEnrollmentRequest = asyncHandler(async (req, res) => {
     const athletes = await User.find({ _id: { $in: uniqueIds }, ...roleQuery('atleta') }).select(
         'nombre apellido fechaNacimiento',
     );
-    const fueraDeRango = athletes.filter((u) => isOverCategoryMaxAge(category, u.fechaNacimiento));
     const sinNacimiento =
         category.edadMinima != null || category.edadMaxima != null
             ? athletes.filter((u) => !u.fechaNacimiento)
             : [];
-    if (fueraDeRango.length > 0 || sinNacimiento.length > 0) {
+    if (sinNacimiento.length > 0) {
         res.status(400);
         throw new Error(
-            'Uno o más atletas superan la edad máxima de la categoría o no tienen fecha de nacimiento registrada.',
+            'Uno o más atletas no tienen fecha de nacimiento registrada y la categoría tiene límites de edad.',
         );
     }
 
@@ -295,10 +294,6 @@ const resolveEnrollmentRequest = asyncHandler(async (req, res) => {
             continue;
         }
 
-        if (isOverCategoryMaxAge(category, user.fechaNacimiento)) {
-            omitidos.push({ atletaId, motivo: 'Supera la edad máxima de la categoría' });
-            continue;
-        }
         if (
             (category.edadMinima != null || category.edadMaxima != null) &&
             !user.fechaNacimiento

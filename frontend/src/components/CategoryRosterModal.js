@@ -199,27 +199,59 @@ export default function CategoryRosterModal({
     setSelected(map);
   };
 
-  const handleSave = async (allowUnderMinAge = false) => {
+  const handleSave = async ({ allowUnderMinAge = false, allowOverMaxAge = false } = {}) => {
     const ids = Object.keys(selected);
     if (!ids.length) return;
 
-    if (!allowUnderMinAge) {
+    if (!allowUnderMinAge || !allowOverMaxAge) {
       const underMin = atletas.filter((a) => selected[String(a._id)] && a.menorEdadMinima);
-      // Also under-min who are already enrolled may not be in current page — rely on API if needed.
-      if (underMin.length > 0) {
+      const overMax = atletas.filter((a) => selected[String(a._id)] && a.mayorEdadMaxima);
+      const needUnderConfirm = underMin.length > 0 && !allowUnderMinAge;
+      const needOverConfirm = overMax.length > 0 && !allowOverMaxAge;
+      if (needUnderConfirm || needOverConfirm) {
         const minAge = categoria?.edadMinima;
-        const names = underMin
-          .map((u) => `${u.nombre} ${u.apellido || ''}`.trim())
-          .slice(0, 5)
-          .join(', ');
-        const extra = underMin.length > 5 ? ` y ${underMin.length - 5} más` : '';
-        const msg =
-          underMin.length === 1
-            ? `${names} es menor a la edad mínima${minAge != null ? ` (${minAge} años)` : ''}. ¿Querés agregarlo igual?`
-            : `${underMin.length} atletas son menores a la edad mínima${minAge != null ? ` (${minAge} años)` : ''}: ${names}${extra}. ¿Querés agregarlos igual?`;
-        Alert.alert('Edad mínima', msg, [
+        const maxAge = categoria?.edadMaxima;
+        const parts = [];
+        if (needUnderConfirm) {
+          const names = underMin
+            .map((u) => `${u.nombre} ${u.apellido || ''}`.trim())
+            .slice(0, 5)
+            .join(', ');
+          const extra = underMin.length > 5 ? ` y ${underMin.length - 5} más` : '';
+          parts.push(
+            underMin.length === 1
+              ? `${names} es menor a la edad mínima${minAge != null ? ` (${minAge} años)` : ''}.`
+              : `${underMin.length} atletas son menores a la edad mínima${minAge != null ? ` (${minAge} años)` : ''}: ${names}${extra}.`,
+          );
+        }
+        if (needOverConfirm) {
+          const names = overMax
+            .map((u) => `${u.nombre} ${u.apellido || ''}`.trim())
+            .slice(0, 5)
+            .join(', ');
+          const extra = overMax.length > 5 ? ` y ${overMax.length - 5} más` : '';
+          parts.push(
+            overMax.length === 1
+              ? `${names} supera la edad máxima${maxAge != null ? ` (${maxAge} años)` : ''}.`
+              : `${overMax.length} atletas superan la edad máxima${maxAge != null ? ` (${maxAge} años)` : ''}: ${names}${extra}.`,
+          );
+        }
+        const title =
+          needUnderConfirm && needOverConfirm
+            ? 'Fuera de rango de edad'
+            : needUnderConfirm
+              ? 'Edad mínima'
+              : 'Edad máxima';
+        Alert.alert(title, `${parts.join('\n\n')}\n\n¿Querés agregarlos igual?`, [
           { text: 'Volver', style: 'cancel' },
-          { text: 'Agregar igual', onPress: () => handleSave(true) },
+          {
+            text: 'Agregar igual',
+            onPress: () =>
+              handleSave({
+                allowUnderMinAge: allowUnderMinAge || needUnderConfirm,
+                allowOverMaxAge: allowOverMaxAge || needOverConfirm,
+              }),
+          },
         ]);
         return;
       }
@@ -230,7 +262,11 @@ export default function CategoryRosterModal({
       const h = await getHeaders();
       const { data } = await clubApi.put(
         `/categories/${categoryId}/plantel`,
-        { atletaIds: ids, allowUnderMinAge: Boolean(allowUnderMinAge) },
+        {
+          atletaIds: ids,
+          allowUnderMinAge: Boolean(allowUnderMinAge),
+          allowOverMaxAge: Boolean(allowOverMaxAge),
+        },
         { headers: h },
       );
       onSaved(data);
@@ -242,7 +278,18 @@ export default function CategoryRosterModal({
       if (code === 'UNDER_MIN_AGE' || /edad mínima/i.test(msg)) {
         Alert.alert('Edad mínima', `${msg}\n\n¿Querés agregarlos igual?`, [
           { text: 'Volver', style: 'cancel' },
-          { text: 'Agregar igual', onPress: () => handleSave(true) },
+          {
+            text: 'Agregar igual',
+            onPress: () => handleSave({ allowUnderMinAge: true, allowOverMaxAge }),
+          },
+        ]);
+      } else if (code === 'OVER_MAX_AGE' || /edad máxima/i.test(msg)) {
+        Alert.alert('Edad máxima', `${msg}\n\n¿Querés agregarlos igual?`, [
+          { text: 'Volver', style: 'cancel' },
+          {
+            text: 'Agregar igual',
+            onPress: () => handleSave({ allowUnderMinAge, allowOverMaxAge: true }),
+          },
         ]);
       } else {
         onSaved(null, msg);
@@ -295,6 +342,11 @@ export default function CategoryRosterModal({
           {a.menorEdadMinima ? (
             <Text style={{ color: '#d97706', fontSize: 11, fontWeight: '700', marginTop: 4 }}>
               Menor a la edad mínima
+            </Text>
+          ) : null}
+          {a.mayorEdadMaxima ? (
+            <Text style={{ color: '#ef4444', fontSize: 11, fontWeight: '700', marginTop: 4 }}>
+              Supera la edad máxima
             </Text>
           ) : null}
           {otras.length > 0 ? (
@@ -362,7 +414,7 @@ export default function CategoryRosterModal({
       <Text style={[styles.hint, { color: theme.textMuted, textAlign: 'center' }]}>
         {debouncedSearch
           ? 'Ningún resultado para la búsqueda.'
-          : 'No hay atletas disponibles (pueden faltar fecha de nacimiento o superar la edad máxima).'}
+          : 'No hay atletas disponibles (pueden faltar fecha de nacimiento).'}
       </Text>
     );
   };
@@ -410,7 +462,7 @@ export default function CategoryRosterModal({
 
                 <TouchableOpacity
                   style={[styles.primary, { backgroundColor: colorMarca, opacity: saving ? 0.6 : 1 }]}
-                  onPress={handleSave}
+                  onPress={() => handleSave()}
                   disabled={saving || !selectedCount}
                 >
                   {saving ? (

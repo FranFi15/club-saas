@@ -915,19 +915,26 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
                   <Text style={{ color: theme.textMuted, padding: 12 }}>
                     {addSearch.trim().length >= 2
                       ? 'Sin resultados para esta búsqueda.'
-                      : pickerCategory?.edadMinima != null || pickerCategory?.edadMaxima != null
-                        ? 'No hay atletas en el rango de edad de la categoría (o falta fecha de nacimiento).'
-                        : 'No hay atletas disponibles para agregar.'}
+                      : 'No hay atletas disponibles para agregar.'}
                   </Text>
                 ) : (
                   availableAthletes.map((u) => {
                     const sel = selectedIds.has(u._id);
                     const nac = isoCalendarDateToDisplay(u.fechaNacimiento);
                     const edadTxt = u.edad != null ? `${u.edad} años` : null;
+                    const blocked = u.seleccionable === false;
                     return (
                       <TouchableOpacity
                         key={u._id}
-                        style={[styles.pickRow, { borderColor: theme.border, backgroundColor: sel ? colorMarca + '15' : 'transparent' }]}
+                        style={[
+                          styles.pickRow,
+                          {
+                            borderColor: theme.border,
+                            backgroundColor: sel ? colorMarca + '15' : 'transparent',
+                            opacity: blocked ? 0.45 : 1,
+                          },
+                        ]}
+                        disabled={blocked}
                         onPress={() => toggleSelect(u._id)}
                       >
                         <Ionicons
@@ -944,6 +951,21 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
                               .filter(Boolean)
                               .join(' · ')}
                           </Text>
+                          {u.mayorEdadMaxima ? (
+                            <Text style={{ color: '#ef4444', fontSize: 11, fontWeight: '700', marginTop: 4 }}>
+                              Supera la edad máxima
+                            </Text>
+                          ) : null}
+                          {u.menorEdadMinima ? (
+                            <Text style={{ color: '#d97706', fontSize: 11, fontWeight: '700', marginTop: 4 }}>
+                              Menor a la edad mínima
+                            </Text>
+                          ) : null}
+                          {u.sinNacimiento ? (
+                            <Text style={{ color: '#ef4444', fontSize: 11, fontWeight: '700', marginTop: 4 }}>
+                              Falta fecha de nacimiento
+                            </Text>
+                          ) : null}
                         </View>
                       </TouchableOpacity>
                     );
