@@ -33,6 +33,12 @@ const clubSettingsSchema = new mongoose.Schema(
         cuotaReminderDaysBefore: { type: Number, default: 3, min: 1, max: 14 },
 
         /**
+         * Si true (default), el cron del día 1 genera cuotas de entrenamiento y sociales.
+         * Clubs que facturan a mano pueden apagarlo desde Cuotas y Planes.
+         */
+        generacionAutomaticaCuotas: { type: Boolean, default: true },
+
+        /**
          * Si true, se crea/sincroniza un chat grupal con todo el personal del club
          * (administración, control de ingreso, colaboradores y cuerpo técnico).
          */

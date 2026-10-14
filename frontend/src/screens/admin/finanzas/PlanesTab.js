@@ -1,4 +1,4 @@
-import React, { useContext, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   TextInput,
   Modal,
   RefreshControl,
+  Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import HoverRevealSwipeable from '../../../components/HoverRevealSwipeable';
@@ -16,6 +17,7 @@ import { fmtMoney } from './finanzasConstants';
 import CuotaSocialSection from './CuotaSocialSection';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
+import { clubApi } from '../../../utils/api';
 
 export default function PlanesTab({
   clubData,
@@ -46,6 +48,54 @@ export default function PlanesTab({
   const [assignSearch, setAssignSearch] = useState('');
   const [expandedDisc, setExpandedDisc] = useState({});
   const [assignTarget, setAssignTarget] = useState(null);
+  const [autoGenEnabled, setAutoGenEnabled] = useState(true);
+  const [autoGenLoading, setAutoGenLoading] = useState(true);
+  const [autoGenSaving, setAutoGenSaving] = useState(false);
+
+  const loadAutoGen = useCallback(async () => {
+    setAutoGenLoading(true);
+    try {
+      const headers = await getHeaders();
+      const { data } = await clubApi.get('/financial/auto-payment-generation', { headers });
+      setAutoGenEnabled(data?.generacionAutomaticaCuotas !== false);
+    } catch {
+      setAutoGenEnabled(true);
+    } finally {
+      setAutoGenLoading(false);
+    }
+  }, [getHeaders]);
+
+  useEffect(() => {
+    loadAutoGen();
+  }, [loadAutoGen]);
+
+  const toggleAutoGen = async (next) => {
+    if (!canEditSocialFee || autoGenSaving) return;
+    const prev = autoGenEnabled;
+    setAutoGenEnabled(next);
+    setAutoGenSaving(true);
+    try {
+      const headers = await getHeaders();
+      const { data } = await clubApi.patch(
+        '/financial/auto-payment-generation',
+        { generacionAutomaticaCuotas: next },
+        { headers },
+      );
+      setAutoGenEnabled(data?.generacionAutomaticaCuotas !== false);
+      showAlert?.(
+        'Listo',
+        data?.message ||
+          (next
+            ? 'Las cuotas se generarán solas el día 1.'
+            : 'Generación automática apagada.'),
+      );
+    } catch (e) {
+      setAutoGenEnabled(prev);
+      showAlert?.('Error', e.response?.data?.message || 'No se pudo actualizar el switch.');
+    } finally {
+      setAutoGenSaving(false);
+    }
+  };
 
   const activePlans = useMemo(() => plans.filter((p) => p.activo !== false), [plans]);
 
@@ -245,7 +295,14 @@ export default function PlanesTab({
         keyboardShouldPersistTaps="handled"
         refreshControl={
           onRefresh ? (
-            <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={cc} />
+            <RefreshControl
+              refreshing={!!refreshing}
+              onRefresh={() => {
+                loadAutoGen();
+                onRefresh();
+              }}
+              tintColor={cc}
+            />
           ) : undefined
         }
       >
@@ -264,6 +321,35 @@ export default function PlanesTab({
         <Text style={[s.sectionSub, { color: theme.textMuted, marginBottom: 10 }]}>
           Creá y editá los montos. Luego asignalos a cada disciplina o categoría.
         </Text>
+
+        <DesignCard
+          theme={theme}
+          isDarkMode={isDarkMode}
+          accent={cc}
+          style={{ marginBottom: 14 }}
+          contentStyle={styles.autoGenCard}
+        >
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <Text style={{ color: theme.text, fontSize: 15, fontWeight: '700' }}>
+              Generación automática
+            </Text>
+            <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 4, lineHeight: 17 }}>
+              Si está activo, el día 1 de cada mes se crean solas las cuotas de entrenamiento y las
+              sociales. Apagalo si preferís generarlas a mano.
+            </Text>
+          </View>
+          {autoGenLoading || autoGenSaving ? (
+            <ActivityIndicator color={cc} />
+          ) : (
+            <Switch
+              value={autoGenEnabled}
+              onValueChange={toggleAutoGen}
+              disabled={!canEditSocialFee}
+              trackColor={{ true: `${cc}99`, false: '#9ca3af55' }}
+              thumbColor={autoGenEnabled ? cc : '#f4f4f5'}
+            />
+          )}
+        </DesignCard>
 
         <View style={[styles.searchRow, { backgroundColor: theme.background, borderColor: theme.border }]}>
           <Ionicons name="search" size={18} color={theme.icon} style={{ marginRight: 8 }} />
@@ -445,6 +531,10 @@ export default function PlanesTab({
 }
 
 const styles = {
+  autoGenCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',

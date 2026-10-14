@@ -30,6 +30,8 @@ import {
     updateGlobalFamilyDiscount,
     getTransferBankSettings,
     updateTransferBankSettings,
+    getAutoPaymentGeneration,
+    updateAutoPaymentGeneration,
     checkOverdue,
     adjustPayment,
     deletePayment,
@@ -115,6 +117,18 @@ router.get('/family-discount/global', protect, authorize('admin_club', 'dirigent
 router.patch('/family-discount/global', protect, authorize('admin_club'), updateGlobalFamilyDiscount);
 router.get('/transfer-bank', protect, authorize('admin_club', 'dirigente', 'administrativo'), getTransferBankSettings);
 router.patch('/transfer-bank', protect, authorize('admin_club'), updateTransferBankSettings);
+router.get(
+    '/auto-payment-generation',
+    protect,
+    authorize('admin_club', 'dirigente', 'administrativo'),
+    getAutoPaymentGeneration,
+);
+router.patch(
+    '/auto-payment-generation',
+    protect,
+    authorize('admin_club', 'administrativo'),
+    updateAutoPaymentGeneration,
+);
 router.get('/siblings', protect, authorize('admin_club', 'dirigente', 'administrativo'), getSiblings);
 router.patch('/siblings/discount', protect, authorize('admin_club'), applySiblingDiscount);
 router.post('/siblings/sync-discounts', protect, authorize('admin_club'), syncSiblingDiscounts);

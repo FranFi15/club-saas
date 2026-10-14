@@ -8,6 +8,7 @@ import {
     endBillingForEndedSchedules,
     resumeBillingForActiveSchedules,
 } from '../services/endBillingAfterGrilla.service.js';
+import { isAutoPaymentGenerationEnabled } from '../services/autoPaymentGeneration.service.js';
 import { parseLocalHourEnv, shouldRunClubCron } from '../utils/clubCronTime.js';
 import {
     calendarMonthYearInTz,
@@ -68,6 +69,15 @@ export function startPaymentGenerationCron() {
                 } catch (be) {
                     console.error(`[cron-payments] ${t.urlIdentifier} billing grilla:`, be.message);
                 }
+
+                const autoPay = await isAutoPaymentGenerationEnabled(models);
+                if (!autoPay) {
+                    console.log(
+                        `[cron-payments] ${t.urlIdentifier}: generación automática desactivada (skip cuotas ${mes}/${anio}).`,
+                    );
+                    continue;
+                }
+
                 const stats = await generateMonthlyPaymentsForTenant(models, mes, anio, timezone);
                 totalCreadas += stats.cuotasCreadas;
                 ran += 1;

@@ -22,6 +22,10 @@ import { compareUserByName, sortPaymentsByPriority, sortUsersByName, userNameCol
 import { createAppNotification } from '../services/appNotification.service.js';
 import { isClubMercadoPagoLinked } from '../services/mercadoPagoClub.service.js';
 import { getTransferBankData, setTransferBankData } from '../services/transferBank.service.js';
+import {
+    getAutoPaymentGenerationSettings,
+    setAutoPaymentGenerationEnabled,
+} from '../services/autoPaymentGeneration.service.js';
 import { parsePageLimit, paginationMeta, buildAthleteSearchFilter, buildUserSearchFilter } from '../utils/pagination.js';
 import { sendCuotaReminders } from '../services/cuotaReminders.service.js';
 import { ensurePaymentReceipt, queuePaymentReceipt, buildPaymentReceiptPdf } from '../services/paymentReceipt.service.js';
@@ -989,6 +993,28 @@ const updateTransferBankSettings = asyncHandler(async (req, res) => {
     });
 });
 
+// @desc    Switch: cron día 1 genera cuotas (entrenamiento + sociales)
+// @route   GET|PATCH /api/financial/auto-payment-generation
+const getAutoPaymentGeneration = asyncHandler(async (req, res) => {
+    const settings = await getAutoPaymentGenerationSettings(req.models);
+    res.json(settings);
+});
+
+const updateAutoPaymentGeneration = asyncHandler(async (req, res) => {
+    const raw = req.body?.generacionAutomaticaCuotas;
+    if (raw === undefined) {
+        res.status(400);
+        throw new Error('Indicá generacionAutomaticaCuotas (true/false).');
+    }
+    const settings = await setAutoPaymentGenerationEnabled(req.models, raw);
+    res.json({
+        message: settings.generacionAutomaticaCuotas
+            ? 'Generación automática de cuotas activada (día 1 de cada mes).'
+            : 'Generación automática de cuotas desactivada. Podés generarlas a mano cuando quieras.',
+        ...settings,
+    });
+});
+
 // @desc    Reactivar un plan archivado
 // @route   PATCH /api/financial/plans/:id/reactivate
 const reactivatePlan = asyncHandler(async (req, res) => {
@@ -1824,6 +1850,8 @@ export {
     updateGlobalFamilyDiscount,
     getTransferBankSettings,
     updateTransferBankSettings,
+    getAutoPaymentGeneration,
+    updateAutoPaymentGeneration,
     checkOverdue,
     adjustPayment,
     deletePayment,
