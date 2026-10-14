@@ -1009,8 +1009,8 @@ const updateAutoPaymentGeneration = asyncHandler(async (req, res) => {
     const settings = await setAutoPaymentGenerationEnabled(req.models, raw);
     res.json({
         message: settings.generacionAutomaticaCuotas
-            ? 'Generación automática de cuotas activada (día 1 de cada mes).'
-            : 'Generación automática de cuotas desactivada. Podés generarlas a mano cuando quieras.',
+            ? 'Generación automática activada: día 1 y al dar de alta o inscribir.'
+            : 'Generación automática desactivada. Podés generarlas o adelantarlas a mano.',
         ...settings,
     });
 });

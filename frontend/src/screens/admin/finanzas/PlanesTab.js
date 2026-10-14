@@ -84,8 +84,8 @@ export default function PlanesTab({
         'Listo',
         data?.message ||
           (next
-            ? 'Las cuotas se generarán solas el día 1.'
-            : 'Generación automática apagada.'),
+            ? 'Las cuotas se generarán solas el día 1 y al dar de alta o inscribir.'
+            : 'Generación automática apagada. Podés generarlas o adelantarlas a mano.'),
       );
     } catch (e) {
       setAutoGenEnabled(prev);
@@ -316,8 +316,8 @@ export default function PlanesTab({
               Generación automática
             </Text>
             <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 4, lineHeight: 17 }}>
-              Si está activo, el día 1 de cada mes se crean solas las cuotas de entrenamiento y las
-              sociales. Apagalo si preferís generarlas a mano.
+              Si está activo, se crean solas el día 1 y también al dar de alta o inscribir (mes
+              actual). Apagalo si preferís generarlas o adelantarlas a mano.
             </Text>
           </View>
           {autoGenLoading || autoGenSaving ? (

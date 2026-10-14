@@ -13,6 +13,7 @@ import {
     zonedWallTimeToDate,
 } from '../utils/timeHelper.js';
 import { roleQueryMany, userHasRole } from '../constants/userRoles.js';
+import { isAutoPaymentGenerationEnabled } from './autoPaymentGeneration.service.js';
 
 export function sanitizeSocialFeeRoles(roles, { allowEmpty = false } = {}) {
     if (!Array.isArray(roles)) {
@@ -297,12 +298,15 @@ export async function ensureSocialFeeForUser(
     return { created: true, omitted: false, paymentId: doc._id };
 }
 
-/** Cuota social del mes calendario actual (zona del club). */
+/** Cuota social del mes calendario actual (zona del club). Respeta generación automática. */
 export async function ensureCurrentMonthSocialFeeForUser(
     models,
     user,
     timezone = DEFAULT_CLUB_TIMEZONE,
 ) {
+    if (!(await isAutoPaymentGenerationEnabled(models))) {
+        return { created: false, omitted: true, skipped: true, reason: 'auto_disabled' };
+    }
     const { mes, anio } = calendarMonthYearInTz(new Date(), timezone);
     return ensureSocialFeeForUser(models, user, mes, anio, timezone);
 }

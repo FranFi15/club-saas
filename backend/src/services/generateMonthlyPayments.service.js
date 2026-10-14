@@ -15,6 +15,7 @@ import {
 import { isBecaPlan, removeOpenTrainingPaymentsForBeca } from './becaPlan.service.js';
 import { userHasRole } from '../constants/userRoles.js';
 import { ensureSocialFeeForUser } from './generateSocialFees.service.js';
+import { isAutoPaymentGenerationEnabled } from './autoPaymentGeneration.service.js';
 
 function paymentAmountsFromEnrollment(inscripcion, { partialMonthPct = 0 } = {}) {
     const plan = typeof inscripcion.plan === 'object' && inscripcion.plan
@@ -347,12 +348,15 @@ export async function ensurePaymentForEnrollment(models, enrollment, mes, anio, 
     return { created: true, omitted: false, paymentId: doc._id };
 }
 
-/** Cuota del mes calendario actual (zona del club). */
+/** Cuota del mes calendario actual (zona del club). Respeta generación automática. */
 export async function ensureCurrentMonthPaymentForEnrollment(
     models,
     enrollment,
     timezone = DEFAULT_CLUB_TIMEZONE,
 ) {
+    if (!(await isAutoPaymentGenerationEnabled(models))) {
+        return { created: false, omitted: true, skipped: true, reason: 'auto_disabled' };
+    }
     const { mes, anio } = calendarMonthYearInTz(new Date(), timezone);
     return ensurePaymentForEnrollment(models, enrollment, mes, anio, timezone);
 }
