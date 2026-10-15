@@ -62,10 +62,17 @@ function uniqueById(docs) {
     return out;
 }
 
+/** Works for raw ObjectIds and populated `{ _id }` refs. */
+function refId(ref) {
+    if (ref == null) return '';
+    if (typeof ref === 'object') return String(ref._id || '');
+    return String(ref);
+}
+
 async function athleteCanAccessMetric(models, metric, atletaId) {
     const aid = String(atletaId);
-    if ((metric.atletas || []).some((id) => String(id) === aid)) return true;
-    const catIds = (metric.categorias || []).map(String);
+    if ((metric.atletas || []).some((ref) => refId(ref) === aid)) return true;
+    const catIds = (metric.categorias || []).map(refId).filter(Boolean);
     if (!catIds.length) return false;
     const enrolled = await athleteCategoryIds(models.Enrollment, atletaId);
     return enrolled.some((c) => catIds.includes(c));
@@ -81,7 +88,7 @@ async function assertCanManageMetric(req, metric) {
 }
 
 async function resolveTargetAthlete(req, bodyAtletaId) {
-    if (isStaff(req.user) && bodyAtletaId) {
+    if ((isStaff(req.user) || userHasRole(req.user, 'tutor')) && bodyAtletaId) {
         if (!mongoose.Types.ObjectId.isValid(bodyAtletaId)) {
             const err = new Error('Atleta inválido.');
             err.statusCode = 400;
@@ -95,6 +102,14 @@ async function resolveTargetAthlete(req, bodyAtletaId) {
     const err = new Error('Indicá el atleta.');
     err.statusCode = 400;
     throw err;
+}
+
+function canActOnAthleteRun(req, runAtletaId) {
+    if (isStaff(req.user)) return true;
+    if (String(runAtletaId) === String(req.user._id)) return true;
+    // Tutor acting for the selected child (access already checked on the metric).
+    if (userHasRole(req.user, 'tutor')) return true;
+    return false;
 }
 
 function populateMetric(q) {
@@ -314,8 +329,7 @@ const finishCourtMetricRun = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Entrenamiento no encontrado.');
     }
-    const isOwner = String(run.atleta) === String(req.user._id);
-    if (!isStaff(req.user) && !isOwner) {
+    if (!canActOnAthleteRun(req, run.atleta)) {
         res.status(403);
         throw new Error('No autorizado.');
     }
@@ -356,8 +370,7 @@ const addCourtMetricResult = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Entrenamiento no encontrado.');
     }
-    const isOwner = String(run.atleta) === String(req.user._id);
-    if (!isStaff(req.user) && !isOwner) {
+    if (!canActOnAthleteRun(req, run.atleta)) {
         res.status(403);
         throw new Error('No autorizado.');
     }
