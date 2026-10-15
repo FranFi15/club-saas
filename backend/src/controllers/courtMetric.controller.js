@@ -274,6 +274,26 @@ const updateCourtMetric = asyncHandler(async (req, res) => {
     res.json(full);
 });
 
+// @route DELETE /api/court-metrics/:id
+const deleteCourtMetric = asyncHandler(async (req, res) => {
+    if (!isStaff(req.user)) {
+        res.status(403);
+        throw new Error('No autorizado.');
+    }
+    const { CourtMetric, CourtMetricRun, CourtMetricResult } = req.models;
+    const metric = await CourtMetric.findById(req.params.id);
+    if (!metric) {
+        res.status(404);
+        throw new Error('Métrica no encontrada.');
+    }
+    await assertCanManageMetric(req, metric);
+    const metricId = metric._id;
+    await CourtMetricResult.deleteMany({ metric: metricId });
+    await CourtMetricRun.deleteMany({ metric: metricId });
+    await metric.deleteOne();
+    res.json({ message: 'Métrica eliminada.', _id: metricId });
+});
+
 // @route POST /api/court-metrics/:id/runs
 const startCourtMetricRun = asyncHandler(async (req, res) => {
     const { CourtMetric, CourtMetricRun } = req.models;
@@ -520,6 +540,7 @@ export {
     createCourtMetric,
     getCourtMetric,
     updateCourtMetric,
+    deleteCourtMetric,
     startCourtMetricRun,
     finishCourtMetricRun,
     addCourtMetricResult,

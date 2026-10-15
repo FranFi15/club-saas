@@ -5,6 +5,7 @@ import {
     createCourtMetric,
     getCourtMetric,
     updateCourtMetric,
+    deleteCourtMetric,
     startCourtMetricRun,
     finishCourtMetricRun,
     addCourtMetricResult,
@@ -27,5 +28,6 @@ router.post('/:id/runs/:runId/results', protect, addCourtMetricResult);
 
 router.get('/:id', protect, getCourtMetric);
 router.patch('/:id', protect, authorize('admin_club', 'profe', 'preparador_fisico'), updateCourtMetric);
+router.delete('/:id', protect, authorize('admin_club', 'profe', 'preparador_fisico'), deleteCourtMetric);
 
 export default router;
