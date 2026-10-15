@@ -10,7 +10,7 @@ export const COURT_DEPORTES = [
     'otro',
 ];
 
-export const COURT_TIPOS_MEDICION = ['porcentaje', 'tiempo'];
+export const COURT_TIPOS_MEDICION = ['porcentaje', 'tiempo', 'total'];
 
 const pinSchema = new mongoose.Schema(
     {
@@ -26,7 +26,7 @@ const courtMetricSchema = new mongoose.Schema(
     {
         titulo: { type: String, required: true, trim: true },
         deporte: { type: String, enum: COURT_DEPORTES, required: true },
-        /** What athletes log per pin: hit% or elapsed time. */
+        /** What athletes log per pin: hit%, elapsed time, or a single total. */
         tipoMedicion: {
             type: String,
             enum: COURT_TIPOS_MEDICION,
@@ -81,6 +81,8 @@ const courtMetricResultSchema = new mongoose.Schema(
         porcentaje: { type: Number, default: null, min: 0, max: 100 },
         /** Elapsed time for tiempo metrics (seconds). */
         tiempoSegundos: { type: Number, default: null, min: 0 },
+        /** Single total value for total metrics. */
+        valorTotal: { type: Number, default: null, min: 0 },
         fecha: { type: Date, default: Date.now },
         notasExtra: { type: String, trim: true, default: '' },
     },

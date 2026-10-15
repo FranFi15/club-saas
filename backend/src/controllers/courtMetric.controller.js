@@ -421,6 +421,7 @@ const addCourtMetricResult = asyncHandler(async (req, res) => {
     let intentos = null;
     let porcentaje = null;
     let tiempoSegundos = null;
+    let valorTotal = null;
 
     if (tipoMedicion === 'tiempo') {
         const t = Number(req.body?.tiempoSegundos);
@@ -429,6 +430,13 @@ const addCourtMetricResult = asyncHandler(async (req, res) => {
             throw new Error('Indicá un tiempo válido en segundos.');
         }
         tiempoSegundos = Math.round(t * 10) / 10;
+    } else if (tipoMedicion === 'total') {
+        const v = Number(req.body?.valorTotal);
+        if (!Number.isFinite(v) || v < 0) {
+            res.status(400);
+            throw new Error('Indicá un total válido.');
+        }
+        valorTotal = Math.round(v * 100) / 100;
     } else {
         aciertos = Math.floor(Number(req.body?.aciertos));
         intentos = Math.floor(Number(req.body?.intentos));
@@ -454,6 +462,7 @@ const addCourtMetricResult = asyncHandler(async (req, res) => {
         intentos,
         porcentaje,
         tiempoSegundos,
+        valorTotal,
         fecha: req.body?.fecha ? new Date(req.body.fecha) : new Date(),
         notasExtra: String(req.body?.notasExtra || '').trim(),
     });
@@ -508,12 +517,19 @@ const listCourtMetricRuns = asyncHandler(async (req, res) => {
             const rs = byRun[String(run._id)] || [];
             let porcentajePromedio = null;
             let tiempoPromedioSegundos = null;
+            let totalSuma = null;
             if (rs.length > 0) {
                 if (tipoMedicion === 'tiempo') {
                     const times = rs.map((x) => x.tiempoSegundos).filter((n) => n != null && Number.isFinite(n));
                     tiempoPromedioSegundos =
                         times.length > 0
                             ? Math.round((times.reduce((s, x) => s + x, 0) / times.length) * 10) / 10
+                            : null;
+                } else if (tipoMedicion === 'total') {
+                    const totals = rs.map((x) => x.valorTotal).filter((n) => n != null && Number.isFinite(n));
+                    totalSuma =
+                        totals.length > 0
+                            ? Math.round(totals.reduce((s, x) => s + x, 0) * 100) / 100
                             : null;
                 } else {
                     const pcts = rs.map((x) => x.porcentaje).filter((n) => n != null && Number.isFinite(n));
@@ -528,6 +544,7 @@ const listCourtMetricRuns = asyncHandler(async (req, res) => {
                 resultados: rs,
                 porcentajePromedio,
                 tiempoPromedioSegundos,
+                totalSuma,
             };
         }),
     });
@@ -574,6 +591,7 @@ const getCourtMetricSeries = asyncHandler(async (req, res) => {
             fecha: r.fecha,
             porcentaje: r.porcentaje,
             tiempoSegundos: r.tiempoSegundos,
+            valorTotal: r.valorTotal,
             tipoMedicion: r.tipoMedicion || metric.tipoMedicion || 'porcentaje',
             pinId: r.pinId,
             pinLabel: pinMap[String(r.pinId)] || '',
