@@ -47,7 +47,19 @@ function assertAssignment(categorias, atletas, { publishing = false } = {}) {
 
 async function athleteCategoryIds(Enrollment, atletaId) {
     const rows = await Enrollment.find({ atleta: atletaId, estado: 'activo' }).select('categoria').lean();
-    return rows.map((r) => String(r.categoria));
+    return [...new Set(rows.map((r) => String(r.categoria)).filter(Boolean))];
+}
+
+function uniqueById(docs) {
+    const seen = new Set();
+    const out = [];
+    for (const doc of docs || []) {
+        const id = String(doc?._id || '');
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        out.push(doc);
+    }
+    return out;
 }
 
 async function athleteCanAccessMetric(models, metric, atletaId) {
@@ -132,7 +144,9 @@ const listMyCourtMetrics = asyncHandler(async (req, res) => {
         }).sort({ updatedAt: -1 }),
     ).lean();
 
-    res.json({ metrics: list, atletaId });
+    // One metric can match via several categories and/or the individual list;
+    // always return a single card per shoot-around for the athlete.
+    res.json({ metrics: uniqueById(list), atletaId });
 });
 
 // @route POST /api/court-metrics
