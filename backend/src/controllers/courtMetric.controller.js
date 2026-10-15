@@ -1,7 +1,12 @@
 import asyncHandler from 'express-async-handler';
 import mongoose from 'mongoose';
-import { COURT_DEPORTES } from '../models/courtMetric.model.js';
+import { COURT_DEPORTES, COURT_TIPOS_MEDICION } from '../models/courtMetric.model.js';
 import { userHasRole } from '../constants/userRoles.js';
+
+function normalizeTipoMedicion(raw) {
+    const t = String(raw || '').trim();
+    return COURT_TIPOS_MEDICION.includes(t) ? t : 'porcentaje';
+}
 
 const STAFF_ROLES = ['admin_club', 'profe', 'preparador_fisico'];
 
@@ -189,12 +194,14 @@ const createCourtMetric = asyncHandler(async (req, res) => {
     const pines = normalizePins(req.body?.pines);
     const categorias = normalizeIdList(req.body?.categorias);
     const atletas = normalizeIdList(req.body?.atletas);
+    const tipoMedicion = normalizeTipoMedicion(req.body?.tipoMedicion);
     const estado = req.body?.estado === 'archivada' ? 'archivada' : 'activa';
     if (estado === 'activa') assertAssignment(categorias, atletas, { publishing: true });
 
     const doc = await CourtMetric.create({
         titulo,
         deporte,
+        tipoMedicion,
         imagenUrl,
         imagenPublicId: req.body?.imagenPublicId ? String(req.body.imagenPublicId).trim() : undefined,
         pines,
@@ -261,6 +268,9 @@ const updateCourtMetric = asyncHandler(async (req, res) => {
     if (req.body?.pines != null) metric.pines = normalizePins(req.body.pines);
     if (req.body?.categorias != null) metric.categorias = normalizeIdList(req.body.categorias);
     if (req.body?.atletas != null) metric.atletas = normalizeIdList(req.body.atletas);
+    if (req.body?.tipoMedicion != null) {
+        metric.tipoMedicion = normalizeTipoMedicion(req.body.tipoMedicion);
+    }
     if (req.body?.estado === 'activa' || req.body?.estado === 'archivada') {
         metric.estado = req.body.estado;
     }
@@ -405,17 +415,33 @@ const addCourtMetricResult = asyncHandler(async (req, res) => {
         res.status(400);
         throw new Error('Punto de la cancha inválido.');
     }
-    const aciertos = Math.floor(Number(req.body?.aciertos));
-    const intentos = Math.floor(Number(req.body?.intentos));
-    if (!Number.isFinite(aciertos) || !Number.isFinite(intentos) || intentos < 1 || aciertos < 0) {
-        res.status(400);
-        throw new Error('Indicá aciertos e intentos válidos.');
+
+    const tipoMedicion = normalizeTipoMedicion(metric.tipoMedicion || 'porcentaje');
+    let aciertos = null;
+    let intentos = null;
+    let porcentaje = null;
+    let tiempoSegundos = null;
+
+    if (tipoMedicion === 'tiempo') {
+        const t = Number(req.body?.tiempoSegundos);
+        if (!Number.isFinite(t) || t <= 0) {
+            res.status(400);
+            throw new Error('Indicá un tiempo válido en segundos.');
+        }
+        tiempoSegundos = Math.round(t * 10) / 10;
+    } else {
+        aciertos = Math.floor(Number(req.body?.aciertos));
+        intentos = Math.floor(Number(req.body?.intentos));
+        if (!Number.isFinite(aciertos) || !Number.isFinite(intentos) || intentos < 1 || aciertos < 0) {
+            res.status(400);
+            throw new Error('Indicá aciertos e intentos válidos.');
+        }
+        if (aciertos > intentos) {
+            res.status(400);
+            throw new Error('Los aciertos no pueden ser mayores que los intentos.');
+        }
+        porcentaje = Math.round((1000 * aciertos) / intentos) / 10;
     }
-    if (aciertos > intentos) {
-        res.status(400);
-        throw new Error('Los aciertos no pueden ser mayores que los intentos.');
-    }
-    const porcentaje = Math.round((1000 * aciertos) / intentos) / 10;
 
     const result = await CourtMetricResult.create({
         run: run._id,
@@ -423,9 +449,11 @@ const addCourtMetricResult = asyncHandler(async (req, res) => {
         pinId: pin._id,
         atleta: run.atleta,
         registradoPor: req.user._id,
+        tipoMedicion,
         aciertos,
         intentos,
         porcentaje,
+        tiempoSegundos,
         fecha: req.body?.fecha ? new Date(req.body.fecha) : new Date(),
         notasExtra: String(req.body?.notasExtra || '').trim(),
     });
@@ -473,14 +501,34 @@ const listCourtMetricRuns = asyncHandler(async (req, res) => {
         byRun[id].push(r);
     }
 
+    const tipoMedicion = normalizeTipoMedicion(metric.tipoMedicion || 'porcentaje');
     res.json({
+        tipoMedicion,
         runs: runs.map((run) => {
             const rs = byRun[String(run._id)] || [];
-            const avg =
-                rs.length > 0
-                    ? Math.round((rs.reduce((s, x) => s + x.porcentaje, 0) / rs.length) * 10) / 10
-                    : null;
-            return { ...run, resultados: rs, porcentajePromedio: avg };
+            let porcentajePromedio = null;
+            let tiempoPromedioSegundos = null;
+            if (rs.length > 0) {
+                if (tipoMedicion === 'tiempo') {
+                    const times = rs.map((x) => x.tiempoSegundos).filter((n) => n != null && Number.isFinite(n));
+                    tiempoPromedioSegundos =
+                        times.length > 0
+                            ? Math.round((times.reduce((s, x) => s + x, 0) / times.length) * 10) / 10
+                            : null;
+                } else {
+                    const pcts = rs.map((x) => x.porcentaje).filter((n) => n != null && Number.isFinite(n));
+                    porcentajePromedio =
+                        pcts.length > 0
+                            ? Math.round((pcts.reduce((s, x) => s + x, 0) / pcts.length) * 10) / 10
+                            : null;
+                }
+            }
+            return {
+                ...run,
+                resultados: rs,
+                porcentajePromedio,
+                tiempoPromedioSegundos,
+            };
         }),
     });
 });
@@ -521,9 +569,12 @@ const getCourtMetricSeries = asyncHandler(async (req, res) => {
     );
 
     res.json({
+        tipoMedicion: normalizeTipoMedicion(metric.tipoMedicion || 'porcentaje'),
         series: results.map((r) => ({
             fecha: r.fecha,
             porcentaje: r.porcentaje,
+            tiempoSegundos: r.tiempoSegundos,
+            tipoMedicion: r.tipoMedicion || metric.tipoMedicion || 'porcentaje',
             pinId: r.pinId,
             pinLabel: pinMap[String(r.pinId)] || '',
             aciertos: r.aciertos,

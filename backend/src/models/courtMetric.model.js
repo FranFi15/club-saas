@@ -10,6 +10,8 @@ export const COURT_DEPORTES = [
     'otro',
 ];
 
+export const COURT_TIPOS_MEDICION = ['porcentaje', 'tiempo'];
+
 const pinSchema = new mongoose.Schema(
     {
         label: { type: String, required: true, trim: true },
@@ -24,6 +26,12 @@ const courtMetricSchema = new mongoose.Schema(
     {
         titulo: { type: String, required: true, trim: true },
         deporte: { type: String, enum: COURT_DEPORTES, required: true },
+        /** What athletes log per pin: hit% or elapsed time. */
+        tipoMedicion: {
+            type: String,
+            enum: COURT_TIPOS_MEDICION,
+            default: 'porcentaje',
+        },
         /** Cloudinary URL or preset key e.g. preset:basquet */
         imagenUrl: { type: String, required: true, trim: true },
         imagenPublicId: { type: String, trim: true },
@@ -63,9 +71,16 @@ const courtMetricResultSchema = new mongoose.Schema(
         pinId: { type: mongoose.Schema.Types.ObjectId, required: true },
         atleta: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
         registradoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-        aciertos: { type: Number, required: true, min: 0 },
-        intentos: { type: Number, required: true, min: 0 },
-        porcentaje: { type: Number, required: true, min: 0, max: 100 },
+        tipoMedicion: {
+            type: String,
+            enum: COURT_TIPOS_MEDICION,
+            default: 'porcentaje',
+        },
+        aciertos: { type: Number, default: null, min: 0 },
+        intentos: { type: Number, default: null, min: 0 },
+        porcentaje: { type: Number, default: null, min: 0, max: 100 },
+        /** Elapsed time for tiempo metrics (seconds). */
+        tiempoSegundos: { type: Number, default: null, min: 0 },
         fecha: { type: Date, default: Date.now },
         notasExtra: { type: String, trim: true, default: '' },
     },
