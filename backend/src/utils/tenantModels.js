@@ -28,6 +28,11 @@ import { getPayrollEntryModel } from '../models/payroll.model.js';
 import { getBillModel } from '../models/bill.model.js';
 import { getSponsorModel } from '../models/sponsor.model.js';
 import { getSponsorPaymentModel } from '../models/sponsorPayment.model.js';
+import {
+    getCourtMetricModel,
+    getCourtMetricRunModel,
+    getCourtMetricResultModel,
+} from '../models/courtMetric.model.js';
 
 export const getTenantModels = (tenantDB) => {
     // Al llamar a todas estas funciones acá, Mongoose registra TODOS los esquemas 
@@ -68,5 +73,8 @@ export const getTenantModels = (tenantDB) => {
         Bill: getBillModel(tenantDB),
         Sponsor: getSponsorModel(tenantDB),
         SponsorPayment: getSponsorPaymentModel(tenantDB),
+        CourtMetric: getCourtMetricModel(tenantDB),
+        CourtMetricRun: getCourtMetricRunModel(tenantDB),
+        CourtMetricResult: getCourtMetricResultModel(tenantDB),
     };
 };
