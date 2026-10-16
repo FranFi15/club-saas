@@ -4,8 +4,19 @@ import { COURT_DEPORTES, COURT_TIPOS_MEDICION } from '../models/courtMetric.mode
 import { userHasRole } from '../constants/userRoles.js';
 
 function normalizeTipoMedicion(raw) {
-    const t = String(raw || '').trim();
+    const t = String(raw || '')
+        .trim()
+        .toLowerCase();
     return COURT_TIPOS_MEDICION.includes(t) ? t : 'porcentaje';
+}
+
+/** Lean/API docs omit schema defaults when the field was never written. */
+function withTipoMedicion(metric) {
+    if (!metric) return metric;
+    return {
+        ...metric,
+        tipoMedicion: normalizeTipoMedicion(metric.tipoMedicion),
+    };
 }
 
 const STAFF_ROLES = ['admin_club', 'profe', 'preparador_fisico'];
@@ -138,7 +149,7 @@ const listCourtMetrics = asyncHandler(async (req, res) => {
         throw new Error('No autorizado.');
     }
     const list = await populateMetric(CourtMetric.find(filter).sort({ updatedAt: -1 })).lean();
-    res.json({ metrics: list });
+    res.json({ metrics: list.map(withTipoMedicion) });
 });
 
 // @route GET /api/court-metrics/me
@@ -166,7 +177,7 @@ const listMyCourtMetrics = asyncHandler(async (req, res) => {
 
     // One metric can match via several categories and/or the individual list;
     // always return a single card per shoot-around for the athlete.
-    res.json({ metrics: uniqueById(list), atletaId });
+    res.json({ metrics: uniqueById(list).map(withTipoMedicion), atletaId });
 });
 
 // @route POST /api/court-metrics
@@ -210,8 +221,10 @@ const createCourtMetric = asyncHandler(async (req, res) => {
         creador: req.user._id,
         estado,
     });
+    // Force-write tipoMedicion so older in-memory schemas cannot drop the path.
+    await CourtMetric.updateOne({ _id: doc._id }, { $set: { tipoMedicion } });
     const full = await populateMetric(CourtMetric.findById(doc._id)).lean();
-    res.status(201).json(full);
+    res.status(201).json(withTipoMedicion(full));
 });
 
 // @route GET /api/court-metrics/:id
@@ -223,14 +236,14 @@ const getCourtMetric = asyncHandler(async (req, res) => {
         throw new Error('Métrica no encontrada.');
     }
     if (isStaff(req.user)) {
-        return res.json(metric);
+        return res.json(withTipoMedicion(metric));
     }
     const atletaId = userHasRole(req.user, 'atleta') ? req.user._id : req.query.atletaId;
     if (!atletaId || !(await athleteCanAccessMetric(req.models, metric, atletaId))) {
         res.status(403);
         throw new Error('No tenés acceso a esta métrica.');
     }
-    res.json(metric);
+    res.json(withTipoMedicion(metric));
 });
 
 // @route PATCH /api/court-metrics/:id
@@ -280,8 +293,14 @@ const updateCourtMetric = asyncHandler(async (req, res) => {
         });
     }
     await metric.save();
+    if (req.body?.tipoMedicion != null) {
+        await CourtMetric.updateOne(
+            { _id: metric._id },
+            { $set: { tipoMedicion: normalizeTipoMedicion(req.body.tipoMedicion) } },
+        );
+    }
     const full = await populateMetric(CourtMetric.findById(metric._id)).lean();
-    res.json(full);
+    res.json(withTipoMedicion(full));
 });
 
 // @route DELETE /api/court-metrics/:id

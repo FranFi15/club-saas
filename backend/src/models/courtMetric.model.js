@@ -92,12 +92,27 @@ const courtMetricResultSchema = new mongoose.Schema(
 courtMetricResultSchema.index({ metric: 1, atleta: 1, fecha: -1 });
 courtMetricResultSchema.index({ run: 1, pinId: 1 });
 
+/** Re-register when schema gained paths (long-lived tenant connections). */
+function getOrCompileModel(tenantDB, name, schema, requiredPaths = []) {
+    const existing = tenantDB.models[name];
+    if (existing) {
+        const missing = requiredPaths.some((p) => !existing.schema.path(p));
+        if (!missing) return existing;
+        delete tenantDB.models[name];
+        if (tenantDB.modelSchemas) delete tenantDB.modelSchemas[name];
+    }
+    return tenantDB.model(name, schema);
+}
+
 export const getCourtMetricModel = (tenantDB) =>
-    tenantDB.models.CourtMetric || tenantDB.model('CourtMetric', courtMetricSchema);
+    getOrCompileModel(tenantDB, 'CourtMetric', courtMetricSchema, ['tipoMedicion']);
 
 export const getCourtMetricRunModel = (tenantDB) =>
-    tenantDB.models.CourtMetricRun || tenantDB.model('CourtMetricRun', courtMetricRunSchema);
+    getOrCompileModel(tenantDB, 'CourtMetricRun', courtMetricRunSchema);
 
 export const getCourtMetricResultModel = (tenantDB) =>
-    tenantDB.models.CourtMetricResult ||
-    tenantDB.model('CourtMetricResult', courtMetricResultSchema);
+    getOrCompileModel(tenantDB, 'CourtMetricResult', courtMetricResultSchema, [
+        'tipoMedicion',
+        'tiempoSegundos',
+        'valorTotal',
+    ]);
