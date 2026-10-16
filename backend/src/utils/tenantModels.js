@@ -10,7 +10,11 @@ import { getSocialFeeModel } from '../models/socialFee.model.js';
 import {getRentalModel} from '../models/rental.model.js';
 import { getNewsModel } from '../models/news.model.js';
 import { getResourceModel } from '../models/resource.model.js';
-import {getRequirementModel, getSubmissionModel} from '../models/requirement.model.js';
+import {
+    getRequirementFolderModel,
+    getRequirementModel,
+    getSubmissionModel,
+} from '../models/requirement.model.js';
 import {getMetricDefModel, getMeasurementModel, getClinicalNoteModel} from '../models/performance.model.js';
 import {getInjuryModel, getMedicalAppointmentModel} from '../models/medical.model.js';
 import {getTrainingPlanModel} from '../models/training.model.js';
@@ -51,6 +55,7 @@ export const getTenantModels = (tenantDB) => {
         Rental: getRentalModel(tenantDB),
         News: getNewsModel(tenantDB),
         Resource: getResourceModel(tenantDB),
+        RequirementFolder: getRequirementFolderModel(tenantDB),
         Requirement: getRequirementModel(tenantDB),
         Submission: getSubmissionModel(tenantDB),
         MetricDefinition: getMetricDefModel(tenantDB),

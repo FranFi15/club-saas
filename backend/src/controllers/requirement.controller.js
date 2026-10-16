@@ -11,6 +11,81 @@ import { parsePageLimit, paginationMeta } from '../utils/pagination.js';
 
 const STAFF_DOC_ROLES = ['profe', 'preparador_fisico', 'nutricionista', 'psicologo'];
 const ADMIN_DOC_ROLES = ['admin_club', 'administrativo', 'dirigente'];
+const MUTATE_DOC_ROLES = ['admin_club', 'administrativo', ...STAFF_DOC_ROLES];
+
+function isDocAdmin(user) {
+    return ADMIN_DOC_ROLES.includes(user?.rol) || ['admin_club', 'administrativo'].includes(user?.rol);
+}
+
+function canMutateDoc(user) {
+    return MUTATE_DOC_ROLES.includes(user?.rol);
+}
+
+async function assertFolderAccess(req, folder, { write = false } = {}) {
+    if (!folder) {
+        const err = new Error('Carpeta no encontrada.');
+        err.statusCode = 404;
+        throw err;
+    }
+    if (isDocAdmin(req.user)) return;
+    if (!STAFF_DOC_ROLES.includes(req.user.rol)) {
+        const err = new Error('No autorizado.');
+        err.statusCode = 403;
+        throw err;
+    }
+    if (String(folder.creadoPor) !== String(req.user._id)) {
+        const err = new Error(write ? 'Solo podés modificar tus carpetas.' : 'No tenés acceso a esta carpeta.');
+        err.statusCode = 403;
+        throw err;
+    }
+}
+
+async function assertRequirementAccess(req, requirement, { write = false } = {}) {
+    if (!requirement || requirement.activo === false) {
+        const err = new Error('Pedido no encontrado.');
+        err.statusCode = 404;
+        throw err;
+    }
+    if (isDocAdmin(req.user)) return;
+    if (!STAFF_DOC_ROLES.includes(req.user.rol)) {
+        const err = new Error('No autorizado.');
+        err.statusCode = 403;
+        throw err;
+    }
+    if (String(requirement.creadoPor) !== String(req.user._id)) {
+        const err = new Error(write ? 'Solo podés modificar tus pedidos.' : 'No tenés acceso a este pedido.');
+        err.statusCode = 403;
+        throw err;
+    }
+}
+
+async function resolveOptionalCarpetaId(req, rawCarpeta) {
+    const { RequirementFolder } = req.models;
+    if (rawCarpeta === null || rawCarpeta === '' || rawCarpeta === undefined) {
+        return null;
+    }
+    const id = String(rawCarpeta);
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+        const err = new Error('Carpeta inválida.');
+        err.statusCode = 400;
+        throw err;
+    }
+    const folder = await RequirementFolder.findById(id).lean();
+    await assertFolderAccess(req, folder, { write: false });
+    return folder._id;
+}
+
+async function hardDeleteRequirements(models, requirementIds) {
+    const { Requirement, Submission } = models;
+    const ids = (requirementIds || []).filter(Boolean);
+    if (!ids.length) return { requirements: 0, submissions: 0 };
+    const subRes = await Submission.deleteMany({ requerimiento: { $in: ids } });
+    const reqRes = await Requirement.deleteMany({ _id: { $in: ids } });
+    return {
+        requirements: reqRes.deletedCount || 0,
+        submissions: subRes.deletedCount || 0,
+    };
+}
 
 // @desc    Crear un nuevo requerimiento de documentos
 // @route   POST /api/requirements
@@ -25,6 +100,7 @@ const createRequirement = asyncHandler(async (req, res) => {
         targetUsuario,
         archivoAdjuntoUrl,
         archivoAdjuntoNombre,
+        carpeta,
     } = req.body;
     const { Requirement } = req.models;
 
@@ -37,6 +113,13 @@ const createRequirement = asyncHandler(async (req, res) => {
 
     const adjuntoUrl = typeof archivoAdjuntoUrl === 'string' ? archivoAdjuntoUrl.trim() : '';
     const adjuntoNombre = typeof archivoAdjuntoNombre === 'string' ? archivoAdjuntoNombre.trim() : '';
+    let carpetaId = null;
+    try {
+        carpetaId = await resolveOptionalCarpetaId(req, carpeta);
+    } catch (e) {
+        res.status(e.statusCode || 400);
+        throw e;
+    }
 
     const requirement = await Requirement.create({
         titulo,
@@ -48,9 +131,9 @@ const createRequirement = asyncHandler(async (req, res) => {
         targetUsuario,
         archivoAdjuntoUrl: adjuntoUrl,
         archivoAdjuntoNombre: adjuntoNombre || (adjuntoUrl ? 'Archivo de referencia' : ''),
+        carpeta: carpetaId,
         creadoPor: req.user._id,
     });
-
     let chatDelivered = 0;
     try {
         const delivery = await deliverRequirementToChat(req.models, req.user, requirement);
@@ -356,6 +439,7 @@ const listStaffRequirements = asyncHandler(async (req, res) => {
     const { Requirement } = req.models;
     const isAdmin = ADMIN_DOC_ROLES.includes(req.user.rol);
     const filter = { activo: true };
+    const { carpetaId, sinCarpeta } = req.query;
 
     if (!isAdmin) {
         if (!STAFF_DOC_ROLES.includes(req.user.rol)) {
@@ -365,8 +449,15 @@ const listStaffRequirements = asyncHandler(async (req, res) => {
         filter.creadoPor = req.user._id;
     }
 
+    if (sinCarpeta === '1' || sinCarpeta === 'true') {
+        filter.$or = [{ carpeta: null }, { carpeta: { $exists: false } }];
+    } else if (carpetaId && mongoose.Types.ObjectId.isValid(String(carpetaId))) {
+        filter.carpeta = String(carpetaId);
+    }
+
     const requirements = await Requirement.find(filter)
-        .select('titulo alcance creadoPor createdAt fechaVencimiento')
+        .select('titulo alcance creadoPor createdAt fechaVencimiento carpeta')
+        .populate('carpeta', 'nombre')
         .sort({ createdAt: -1 })
         .limit(300)
         .lean();
@@ -374,9 +465,185 @@ const listStaffRequirements = asyncHandler(async (req, res) => {
     res.json({ requirements });
 });
 
+// @desc    Listar carpetas de pedidos
+// @route   GET /api/requirements/folders
+const listRequirementFolders = asyncHandler(async (req, res) => {
+    const { RequirementFolder, Requirement } = req.models;
+    if (!canMutateDoc(req.user) && !ADMIN_DOC_ROLES.includes(req.user.rol)) {
+        res.status(403);
+        throw new Error('No autorizado.');
+    }
+
+    const folderFilter = {};
+    if (!isDocAdmin(req.user)) {
+        folderFilter.creadoPor = req.user._id;
+    }
+
+    const folders = await RequirementFolder.find(folderFilter).sort({ nombre: 1 }).lean();
+    const folderIds = folders.map((f) => f._id);
+
+    const reqFilter = { activo: true, carpeta: { $in: folderIds } };
+    if (!isDocAdmin(req.user)) {
+        reqFilter.creadoPor = req.user._id;
+    }
+    const counts = await Requirement.aggregate([
+        { $match: reqFilter },
+        { $group: { _id: '$carpeta', count: { $sum: 1 } } },
+    ]);
+    const countMap = new Map(counts.map((c) => [String(c._id), c.count]));
+
+    const unfiledFilter = {
+        activo: true,
+        $or: [{ carpeta: null }, { carpeta: { $exists: false } }],
+    };
+    if (!isDocAdmin(req.user)) {
+        unfiledFilter.creadoPor = req.user._id;
+    }
+    const sinCarpetaCount = await Requirement.countDocuments(unfiledFilter);
+
+    res.json({
+        folders: folders.map((f) => ({
+            ...f,
+            pedidosCount: countMap.get(String(f._id)) || 0,
+        })),
+        sinCarpetaCount,
+    });
+});
+
+// @desc    Crear carpeta
+// @route   POST /api/requirements/folders
+const createRequirementFolder = asyncHandler(async (req, res) => {
+    const { RequirementFolder } = req.models;
+    if (!canMutateDoc(req.user)) {
+        res.status(403);
+        throw new Error('No autorizado.');
+    }
+    const nombre = String(req.body?.nombre || '').trim();
+    if (!nombre) {
+        res.status(400);
+        throw new Error('Indicá un nombre para la carpeta.');
+    }
+    const folder = await RequirementFolder.create({
+        nombre,
+        creadoPor: req.user._id,
+    });
+    res.status(201).json({ ...folder.toObject(), pedidosCount: 0 });
+});
+
+// @desc    Renombrar carpeta
+// @route   PATCH /api/requirements/folders/:id
+const updateRequirementFolder = asyncHandler(async (req, res) => {
+    const { RequirementFolder } = req.models;
+    if (!canMutateDoc(req.user)) {
+        res.status(403);
+        throw new Error('No autorizado.');
+    }
+    const folder = await RequirementFolder.findById(req.params.id);
+    try {
+        await assertFolderAccess(req, folder, { write: true });
+    } catch (e) {
+        res.status(e.statusCode || 403);
+        throw e;
+    }
+    const nombre = String(req.body?.nombre || '').trim();
+    if (!nombre) {
+        res.status(400);
+        throw new Error('Indicá un nombre para la carpeta.');
+    }
+    folder.nombre = nombre;
+    await folder.save();
+    res.json(folder);
+});
+
+// @desc    Eliminar carpeta + pedidos + entregas
+// @route   DELETE /api/requirements/folders/:id
+const deleteRequirementFolder = asyncHandler(async (req, res) => {
+    const { RequirementFolder, Requirement } = req.models;
+    if (!canMutateDoc(req.user)) {
+        res.status(403);
+        throw new Error('No autorizado.');
+    }
+    const folder = await RequirementFolder.findById(req.params.id);
+    try {
+        await assertFolderAccess(req, folder, { write: true });
+    } catch (e) {
+        res.status(e.statusCode || 403);
+        throw e;
+    }
+
+    const reqFilter = { carpeta: folder._id };
+    if (!isDocAdmin(req.user)) {
+        reqFilter.creadoPor = req.user._id;
+    }
+    const reqIds = (await Requirement.find(reqFilter).select('_id').lean()).map((r) => r._id);
+    const deleted = await hardDeleteRequirements(req.models, reqIds);
+    await RequirementFolder.deleteOne({ _id: folder._id });
+
+    res.json({
+        message: 'Carpeta eliminada.',
+        deletedFolders: 1,
+        deletedRequirements: deleted.requirements,
+        deletedSubmissions: deleted.submissions,
+    });
+});
+
+// @desc    Mover pedido de carpeta / actualizar carpeta
+// @route   PATCH /api/requirements/:id
+const updateRequirement = asyncHandler(async (req, res) => {
+    const { Requirement } = req.models;
+    if (!canMutateDoc(req.user)) {
+        res.status(403);
+        throw new Error('No autorizado.');
+    }
+    const requirement = await Requirement.findById(req.params.id);
+    try {
+        await assertRequirementAccess(req, requirement, { write: true });
+    } catch (e) {
+        res.status(e.statusCode || 403);
+        throw e;
+    }
+
+    if ('carpeta' in (req.body || {})) {
+        try {
+            requirement.carpeta = await resolveOptionalCarpetaId(req, req.body.carpeta);
+        } catch (e) {
+            res.status(e.statusCode || 400);
+            throw e;
+        }
+    }
+
+    await requirement.save();
+    const full = await Requirement.findById(requirement._id).populate('carpeta', 'nombre').lean();
+    res.json(full);
+});
+
+// @desc    Eliminar pedido + entregas
+// @route   DELETE /api/requirements/:id
+const deleteRequirement = asyncHandler(async (req, res) => {
+    const { Requirement } = req.models;
+    if (!canMutateDoc(req.user)) {
+        res.status(403);
+        throw new Error('No autorizado.');
+    }
+    const requirement = await Requirement.findById(req.params.id).lean();
+    try {
+        await assertRequirementAccess(req, requirement, { write: true });
+    } catch (e) {
+        res.status(e.statusCode || 403);
+        throw e;
+    }
+
+    const deleted = await hardDeleteRequirements(req.models, [requirement._id]);
+    res.json({
+        message: 'Pedido eliminado.',
+        deletedRequirements: deleted.requirements,
+        deletedSubmissions: deleted.submissions,
+    });
+});
+
 const getStaffSubmissions = asyncHandler(async (req, res) => {
     const { Requirement, Enrollment, Submission, Category } = req.models;
-    const { categoriaId, estado, disciplinaId, requerimientoId } = req.query;
+    const { categoriaId, estado, disciplinaId, requerimientoId, carpetaId, sinCarpeta } = req.query;
     const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 30, maxLimit: 100 });
 
     const isAdmin = ['admin_club', 'administrativo'].includes(req.user.rol);
@@ -384,12 +651,18 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
         requerimientoId && mongoose.Types.ObjectId.isValid(String(requerimientoId))
             ? String(requerimientoId)
             : null;
+    const carpetaFilter =
+        carpetaId && mongoose.Types.ObjectId.isValid(String(carpetaId)) ? String(carpetaId) : null;
+    const onlyUnfiled = sinCarpeta === '1' || sinCarpeta === 'true';
 
     const respondSubmissions = async (subFilter) => {
         const total = await Submission.countDocuments(subFilter);
         const submissions = await Submission.find(subFilter)
             .populate('atleta', 'nombre apellido')
-            .populate('requerimiento', 'titulo descripcion alcance targetCategoria fechaVencimiento obligatorio creadoPor archivoAdjuntoUrl archivoAdjuntoNombre')
+            .populate(
+                'requerimiento',
+                'titulo descripcion alcance targetCategoria fechaVencimiento obligatorio creadoPor archivoAdjuntoUrl archivoAdjuntoNombre carpeta',
+            )
             .sort({ updatedAt: -1 })
             .skip(skip)
             .limit(limit)
@@ -401,12 +674,27 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
         });
     };
 
+    const applyCarpetaToReqQuery = (reqQuery) => {
+        if (onlyUnfiled) {
+            const unfiled = { $or: [{ carpeta: null }, { carpeta: { $exists: false } }] };
+            if (reqQuery.$or) {
+                reqQuery.$and = [...(reqQuery.$and || []), { $or: reqQuery.$or }, unfiled];
+                delete reqQuery.$or;
+            } else {
+                reqQuery.$and = [...(reqQuery.$and || []), unfiled];
+            }
+        } else if (carpetaFilter) {
+            reqQuery.carpeta = carpetaFilter;
+        }
+    };
+
     let catIds = [];
     let atletaIds = [];
 
     if (isAdmin) {
         const reqQuery = { activo: true };
         if (reqIdFilter) reqQuery._id = reqIdFilter;
+        applyCarpetaToReqQuery(reqQuery);
         const reqIds = (await Requirement.find(reqQuery).select('_id').lean()).map((r) => r._id);
         if (!reqIds.length) {
             return res.json({ submissions: [], ...paginationMeta(page, limit, 0) });
@@ -487,6 +775,7 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
     if (reqIdFilter) {
         reqFilter._id = reqIdFilter;
     }
+    applyCarpetaToReqQuery(reqFilter);
 
     const reqs = await Requirement.find(reqFilter).select('_id').lean();
     const reqIds = reqs.map((r) => r._id);
@@ -512,4 +801,10 @@ export {
     getMyRequirements,
     getStaffSubmissions,
     listStaffRequirements,
+    listRequirementFolders,
+    createRequirementFolder,
+    updateRequirementFolder,
+    deleteRequirementFolder,
+    updateRequirement,
+    deleteRequirement,
 };
