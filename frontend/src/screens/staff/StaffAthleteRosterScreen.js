@@ -22,7 +22,8 @@ import NutriBodyFatMethodHeaderPicker from '../../components/NutriBodyFatMethodH
 import UserAvatar from '../../components/UserAvatar';
 import DesignCard from '../../components/DesignCard';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
-import { sortEnrollmentsByAtleta } from '../../utils/listSort';
+import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
+import { sortEnrollmentsByAtleta, formatUserName } from '../../utils/listSort';
 
 const EMPTY_BY_ROL = {
   nutricionista:
@@ -39,7 +40,7 @@ function matchesSearch(row, q) {
   const needle = q.trim().toLowerCase();
   if (!needle) return true;
   const a = row.atleta;
-  const name = `${a?.nombre || ''} ${a?.apellido || ''}`.toLowerCase();
+  const name = (formatUserName(a) || '').toLowerCase();
   const dni = String(a?.dni || '').toLowerCase();
   const cats = (row.categorias || []).map((c) => `${c.nombre} ${c.disciplina?.nombre || ''}`).join(' ');
   return name.includes(needle) || dni.includes(needle) || cats.toLowerCase().includes(needle);
@@ -115,6 +116,18 @@ export default function StaffAthleteRosterScreen({ navigation, route }) {
     [list, search],
   );
 
+  const {
+    visibleItems,
+    onEndReached,
+    onEndReachedThreshold,
+    ListFooterComponent,
+  } = useClientInfiniteScroll(filtered, {
+    pageSize: 20,
+    resetKey: search,
+    colorMarca,
+    theme,
+  });
+
   const emptyRosterMsg =
     EMPTY_BY_ROL[userRol] ||
     'Todavía no tenés atletas en tus categorías. Pedile al administrador que te asigne en cada categoría.';
@@ -122,7 +135,7 @@ export default function StaffAthleteRosterScreen({ navigation, route }) {
   const renderAthlete = ({ item }) => {
     const a = item.atleta;
     if (!a) return null;
-    const nombre = `${a.nombre || ''} ${a.apellido || ''}`.trim();
+    const nombre = formatUserName(a);
     const primaryCat = item.categorias?.[0];
 
     return (
@@ -284,13 +297,16 @@ export default function StaffAthleteRosterScreen({ navigation, route }) {
         <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />
       ) : (
         <FlatList
-          data={filtered}
+          data={visibleItems}
           keyExtractor={(item) => String(item.atleta._id)}
           renderItem={renderAthlete}
           contentContainerStyle={styles.listPad}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />
           }
+          onEndReached={onEndReached}
+          onEndReachedThreshold={onEndReachedThreshold}
+          ListFooterComponent={ListFooterComponent}
           ListHeaderComponent={
             filtered.length !== list.length ? (
               <Text style={[styles.countHint, { color: theme.textMuted }]}>

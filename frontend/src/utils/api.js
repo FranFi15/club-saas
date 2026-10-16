@@ -14,7 +14,7 @@ export const clubApi = axios.create({
   timeout: 15000,
 });
 
-if (__DEV__ && Platform.OS !== 'web') {
+if (__DEV__) {
   console.log(`[api] host=${API_HOST} super=${SUPER_API_BASE} club=${CLUB_API_BASE}`);
 }
 

@@ -40,7 +40,9 @@ export function groupChatSubtitle(kind, active) {
 export function displayName(user) {
   if (!user) return 'Usuario';
   if (isAdminChatRole(user.rol)) return 'Administración';
-  const n = `${user.nombre || ''} ${user.apellido || ''}`.trim();
+  const apellido = String(user.apellido || '').trim();
+  const nombre = String(user.nombre || '').trim();
+  const n = [apellido, nombre].filter(Boolean).join(' ');
   return n || user.email || 'Usuario';
 }
 

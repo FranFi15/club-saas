@@ -10,6 +10,17 @@ export function compareByField(a, b, field = 'nombre') {
   return compareText(a?.[field], b?.[field]);
 }
 
+/** Display name for lists: apellido then nombre (easier to scan/sort). */
+export function formatUserName(user, fallback = '') {
+  if (!user || typeof user !== 'object') return fallback;
+  const apellido = String(user.apellido || '').trim();
+  const nombre = String(user.nombre || '').trim();
+  const full = [apellido, nombre].filter(Boolean).join(' ');
+  if (full) return full;
+  const email = String(user.email || '').trim();
+  return email || fallback;
+}
+
 export function compareUserByName(a, b) {
   const cmpApellido = compareText(a?.apellido, b?.apellido);
   if (cmpApellido !== 0) return cmpApellido;

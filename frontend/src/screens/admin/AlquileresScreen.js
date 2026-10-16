@@ -499,12 +499,12 @@ export default function AlquileresScreen({ navigation }) {
               ) : null}
               {canCancel ? (
                 <TouchableOpacity
-                  style={[styles.cancelReservaBtn, { borderColor: '#ef4444' }]}
+                  style={[styles.cancelReservaBtn, { borderColor: '#ef4444', backgroundColor: '#ef4444' }]}
                   onPress={() => handleDeleteRental(r, false)}
                   activeOpacity={0.75}
                 >
-                  <Ionicons name="close-circle-outline" size={16} color="#ef4444" />
-                  <Text style={styles.cancelReservaBtnTxt}>Cancelar</Text>
+                  <Ionicons name="close-circle-outline" size={16} color="#fff" />
+                  <Text style={[styles.cancelReservaBtnTxt, { color: '#fff' }]}>Cancelar</Text>
                 </TouchableOpacity>
               ) : null}
             </View>

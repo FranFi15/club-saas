@@ -16,6 +16,7 @@ import { MN, EST_COLOR, fmtMoney, metodoPagoLabel, metodoPagoIcon, contrastOutli
 import DesignCard from '../../../components/DesignCard';
 import CustomAlert from '../../../components/CustomAlert';
 import { ThemeContext } from '../../../context/ThemeContext';
+import { formatUserName } from '../../../utils/listSort';
 
 const HISTORY_PAGE_SIZE = 30;
 
@@ -182,7 +183,7 @@ export default function PaymentHistoryModal({
     });
   };
 
-  const nombre = atleta ? `${atleta.nombre || ''} ${atleta.apellido || ''}`.trim() : '';
+  const nombre = atleta ? formatUserName(atleta) : '';
 
   const renderPayment = ({ item: p }) => {
     const ec = EST_COLOR[p.estado] || '#999';
@@ -280,18 +281,18 @@ export default function PaymentHistoryModal({
             ) : null}
             {showDelete ? (
               <TouchableOpacity
-                style={[styles.deleteBtn, contrastOutlineBtn(theme, isDarkMode), { borderColor: '#ef4444' }]}
+                style={[styles.deleteBtn, { borderColor: '#ef4444', backgroundColor: '#ef4444' }]}
                 onPress={() => handleDelete(p)}
                 disabled={busyDelete}
                 accessibilityRole="button"
                 accessibilityLabel="Eliminar cuota"
               >
                 {busyDelete ? (
-                  <ActivityIndicator color="#ef4444" size="small" />
+                  <ActivityIndicator color="#fff" size="small" />
                 ) : (
                   <>
-                    <Ionicons name="trash-outline" size={16} color="#ef4444" />
-                    <Text style={styles.deleteBtnTxt}>Eliminar</Text>
+                    <Ionicons name="trash-outline" size={16} color="#fff" />
+                    <Text style={[styles.deleteBtnTxt, { color: '#fff' }]}>Eliminar</Text>
                   </>
                 )}
               </TouchableOpacity>

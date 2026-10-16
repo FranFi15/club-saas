@@ -30,6 +30,7 @@ import {
   categoryPillLabel,
 } from '../../utils/categoryFilterOptions';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
 
 const ESTADO_OPTIONS = [
   { label: 'Todos los estados', value: '' },
@@ -152,6 +153,18 @@ export default function CoachAgendaScreen({ navigation }) {
   });
 
   const showInitialLoader = loading && list.length === 0;
+
+  const {
+    visibleItems,
+    onEndReached,
+    onEndReachedThreshold,
+    ListFooterComponent,
+  } = useClientInfiniteScroll(list, {
+    pageSize: 20,
+    resetKey: `${selectedCategoryId}:${selectedEstado}`,
+    colorMarca,
+    theme,
+  });
 
   const filterPillDefs = useMemo(
     () => [
@@ -433,7 +446,7 @@ export default function CoachAgendaScreen({ navigation }) {
             />
           </View>
           <FlatList
-            data={list}
+            data={visibleItems}
             keyExtractor={(item) => item._id}
             renderItem={renderItem}
             ListHeaderComponent={listHeader}
@@ -441,6 +454,9 @@ export default function CoachAgendaScreen({ navigation }) {
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />
             }
+            onEndReached={onEndReached}
+            onEndReachedThreshold={onEndReachedThreshold}
+            ListFooterComponent={ListFooterComponent}
             ListEmptyComponent={
               <Text style={[styles.empty, { color: theme.textMuted }]}>{emptyMessage}</Text>
             }

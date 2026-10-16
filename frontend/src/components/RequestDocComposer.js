@@ -10,6 +10,7 @@ import {
   Switch,
   KeyboardAvoidingView,
   Platform,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -22,7 +23,7 @@ import SearchableDropdown from './SearchableDropdown';
 import NewsMultiSelectList from './NewsMultiSelectList';
 import CoachNewsAthletePicker from './CoachNewsAthletePicker';
 import CalendarDateField from './CalendarDateField';
-import { sortByNombre, sortUsersByName } from '../utils/listSort';
+import { sortByNombre, sortUsersByName, formatUserName } from '../utils/listSort';
 import { displayDateToIsoCalendar } from '../utils/dateDisplay';
 import { USER_FILTER_ROLES, USER_ROL_LABELS, userRoleFilterLabel } from '../constants/userRoles';
 import {
@@ -55,12 +56,14 @@ export default function RequestDocComposer({
   const [loadingMeta, setLoadingMeta] = useState(true);
   const [categories, setCategories] = useState([]);
   const [disciplines, setDisciplines] = useState([]);
+  const [folders, setFolders] = useState([]);
   const [staffAthletes, setStaffAthletes] = useState([]);
   const [adminUsers, setAdminUsers] = useState([]);
   const [viewerRol, setViewerRol] = useState('');
 
   const [alcance, setAlcance] = useState(isAdmin ? 'global' : 'categoria');
   const [disciplinaFilter, setDisciplinaFilter] = useState('');
+  const [carpetaId, setCarpetaId] = useState('');
   const [targetCategorias, setTargetCategorias] = useState([]);
   const [targetUsuarios, setTargetUsuarios] = useState([]);
   const [titulo, setTitulo] = useState('');
@@ -71,6 +74,9 @@ export default function RequestDocComposer({
   const [adjuntoNombre, setAdjuntoNombre] = useState('');
   const [uploadingAdjunto, setUploadingAdjunto] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [folderModalVisible, setFolderModalVisible] = useState(false);
+  const [folderNombre, setFolderNombre] = useState('');
+  const [folderSaving, setFolderSaving] = useState(false);
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
     title: '',
@@ -98,6 +104,7 @@ export default function RequestDocComposer({
   const resetForm = useCallback(() => {
     setAlcance(isAdmin ? 'global' : 'categoria');
     setDisciplinaFilter('');
+    setCarpetaId('');
     setTargetCategorias([]);
     setTargetUsuarios([]);
     setTitulo('');
@@ -115,24 +122,32 @@ export default function RequestDocComposer({
       const rol = (await getToken('userRol')) || '';
       setViewerRol(rol);
 
+      const foldersReq = clubApi
+        .get('/requirements/folders', { headers: h })
+        .catch(() => ({ data: { folders: [] } }));
+
       if (isAdmin) {
-        const [catRes, discRes, usersRes] = await Promise.all([
+        const [catRes, discRes, usersRes, foldersRes] = await Promise.all([
           clubApi.get('/categories', { headers: h }),
           clubApi.get('/disciplines', { headers: h }),
           clubApi.get('/users', { headers: h, params: { limit: 500 } }),
+          foldersReq,
         ]);
         const cats = sortByNombre(catRes.data || []);
         setCategories(cats);
         setDisciplines(sortByNombre(discRes.data || []));
         setAdminUsers(sortUsersByName(usersRes.data?.users || []));
+        setFolders(sortByNombre(foldersRes.data?.folders || []));
       } else {
-        const [catRes, athRes] = await Promise.all([
+        const [catRes, athRes, foldersRes] = await Promise.all([
           clubApi.get('/categories/mis-categorias', { headers: h }),
           clubApi.get('/categories/mis-atletas', { headers: h }),
+          foldersReq,
         ]);
         const cats = sortByNombre(catRes.data || []);
         setCategories(cats);
         setDisciplines([]);
+        setFolders(sortByNombre(foldersRes.data?.folders || []));
         setStaffAthletes(
           sortUsersByName(
             (athRes.data || []).map((row) => {
@@ -306,6 +321,34 @@ export default function RequestDocComposer({
     setAdjuntoNombre('');
   };
 
+  const openCreateFolder = () => {
+    setFolderNombre('');
+    setFolderModalVisible(true);
+  };
+
+  const createFolder = async () => {
+    const nombre = folderNombre.trim();
+    if (!nombre) {
+      showAlert('Carpeta', 'Indicá un nombre.');
+      return;
+    }
+    setFolderSaving(true);
+    try {
+      const h = await headers();
+      const res = await clubApi.post('/requirements/folders', { nombre }, { headers: h });
+      const created = res.data;
+      const id = created?._id ? String(created._id) : '';
+      setFolders((prev) => sortByNombre([...(prev || []).filter((f) => String(f._id) !== id), created]));
+      if (id) setCarpetaId(id);
+      setFolderModalVisible(false);
+      setFolderNombre('');
+    } catch (e) {
+      showAlert('Error', e.response?.data?.message || 'No se pudo crear la carpeta.');
+    } finally {
+      setFolderSaving(false);
+    }
+  };
+
   const submit = async () => {
     if (!titulo.trim()) {
       showAlert('Atención', 'Indicá un título para el pedido.');
@@ -338,6 +381,7 @@ export default function RequestDocComposer({
         obligatorio,
         fechaVencimiento: fechaIso || undefined,
         alcance,
+        ...(carpetaId ? { carpeta: carpetaId } : {}),
         ...(adjuntoUrl
           ? {
               archivoAdjuntoUrl: adjuntoUrl,
@@ -406,6 +450,32 @@ export default function RequestDocComposer({
           placeholder="Ej. Apto médico 2026"
           placeholderTextColor={theme.textMuted}
         />
+
+        <View style={styles.carpetaLabelRow}>
+          <Text style={[styles.label, { color: theme.textMuted, marginBottom: 0 }]}>Carpeta (opcional)</Text>
+          <TouchableOpacity
+            style={[styles.newFolderBtn, { borderColor: colorMarca }]}
+            onPress={openCreateFolder}
+            hitSlop={8}
+          >
+            <Ionicons name="folder-open-outline" size={14} color={colorMarca} />
+            <Text style={[styles.newFolderBtnTxt, { color: colorMarca }]}>Nueva</Text>
+          </TouchableOpacity>
+        </View>
+        <SearchableDropdown
+          theme={theme}
+          colorMarca={colorMarca}
+          data={[
+            { label: 'Sin carpeta', value: '' },
+            ...folders.map((f) => ({ label: f.nombre, value: String(f._id) })),
+          ]}
+          value={carpetaId}
+          onChange={setCarpetaId}
+          placeholder="Sin carpeta"
+        />
+        <Text style={[styles.hint, { color: theme.textMuted }]}>
+          Agrupá el pedido en una carpeta o creá una nueva desde acá.
+        </Text>
 
         <Text style={[styles.label, { color: theme.textMuted }]}>Detalle</Text>
         <TextInput
@@ -601,11 +671,11 @@ export default function RequestDocComposer({
               searchPlaceholder="Nombre, apellido o email…"
               filterOptions={adminUserFilterOptions}
               getItemFilterIds={(u) => (u.rolFilterId ? [u.rolFilterId] : [])}
-              getPrimaryLabel={(u) => `${u.nombre || ''} ${u.apellido || ''}`.trim()}
+              getPrimaryLabel={(u) => formatUserName(u)}
               getSecondaryLabel={(u) =>
                 [USER_ROL_LABELS[u.rol] || u.rol, u.email].filter(Boolean).join(' · ')
               }
-              getSearchText={(u) => `${u.nombre} ${u.apellido} ${u.email || ''} ${u.rol || ''}`}
+              getSearchText={(u) => `${formatUserName(u)} ${u.email || ''} ${u.rol || ''}`}
               emptyListHint="No hay usuarios cargados."
               emptySearchHint="Ninguna persona coincide con la búsqueda."
             />
@@ -646,6 +716,72 @@ export default function RequestDocComposer({
       </ScrollView>
       </KeyboardAvoidingView>
 
+      <Modal
+        visible={folderModalVisible}
+        transparent
+        animationType="slide"
+        presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+        onRequestClose={() => !folderSaving && setFolderModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.folderModalOverlay}
+        >
+          <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            activeOpacity={1}
+            onPress={() => !folderSaving && setFolderModalVisible(false)}
+          />
+          <View style={[styles.folderModalCard, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.folderModalTitle, { color: theme.text }]}>Nueva carpeta</Text>
+            <Text style={[styles.hint, { color: theme.textMuted, marginBottom: 0 }]}>
+              El pedido quedará guardado en esta carpeta.
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  color: theme.text,
+                  borderColor: theme.border,
+                  backgroundColor: theme.background,
+                  marginTop: 14,
+                  marginBottom: 0,
+                },
+              ]}
+              placeholder="Nombre de la carpeta"
+              placeholderTextColor={theme.textMuted}
+              value={folderNombre}
+              onChangeText={setFolderNombre}
+              maxLength={80}
+              autoFocus
+            />
+            <View style={styles.folderModalActions}>
+              <TouchableOpacity
+                style={[styles.folderModalBtn, { borderColor: theme.border }]}
+                onPress={() => setFolderModalVisible(false)}
+                disabled={folderSaving}
+              >
+                <Text style={{ color: theme.text, fontWeight: '600' }}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.folderModalBtn,
+                  { backgroundColor: colorMarca, borderColor: 'transparent', opacity: folderSaving ? 0.7 : 1 },
+                ]}
+                onPress={createFolder}
+                disabled={folderSaving}
+              >
+                {folderSaving ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>Crear</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <CustomAlert
         visible={alertConfig.visible}
         title={alertConfig.title}
@@ -660,7 +796,40 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40 },
   label: { fontSize: 13, fontWeight: '600', marginBottom: 6, marginLeft: 2 },
+  carpetaLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+    marginLeft: 2,
+  },
+  newFolderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  newFolderBtnTxt: { fontSize: 12, fontWeight: '700' },
   hint: { fontSize: 12, marginBottom: 10, lineHeight: 17 },
+  folderModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  folderModalCard: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 20,
+    paddingBottom: 28,
+  },
+  folderModalTitle: { fontSize: 18, fontWeight: '800' },
+  folderModalActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  folderModalBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
   dropdownLabel: {
     fontSize: 11,
     fontWeight: '700',

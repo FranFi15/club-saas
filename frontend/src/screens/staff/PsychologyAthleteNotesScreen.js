@@ -28,6 +28,7 @@ import CoachScreenHeader, {
 } from '../../components/CoachScreenHeader';
 import { formatJsDateToDisplay } from '../../utils/dateDisplay';
 import { clearScreenCache, readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
 
 function stripHtml(html) {
   return String(html || '')
@@ -119,6 +120,17 @@ export default function PsychologyAthleteNotesScreen({ navigation, route }) {
   }, [payload]);
 
   const showInitialLoader = loading && timeline.length === 0 && !(payload.sessions || []).length;
+
+  const {
+    visibleItems,
+    onEndReached,
+    onEndReachedThreshold,
+    ListFooterComponent,
+  } = useClientInfiniteScroll(timeline, {
+    pageSize: 20,
+    colorMarca,
+    theme,
+  });
 
   const openComposer = () => {
     setTitulo('');
@@ -260,13 +272,16 @@ export default function PsychologyAthleteNotesScreen({ navigation, route }) {
         <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />
       ) : (
         <FlatList
-          data={timeline}
+          data={visibleItems}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />
           }
+          onEndReached={onEndReached}
+          onEndReachedThreshold={onEndReachedThreshold}
+          ListFooterComponent={ListFooterComponent}
           ListEmptyComponent={
             <Text style={[styles.empty, { color: theme.textMuted }]}>
               Todavía no hay notas. Tocá + para crear una, o cargá “Qué pasó en la sesión” al cerrar una consulta.

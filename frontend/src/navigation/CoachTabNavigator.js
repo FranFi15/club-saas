@@ -19,7 +19,11 @@ import CoachCategoriesScreen from '../screens/coach/CoachCategoriesScreen';
 import CoachCategoryDetailScreen from '../screens/coach/CoachCategoryDetailScreen';
 import CoachWellnessScreen from '../screens/coach/CoachWellnessScreen';
 import CoachMeasurementScreen from '../screens/coach/CoachMeasurementScreen';
+import CoachCourtMetricsScreen from '../screens/coach/CoachCourtMetricsScreen';
+import CoachCourtMetricEditScreen from '../screens/coach/CoachCourtMetricEditScreen';
+import CoachCourtMetricDetailScreen from '../screens/coach/CoachCourtMetricDetailScreen';
 import CoachTeamDocumentsScreen from '../screens/coach/CoachTeamDocumentsScreen';
+import CoachTeamWellnessScreen from '../screens/coach/CoachTeamWellnessScreen';
 import MemberMediaViewerScreen from '../screens/member/MemberMediaViewerScreen';
 import CoachCommsHubScreen from '../screens/coach/CoachCommsHubScreen';
 import NoticiasScreen from '../screens/admin/NoticiasScreen';
@@ -69,7 +73,11 @@ function CoachTeamStackNav() {
       <CoachTeamStack.Screen name="CoachCategoryDetail" component={CoachCategoryDetailScreen} />
       <CoachTeamStack.Screen name="CoachWellness" component={CoachWellnessScreen} />
       <CoachTeamStack.Screen name="CoachMeasurement" component={CoachMeasurementScreen} />
+      <CoachTeamStack.Screen name="CoachCourtMetrics" component={CoachCourtMetricsScreen} />
+      <CoachTeamStack.Screen name="CoachCourtMetricEdit" component={CoachCourtMetricEditScreen} />
+      <CoachTeamStack.Screen name="CoachCourtMetricDetail" component={CoachCourtMetricDetailScreen} />
       <CoachTeamStack.Screen name="CoachTeamDocuments" component={CoachTeamDocumentsScreen} />
+      <CoachTeamStack.Screen name="CoachTeamWellness" component={CoachTeamWellnessScreen} />
       <CoachTeamStack.Screen name="CoachMediaViewer" component={MemberMediaViewerScreen} />
     </CoachTeamStack.Navigator>
   );

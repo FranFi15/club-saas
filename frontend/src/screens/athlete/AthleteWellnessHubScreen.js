@@ -21,6 +21,7 @@ import MemberChildPicker from '../../components/MemberChildPicker';
 import DesignCard from '../../components/DesignCard';
 import { clubHeaders } from './athleteApi';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { formatUserName } from '../../utils/listSort';
 
 export default function AthleteWellnessHubScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
@@ -118,7 +119,7 @@ export default function AthleteWellnessHubScreen({ navigation }) {
         subtitle={
           isTutor
             ? activeHijo
-              ? `Registros diarios de ${activeHijo.nombre} ${activeHijo.apellido}`
+              ? `Registros diarios de ${formatUserName(activeHijo)}`
               : 'Registros diarios del atleta seleccionado'
             : 'Contanos cómo te sentís y cómo fue el entreno'
         }

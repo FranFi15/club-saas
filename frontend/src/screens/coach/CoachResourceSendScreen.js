@@ -31,7 +31,7 @@ import { formatJsDateToDisplay } from '../../utils/dateDisplay';
 import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import DesignCard from '../../components/DesignCard';
-import { sortByNombre } from '../../utils/listSort';
+import { sortByNombre, formatUserName } from '../../utils/listSort';
 import {
   categoriesAsSectionedOptions,
   categoryPillLabel,
@@ -94,7 +94,7 @@ function destinoLabel(item) {
   }
   const u = item.targetUsuario;
   if (u && typeof u === 'object') {
-    const name = `${u.nombre || ''} ${u.apellido || ''}`.trim();
+    const name = formatUserName(u);
     return name ? `Atleta · ${name}` : 'Atleta';
   }
   return 'Atleta';
@@ -290,7 +290,7 @@ export default function CoachResourceSendScreen({ navigation }) {
         .filter(Boolean)
         .map((a) => ({
           value: a._id,
-          label: `${a.nombre || ''} ${a.apellido || ''}`.trim() || 'Atleta',
+          label: formatUserName(a) || 'Atleta',
         })),
     [enrollments],
   );
@@ -618,24 +618,24 @@ export default function CoachResourceSendScreen({ navigation }) {
         </TouchableOpacity>
         <View style={styles.histActions}>
           <TouchableOpacity
-            style={[styles.histBtn, { borderColor: colorMarca }]}
+            style={[styles.histBtn, { borderColor: '#6b7280' }]}
             onPress={() => startEdit(item)}
             disabled={busy}
           >
-            <Ionicons name="create-outline" size={16} color={colorMarca} />
-            <Text style={[styles.histBtnTxt, { color: colorMarca }]}>Editar</Text>
+            <Ionicons name="create-outline" size={16} color="#6b7280" />
+            <Text style={[styles.histBtnTxt, { color: '#6b7280' }]}>Editar</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.histBtn, { borderColor: '#ef4444' }]}
+            style={[styles.histBtn, { borderColor: '#ef4444', backgroundColor: '#ef4444' }]}
             onPress={() => confirmDelete(item)}
             disabled={busy}
           >
             {busy ? (
-              <ActivityIndicator size="small" color="#ef4444" />
+              <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
-                <Ionicons name="trash-outline" size={16} color="#ef4444" />
-                <Text style={[styles.histBtnTxt, { color: '#ef4444' }]}>Eliminar</Text>
+                <Ionicons name="trash-outline" size={16} color="#fff" />
+                <Text style={[styles.histBtnTxt, { color: '#fff' }]}>Eliminar</Text>
               </>
             )}
           </TouchableOpacity>

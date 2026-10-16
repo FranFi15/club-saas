@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'rea
 import { Ionicons } from '@expo/vector-icons';
 import DesignCard from './DesignCard';
 import { clubApi } from '../utils/api';
+import { formatUserName } from '../utils/listSort';
 
 /**
  * Banner for expired trial athletes pending continue/leave decision.
@@ -21,7 +22,7 @@ export default function TrialDecisionCard({
 
   if (!athlete?._id) return null;
 
-  const name = `${athlete.nombre || ''} ${athlete.apellido || ''}`.trim() || 'Atleta';
+  const name = formatUserName(athlete) || 'Atleta';
 
   const run = async (action) => {
     if (busy) return;
@@ -71,10 +72,11 @@ export default function TrialDecisionCard({
           {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Continuar</Text>}
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.btn, { backgroundColor: '#ef4444' }]}
+          style={[styles.btn, { backgroundColor: '#ef4444', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]}
           onPress={() => run('baja')}
           disabled={busy}
         >
+          <Ionicons name="ban" size={16} color="#fff" />
           <Text style={styles.btnText}>Dar de baja</Text>
         </TouchableOpacity>
       </View>

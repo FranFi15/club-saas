@@ -193,7 +193,7 @@ export default function PlanesTab({
           <View style={{ flexDirection: 'row', marginBottom: 14, borderRadius: 14, overflow: 'hidden' }}>
             {active ? (
               <>
-                <TouchableOpacity onPress={() => onEditPlan(item)} style={[s.actionBtn, { backgroundColor: '#3b82f6' }]}>
+                <TouchableOpacity onPress={() => onEditPlan(item)} style={[s.actionBtn, { backgroundColor: '#6b7280' }]}>
                   <Ionicons name="pencil" size={20} color="#fff" />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => onArchivePlan(item)} style={[s.actionBtn, { backgroundColor: '#ef4444' }]}>

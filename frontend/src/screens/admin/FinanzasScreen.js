@@ -41,6 +41,7 @@ import BadgeDot from '../../components/BadgeDot';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { isClubOwnerRole, canViewOwnerAdminUI, canMutateAsAdmin } from '../../constants/appRoles';
+import { formatUserName } from '../../utils/listSort';
 
 const financeHeader = StyleSheet.create({
   iconBtn: {
@@ -849,7 +850,7 @@ export default function FinanzasScreen({ route }) {
   const buildNameMap = (hijos = []) => {
     const map = {};
     hijos.forEach((h) => {
-      map[String(h._id)] = `${h.nombre || ''} ${h.apellido || ''}`.trim();
+      map[String(h._id)] = formatUserName(h);
     });
     return map;
   };
@@ -981,7 +982,7 @@ export default function FinanzasScreen({ route }) {
                 return;
               }
               const nombre = atletaCtx
-                ? `${atletaCtx.nombre || ''} ${atletaCtx.apellido || ''}`.trim()
+                ? formatUserName(atletaCtx)
                 : '';
               if (toPay.length === 1) openPayModal(toPay[0], atletaCtx);
               else openSelectPayments(toPay, nombre || 'Cuotas adelantadas', atletaCtx ? [atletaCtx] : []);
@@ -1206,7 +1207,7 @@ export default function FinanzasScreen({ route }) {
     const cat = p.categoria?.nombre ? ` · ${p.categoria.nombre}` : '';
     const aid = String(p.atleta?._id || p.atleta || '');
     const nombre = p.atleta?.nombre
-      ? `${p.atleta.nombre} ${p.atleta.apellido || ''}`.trim()
+      ? formatUserName(p.atleta)
       : selectNameByAtleta[aid];
     if (nombre) return `${nombre} · ${periodo} · ${plan}${cat}`;
     return `${periodo} · ${plan}${cat}`;

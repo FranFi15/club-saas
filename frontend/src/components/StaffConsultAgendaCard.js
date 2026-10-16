@@ -23,9 +23,10 @@ import {
   consultaConfirmacionBorderColor,
   sessionTipoVisual,
 } from '../utils/sessionDisplay';
+import { formatUserName } from '../utils/listSort';
 
 function athleteSearchText(a) {
-  return `${a?.nombre || ''} ${a?.apellido || ''} ${a?.email || ''} ${a?.dni || ''}`.trim();
+  return `${formatUserName(a)} ${a?.email || ''} ${a?.dni || ''}`.trim();
 }
 
 function matchesAthleteQuery(a, q) {
@@ -54,7 +55,7 @@ export default function StaffConsultAgendaCard({
 
   const an = item.atletaIndividual;
   const nombreAtleta =
-    an && typeof an === 'object' ? `${an.nombre || ''} ${an.apellido || ''}`.trim() : 'Atleta';
+    an && typeof an === 'object' ? formatUserName(an) : 'Atleta';
   const lugar = (item.lugarLibre || '').trim() || 'Sin lugar indicado';
   const catId = item.categoria?._id || item.categoria;
 
@@ -292,7 +293,7 @@ export default function StaffConsultAgendaCard({
                       onPress={() => pickAthlete(a._id)}
                     >
                       <Text style={{ color: theme.text, fontWeight: '600', flex: 1 }}>
-                        {a.apellido} {a.nombre}
+                        {formatUserName(a)}
                       </Text>
                       {savingAthlete ? (
                         <ActivityIndicator color={colorMarca} size="small" />

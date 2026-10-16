@@ -32,6 +32,7 @@ import {
   isGroupChatKind,
   rolLabel,
 } from './chatHelpers';
+import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
 
 function conversationSearchText(item) {
   const isGroup = isGroupChatKind(item.kind);
@@ -132,6 +133,18 @@ export default function ChatInboxScreen({ navigation }) {
     if (!q) return rows;
     return rows.filter((item) => conversationSearchText(item).includes(q));
   }, [rows, query]);
+
+  const {
+    visibleItems,
+    onEndReached,
+    onEndReachedThreshold,
+    ListFooterComponent,
+  } = useClientInfiniteScroll(filtered, {
+    pageSize: 20,
+    resetKey: query,
+    colorMarca,
+    theme,
+  });
 
   const openThread = (item) => {
     navigation.navigate('ChatThread', {
@@ -280,7 +293,7 @@ export default function ChatInboxScreen({ navigation }) {
         <ActivityIndicator style={{ marginTop: 32 }} color={colorMarca} />
       ) : (
         <FlatList
-          data={filtered}
+          data={visibleItems}
           keyExtractor={(item) => String(item._id)}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
@@ -295,6 +308,9 @@ export default function ChatInboxScreen({ navigation }) {
               tintColor={colorMarca}
             />
           }
+          onEndReached={onEndReached}
+          onEndReachedThreshold={onEndReachedThreshold}
+          ListFooterComponent={ListFooterComponent}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons

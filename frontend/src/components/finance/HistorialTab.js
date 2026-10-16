@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatJsDateToDisplay } from '../../utils/dateDisplay';
+import { formatUserName } from '../../utils/listSort';
 
 const MN = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
@@ -58,7 +59,7 @@ export default function HistorialTab({ theme, cc, getHeaders, clubApi, showAlert
         <View style={{borderWidth:1,borderColor:theme.border,borderRadius:12,marginTop:5,backgroundColor:theme.surface,overflow:'hidden'}}>
           {athletes.map(a=>(
             <TouchableOpacity key={a._id} style={{paddingHorizontal:15,paddingVertical:12,borderBottomWidth:1,borderBottomColor:theme.border}} onPress={()=>selectAtleta(a)}>
-              <Text style={{color:theme.text,fontWeight:'500'}}>{a.nombre} {a.apellido}</Text>
+              <Text style={{color:theme.text,fontWeight:'500'}}>{formatUserName(a)}</Text>
               <Text style={{color:theme.textMuted,fontSize:12}}>{a.email}</Text>
             </TouchableOpacity>
           ))}
@@ -71,7 +72,7 @@ export default function HistorialTab({ theme, cc, getHeaders, clubApi, showAlert
           <View style={{backgroundColor:cc+'15',borderRadius:12,padding:15,marginTop:15,flexDirection:'row',alignItems:'center'}}>
             <Ionicons name="person-circle" size={36} color={cc}/>
             <View style={{flex:1,marginLeft:12}}>
-              <Text style={{color:theme.text,fontWeight:'bold',fontSize:16}}>{selectedAtleta.nombre} {selectedAtleta.apellido}</Text>
+              <Text style={{color:theme.text,fontWeight:'bold',fontSize:16}}>{formatUserName(selectedAtleta)}</Text>
               <Text style={{color:theme.textMuted,fontSize:12}}>{selectedAtleta.email}</Text>
             </View>
             <TouchableOpacity onPress={()=>{setSelectedAtleta(null);setHistory([]);setStats({});}}><Ionicons name="close-circle" size={24} color={theme.textMuted}/></TouchableOpacity>

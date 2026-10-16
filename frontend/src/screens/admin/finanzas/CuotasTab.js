@@ -6,6 +6,7 @@ import { MN, ESTADO_FILTROS, EST_COLOR, fmtMoney, contrastOutlineBtn } from './f
 import SearchableDropdown from '../../../components/SearchableDropdown';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
+import { formatUserName } from '../../../utils/listSort';
 
 export default function CuotasTab({
   theme,
@@ -49,7 +50,7 @@ export default function CuotasTab({
       >
         <View style={{ flex: 1 }}>
           <Text style={[s.planName, { color: theme.text }]}>
-            {item.atleta?.nombre} {item.atleta?.apellido}
+            {formatUserName(item.atleta)}
           </Text>
           <Text style={{ color: theme.textMuted, fontSize: 12 }}>
             {item.plan?.nombre || 'Sin plan'}

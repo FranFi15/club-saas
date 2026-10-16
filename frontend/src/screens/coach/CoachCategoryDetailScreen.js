@@ -32,9 +32,10 @@ import { seriesFromHistorial, wellnessMetricAverages, wellnessRecordValue } from
 import { WELLNESS_METRICS, WELLNESS_CARD_LABELS, WELLNESS_PRE_FIELDS } from '../../constants/wellnessMetrics';
 import { isoCalendarDateToDisplay } from '../../utils/dateDisplay';
 import { detectMediaKind, mediaKindIcon, downloadMediaFile, openMediaViewer } from '../../utils/mediaUtils';
-import { sortEnrollmentsByAtleta, sortUsersByName } from '../../utils/listSort';
+import { sortEnrollmentsByAtleta, sortUsersByName, formatUserName } from '../../utils/listSort';
 import CategoryRosterModal from '../../components/CategoryRosterModal';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
 import { pickPaginatedRows } from '../../utils/paginatedApi';
 import { enableLayoutAnimationsIfNeeded } from '../../utils/layoutAnimation';
 
@@ -82,7 +83,7 @@ function matchesRosterSearch(enrollment, query) {
   if (!q) return true;
   const a = enrollment?.atleta;
   if (!a) return false;
-  const full = `${a.nombre || ''} ${a.apellido || ''}`.toLowerCase();
+  const full = (formatUserName(a) || '').toLowerCase();
   const dni = String(a.dni || '').toLowerCase();
   return full.includes(q) || dni.includes(q);
 }
@@ -108,7 +109,7 @@ function AthletePanelReveal({ children, style }) {
 }
 
 export default function CoachCategoryDetailScreen({ navigation, route }) {
-  const { categoriaId, nombre, openPlantel } = route.params || {};
+  const { categoriaId, nombre, openPlantel, openAlta, openWellness, openDocs } = route.params || {};
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
@@ -384,7 +385,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
       return;
     }
     const titulo = item.requerimiento?.titulo || 'Documento';
-    const atleta = item.atleta ? `${item.atleta.nombre} ${item.atleta.apellido}` : '';
+    const atleta = item.atleta ? formatUserName(item.atleta) : '';
     const title = atleta ? `${titulo} · ${atleta}` : titulo;
     const fileKind = detectMediaKind(item.fileUrl);
 
@@ -444,7 +445,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
   };
 
   const confirmApproveDoc = (item) => {
-    const nombre = `${item.atleta?.nombre || ''} ${item.atleta?.apellido || ''}`.trim() || 'el atleta';
+    const nombre = formatUserName(item.atleta) || 'el atleta';
     showAlert(
       'Aprobar documento',
       `¿Confirmás la documentación de ${nombre}?`,
@@ -534,12 +535,51 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
     }
   };
 
+  useEffect(() => {
+    if (showInitialLoader) return;
+    if (openAlta) {
+      openAddModal();
+      navigation.setParams?.({ openAlta: undefined });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openAlta, showInitialLoader]);
+
+  useEffect(() => {
+    if (showInitialLoader) return;
+    if (openWellness) {
+      openTeamWellness();
+      navigation.setParams?.({ openWellness: undefined });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openWellness, showInitialLoader]);
+
+  useEffect(() => {
+    if (showInitialLoader) return;
+    if (openDocs) {
+      openDocModal();
+      navigation.setParams?.({ openDocs: undefined });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openDocs, showInitialLoader]);
+
   const seriesFor = (atletaId) => seriesFromHistorial(wellnessHistorial[String(atletaId)]);
 
   const filteredEnrollments = useMemo(
     () => enrollments.filter((e) => matchesRosterSearch(e, rosterSearch)),
     [enrollments, rosterSearch],
   );
+
+  const {
+    visibleItems: visibleEnrollments,
+    onEndReached: onEndReachedAthletes,
+    onEndReachedThreshold,
+    ListFooterComponent: athletesListFooter,
+  } = useClientInfiniteScroll(filteredEnrollments, {
+    pageSize: 20,
+    resetKey: rosterSearch,
+    colorMarca,
+    theme,
+  });
 
   const renderAttendanceSummary = (atletaId) => {
     const st = attendanceStats[String(atletaId)] || { presente: 0, tarde: 0, ausente: 0, total: 0, asistenciaPct: null };
@@ -587,7 +627,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
     (atleta) => {
       navigation.navigate('CoachMeasurement', {
         atletaId: atleta._id,
-        atletaNombre: `${atleta.nombre} ${atleta.apellido}`,
+        atletaNombre: formatUserName(atleta),
         initialTab: 'historial',
       });
     },
@@ -619,7 +659,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
       <DesignCard theme={theme} isDarkMode={isDarkMode} accent={colorMarca} contentStyle={styles.cardInner}>
         <View style={styles.cardHeader}>
           <Text style={[styles.athName, { color: theme.text }]} numberOfLines={1}>
-            {a.nombre} {a.apellido}
+            {formatUserName(a)}
           </Text>
           <View style={styles.tabRow}>
             {athletePanels.map((tab) => {
@@ -669,7 +709,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
               onPress={() =>
                 setHistoryModal({
                   atletaId: a._id,
-                  nombre: `${a.nombre} ${a.apellido}`,
+                  nombre: formatUserName(a),
                   series,
                 })
               }
@@ -710,7 +750,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
               onPress={() =>
                 navigation.navigate('CoachWellness', {
                   atletaId: a._id,
-                  atletaNombre: `${a.nombre} ${a.apellido}`,
+                  atletaNombre: formatUserName(a),
                   categoriaId,
                 })
               }
@@ -788,59 +828,6 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
         </TouchableOpacity>
       ) : null}
 
-      <View style={styles.actionRow}>
-        <DesignCard
-          theme={theme}
-          isDarkMode={isDarkMode}
-          accent={colorMarca}
-          onPress={openAddModal}
-          style={styles.actionTileWrap}
-          contentStyle={styles.actionTileInner}
-        >
-          <View style={[styles.actionTileIcon, { backgroundColor: `${colorMarca}22` }]}>
-            <Ionicons name="person-add-outline" size={22} color={colorMarca} />
-          </View>
-          <Text style={[styles.actionTileLbl, { color: theme.text }]} numberOfLines={2}>
-            Alta atletas
-          </Text>
-        </DesignCard>
-        <DesignCard
-          theme={theme}
-          isDarkMode={isDarkMode}
-          accent="#01c3a8"
-          onPress={openTeamWellness}
-          style={styles.actionTileWrap}
-          contentStyle={styles.actionTileInner}
-        >
-          <View style={[styles.actionTileIcon, { backgroundColor: '#01c3a822' }]}>
-            <Ionicons name="pulse-outline" size={22} color="#01c3a8" />
-          </View>
-          <Text style={[styles.actionTileLbl, { color: theme.text }]} numberOfLines={2}>
-            Wellness hoy
-          </Text>
-        </DesignCard>
-        <DesignCard
-          theme={theme}
-          isDarkMode={isDarkMode}
-          accent="#ffb741"
-          onPress={openDocModal}
-          style={styles.actionTileWrap}
-          contentStyle={styles.actionTileInner}
-        >
-          <View style={[styles.actionTileIcon, { backgroundColor: '#ffb74122' }]}>
-            <Ionicons name="document-attach-outline" size={22} color="#ffb741" />
-            {docPendingCount > 0 ? (
-              <View style={styles.tileBadge}>
-                <Text style={styles.tileBadgeTxt}>{docPendingCount > 10 ? '+' : docPendingCount}</Text>
-              </View>
-            ) : null}
-          </View>
-          <Text style={[styles.actionTileLbl, { color: theme.text }]} numberOfLines={2}>
-            Revisar docs
-          </Text>
-        </DesignCard>
-      </View>
-
       {!showInitialLoader ? (
         <View style={[styles.rosterSearchWrap, { borderColor: theme.border, backgroundColor: theme.surface }]}>
           <Ionicons name="search-outline" size={20} color={theme.textMuted} style={styles.rosterSearchIcon} />
@@ -869,12 +856,15 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
         <ActivityIndicator color={colorMarca} style={{ marginTop: 24 }} />
       ) : (
         <FlatList
-          data={filteredEnrollments}
+          data={visibleEnrollments}
           keyExtractor={(item) => item._id}
           renderItem={renderAthlete}
           contentContainerStyle={styles.listPad}
           keyboardShouldPersistTaps="handled"
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
+          onEndReached={onEndReachedAthletes}
+          onEndReachedThreshold={onEndReachedThreshold}
+          ListFooterComponent={athletesListFooter}
           ListEmptyComponent={
             <Text style={[styles.empty, { color: theme.textMuted }]}>
               {rosterSearch.trim()
@@ -944,7 +934,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
                         />
                         <View style={{ marginLeft: 10, flex: 1 }}>
                           <Text style={{ color: theme.text, fontWeight: '700' }}>
-                            {u.nombre} {u.apellido}
+                            {formatUserName(u)}
                           </Text>
                           <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
                             {[nac ? `Nac. ${nac}` : null, edadTxt, u.dni ? `DNI ${u.dni}` : null]
@@ -1065,7 +1055,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
                       >
                         <View style={styles.wellnessCardHead}>
                           <Text style={[styles.wellnessAthName, { color: theme.text }]}>
-                            {w.atleta?.nombre} {w.atleta?.apellido}
+                            {formatUserName(w.atleta)}
                           </Text>
                           <View
                             style={[
@@ -1310,7 +1300,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
                               {item.requerimiento?.titulo || 'Documento'}
                             </Text>
                             <Text style={[styles.docReviewSub, { color: theme.textMuted }]}>
-                              {item.atleta?.nombre} {item.atleta?.apellido}
+                              {formatUserName(item.atleta)}
                             </Text>
                             <Text style={[styles.docReviewMeta, { color: theme.textMuted }]}>
                               {formatDocDate(item.updatedAt || item.createdAt)}

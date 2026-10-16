@@ -20,6 +20,7 @@ import { clubApi } from '../utils/api';
 import { getToken } from '../utils/storage';
 import { navigateFromNotification, getNotificationTarget } from '../utils/notificationNavigation';
 import { readScreenCache, writeScreenCache } from '../hooks/useCachedFocusLoad';
+import { useClientInfiniteScroll } from '../hooks/useClientInfiniteScroll';
 import CustomAlert from './CustomAlert';
 import MessageDesignCard from './MessageDesignCard';
 
@@ -85,6 +86,16 @@ export default function NotificationsModal({ visible, onClose }) {
       : '';
 
   const [list, setList] = useState(() => readScreenCache(cacheKey)?.notifications ?? []);
+  const {
+    visibleItems,
+    onEndReached,
+    onEndReachedThreshold,
+    ListFooterComponent,
+  } = useClientInfiniteScroll(list, {
+    pageSize: 20,
+    colorMarca,
+    theme,
+  });
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const inFlightRef = useRef(false);
@@ -443,7 +454,7 @@ export default function NotificationsModal({ visible, onClose }) {
           ) : (
             <FlatList
               style={[styles.listBody, { backgroundColor: listBg }]}
-              data={list}
+              data={visibleItems}
               keyExtractor={(item) => String(item.id)}
               refreshControl={
                 <RefreshControl
@@ -457,6 +468,9 @@ export default function NotificationsModal({ visible, onClose }) {
                 list.length === 0 ? styles.listEmpty : styles.listGrow,
               ]}
               onScrollBeginDrag={closeOpenSwipe}
+              onEndReached={onEndReached}
+              onEndReachedThreshold={onEndReachedThreshold}
+              ListFooterComponent={ListFooterComponent}
               ListEmptyComponent={
                 <View style={styles.emptyWrap}>
                   <Ionicons name="notifications-off-outline" size={40} color={theme.textMuted} />

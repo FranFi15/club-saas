@@ -18,6 +18,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
 import { readScreenCache, useCachedFocusLoad } from '../../../hooks/useCachedFocusLoad';
+import { useClientInfiniteScroll } from '../../../hooks/useClientInfiniteScroll';
 import { finanzasStyles as s } from './finanzasStyles';
 import { METODOS, MN, fmtMoney, contrastOutlineBtn } from './finanzasConstants';
 import { pickAndUploadImage, pickAndUploadAttachment, openAttachmentUrl } from './finanzasUpload';
@@ -127,6 +128,17 @@ export default function SponsorsTab({
       }),
     [sponsors],
   );
+
+  const {
+    visibleItems,
+    onEndReached,
+    onEndReachedThreshold,
+    ListFooterComponent,
+  } = useClientInfiniteScroll(sorted, {
+    pageSize: 20,
+    colorMarca: cc,
+    theme,
+  });
 
   const openCreate = () => {
     setEditingId(null);
@@ -408,11 +420,11 @@ export default function SponsorsTab({
             ) : null}
             {canMutate ? (
               <TouchableOpacity
-                style={[styles.actionBtn, { borderColor: '#fecaca', backgroundColor: '#fef2f2' }]}
+                style={[styles.actionBtn, { borderColor: '#ef4444', backgroundColor: '#ef4444' }]}
                 onPress={() => confirmDelete(item)}
               >
-                <Ionicons name="trash-outline" size={15} color="#ef4444" />
-                <Text style={[styles.actionTxt, { color: '#ef4444' }]}>Eliminar</Text>
+                <Ionicons name="trash-outline" size={15} color="#fff" />
+                <Text style={[styles.actionTxt, { color: '#fff' }]}>Eliminar</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -454,10 +466,13 @@ export default function SponsorsTab({
         <ActivityIndicator color={cc} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
-          data={sorted}
+          data={visibleItems}
           keyExtractor={(item) => String(item._id)}
           contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cc} />}
+          onEndReached={onEndReached}
+          onEndReachedThreshold={onEndReachedThreshold}
+          ListFooterComponent={ListFooterComponent}
           ListEmptyComponent={
             <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 40 }}>
               Todavía no hay sponsors. Agregá el primero.

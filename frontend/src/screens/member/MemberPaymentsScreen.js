@@ -31,6 +31,7 @@ import SelectPaymentsModal from '../../components/SelectPaymentsModal';
 import MemberPayFlowModal from '../../components/MemberPayFlowModal';
 import { subscribeMercadoPagoDeepLinks } from '../../utils/mpDeepLinks';
 import DesignCard from '../../components/DesignCard';
+import { formatUserName } from '../../utils/listSort';
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -280,7 +281,7 @@ export default function MemberPaymentsScreen({ navigation }) {
   const hijoNameMap = useMemo(() => {
     const map = {};
     (familyData?.hijos || []).forEach((h) => {
-      map[String(h._id)] = `${h.nombre} ${h.apellido}`;
+      map[String(h._id)] = formatUserName(h);
     });
     return map;
   }, [familyData?.hijos]);
@@ -420,7 +421,7 @@ export default function MemberPaymentsScreen({ navigation }) {
       ? tutorHijos
       : tutorHijos.filter((h) => String(h._id) === String(cuotasFilterId));
     return hijos.map((h) => ({
-      title: `${h.nombre} ${h.apellido}`,
+      title: formatUserName(h),
       data: byAtleta[String(h._id)] || [],
     }));
   }, [isTutor, familyData, tutorHijos, filterIsAll, cuotasFilterId]);

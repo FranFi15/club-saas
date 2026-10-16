@@ -21,7 +21,7 @@ import UserAvatar from '../../components/UserAvatar';
 import SearchableDropdown from '../../components/SearchableDropdown';
 import { USER_ROL_LABELS, USER_ROLE_FILTROS } from '../../constants/userRoles';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
-import { sortUsersByName } from '../../utils/listSort';
+import { sortUsersByName, formatUserName } from '../../utils/listSort';
 import { canMutateAsAdmin } from '../../constants/appRoles';
 
 export default function UsuariosScreen({ navigation }) {
@@ -328,7 +328,7 @@ export default function UsuariosScreen({ navigation }) {
       } else {
         showAlert(
           `Activar a ${item.nombre}`,
-          `¿Querés volver a activar a ${item.nombre} ${item.apellido}?`,
+          `¿Querés volver a activar a ${formatUserName(item)}?`,
           {
             showCancel: true,
             confirmText: 'Activar',
@@ -360,7 +360,7 @@ export default function UsuariosScreen({ navigation }) {
 
     showAlert(
       `Dar de baja a ${item.nombre}`,
-      `¿Querés desactivar a ${item.nombre} ${item.apellido}? Podés volver a activarlo después.${unpaidLine}`,
+      `¿Querés desactivar a ${formatUserName(item)}? Podés volver a activarlo después.${unpaidLine}`,
       {
         showCancel: true,
         isDanger: true,
@@ -398,7 +398,7 @@ export default function UsuariosScreen({ navigation }) {
     }
     showAlert(
       'Eliminar definitivamente',
-      `¿Eliminar a ${item.nombre} ${item.apellido}? Esta acción no se puede deshacer: se borran el usuario y sus datos vinculados (inscripciones, cuotas, etc.).`,
+      `¿Eliminar a ${formatUserName(item)}? Esta acción no se puede deshacer: se borran el usuario y sus datos vinculados (inscripciones, cuotas, etc.).`,
       {
         showCancel: true,
         isDanger: true,
@@ -424,7 +424,7 @@ export default function UsuariosScreen({ navigation }) {
     const inactive = item.estado === 'inactivo';
     return (
       <View style={styles.swipeActionsContainer}>
-        <TouchableOpacity style={[styles.swipeBtn, { backgroundColor: '#f59e0b' }]} onPress={() => openEditModal(item)}>
+        <TouchableOpacity style={[styles.swipeBtn, { backgroundColor: '#6b7280' }]} onPress={() => openEditModal(item)}>
           <Ionicons name="pencil" size={22} color="#ffffff" />
         </TouchableOpacity>
         <TouchableOpacity
@@ -451,7 +451,7 @@ export default function UsuariosScreen({ navigation }) {
     const inactive = item.estado === 'inactivo';
 
     if (item.tutorPrincipal && item.tutorPrincipal.nombre) {
-      familyTagText = `A cargo de: ${item.tutorPrincipal.nombre} ${item.tutorPrincipal.apellido}`;
+      familyTagText = `A cargo de: ${formatUserName(item.tutorPrincipal)}`;
       familyIcon = 'person';
     } else if (item.familiaresACargo && item.familiaresACargo.length > 0) {
       const nombresFamiliares = item.familiaresACargo.map((f) => f.nombre).join(', ');
@@ -474,7 +474,7 @@ export default function UsuariosScreen({ navigation }) {
 
           <View style={styles.userInfo}>
             <Text style={[styles.userName, { color: inactive ? theme.textMuted : theme.text }]}>
-              {item.nombre} {item.apellido}
+              {formatUserName(item)}
             </Text>
             <Text style={[styles.userEmail, { color: theme.textMuted }]}>{item.email}</Text>
 

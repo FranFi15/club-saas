@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
 import BusyOverlay from '../../../components/BusyOverlay';
 import { MN } from './finanzasConstants';
+import { formatUserName } from '../../../utils/listSort';
 
 const PRESETS = [1, 2, 3, 6, 12];
 
@@ -124,7 +125,7 @@ export default function AdvancePaymentsModal({
   }, [startMes, startAnio, cantidad, maxMeses]);
 
   const nombre = atleta
-    ? `${atleta.nombre || ''} ${atleta.apellido || ''}`.trim()
+    ? formatUserName(atleta)
     : '';
 
   const grillaBloqueada = advanceInfo?.limitadoPorGrilla && maxMeses < 1;

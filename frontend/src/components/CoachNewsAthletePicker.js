@@ -1,5 +1,6 @@
 import React from 'react';
 import NewsMultiSelectList from './NewsMultiSelectList';
+import { formatUserName } from '../utils/listSort';
 
 /** Selector de atletas para noticias del profesor (multi-select + búsqueda). */
 export default function CoachNewsAthletePicker({
@@ -25,9 +26,9 @@ export default function CoachNewsAthletePicker({
       searchPlaceholder="Escribí nombre o apellido…"
       filterOptions={categories.map((c) => ({ id: c._id, label: c.nombre }))}
       getItemFilterIds={(a) => a.categoriaIds || []}
-      getPrimaryLabel={(a) => `${a.nombre || ''} ${a.apellido || ''}`.trim()}
+      getPrimaryLabel={(a) => formatUserName(a)}
       getSecondaryLabel={(a) => a.categoriasLabel || null}
-      getSearchText={(a) => `${a.nombre || ''} ${a.apellido || ''} ${a.categoriasLabel || ''}`}
+      getSearchText={(a) => `${formatUserName(a)} ${a.categoriasLabel || ''}`}
       emptyListHint="No hay atletas activos en tus categorías."
       emptySearchHint="Ningún atleta coincide con la búsqueda."
     />

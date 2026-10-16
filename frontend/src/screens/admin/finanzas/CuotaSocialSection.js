@@ -20,7 +20,7 @@ import { finanzasStyles as s } from './finanzasStyles';
 import { fmtMoney, contrastOutlineBtn } from './finanzasConstants';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
-import { sortUsersByName } from '../../../utils/listSort';
+import { sortUsersByName, formatUserName } from '../../../utils/listSort';
 
 const ROLES_APLICABLES = [
   { value: 'atleta', label: 'Atletas' },
@@ -400,11 +400,11 @@ export default function CuotaSocialSection({
                       <Text style={[styles.actionTxt, { color: theme.text }]}>Asignar</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[styles.actionBtn, contrastOutlineBtn(theme, isDarkMode)]}
+                      style={[styles.actionBtn, { borderColor: '#ef4444', backgroundColor: '#ef4444' }]}
                       onPress={() => handleDelete(fee)}
                     >
-                      <Ionicons name="trash-outline" size={16} color="#ef4444" />
-                      <Text style={[styles.actionTxt, { color: '#ef4444' }]}>Eliminar</Text>
+                      <Ionicons name="trash-outline" size={16} color="#fff" />
+                      <Text style={[styles.actionTxt, { color: '#fff' }]}>Eliminar</Text>
                     </TouchableOpacity>
                   </View>
                 </>
@@ -626,7 +626,7 @@ export default function CuotaSocialSection({
                     <Ionicons name={on ? 'checkbox' : 'square-outline'} size={22} color={theme.text} />
                     <View style={{ flex: 1, marginLeft: 10 }}>
                       <Text style={{ color: theme.text, fontWeight: '600' }}>
-                        {item.nombre} {item.apellido}
+                        {formatUserName(item)}
                       </Text>
                       <Text style={{ color: theme.textMuted, fontSize: 12 }}>{item.email}</Text>
                     </View>

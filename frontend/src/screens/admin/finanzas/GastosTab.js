@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
 import { readScreenCache, useCachedFocusLoad } from '../../../hooks/useCachedFocusLoad';
+import { useClientInfiniteScroll } from '../../../hooks/useClientInfiniteScroll';
 import { finanzasStyles as s } from './finanzasStyles';
 import { METODOS, MN, fmtMoney, metodoPagoLabel, metodoPagoIcon, EST_COLOR, contrastOutlineBtn } from './finanzasConstants';
 import { pickAndUploadAttachment, openAttachmentUrl } from './finanzasUpload';
@@ -52,6 +53,16 @@ export default function GastosTab({
   const cacheKey = clubData?.urlIdentifier ? `finanzas-gastos:${clubData.urlIdentifier}` : '';
 
   const [bills, setBills] = useState(() => readScreenCache(cacheKey)?.bills ?? []);
+  const {
+    visibleItems: visibleBills,
+    onEndReached,
+    onEndReachedThreshold,
+    ListFooterComponent,
+  } = useClientInfiniteScroll(bills, {
+    pageSize: 20,
+    colorMarca: cc,
+    theme,
+  });
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -427,13 +438,13 @@ export default function GastosTab({
           ) : null}
           {canMutate ? (
             <TouchableOpacity
-              style={[s.financeCardActionBtn, { borderColor: '#fecaca', backgroundColor: '#fef2f2' }]}
+              style={[s.financeCardActionBtn, { borderColor: '#ef4444', backgroundColor: '#ef4444' }]}
               onPress={() => confirmDelete(item)}
               disabled={busy}
               hitSlop={6}
             >
-              <Ionicons name="trash-outline" size={15} color="#ef4444" />
-              <Text style={[s.financeCardActionTxt, { color: '#ef4444' }]}>
+              <Ionicons name="trash-outline" size={15} color="#fff" />
+              <Text style={[s.financeCardActionTxt, { color: '#fff' }]}>
                 {busy ? 'Eliminando…' : 'Eliminar'}
               </Text>
             </TouchableOpacity>
@@ -486,11 +497,14 @@ export default function GastosTab({
         <ActivityIndicator color={cc} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
-          data={bills}
+          data={visibleBills}
           keyExtractor={(item) => String(item._id)}
           renderItem={renderItem}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cc} />}
+          onEndReached={onEndReached}
+          onEndReachedThreshold={onEndReachedThreshold}
+          ListFooterComponent={ListFooterComponent}
           ListEmptyComponent={
             <View style={s.empty}>
               <Ionicons name="receipt-outline" size={40} color={theme.textMuted} />

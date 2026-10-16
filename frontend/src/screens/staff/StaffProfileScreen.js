@@ -27,6 +27,7 @@ import ProfileNotificationToggle from '../../components/ProfileNotificationToggl
 import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import ProfileInfoRow, { profileCardStyles } from '../../components/ProfileInfoRow';
+import { formatUserName } from '../../utils/listSort';
 
 export default function StaffProfileScreen({ navigation }) {
   const { clubData, setClubData, clearSession } = useContext(ClubContext);
@@ -78,7 +79,7 @@ export default function StaffProfileScreen({ navigation }) {
   };
 
   const fullName = profile
-    ? `${profile.nombre || ''}${profile.nombre && profile.apellido ? ' ' : ''}${profile.apellido || ''}`.trim() ||
+    ? formatUserName(profile) ||
       'Tu cuenta'
     : 'Tu cuenta';
 

@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
 import { readScreenCache, useCachedFocusLoad } from '../../../hooks/useCachedFocusLoad';
+import { useClientInfiniteScroll } from '../../../hooks/useClientInfiniteScroll';
 import UserAvatar from '../../../components/UserAvatar';
 import { finanzasStyles as s } from './finanzasStyles';
 import { MN, METODOS, fmtMoney, metodoPagoLabel, metodoPagoIcon, contrastOutlineBtn } from './finanzasConstants';
@@ -22,6 +23,7 @@ import { pickAndUploadAttachment, openAttachmentUrl } from './finanzasUpload';
 import CustomAlert from '../../../components/CustomAlert';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
+import { formatUserName } from '../../../utils/listSort';
 
 const ROL_LABEL = {
   admin_club: 'Admin',
@@ -37,7 +39,7 @@ const ROL_LABEL = {
 
 function staffLabel(u) {
   if (!u) return '—';
-  const name = `${u.nombre || ''} ${u.apellido || ''}`.trim();
+  const name = formatUserName(u);
   return name || u.email || '—';
 }
 
@@ -115,6 +117,18 @@ export default function NominaTab({
       return name.includes(q) || email.includes(q) || rol.includes(q);
     });
   }, [entries, nameFilter]);
+
+  const {
+    visibleItems: visibleEntries,
+    onEndReached,
+    onEndReachedThreshold,
+    ListFooterComponent,
+  } = useClientInfiniteScroll(filteredEntries, {
+    pageSize: 20,
+    resetKey: nameFilter,
+    colorMarca: cc,
+    theme,
+  });
 
   const filteredStaffForPicker = useMemo(() => {
     const q = pickerSearch.trim().toLowerCase();
@@ -326,13 +340,13 @@ export default function NominaTab({
             )}
             {canMutate ? (
               <TouchableOpacity
-                style={[s.financeCardActionBtn, { borderColor: '#fecaca', backgroundColor: '#fef2f2' }]}
+                style={[s.financeCardActionBtn, { borderColor: '#ef4444', backgroundColor: '#ef4444' }]}
                 onPress={() => confirmDelete(item)}
                 disabled={busy}
                 hitSlop={6}
               >
-                <Ionicons name="trash-outline" size={15} color="#ef4444" />
-                <Text style={[s.financeCardActionTxt, { color: '#ef4444' }]}>
+                <Ionicons name="trash-outline" size={15} color="#fff" />
+                <Text style={[s.financeCardActionTxt, { color: '#fff' }]}>
                   {busy ? 'Eliminando…' : 'Eliminar'}
                 </Text>
               </TouchableOpacity>
@@ -386,11 +400,14 @@ export default function NominaTab({
         <ActivityIndicator color={cc} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
-          data={filteredEntries}
+          data={visibleEntries}
           keyExtractor={(item) => String(item._id)}
           renderItem={renderItem}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cc} />}
+          onEndReached={onEndReached}
+          onEndReachedThreshold={onEndReachedThreshold}
+          ListFooterComponent={ListFooterComponent}
           ListEmptyComponent={
             <View style={s.empty}>
               <Ionicons name="wallet-outline" size={40} color={theme.textMuted} />

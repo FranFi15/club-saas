@@ -18,6 +18,8 @@ import CoachScreenHeader from '../../components/CoachScreenHeader';
 import UserAvatar from '../../components/UserAvatar';
 import { clubApi } from '../../utils/api';
 import { chatHeaders, displayName, isAdminChatRole, rolLabel } from './chatHelpers';
+import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
+import { sortUsersByName } from '../../utils/listSort';
 
 export default function ChatNewScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
@@ -33,7 +35,7 @@ export default function ChatNewScreen({ navigation }) {
     try {
       const h = await chatHeaders(clubData.urlIdentifier);
       const { data } = await clubApi.get('/chat/recipients', { headers: h });
-      setRows(Array.isArray(data) ? data : []);
+      setRows(sortUsersByName(Array.isArray(data) ? data : []));
     } catch {
       setRows([]);
     } finally {
@@ -52,6 +54,18 @@ export default function ChatNewScreen({ navigation }) {
     if (!q) return true;
     const hay = `${displayName(u)} ${u.email || ''} ${rolLabel(u.rol)}`.toLowerCase();
     return hay.includes(q);
+  });
+
+  const {
+    visibleItems,
+    onEndReached,
+    onEndReachedThreshold,
+    ListFooterComponent,
+  } = useClientInfiniteScroll(filtered, {
+    pageSize: 20,
+    resetKey: query,
+    colorMarca,
+    theme,
   });
 
   const startChat = async (user) => {
@@ -97,9 +111,12 @@ export default function ChatNewScreen({ navigation }) {
         <ActivityIndicator style={{ marginTop: 24 }} color={colorMarca} />
       ) : (
         <FlatList
-          data={filtered}
+          data={visibleItems}
           keyExtractor={(item) => String(item._id)}
           contentContainerStyle={styles.list}
+          onEndReached={onEndReached}
+          onEndReachedThreshold={onEndReachedThreshold}
+          ListFooterComponent={ListFooterComponent}
           ListEmptyComponent={
             <Text style={[styles.empty, { color: theme.textMuted }]}>
               No hay destinatarios disponibles con tus permisos actuales.

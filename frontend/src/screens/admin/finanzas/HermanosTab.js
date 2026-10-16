@@ -5,6 +5,7 @@ import { finanzasStyles as s } from './finanzasStyles';
 import DesignCard from '../../../components/DesignCard';
 import UserAvatar from '../../../components/UserAvatar';
 import { ThemeContext } from '../../../context/ThemeContext';
+import { formatUserName } from '../../../utils/listSort';
 
 export default function HermanosTab({
   theme,
@@ -105,7 +106,7 @@ export default function HermanosTab({
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: theme.textMuted, fontSize: 11 }}>Familia</Text>
                     <Text style={[s.planName, { color: theme.text }]}>
-                      {g.tutor.nombre} {g.tutor.apellido}
+                      {formatUserName(g.tutor)}
                     </Text>
                   </View>
                   <View style={{ alignItems: 'flex-end', gap: 4 }}>
@@ -130,7 +131,7 @@ export default function HermanosTab({
                   <View key={h._id} style={styles.childRow}>
                     <UserAvatar user={h} size={32} colorMarca={cc} />
                     <Text style={{ color: theme.text, flex: 1, fontSize: 14, marginLeft: 10 }}>
-                      {h.nombre} {h.apellido}
+                      {formatUserName(h)}
                     </Text>
                     {h.descuentoPorcentaje > 0 ? (
                       <View style={[s.badge, { backgroundColor: '#10b98120' }]}>

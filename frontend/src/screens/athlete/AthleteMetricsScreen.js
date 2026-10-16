@@ -37,10 +37,13 @@ import {
 import { chartContentWrapStyle, useChartLayout } from '../../utils/chartLayout';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { clubHeaders } from './athleteApi';
+import { tipoMedicionLabel } from '../../constants/courtMetrics';
+import { formatUserName } from '../../utils/listSort';
 
 const TABS = [
   { key: 'grafico', label: 'Gráfico', icon: 'analytics-outline' },
   { key: 'historial', label: 'Historial', icon: 'list-outline' },
+  { key: 'cancha', label: 'Individual', icon: 'stats-chart-outline' },
 ];
 
 const AREA_LABELS = {
@@ -85,6 +88,9 @@ export default function AthleteMetricsScreen({ navigation }) {
   const [atletaMeta, setAtletaMeta] = useState(() => readScreenCache(metricsCacheKey)?.atletaMeta ?? null);
   const [nutricionSettings, setNutricionSettings] = useState(
     () => readScreenCache(metricsCacheKey)?.nutricionSettings ?? { metodoGrasaCorporal: 'durnin_siri' },
+  );
+  const [courtMetrics, setCourtMetrics] = useState(
+    () => readScreenCache(metricsCacheKey)?.courtMetrics ?? [],
   );
 
   const isPrepFisico = selectedStaffId === 'preparador_fisico';
@@ -197,6 +203,7 @@ export default function AthleteMetricsScreen({ navigation }) {
     setNotasPsicologia(data.notasPsicologia || []);
     setAtletaMeta(data.atletaMeta);
     setNutricionSettings(data.nutricionSettings);
+    setCourtMetrics(data.courtMetrics || []);
   }, []);
 
   const fetchMetrics = useCallback(async () => {
@@ -207,6 +214,7 @@ export default function AthleteMetricsScreen({ navigation }) {
         notasPsicologia: [],
         atletaMeta: null,
         nutricionSettings: { metodoGrasaCorporal: 'durnin_siri' },
+        courtMetrics: [],
       };
     }
     const atletaId = isTutor ? memberId : await getToken('userId');
@@ -217,10 +225,19 @@ export default function AthleteMetricsScreen({ navigation }) {
         notasPsicologia: [],
         atletaMeta: null,
         nutricionSettings: { metodoGrasaCorporal: 'durnin_siri' },
+        courtMetrics: [],
       };
     }
     const h = await clubHeaders(clubData);
-    const res = await clubApi.get(`/performance/atleta/${atletaId}`, { headers: h });
+    const [res, courtRes] = await Promise.all([
+      clubApi.get(`/performance/atleta/${atletaId}`, { headers: h }),
+      clubApi
+        .get('/court-metrics/me', {
+          headers: h,
+          params: isTutor ? { atletaId } : undefined,
+        })
+        .catch(() => ({ data: { metrics: [] } })),
+    ]);
     const meds = res.data?.mediciones;
     const informes = res.data?.informesPsicologia;
     const notasPsi = res.data?.notasPsicologia;
@@ -230,6 +247,16 @@ export default function AthleteMetricsScreen({ navigation }) {
       notasPsicologia: Array.isArray(notasPsi) ? notasPsi : [],
       atletaMeta: res.data?.atleta || null,
       nutricionSettings: res.data?.nutricion || { metodoGrasaCorporal: 'durnin_siri' },
+      courtMetrics: (() => {
+        const rows = courtRes.data?.metrics || [];
+        const seen = new Set();
+        return rows.filter((m) => {
+          const id = String(m?._id || '');
+          if (!id || seen.has(id)) return false;
+          seen.add(id);
+          return true;
+        });
+      })(),
     };
   }, [clubData, isTutor, memberId]);
 
@@ -245,6 +272,7 @@ export default function AthleteMetricsScreen({ navigation }) {
         notasPsicologia: [],
         atletaMeta: null,
         nutricionSettings: { metodoGrasaCorporal: 'durnin_siri' },
+        courtMetrics: [],
       });
     },
   });
@@ -253,9 +281,13 @@ export default function AthleteMetricsScreen({ navigation }) {
     (memberLoading || loading) &&
     mediciones.length === 0 &&
     informesPsicologia.length === 0 &&
-    notasPsicologia.length === 0;
+    notasPsicologia.length === 0 &&
+    courtMetrics.length === 0;
   const hasAnyMetrics =
-    mediciones.length > 0 || informesPsicologia.length > 0 || notasPsicologia.length > 0;
+    mediciones.length > 0 ||
+    informesPsicologia.length > 0 ||
+    notasPsicologia.length > 0 ||
+    courtMetrics.length > 0;
 
   const metricsTitle = isTutor ? 'Métricas' : 'Mis métricas';
   const metricsKicker = isTutor ? 'Seguimiento' : 'Tu evolución';
@@ -552,9 +584,51 @@ export default function AthleteMetricsScreen({ navigation }) {
                     ) : null}
                     {m.evaluador?.nombre ? (
                       <Text style={[styles.staff, { color: theme.textMuted }]}>
-                        {m.evaluador.nombre} {m.evaluador.apellido || ''}
+                        {formatUserName(m.evaluador)}
                       </Text>
                     ) : null}
+                  </DesignCard>
+                ))
+              )}
+            </ScrollView>
+          )}
+
+          {activeTab === 'cancha' && (
+            <ScrollView
+              contentContainerStyle={[styles.scroll, contentWrap]}
+              keyboardShouldPersistTaps="handled"
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />
+              }
+            >
+              <Text style={[styles.hint, { color: theme.textMuted }]}>
+                Shoot-arounds y métricas individuales que te asignó el cuerpo técnico. Podés registrarlas
+                cuando quieras.
+              </Text>
+              {!courtMetrics.length ? (
+                <Text style={[styles.empty, { color: theme.textMuted }]}>
+                  Todavía no tenés métricas individuales asignadas.
+                </Text>
+              ) : (
+                courtMetrics.map((m) => (
+                  <DesignCard
+                    key={String(m._id)}
+                    theme={theme}
+                    isDarkMode={isDarkMode}
+                    accent={colorMarca}
+                    onPress={() =>
+                      navigation.navigate('AthleteCourtMetricDetail', {
+                        metricId: m._id,
+                        tipoMedicion: m.tipoMedicion,
+                      })
+                    }
+                    contentStyle={styles.cardInner}
+                  >
+                    <Text style={[styles.metricName, { color: theme.text }]}>{m.titulo}</Text>
+                    <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 4 }}>
+                      {tipoMedicionLabel(m.tipoMedicion)} · {(m.pines || []).length} punto(s) · tocá
+                      para registrar
+                    </Text>
                   </DesignCard>
                 ))
               )}

@@ -19,6 +19,7 @@ import CoachCategoryDetailScreen from '../screens/coach/CoachCategoryDetailScree
 import CoachWellnessScreen from '../screens/coach/CoachWellnessScreen';
 import CoachMeasurementScreen from '../screens/coach/CoachMeasurementScreen';
 import CoachTeamDocumentsScreen from '../screens/coach/CoachTeamDocumentsScreen';
+import CoachTeamWellnessScreen from '../screens/coach/CoachTeamWellnessScreen';
 import MemberMediaViewerScreen from '../screens/member/MemberMediaViewerScreen';
 import CoachCommsHubScreen from '../screens/coach/CoachCommsHubScreen';
 import NoticiasScreen from '../screens/admin/NoticiasScreen';
@@ -73,6 +74,7 @@ function NutTeamStackNav() {
       <NutTeamStack.Screen name="CoachWellness" component={CoachWellnessScreen} />
       <NutTeamStack.Screen name="CoachMeasurement" component={CoachMeasurementScreen} />
       <NutTeamStack.Screen name="CoachTeamDocuments" component={CoachTeamDocumentsScreen} />
+      <NutTeamStack.Screen name="CoachTeamWellness" component={CoachTeamWellnessScreen} />
       <NutTeamStack.Screen name="CoachMediaViewer" component={MemberMediaViewerScreen} />
     </NutTeamStack.Navigator>
   );

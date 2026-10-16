@@ -18,6 +18,7 @@ import { ESTADO_FILTROS, fmtMoney, contrastOutlineBtn } from './finanzasConstant
 import UserAvatar from '../../../components/UserAvatar';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
+import { formatUserName } from '../../../utils/listSort';
 
 function AthleteActionsMenu({
   visible,
@@ -63,7 +64,7 @@ function AthleteActionsMenu({
   const { atleta, payments: cuotas } = item || { atleta: null, payments: [] };
   const payables = cuotas.filter((p) => ['pendiente', 'vencido'].includes(p.estado));
   const canPay = payables.length > 0;
-  const nombre = `${atleta?.nombre || ''} ${atleta?.apellido || ''}`.trim();
+  const nombre = formatUserName(atleta);
 
   const handlePay = () => {
     if (!canPay || typeof onPay !== 'function') return;
@@ -208,7 +209,7 @@ export default function AtletasPagosTab({
           <UserAvatar user={atleta} size={44} colorMarca={cc} />
           <View style={styles.cardInfo}>
             <Text style={[styles.name, { color: theme.text }]}>
-              {atleta?.nombre} {atleta?.apellido}
+              {formatUserName(atleta)}
             </Text>
             {categorias.length ? (
               <Text style={{ color: theme.textMuted, fontSize: 12 }} numberOfLines={1}>

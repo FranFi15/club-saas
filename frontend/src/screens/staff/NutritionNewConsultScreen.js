@@ -20,7 +20,7 @@ import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import FilterPillSheet from '../../components/FilterPillSheet';
 import CalendarDateField from '../../components/CalendarDateField';
-import { sortByNombre } from '../../utils/listSort';
+import { sortByNombre, formatUserName } from '../../utils/listSort';
 import {
   categoriesGroupedByDisciplina,
   categoryPillLabel,
@@ -139,7 +139,7 @@ export default function NutritionNewConsultScreen({ navigation }) {
       .filter((e) => e.atleta?._id)
       .map((e) => ({
         value: e.atleta._id,
-        label: `${e.atleta.nombre || ''} ${e.atleta.apellido || ''}`.trim(),
+        label: formatUserName(e.atleta),
       }));
     return [
       {

@@ -34,6 +34,7 @@ import { pickPaginatedRows } from '../../utils/paginatedApi';
 import { sessionDisplayName, sessionEsOpcional, isConsultaIndividual, consultaConfirmacionEstado, consultaConfirmacionLabel, consultaNeedsConfirmacion, sessionTipoVisual } from '../../utils/sessionDisplay';
 import { readScreenCache, useCachedFocusLoad, clearScreenCache } from '../../hooks/useCachedFocusLoad';
 import { useBadgesOptional } from '../../context/BadgeContext';
+import { formatUserName } from '../../utils/listSort';
 
 function ymdInMonth(ymd, monthDate) {
   const [y, m] = ymd.split('-').map(Number);
@@ -324,7 +325,7 @@ export default function AthleteAgendaScreen({ navigation }) {
         subtitle={
           isTutor
             ? activeHijo
-              ? `Calendario de ${activeHijo.nombre} ${activeHijo.apellido}`
+              ? `Calendario de ${formatUserName(activeHijo)}`
               : 'Calendario y actividades del atleta seleccionado'
             : 'Calendario de entrenamientos y actividades'
         }

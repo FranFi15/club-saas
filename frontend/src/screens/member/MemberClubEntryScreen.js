@@ -21,6 +21,7 @@ import UserAvatar from '../../components/UserAvatar';
 import CustomAlert from '../../components/CustomAlert';
 import { formatRolStaff } from '../staff/staffUtils';
 import { USER_ROL_LABELS } from '../../constants/userRoles';
+import { formatUserName } from '../../utils/listSort';
 
 const REFRESH_BUFFER_MS = 5000;
 
@@ -143,7 +144,7 @@ export default function MemberClubEntryScreen({ navigation, route }) {
   }, [expiresAt, fetchQr]);
 
   const displayName = member
-    ? `${member.nombre || ''}${member.apellido ? ` ${member.apellido}` : ''}`.trim()
+    ? formatUserName(member)
     : 'Socio';
 
   return (
@@ -166,7 +167,7 @@ export default function MemberClubEntryScreen({ navigation, route }) {
               const active = String(opt._id) === String(selectedUserId);
               const label = opt.isSelf
                 ? 'Yo (tutor)'
-                : `${opt.nombre || ''} ${opt.apellido || ''}`.trim();
+                : formatUserName(opt);
               return (
                 <TouchableOpacity
                   key={String(opt._id)}

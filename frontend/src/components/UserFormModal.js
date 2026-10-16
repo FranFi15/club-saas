@@ -10,7 +10,7 @@ import { ClubContext } from '../context/ClubContext';
 import { clubApi } from '../utils/api';
 import { getToken } from '../utils/storage';
 import { isClubOwnerRole } from '../constants/appRoles';
-import { sortUsersByName } from '../utils/listSort';
+import { sortUsersByName, formatUserName } from '../utils/listSort';
 import { displayDateToIsoCalendar, isoCalendarDateToDisplay, maskDateDDMMAAAA } from '../utils/dateDisplay';
 import ProfilePhotoField from './ProfilePhotoField';
 
@@ -302,11 +302,11 @@ export default function UserFormModal({
   const getTutorName = (id) => {
     if (!id) return 'Ninguno asignado';
     const t = tutors.find(x => x._id === id);
-    if (t) return `${t.nombre} ${t.apellido}`;
+    if (t) return formatUserName(t);
     
     // Si viene la data inicial del populate
     if (initialData?.tutorPrincipal && initialData.tutorPrincipal._id === id) {
-      return `${initialData.tutorPrincipal.nombre} ${initialData.tutorPrincipal.apellido}`;
+      return formatUserName(initialData.tutorPrincipal);
     }
     return 'Ninguno asignado';
   };
@@ -599,7 +599,7 @@ export default function UserFormModal({
                             {tutors.map(t => (
                               <TouchableOpacity key={t._id} style={[styles.dropdownItem, { borderBottomColor: theme.border }]}
                                 onPress={() => handleChange('tutorPrincipal', t._id)}>
-                                <Text style={{ color: theme.text, fontWeight: '500' }}>{t.nombre} {t.apellido}</Text>
+                                <Text style={{ color: theme.text, fontWeight: '500' }}>{formatUserName(t)}</Text>
                                 <Text style={{ color: theme.textMuted, fontSize: 12 }}>{t.email}</Text>
                               </TouchableOpacity>
                             ))}

@@ -20,7 +20,9 @@ import AdminScreenHeader from '../../components/AdminScreenHeader';
 import DesignCard from '../../components/DesignCard';
 import { useBadges } from '../../context/BadgeContext';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
 import { canMutateAsAdmin } from '../../constants/appRoles';
+import { formatUserName } from '../../utils/listSort';
 
 export default function AdminEnrollmentRequestsScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
@@ -36,6 +38,16 @@ export default function AdminEnrollmentRequestsScreen({ navigation }) {
   }, []);
 
   const [list, setList] = useState(() => readScreenCache(requestsCacheKey) ?? []);
+  const {
+    visibleItems,
+    onEndReached,
+    onEndReachedThreshold,
+    ListFooterComponent,
+  } = useClientInfiniteScroll(list, {
+    pageSize: 20,
+    colorMarca,
+    theme,
+  });
   const [resolvingId, setResolvingId] = useState(null);
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
@@ -122,14 +134,14 @@ export default function AdminEnrollmentRequestsScreen({ navigation }) {
   const renderItem = ({ item }) => {
     const busy = resolvingId === item._id;
     const nombres = (item.atletas || [])
-      .map((a) => `${a.nombre} ${a.apellido}`)
+      .map((a) => formatUserName(a))
       .join(', ');
 
     return (
       <DesignCard theme={theme} isDarkMode={isDarkMode} accent={colorMarca} contentStyle={styles.cardInner}>
         <Text style={[styles.cat, { color: colorMarca }]}>{item.categoria?.nombre}</Text>
         <Text style={[styles.meta, { color: theme.textMuted }]}>
-          Solicita: {item.solicitante?.nombre} {item.solicitante?.apellido} ({item.solicitante?.rol})
+          Solicita: {formatUserName(item.solicitante)} ({item.solicitante?.rol})
         </Text>
         <Text style={[styles.athletes, { color: theme.text }]}>{nombres}</Text>
         {item.mensaje ? (
@@ -190,13 +202,16 @@ export default function AdminEnrollmentRequestsScreen({ navigation }) {
         <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />
       ) : (
         <FlatList
-          data={list}
+          data={visibleItems}
           keyExtractor={(item) => item._id}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />
           }
+          onEndReached={onEndReached}
+          onEndReachedThreshold={onEndReachedThreshold}
+          ListFooterComponent={ListFooterComponent}
           ListEmptyComponent={
             <Text style={[styles.empty, { color: theme.textMuted }]}>No hay solicitudes pendientes.</Text>
           }

@@ -26,6 +26,7 @@ import DesignCard from '../../components/DesignCard';
 import { formatRolStaff, sortStaffRolesAlpha } from '../staff/staffUtils';
 import { useBadges } from '../../context/BadgeContext';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { formatUserName } from '../../utils/listSort';
 
 const TIPO_LABELS = {
   rutina: 'Rutina',
@@ -42,7 +43,7 @@ function authorRolKey(autor) {
 
 function authorName(autor) {
   if (!autor || typeof autor === 'string') return 'Staff del club';
-  return `${autor.nombre || ''} ${autor.apellido || ''}`.trim() || 'Staff';
+  return formatUserName(autor) || 'Staff';
 }
 
 export default function AthleteResourcesScreen({ navigation }) {

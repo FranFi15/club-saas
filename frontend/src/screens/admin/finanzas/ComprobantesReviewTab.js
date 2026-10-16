@@ -17,15 +17,17 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
 import { readScreenCache, useCachedFocusLoad } from '../../../hooks/useCachedFocusLoad';
+import { useClientInfiniteScroll } from '../../../hooks/useClientInfiniteScroll';
 import { useBadges } from '../../../context/BadgeContext';
 import PaymentPaySummary from '../../../components/PaymentPaySummary';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
 import { MN, fmtMoney } from './finanzasConstants';
+import { formatUserName } from '../../../utils/listSort';
 
 function paymentLineLabel(p) {
   const atleta = p.atleta;
-  const athleteName = atleta ? `${atleta.nombre} ${atleta.apellido}` : '';
+  const athleteName = atleta ? formatUserName(atleta) : '';
   const period = `${MN[(p.mes || 1) - 1]} ${p.anio}`;
   const plan = p.plan?.nombre || 'Cuota';
   return athleteName ? `${athleteName} · ${period} · ${plan}` : `${period} · ${plan}`;
@@ -36,6 +38,16 @@ export default function ComprobantesReviewTab({ clubData, theme, primaryColor, g
   const { refresh: refreshBadges } = useBadges();
   const cacheKey = clubData?.urlIdentifier ? `finanzas-revision:${clubData.urlIdentifier}` : '';
   const [groups, setGroups] = useState(() => readScreenCache(cacheKey)?.groups ?? []);
+  const {
+    visibleItems: visibleGroups,
+    onEndReached,
+    onEndReachedThreshold,
+    ListFooterComponent,
+  } = useClientInfiniteScroll(groups, {
+    pageSize: 20,
+    colorMarca: primaryColor,
+    theme,
+  });
   const [viewerUrl, setViewerUrl] = useState('');
   const [rejectGroup, setRejectGroup] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -134,7 +146,7 @@ export default function ComprobantesReviewTab({ clubData, theme, primaryColor, g
               {cuotaCount > 1 ? `${cuotaCount} cuotas` : '1 cuota'} · {fmtMoney(group.totalMonto || 0)}
             </Text>
             <Text style={[styles.sub, { color: theme.textMuted }]}>
-              {enviado ? `Enviado por ${enviado.nombre} ${enviado.apellido}` : 'Transferencia'}
+              {enviado ? `Enviado por ${formatUserName(enviado)}` : 'Transferencia'}
             </Text>
           </View>
         </View>
@@ -194,11 +206,14 @@ export default function ComprobantesReviewTab({ clubData, theme, primaryColor, g
   return (
     <>
       <FlatList
-        data={groups}
+        data={visibleGroups}
         keyExtractor={(item) => String(item.id)}
         renderItem={renderItem}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={primaryColor} />}
+        onEndReached={onEndReached}
+        onEndReachedThreshold={onEndReachedThreshold}
+        ListFooterComponent={ListFooterComponent}
         ListEmptyComponent={
           <Text style={[styles.empty, { color: theme.textMuted }]}>
             No hay comprobantes pendientes de revisión.

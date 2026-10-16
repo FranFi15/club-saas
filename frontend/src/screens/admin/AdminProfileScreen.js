@@ -30,6 +30,7 @@ import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
 import ProfileInfoRow, { profileCardStyles } from '../../components/ProfileInfoRow';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { subscribeMercadoPagoDeepLinks } from '../../utils/mpDeepLinks';
+import { formatUserName } from '../../utils/listSort';
 
 const MP_BLUE = '#009EE3';
 
@@ -208,7 +209,7 @@ export default function AdminProfileScreen({ navigation }) {
   };
 
   const fullName = profile
-    ? `${profile.nombre || ''}${profile.nombre && profile.apellido ? ' ' : ''}${profile.apellido || ''}`.trim() ||
+    ? formatUserName(profile) ||
       'Tu cuenta'
     : 'Tu cuenta';
 

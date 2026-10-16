@@ -43,18 +43,19 @@ export default function NewsFeedPost({
   metaRight,
   maxTitleLines = 2,
   maxContentLines = 4,
+  style,
 }) {
   const autor = item?.autor || {};
   const name =
     authorName ||
-    [autor.nombre, autor.apellido].filter(Boolean).join(' ').trim() ||
+    [autor.apellido, autor.nombre].filter(Boolean).join(' ').trim() ||
     'Club';
   const handle = rolHandle(autor.rol);
   const time = formatNewsRelative(item?.createdAt);
   const imageUrl = item?.imagen?.url;
 
   const body = (
-    <View style={[styles.row, { borderBottomColor: theme.border }]}>
+    <View style={[styles.row, { borderBottomColor: theme.border }, style]}>
       <UserAvatar user={autor} size={40} colorMarca={colorMarca} style={styles.avatar} />
       <View style={styles.main}>
         <View style={styles.headerLine}>

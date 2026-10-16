@@ -209,7 +209,7 @@ export default function EstructuraScreen({ navigation }) {
   const renderRightActions = (item) => {
     return (
       <View style={styles.swipeActionsContainer}>
-        <TouchableOpacity style={[styles.swipeBtn, { backgroundColor: '#f59e0b' }]} onPress={() => openEditModal(item)}>
+        <TouchableOpacity style={[styles.swipeBtn, { backgroundColor: '#6b7280' }]} onPress={() => openEditModal(item)}>
           <Ionicons name="pencil" size={22} color="#ffffff" />
         </TouchableOpacity>
         <TouchableOpacity style={[styles.swipeBtn, { backgroundColor: '#ef4444' }]} onPress={() => handleDelete(item)}>

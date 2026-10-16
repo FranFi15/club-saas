@@ -31,6 +31,7 @@ import ProfileBenefitsSection from '../../components/ProfileBenefitsSection';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { useBadges } from '../../context/BadgeContext';
 import { tabBadgeText } from '../../utils/tabBadgeLabel';
+import { formatUserName } from '../../utils/listSort';
 
 export default function TutorProfileScreen({ navigation }) {
   const { clubData, setClubData, clearSession } = useContext(ClubContext);
@@ -105,7 +106,7 @@ export default function TutorProfileScreen({ navigation }) {
 
   const fullName =
     profile?.nombre || profile?.apellido
-      ? `${profile?.nombre || ''}${profile?.nombre && profile?.apellido ? ' ' : ''}${profile?.apellido || ''}`.trim()
+      ? formatUserName(profile)
       : 'Tu cuenta';
 
   const cuotasEnabledCount = hijos.filter((h) => h.cuotasEnApp !== false).length;
@@ -160,7 +161,7 @@ export default function TutorProfileScreen({ navigation }) {
             <Ionicons name="barbell-outline" size={18} color={theme.icon} />
             <Text style={[styles.rowLabel, { color: theme.textMuted }]}>Mis Atletas</Text>
             <Text style={[styles.rowValue, { color: theme.text }]}>
-              {hijos.length ? hijos.map((h) => `${h.nombre} ${h.apellido}`).join(', ') : 'Ninguno vinculado'}
+              {hijos.length ? hijos.map((h) => formatUserName(h)).join(', ') : 'Ninguno vinculado'}
             </Text>
           </View>
         </View>
@@ -235,7 +236,7 @@ export default function TutorProfileScreen({ navigation }) {
                       >
                         <View style={{ flex: 1, paddingRight: 12 }}>
                           <Text style={[styles.switchName, { color: theme.text }]}>
-                            {hijo.nombre} {hijo.apellido}
+                            {formatUserName(hijo)}
                           </Text>
                           <Text style={[styles.switchHint, { color: theme.textMuted }]}>
                             {enabled

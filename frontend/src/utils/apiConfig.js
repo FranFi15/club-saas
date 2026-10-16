@@ -43,10 +43,26 @@ function resolveApiHost() {
   return resolveNativeApiHost();
 }
 
+/** localhost web + __DEV__ → local backends (avoids Render CORS from :8081). */
+function useLocalDevApis() {
+  if (typeof __DEV__ === 'undefined' || !__DEV__) return false;
+  if (String(process.env.EXPO_PUBLIC_FORCE_REMOTE_API || '').trim() === '1') return false;
+  if (Platform.OS !== 'web') return false;
+  if (typeof window === 'undefined') return false;
+  const host = String(window.location?.hostname || '');
+  return host === 'localhost' || host === '127.0.0.1';
+}
+
 export const API_HOST = resolveApiHost();
 
 const clubFromEnv = normalizeApiBase(process.env.EXPO_PUBLIC_CLUB_API_URL);
 const superFromEnv = normalizeApiBase(process.env.EXPO_PUBLIC_SUPER_API_URL);
+const localDev = useLocalDevApis();
 
-export const CLUB_API_BASE = clubFromEnv || `http://${API_HOST}:5000/api`;
-export const SUPER_API_BASE = superFromEnv || `http://${API_HOST}:4000/api`;
+export const CLUB_API_BASE = localDev
+  ? `http://${API_HOST}:5000/api`
+  : clubFromEnv || `http://${API_HOST}:5000/api`;
+
+export const SUPER_API_BASE = localDev
+  ? `http://${API_HOST}:4000/api`
+  : superFromEnv || `http://${API_HOST}:4000/api`;

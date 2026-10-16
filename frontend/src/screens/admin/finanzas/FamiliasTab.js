@@ -14,6 +14,7 @@ import { MN, EST_COLOR, fmtMoney, contrastOutlineBtn } from './finanzasConstants
 import DesignCard from '../../../components/DesignCard';
 import UserAvatar from '../../../components/UserAvatar';
 import { ThemeContext } from '../../../context/ThemeContext';
+import { formatUserName } from '../../../utils/listSort';
 
 export default function FamiliasTab({
   theme,
@@ -102,7 +103,7 @@ export default function FamiliasTab({
             <View style={{ flex: 1, paddingRight: 8 }}>
               <Text style={{ color: theme.textMuted, fontSize: 11 }}>Tutor</Text>
               <Text style={[s.planName, { color: theme.text }]}>
-                {g.tutor.nombre} {g.tutor.apellido}
+                {formatUserName(g.tutor)}
               </Text>
               {pctActual > 0 ? (
                 <Text style={{ color: '#8b5cf6', fontSize: 11, fontWeight: '700', marginTop: 2 }}>
@@ -175,7 +176,7 @@ export default function FamiliasTab({
             <TouchableOpacity
               style={[styles.payBtnFamilia, { backgroundColor: '#10b981' }]}
               onPress={() =>
-                onSelectPayments(impagas, `${g.tutor.nombre} ${g.tutor.apellido}`, g.hijos)
+                onSelectPayments(impagas, formatUserName(g.tutor), g.hijos)
               }
             >
               <Ionicons name="cash-outline" size={18} color="#fff" />
@@ -248,7 +249,7 @@ export default function FamiliasTab({
                     <View style={styles.childRow}>
                       <UserAvatar user={h} size={36} colorMarca={cc} />
                       <Text style={{ color: theme.text, flex: 1, fontSize: 14, fontWeight: '600', marginLeft: 10 }}>
-                        {h.nombre} {h.apellido}
+                        {formatUserName(h)}
                       </Text>
                       {displayFinal != null && (hasDebt || cuota) ? (
                         <View style={{ alignItems: 'flex-end' }}>
@@ -322,7 +323,7 @@ export default function FamiliasTab({
                             if (!payables.length) return;
                             if (payables.length === 1) onPayCuota(payables[0], h);
                             else if (typeof onSelectPayments === 'function') {
-                              onSelectPayments(payables, `${h.nombre} ${h.apellido}`, [h]);
+                              onSelectPayments(payables, formatUserName(h), [h]);
                             }
                           }}
                           disabled={!payables.length}

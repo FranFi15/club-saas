@@ -58,6 +58,7 @@ import {
 import SearchableDropdown from '../../components/SearchableDropdown';
 import DesignCard from '../../components/DesignCard';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { formatUserName } from '../../utils/listSort';
 
 const MEJOR_DIR_OPTS = [
   { value: 'mayor_es_mejor', label: '↑ Mayor = mejor' },
@@ -533,7 +534,7 @@ export default function CoachMeasurementScreen({ navigation, route }) {
         <View style={styles.visChip}>
           <Ionicons name="person-outline" size={14} color={theme.textMuted} />
           <Text style={{ color: theme.textMuted, fontSize: 11, marginLeft: 4 }}>
-            {m.evaluador?.nombre ? `${m.evaluador.nombre} ${m.evaluador.apellido || ''}`.trim() : 'Staff'}
+            {m.evaluador?.nombre ? formatUserName(m.evaluador) : 'Staff'}
           </Text>
         </View>
         <View style={styles.badgeRow}>
@@ -550,8 +551,8 @@ export default function CoachMeasurementScreen({ navigation, route }) {
         </View>
       </View>
       {canEditMedicion(m) ? (
-        <TouchableOpacity style={[styles.editLink, { borderColor: colorMarca }]} onPress={() => openEdit(m)}>
-          <Text style={{ color: colorMarca, fontWeight: '700' }}>Editar o eliminar</Text>
+        <TouchableOpacity style={[styles.editLink, { borderColor: '#6b7280' }]} onPress={() => openEdit(m)}>
+          <Text style={{ color: '#6b7280', fontWeight: '700' }}>Editar o eliminar</Text>
         </TouchableOpacity>
       ) : null}
     </DesignCard>
@@ -920,11 +921,14 @@ export default function CoachMeasurementScreen({ navigation, route }) {
                   )}
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.deleteBtn, { borderColor: '#ef4444' }]}
+                  style={[styles.deleteBtn, { borderColor: '#ef4444', backgroundColor: '#ef4444' }]}
                   onPress={() => confirmDelete(editRow)}
                   disabled={editSaving}
                 >
-                  <Text style={{ color: '#ef4444', fontWeight: '800' }}>Eliminar medición</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="trash-outline" size={18} color="#fff" />
+                    <Text style={{ color: '#fff', fontWeight: '800' }}>Eliminar medición</Text>
+                  </View>
                 </TouchableOpacity>
               </ScrollView>
             ) : null}

@@ -19,6 +19,7 @@ import DesignCard from '../../components/DesignCard';
 import SearchableDropdown from '../../components/SearchableDropdown';
 import { isoCalendarDateToDisplay, displayDateToIsoCalendar, formatJsDateToDisplay, maskDateDDMMAAAA } from '../../utils/dateDisplay';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
 import { isClubOwnerRole, canMutateAsAdmin } from '../../constants/appRoles';
 
 function defaultIndisponibleHastaDisplay() {
@@ -42,6 +43,16 @@ export default function EspaciosFisicosScreen({ navigation }) {
   const spacesCacheKey = clubData?.urlIdentifier ? `admin-espacios:${clubData.urlIdentifier}` : '';
 
   const [spaces, setSpaces] = useState(() => readScreenCache(spacesCacheKey)?.list ?? []);
+  const {
+    visibleItems: visibleSpaces,
+    onEndReached,
+    onEndReachedThreshold,
+    ListFooterComponent,
+  } = useClientInfiniteScroll(spaces, {
+    pageSize: 20,
+    colorMarca,
+    theme,
+  });
 
   // Form Modal
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -434,7 +445,7 @@ export default function EspaciosFisicosScreen({ navigation }) {
 
   const renderRightActions = (item) => (
     <View style={styles.swipeActionsContainer}>
-      <TouchableOpacity style={[styles.swipeBtn, { backgroundColor: '#f59e0b' }]} onPress={() => openForm(item)}>
+      <TouchableOpacity style={[styles.swipeBtn, { backgroundColor: '#6b7280' }]} onPress={() => openForm(item)}>
         <Ionicons name="pencil" size={24} color="#ffffff" />
       </TouchableOpacity>
       <TouchableOpacity style={[styles.swipeBtn, { backgroundColor: '#ef4444' }]} onPress={() => handleDelete(item)}>
@@ -520,11 +531,14 @@ export default function EspaciosFisicosScreen({ navigation }) {
           <ActivityIndicator size="large" color={colorMarca} style={{ marginTop: 50 }} />
         ) : (
           <FlatList
-             data={spaces}
+             data={visibleSpaces}
              keyExtractor={(item) => item._id}
              renderItem={renderListItem}
              contentContainerStyle={{ paddingBottom: 80, paddingTop: 20 }}
              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
+             onEndReached={onEndReached}
+             onEndReachedThreshold={onEndReachedThreshold}
+             ListFooterComponent={ListFooterComponent}
              ListEmptyComponent={
                <View style={styles.emptyState}>
                  <Ionicons name="map-outline" size={60} color={theme.icon} />

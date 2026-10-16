@@ -21,6 +21,7 @@ import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScree
 import MemberChildPicker from '../../components/MemberChildPicker';
 import DesignCard from '../../components/DesignCard';
 import TrialDecisionCard from '../../components/TrialDecisionCard';
+import { formatUserName } from '../../utils/listSort';
 
 function fmtMoney(n) {
   return `$${(n || 0).toLocaleString('es-AR')}`;
@@ -74,7 +75,7 @@ export default function TutorHomeScreen({ navigation }) {
         title={`Hola, ${profile?.nombre || 'Tutor'}`}
         subtitle={
           activeHijo
-            ? `Gestionando a ${activeHijo.nombre} ${activeHijo.apellido}`
+            ? `Gestionando a ${formatUserName(activeHijo)}`
             : clubData?.nombre || 'Gestioná la actividad de tus atletas'
         }
         footer={
@@ -127,7 +128,7 @@ export default function TutorHomeScreen({ navigation }) {
                 <DesignCard theme={theme} isDarkMode={isDarkMode} accent={colorMarca} contentStyle={styles.summaryInner}>
                   <Text style={[styles.summaryKicker, { color: colorMarca }]}>Resumen del atleta</Text>
                   <Text style={[styles.summaryTitle, { color: theme.text }]}>
-                    {activeHijo.nombre} {activeHijo.apellido}
+                    {formatUserName(activeHijo)}
                   </Text>
                   <Text style={[styles.summarySub, { color: theme.textMuted }]}>
                     {activeHijo.edad != null ? `${activeHijo.edad} años` : 'Edad no registrada'}

@@ -1,5 +1,6 @@
 import { Platform, Linking } from 'react-native';
 import { isoCalendarDateToDisplay } from './dateDisplay';
+import { formatUserName } from './listSort';
 
 const HEADERS = [
   'Apellido',
@@ -55,7 +56,7 @@ export function buildCategoryAthletesCsv(enrollments = []) {
       const a = e.atleta;
       const tutor = a.tutorPrincipal;
       const tutorName = tutor
-        ? `${tutor.apellido || ''} ${tutor.nombre || ''}`.trim()
+        ? formatUserName(tutor)
         : '';
       return [
         a.apellido || '',

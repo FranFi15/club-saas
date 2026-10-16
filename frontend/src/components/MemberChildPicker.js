@@ -4,6 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMember } from '../context/MemberContext';
 import UserAvatar from './UserAvatar';
+import { formatUserName } from '../utils/listSort';
 
 /** Selector horizontal de hijos para tutores (vista por atleta). */
 export default function MemberChildPicker({ theme, colorMarca, compact, viewingLabel = 'Viendo a' }) {
@@ -27,7 +28,7 @@ export default function MemberChildPicker({ theme, colorMarca, compact, viewingL
         <Text style={[styles.label, { color: theme.textMuted }]}>{viewingLabel}</Text>
         {activeHijo ? (
           <Text style={[styles.activeName, { color: theme.text }]} numberOfLines={1}>
-            {activeHijo.nombre} {activeHijo.apellido}
+            {formatUserName(activeHijo)}
           </Text>
         ) : null}
       </View>
@@ -49,7 +50,7 @@ export default function MemberChildPicker({ theme, colorMarca, compact, viewingL
                 onPress={() => setActiveAtletaId(h._id)}
                 accessibilityRole="button"
                 accessibilityState={{ selected: on }}
-                accessibilityLabel={`${h.nombre} ${h.apellido}`}
+                accessibilityLabel={formatUserName(h)}
               >
                 <UserAvatar user={h} size={28} colorMarca={colorMarca} />
                 <View style={{ flexShrink: 1 }}>

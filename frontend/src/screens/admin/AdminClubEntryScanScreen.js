@@ -28,6 +28,7 @@ import HistoryDayPickerModal from '../../components/HistoryDayPickerModal';
 import { formatRolStaff } from '../staff/staffUtils';
 import { USER_ROL_LABELS } from '../../constants/userRoles';
 import { useCachedFocusLoad, clearScreenCache } from '../../hooks/useCachedFocusLoad';
+import { formatUserName } from '../../utils/listSort';
 
 const ENTRY_TABS = [
   { key: 'scan', label: 'Escanear', icon: 'qr-code-outline' },
@@ -172,7 +173,7 @@ function ResultCard({ result, onDismiss, theme }) {
                   : 'Ingreso registrado'}
           </Text>
           <Text style={styles.resultName}>
-            {person?.nombre} {person?.apellido}
+            {formatUserName(person)}
           </Text>
           <Text style={styles.resultMeta}>
             {entryRoleLabel(person?.rol)}
@@ -436,7 +437,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
 
   const renderEntry = ({ item }) => {
     const m = entryPerson(item);
-    const name = m ? `${m.nombre || ''} ${m.apellido || ''}`.trim() : '—';
+    const name = m ? formatUserName(m) : '—';
     return (
       <View style={[styles.logRow, { borderColor: theme.border, backgroundColor: theme.surface }]}>
         <UserAvatar user={m} size={40} />

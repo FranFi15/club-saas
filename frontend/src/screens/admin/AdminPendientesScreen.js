@@ -19,6 +19,7 @@ import BadgeDot from '../../components/BadgeDot';
 import DesignCard from '../../components/DesignCard';
 import { clubApi } from '../../utils/api';
 import { getToken } from '../../utils/storage';
+import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
 
 function navigatePendingItem(navigation, nav) {
   if (!nav?.tab || !navigation) return;
@@ -46,6 +47,16 @@ export default function AdminPendientesScreen({ navigation }) {
   const colorMarca = clubData?.primaryColor || '#3b82f6';
 
   const [items, setItems] = useState([]);
+  const {
+    visibleItems,
+    onEndReached,
+    onEndReachedThreshold,
+    ListFooterComponent,
+  } = useClientInfiniteScroll(items, {
+    pageSize: 20,
+    colorMarca,
+    theme,
+  });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -120,13 +131,16 @@ export default function AdminPendientesScreen({ navigation }) {
         <ActivityIndicator style={{ marginTop: 40 }} color={colorMarca} />
       ) : (
         <FlatList
-          data={items}
+          data={visibleItems}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />
           }
+          onEndReached={onEndReached}
+          onEndReachedThreshold={onEndReachedThreshold}
+          ListFooterComponent={ListFooterComponent}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="checkmark-circle-outline" size={56} color={theme.icon} />

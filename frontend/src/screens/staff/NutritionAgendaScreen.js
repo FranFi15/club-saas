@@ -17,6 +17,7 @@ import CoachScreenHeader, { CoachHeaderFab } from '../../components/CoachScreenH
 import StaffConsultAgendaCard from '../../components/StaffConsultAgendaCard';
 import { compareIsoCalendarDates, isoCalendarDateToDisplay, isoCalendarWeekday } from '../../utils/dateDisplay';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
 
 function sessionLabel(s) {
   const weekday = isoCalendarWeekday(s.fecha, { style: 'long' });
@@ -33,6 +34,16 @@ export default function NutritionAgendaScreen({ navigation }) {
   const agendaCacheKey = clubData?.urlIdentifier ? `nutri-agenda:${clubData.urlIdentifier}` : '';
 
   const [list, setList] = useState(() => readScreenCache(agendaCacheKey) ?? []);
+  const {
+    visibleItems,
+    onEndReached,
+    onEndReachedThreshold,
+    ListFooterComponent,
+  } = useClientInfiniteScroll(list, {
+    pageSize: 20,
+    colorMarca,
+    theme,
+  });
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
     title: '',
@@ -116,11 +127,14 @@ export default function NutritionAgendaScreen({ navigation }) {
         <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />
       ) : (
         <FlatList
-          data={list}
+          data={visibleItems}
           keyExtractor={(item) => item._id}
           renderItem={renderItem}
           contentContainerStyle={styles.listPad}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
+          onEndReached={onEndReached}
+          onEndReachedThreshold={onEndReachedThreshold}
+          ListFooterComponent={ListFooterComponent}
           ListEmptyComponent={
             <Text style={[styles.empty, { color: theme.textMuted }]}>
               No hay consultas programadas. Creá una con el botón + (elegí categoría, atleta y lugar).

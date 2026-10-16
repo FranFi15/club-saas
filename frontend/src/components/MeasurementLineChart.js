@@ -27,12 +27,14 @@ export default function MeasurementLineChart({
     const innerH = Math.max(1, height - pad.top - pad.bottom);
 
     const pts = (series || [])
-      .map((s) => ({
+      .map((s, idx) => ({
         t: s.t instanceof Date ? s.t : new Date(s.t),
         value: Number(s.value),
+        label: s.label || '',
+        order: idx,
       }))
       .filter((s) => !Number.isNaN(s.value) && !Number.isNaN(s.t.getTime()))
-      .sort((a, b) => a.t - b.t);
+      .sort((a, b) => a.t - b.t || a.order - b.order);
 
     if (pts.length === 0) {
       return { pts: [], pad, innerW, innerH, minV: 0, maxV: 1, polyline: '', dots: [], yTicks: [], xLabels: [] };
@@ -61,6 +63,7 @@ export default function MeasurementLineChart({
     }));
 
     const xLabels = dots.map((d, i) => {
+      if (d.label) return { x: d.cx, label: String(d.label), key: i };
       const dd = String(d.t.getDate()).padStart(2, '0');
       const mm = String(d.t.getMonth() + 1).padStart(2, '0');
       return { x: d.cx, label: `${dd}/${mm}`, key: i };

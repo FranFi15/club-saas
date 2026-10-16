@@ -27,11 +27,12 @@ import CustomAlert from '../../components/CustomAlert';
 import BusyOverlay from '../../components/BusyOverlay';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import DesignCard from '../../components/DesignCard';
-import { sortEnrollmentsByAtleta, sortUsersByName } from '../../utils/listSort';
+import { sortEnrollmentsByAtleta, sortUsersByName, formatUserName } from '../../utils/listSort';
 import UserDetailsModal from '../../components/UserDetailsModal';
 import UserAvatar from '../../components/UserAvatar';
 import CategoryRosterModal from '../../components/CategoryRosterModal';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
 import { isoCalendarDateToDisplay } from '../../utils/dateDisplay';
 import { canMutateAsAdmin } from '../../constants/appRoles';
 import { shareCategoryAthletesSheet } from '../../utils/exportCategoryAthletesSheet';
@@ -490,7 +491,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
           },
         });
         if (billingConflict?.code === 'DISCIPLINE_BILLING_CHOICE') {
-          conflicts.push(`${user.nombre} ${user.apellido || ''}`.trim());
+          conflicts.push(formatUserName(user));
         }
       } catch (error) {
         errors.push(
@@ -545,7 +546,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
       const maxAge = pickerCategory?.edadMaxima ?? categoria?.edadMaxima;
       const parts = [];
       if (underMin.length > 0) {
-        const names = underMin.map((u) => `${u.nombre} ${u.apellido || ''}`.trim()).join(', ');
+        const names = underMin.map((u) => formatUserName(u)).join(', ');
         parts.push(
           underMin.length === 1
             ? `${names} es menor a la edad mínima${minAge != null ? ` (${minAge} años)` : ''}.`
@@ -553,7 +554,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
         );
       }
       if (overMax.length > 0) {
-        const names = overMax.map((u) => `${u.nombre} ${u.apellido || ''}`.trim()).join(', ');
+        const names = overMax.map((u) => formatUserName(u)).join(', ');
         parts.push(
           overMax.length === 1
             ? `${names} supera la edad máxima${maxAge != null ? ` (${maxAge} años)` : ''}.`
@@ -790,7 +791,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
           <View style={styles.cardTopRow}>
             <UserAvatar user={user} size={44} colorMarca={colorMarca} style={{ marginRight: 15 }} />
             <View style={styles.info}>
-              <Text style={[styles.name, { color: theme.text }]}>{user.nombre} {user.apellido}</Text>
+              <Text style={[styles.name, { color: theme.text }]}>{formatUserName(user)}</Text>
               {(activeTab === 'profesores' ||
                 activeTab === 'preparadores' ||
                 activeTab === 'nutricionistas' ||
@@ -871,6 +872,18 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
                 ? nutricionistas
                 : psicologos,
         );
+
+  const {
+    visibleItems: visibleListData,
+    onEndReached,
+    onEndReachedThreshold,
+    ListFooterComponent,
+  } = useClientInfiniteScroll(listData, {
+    pageSize: 20,
+    resetKey: activeTab,
+    colorMarca,
+    theme,
+  });
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
@@ -1021,7 +1034,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
           <ActivityIndicator size="large" color={colorMarca} style={{ marginTop: 50 }} />
         ) : (
           <FlatList
-             data={listData}
+             data={visibleListData}
              keyExtractor={(item) => item._id}
              renderItem={renderListItem}
              contentContainerStyle={{ paddingBottom: 80, paddingTop: 10 }}
@@ -1030,6 +1043,9 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
                  <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />
                ) : undefined
              }
+             onEndReached={onEndReached}
+             onEndReachedThreshold={onEndReachedThreshold}
+             ListFooterComponent={ListFooterComponent}
              ListEmptyComponent={
                <View style={styles.emptyState}>
                  <Ionicons name="folder-open-outline" size={60} color={theme.icon} />
@@ -1152,7 +1168,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
                          />
                          <View style={{ marginLeft: 10, flex: 1 }}>
                            <Text style={{ color: theme.text, fontSize: 16, fontWeight: '600' }}>
-                             {item.nombre} {item.apellido}
+                             {formatUserName(item)}
                            </Text>
                            <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
                              {[nac ? `Nac. ${nac}` : null, edadTxt, item.dni ? `DNI ${item.dni}` : null]
@@ -1180,7 +1196,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
                    }
                    return (
                     <TouchableOpacity style={[styles.pickerItem, { borderBottomColor: theme.border }]} onPress={() => handleSelectUser(item)}>
-                       <Text style={{ color: theme.text, fontSize: 16, fontWeight: '500' }}>{item.nombre} {item.apellido}</Text>
+                       <Text style={{ color: theme.text, fontSize: 16, fontWeight: '500' }}>{formatUserName(item)}</Text>
                        <Text style={{ color: theme.textMuted, fontSize: 13 }}>{item.email}</Text>
                     </TouchableOpacity>
                    );
@@ -1249,7 +1265,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
             {selectedEnrollment ? (
               <View style={[styles.planContext, { backgroundColor: theme.background, borderColor: theme.border }]}>
                 <Text style={{ color: theme.text, fontWeight: '600' }}>
-                  {selectedEnrollment.atleta?.nombre} {selectedEnrollment.atleta?.apellido}
+                  {formatUserName(selectedEnrollment.atleta)}
                 </Text>
                 <Text style={{ color: theme.textMuted, marginTop: 4 }}>
                   {categoria.nombre}

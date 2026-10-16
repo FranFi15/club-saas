@@ -10,6 +10,7 @@ import { ClubContext } from '../context/ClubContext';
 import { clubApi } from '../utils/api';
 import { getToken } from '../utils/storage';
 import UserAvatar from './UserAvatar';
+import { formatUserName } from '../utils/listSort';
 
 
 export default function UserDetailsModal({ visible, user, onClose, onEdit, onDelete, onPermanentDelete }) {
@@ -66,7 +67,7 @@ export default function UserDetailsModal({ visible, user, onClose, onEdit, onDel
             
             <View style={styles.headerProfile}>
               <UserAvatar user={user} size={80} colorMarca={user?.estado === 'inactivo' ? '#9ca3af' : colorMarca} />
-              <Text style={[styles.name, { color: theme.text }]}>{user.nombre} {user.apellido}</Text>
+              <Text style={[styles.name, { color: theme.text }]}>{formatUserName(user)}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
                 <View style={[styles.roleBadge, { backgroundColor: theme.background, borderColor: theme.border, marginTop: 0 }]}>
                   <Text style={[styles.roleBadgeText, { color: theme.textMuted }]}>{user.rol || 'Usuario'}</Text>
@@ -173,7 +174,7 @@ export default function UserDetailsModal({ visible, user, onClose, onEdit, onDel
                   <View style={styles.familyRow}>
                     <Ionicons name="person-outline" size={18} color={theme.icon} />
                     <Text style={[styles.familyText, { color: theme.text }]}>
-                      Tutor: {user.tutorPrincipal.nombre} {user.tutorPrincipal.apellido}
+                      Tutor: {formatUserName(user.tutorPrincipal)}
                     </Text>
                   </View>
                 )}
@@ -185,7 +186,7 @@ export default function UserDetailsModal({ visible, user, onClose, onEdit, onDel
                       <Text style={[styles.familyText, { color: theme.text }]}>A cargo de:</Text>
                     </View>
                     {user.familiaresACargo.map((f, i) => (
-                      <Text key={i} style={[styles.subFamilyText, { color: theme.textMuted }]}>• {f.nombre} {f.apellido} ({f.rol})</Text>
+                      <Text key={i} style={[styles.subFamilyText, { color: theme.textMuted }]}>• {formatUserName(f)} ({f.rol})</Text>
                     ))}
                   </>
                 )}
@@ -259,7 +260,7 @@ const styles = StyleSheet.create({
   familyText: { marginLeft: 10, fontSize: 15, fontWeight: '500' },
   subFamilyText: { marginLeft: 28, fontSize: 14, marginBottom: 4 },
   dangerZone: { marginTop: 10, gap: 10 },
-  editFullBtn: { flexDirection: 'row', backgroundColor: '#f59e0b', padding: 15, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  editFullBtn: { flexDirection: 'row', backgroundColor: '#6b7280', padding: 15, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   editFullBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   deleteFullBtn: { flexDirection: 'row', backgroundColor: '#ef4444', padding: 15, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   activateFullBtn: { backgroundColor: '#10b981' },

@@ -36,7 +36,8 @@ function preFromRecord(w) {
 }
 
 export default function CoachWellnessScreen({ navigation, route }) {
-  const { atletaId, atletaNombre, sesion, categoriaId, defaultTipo, tutorAtletaId } = route.params || {};
+  const { atletaId, atletaNombre, sesion, categoriaId, defaultTipo, tutorAtletaId, returnToEquipo } =
+    route.params || {};
   const targetAtletaId = atletaId || tutorAtletaId;
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
@@ -188,7 +189,19 @@ export default function CoachWellnessScreen({ navigation, route }) {
         kicker="Wellness"
         title={tipo === 'post' ? 'Wellness post' : 'Wellness pre'}
         subtitle={formTitle}
-        onBack={() => navigation.goBack()}
+        onBack={() => {
+          if (returnToEquipo) {
+            navigation.navigate({
+              name: 'CoachCategories',
+              params: {
+                selectedCategoria: categoriaId || undefined,
+              },
+              merge: true,
+            });
+            return;
+          }
+          navigation.goBack();
+        }}
       />
 
       <ScrollView

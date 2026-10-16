@@ -18,6 +18,7 @@ import AdminScreenHeader from '../../components/AdminScreenHeader';
 import DesignCard from '../../components/DesignCard';
 import { sortByNombre } from '../../utils/listSort';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
 import CalendarDateField from '../../components/CalendarDateField';
 import { displayDateToIsoCalendar, isoCalendarDateToDisplay, formatDayMonthLong } from '../../utils/dateDisplay';
 import { isClubOwnerRole } from '../../constants/appRoles';
@@ -37,6 +38,16 @@ export default function CategoriasScreen({ navigation, route }) {
   const canEditStructure = isClubOwnerRole(viewerRol);
 
   const [categories, setCategories] = useState(() => readScreenCache(categoriesCacheKey)?.list ?? []);
+  const {
+    visibleItems: visibleCategories,
+    onEndReached,
+    onEndReachedThreshold,
+    ListFooterComponent,
+  } = useClientInfiniteScroll(categories, {
+    pageSize: 20,
+    colorMarca,
+    theme,
+  });
 
   // ESTADOS DEL MODAL
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -252,7 +263,7 @@ export default function CategoriasScreen({ navigation, route }) {
 
   const renderRightActions = (item) => (
     <View style={styles.swipeActionsContainer}>
-      <TouchableOpacity style={[styles.swipeBtn, { backgroundColor: '#f59e0b' }]} onPress={() => openEditModal(item)}>
+      <TouchableOpacity style={[styles.swipeBtn, { backgroundColor: '#6b7280' }]} onPress={() => openEditModal(item)}>
         <Ionicons name="pencil" size={22} color="#ffffff" />
       </TouchableOpacity>
       <TouchableOpacity style={[styles.swipeBtn, { backgroundColor: '#ef4444' }]} onPress={() => handleDelete(item)}>
@@ -336,11 +347,14 @@ export default function CategoriasScreen({ navigation, route }) {
           <ActivityIndicator size="large" color={colorMarca} style={{ marginTop: 50 }} />
         ) : (
           <FlatList
-            data={categories}
+            data={visibleCategories}
             keyExtractor={(item) => item._id}
             renderItem={renderItem}
             contentContainerStyle={{ paddingBottom: 80 }}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
+            onEndReached={onEndReached}
+            onEndReachedThreshold={onEndReachedThreshold}
+            ListFooterComponent={ListFooterComponent}
             ListEmptyComponent={
               <View style={styles.emptyState}>
                 <Ionicons name="people-outline" size={60} color={theme.icon} />

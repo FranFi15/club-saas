@@ -28,6 +28,7 @@ import {
 import { sessionDisplayName, sessionEsOpcional, sessionTipoVisual } from '../utils/sessionDisplay';
 import { readScreenCache, writeScreenCache } from '../hooks/useCachedFocusLoad';
 import { useBadgesOptional } from '../context/BadgeContext';
+import { formatUserName } from '../utils/listSort';
 
 function monthRangeYmd(monthDate) {
   const y = monthDate.getFullYear();
@@ -340,7 +341,7 @@ export default function CoachStyleDashboard({
             const isConsult = sessionMode === 'consult';
             const athlete =
               s.atletaIndividual && typeof s.atletaIndividual === 'object'
-                ? `${s.atletaIndividual.nombre || ''} ${s.atletaIndividual.apellido || ''}`.trim()
+                ? formatUserName(s.atletaIndividual)
                 : '';
             const place = isConsult
               ? (s.lugarLibre || '').trim() || 'Sin lugar indicado'

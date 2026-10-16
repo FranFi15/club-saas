@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../utils/api';
 import UserAvatar from './UserAvatar';
 import { clearScreenCache } from '../hooks/useCachedFocusLoad';
+import { formatUserName } from '../utils/listSort';
 
 const PAGE_SIZE = 40;
 const SEARCH_DEBOUNCE_MS = 450;
@@ -214,7 +215,7 @@ export default function CategoryRosterModal({
         const parts = [];
         if (needUnderConfirm) {
           const names = underMin
-            .map((u) => `${u.nombre} ${u.apellido || ''}`.trim())
+            .map((u) => formatUserName(u))
             .slice(0, 5)
             .join(', ');
           const extra = underMin.length > 5 ? ` y ${underMin.length - 5} más` : '';
@@ -226,7 +227,7 @@ export default function CategoryRosterModal({
         }
         if (needOverConfirm) {
           const names = overMax
-            .map((u) => `${u.nombre} ${u.apellido || ''}`.trim())
+            .map((u) => formatUserName(u))
             .slice(0, 5)
             .join(', ');
           const extra = overMax.length > 5 ? ` y ${overMax.length - 5} más` : '';
@@ -333,7 +334,7 @@ export default function CategoryRosterModal({
         <UserAvatar user={a} size={36} style={{ marginLeft: 10 }} />
         <View style={{ flex: 1, marginLeft: 10 }}>
           <Text style={{ color: theme.text, fontWeight: '600' }}>
-            {a.nombre} {a.apellido}
+            {formatUserName(a)}
           </Text>
           <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
             {a.edad != null ? `${a.edad} años` : 'Sin edad'}

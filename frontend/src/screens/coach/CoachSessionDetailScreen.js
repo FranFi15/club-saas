@@ -33,6 +33,7 @@ import { displayDateToIsoCalendar, isoCalendarDateToDisplay } from '../../utils/
 import { maskTimeHHMM, isValidTimeHHMM } from '../../utils/timeDisplay';
 import { sessionDisplayName, sessionEsOpcional, sessionTipoLabel, consultaConfirmacionEstado, consultaConfirmacionLabel, isSessionReadOnly, isSessionPast } from '../../utils/sessionDisplay';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { formatUserName } from '../../utils/listSort';
 
 const ASIST_OPTS = [
   { key: 'presente', label: 'Presente', color: '#22c55e' },
@@ -961,7 +962,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
     const atleta = session.atletaIndividual;
     const nombreAtleta =
       atleta && typeof atleta === 'object'
-        ? `${atleta.nombre || ''} ${atleta.apellido || ''}`.trim()
+        ? formatUserName(atleta)
         : 'Atleta';
     const lugarLine = (session.lugarLibre || '').trim() || 'Sin lugar indicado';
     const confirmEstado = consultaConfirmacionEstado(session);
@@ -1586,7 +1587,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                   <UserAvatar user={a} size={42} colorMarca={cardAccent} />
                   <View style={styles.athMeta}>
                     <Text style={[styles.athName, { color: theme.text }]} numberOfLines={1}>
-                      {a.nombre} {a.apellido}
+                      {formatUserName(a)}
                     </Text>
                     {statusOpt ? (
                       <Text style={[styles.athStatus, { color: statusOpt.color }]}>{statusOpt.label}</Text>
@@ -1600,7 +1601,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                       onPress={() =>
                         navigation.navigate('CoachWellness', {
                           atletaId: a._id,
-                          atletaNombre: `${a.nombre} ${a.apellido}`,
+                          atletaNombre: formatUserName(a),
                           categoriaId: catId,
                           sesion: sessionId,
                         })

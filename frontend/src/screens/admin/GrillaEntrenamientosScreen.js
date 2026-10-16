@@ -366,7 +366,7 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
       <View style={{ flexDirection: 'row', marginBottom: 12, overflow: 'hidden', borderRadius: 12 }}>
         <TouchableOpacity
           onPress={() => openEditModal(item)}
-          style={[styles.actionBtn, { backgroundColor: '#f59e0b' }]}
+          style={[styles.actionBtn, { backgroundColor: '#6b7280' }]}
         >
           <Ionicons name="pencil" size={20} color="#fff" />
         </TouchableOpacity>

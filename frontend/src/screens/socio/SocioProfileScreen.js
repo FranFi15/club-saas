@@ -62,7 +62,7 @@ export default function SocioProfileScreen({ navigation }) {
   };
 
   const fullName =
-    nombre || apellido ? `${nombre || ''}${nombre && apellido ? ' ' : ''}${apellido || ''}`.trim() : 'Tu cuenta';
+    apellido || nombre ? `${apellido || ''}${apellido && nombre ? ' ' : ''}${nombre || ''}`.trim() : 'Tu cuenta';
 
   const fechaDisplay = profile?.fechaNacimiento
     ? isoCalendarDateToDisplay(String(profile.fechaNacimiento))

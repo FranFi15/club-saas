@@ -12,11 +12,12 @@ import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
-import { sortByNombre, sortUsersByName } from '../../utils/listSort';
+import { sortByNombre, sortUsersByName, formatUserName } from '../../utils/listSort';
 import CoachNewsAthletePicker from '../../components/CoachNewsAthletePicker';
 import NewsMultiSelectList from '../../components/NewsMultiSelectList';
 import { uploadFileToClub, imageFromPickerAsset, iosCompatiblePhotoOptions } from '../../utils/uploadMedia';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
 import { useBadgesOptional } from '../../context/BadgeContext';
 import { useFocusEffect } from '@react-navigation/native';
 import NewsFeedPost from '../../components/NewsFeedPost';
@@ -60,6 +61,16 @@ export default function NoticiasScreen({ navigation, route }) {
       : '';
 
   const [news, setNews] = useState(() => readScreenCache(newsCacheKey)?.list ?? []);
+  const {
+    visibleItems: visibleNews,
+    onEndReached,
+    onEndReachedThreshold,
+    ListFooterComponent,
+  } = useClientInfiniteScroll(news, {
+    pageSize: 20,
+    colorMarca: cc,
+    theme,
+  });
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -439,7 +450,7 @@ export default function NoticiasScreen({ navigation, route }) {
   const getAuthorDisplay = (autor) => {
     if (!autor) return 'Desconocido';
     if (ADMIN_ROLES.includes(autor.rol)) return 'Administración';
-    return `${autor.nombre} ${autor.apellido}`;
+    return formatUserName(autor);
   };
 
   const canCreateNews =
@@ -549,9 +560,12 @@ export default function NoticiasScreen({ navigation, route }) {
 
       <View style={styles.body}>
         {showInitialLoader ? <ActivityIndicator size="large" color={cc} style={{marginTop:50}} /> : (
-          <FlatList data={news} keyExtractor={i=>i._id} renderItem={renderItem}
+          <FlatList data={visibleNews} keyExtractor={i=>i._id} renderItem={renderItem}
             contentContainerStyle={{paddingBottom:80,flexGrow:1}}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cc} />}
+            onEndReached={onEndReached}
+            onEndReachedThreshold={onEndReachedThreshold}
+            ListFooterComponent={ListFooterComponent}
             ListEmptyComponent={
               <View style={styles.emptyState}>
                 <Ionicons name="newspaper-outline" size={60} color={theme.icon} />
@@ -753,9 +767,9 @@ export default function NoticiasScreen({ navigation, route }) {
                     colorMarca={cc}
                     searchLabel="Buscar tutor"
                     searchPlaceholder="Nombre, apellido o email…"
-                    getPrimaryLabel={(t) => `${t.nombre || ''} ${t.apellido || ''}`.trim()}
+                    getPrimaryLabel={(t) => formatUserName(t)}
                     getSecondaryLabel={(t) => t.email || null}
-                    getSearchText={(t) => `${t.nombre} ${t.apellido} ${t.email || ''}`}
+                    getSearchText={(t) => `${formatUserName(t)} ${t.email || ''}`}
                     emptyListHint="No hay tutores registrados en el club."
                     emptySearchHint="Ningún tutor coincide con la búsqueda."
                   />
@@ -779,9 +793,9 @@ export default function NoticiasScreen({ navigation, route }) {
                     colorMarca={cc}
                     searchLabel="Buscar tutor"
                     searchPlaceholder="Nombre, apellido o email…"
-                    getPrimaryLabel={(t) => `${t.nombre || ''} ${t.apellido || ''}`.trim()}
+                    getPrimaryLabel={(t) => formatUserName(t)}
                     getSecondaryLabel={(t) => t.email || null}
-                    getSearchText={(t) => `${t.nombre} ${t.apellido} ${t.email || ''}`}
+                    getSearchText={(t) => `${formatUserName(t)} ${t.email || ''}`}
                     emptyListHint="No hay tutores en tus equipos."
                     emptySearchHint="Ningún tutor coincide con la búsqueda."
                   />
@@ -827,9 +841,9 @@ export default function NoticiasScreen({ navigation, route }) {
                     searchPlaceholder="Nombre, apellido o email…"
                     filterOptions={staffTeamOptions}
                     getItemFilterIds={(a) => a.categoriaIds || []}
-                    getPrimaryLabel={(a) => `${a.nombre || ''} ${a.apellido || ''}`.trim()}
+                    getPrimaryLabel={(a) => formatUserName(a)}
                     getSecondaryLabel={(a) => a.categoriasLabel || null}
-                    getSearchText={(a) => `${a.nombre} ${a.apellido} ${a.email || ''} ${a.categoriasLabel || ''}`}
+                    getSearchText={(a) => `${formatUserName(a)} ${a.email || ''} ${a.categoriasLabel || ''}`}
                     emptyListHint="No hay atletas en tus equipos."
                     emptySearchHint="Ningún atleta coincide con la búsqueda."
                   />

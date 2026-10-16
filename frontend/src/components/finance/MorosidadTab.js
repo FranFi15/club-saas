@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import BusyOverlay from '../BusyOverlay';
+import { formatUserName } from '../../utils/listSort';
 
 const MN = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
@@ -130,7 +131,7 @@ export default function MorosidadTab({ theme, cc, getHeaders, clubApi, showAlert
                 <Text style={{color:i<3?'#ef4444':'#f59e0b',fontWeight:'bold',fontSize:12}}>{i+1}</Text>
               </View>
               <View style={{flex:1}}>
-                <Text style={{color:theme.text,fontWeight:'500'}}>{d.atleta.nombre} {d.atleta.apellido}</Text>
+                <Text style={{color:theme.text,fontWeight:'500'}}>{formatUserName(d.atleta)}</Text>
                 <Text style={{color:theme.textMuted,fontSize:11}}>{d.cuotasPendientes} cuota(s) sin pagar</Text>
               </View>
               <Text style={{color:'#ef4444',fontWeight:'bold'}}>{fmt(d.montoTotal)}</Text>

@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import TutorProfileScreen from '../screens/tutor/TutorProfileScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import AthleteMetricsScreen from '../screens/athlete/AthleteMetricsScreen';
+import AthleteCourtMetricDetailScreen from '../screens/athlete/AthleteCourtMetricDetailScreen';
 import MemberClubEntryScreen from '../screens/member/MemberClubEntryScreen';
 import MemberPaymentsScreen from '../screens/member/MemberPaymentsScreen';
 import MemberAlquilerScreen from '../screens/member/MemberAlquilerScreen';
@@ -17,6 +18,7 @@ export default function TutorProfileStackNav() {
       <Stack.Screen name="MemberAlquiler" component={MemberAlquilerScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="TutorMetrics" component={AthleteMetricsScreen} />
+      <Stack.Screen name="AthleteCourtMetricDetail" component={AthleteCourtMetricDetailScreen} />
       <Stack.Screen name="ClubEntryQr" component={MemberClubEntryScreen} />
     </Stack.Navigator>
   );

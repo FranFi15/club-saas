@@ -26,6 +26,8 @@ import MemberChildPicker from '../../components/MemberChildPicker';
 import NewsFeedPost, { formatNewsRelative } from '../../components/NewsFeedPost';
 import { useBadges } from '../../context/BadgeContext';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
+import { formatUserName } from '../../utils/listSort';
 
 function formatNewsDate(iso) {
   try {
@@ -45,6 +47,16 @@ export default function AthleteNewsScreen({ navigation }) {
   const newsCacheKey = clubData?.urlIdentifier ? `member-news:${clubData.urlIdentifier}` : '';
 
   const [list, setList] = useState(() => readScreenCache(newsCacheKey) ?? []);
+  const {
+    visibleItems,
+    onEndReached,
+    onEndReachedThreshold,
+    ListFooterComponent,
+  } = useClientInfiniteScroll(list, {
+    pageSize: 20,
+    colorMarca,
+    theme,
+  });
   const [selected, setSelected] = useState(null);
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [alertConfig, setAlertConfig] = useState({
@@ -139,11 +151,14 @@ export default function AthleteNewsScreen({ navigation }) {
         </View>
       ) : (
         <FlatList
-          data={list}
+          data={visibleItems}
           keyExtractor={(item) => String(item._id)}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
+          onEndReached={onEndReached}
+          onEndReachedThreshold={onEndReachedThreshold}
+          ListFooterComponent={ListFooterComponent}
           ListEmptyComponent={
             <Text style={[styles.empty, { color: theme.textMuted }]}>Todavía no hay novedades para vos.</Text>
           }
@@ -166,7 +181,7 @@ export default function AthleteNewsScreen({ navigation }) {
             </View>
             <View style={styles.modalBodyWrap}>
               <Text style={[styles.modalMeta, { color: theme.textMuted }]}>
-                {selected?.autor?.nombre} {selected?.autor?.apellido}
+                {formatUserName(selected?.autor)}
                 {selected?.createdAt
                   ? ` · ${formatNewsRelative(selected.createdAt) || formatNewsDate(selected.createdAt)}`
                   : ''}

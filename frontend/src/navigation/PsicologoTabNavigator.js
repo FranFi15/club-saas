@@ -19,6 +19,7 @@ import PsychologyAthleteNotesScreen from '../screens/staff/PsychologyAthleteNote
 import CoachCategoryDetailScreen from '../screens/coach/CoachCategoryDetailScreen';
 import CoachWellnessScreen from '../screens/coach/CoachWellnessScreen';
 import CoachTeamDocumentsScreen from '../screens/coach/CoachTeamDocumentsScreen';
+import CoachTeamWellnessScreen from '../screens/coach/CoachTeamWellnessScreen';
 import MemberMediaViewerScreen from '../screens/member/MemberMediaViewerScreen';
 import CoachCommsHubScreen from '../screens/coach/CoachCommsHubScreen';
 import NoticiasScreen from '../screens/admin/NoticiasScreen';
@@ -72,6 +73,7 @@ function PsiTeamStackNav() {
       <PsiTeamStack.Screen name="CoachCategoryDetail" component={CoachCategoryDetailScreen} />
       <PsiTeamStack.Screen name="CoachWellness" component={CoachWellnessScreen} />
       <PsiTeamStack.Screen name="CoachTeamDocuments" component={CoachTeamDocumentsScreen} />
+      <PsiTeamStack.Screen name="CoachTeamWellness" component={CoachTeamWellnessScreen} />
       <PsiTeamStack.Screen name="CoachMediaViewer" component={MemberMediaViewerScreen} />
       <PsiTeamStack.Screen name="CoachSessionDetail" component={CoachSessionDetailScreen} />
     </PsiTeamStack.Navigator>
