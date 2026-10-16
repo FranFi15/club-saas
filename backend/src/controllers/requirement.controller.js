@@ -1,4 +1,5 @@
 import asyncHandler from 'express-async-handler';
+import mongoose from 'mongoose';
 import { createAppNotification } from '../services/appNotification.service.js';
 import {
     deliverRequirementToChat,
@@ -7,6 +8,9 @@ import {
 import { assertDeliveryTargets } from '../services/staffCategoryAccess.service.js';
 import { sortPaymentsByAtleta, sortUsersByName } from '../utils/listSort.js';
 import { parsePageLimit, paginationMeta } from '../utils/pagination.js';
+
+const STAFF_DOC_ROLES = ['profe', 'preparador_fisico', 'nutricionista', 'psicologo'];
+const ADMIN_DOC_ROLES = ['admin_club', 'administrativo', 'dirigente'];
 
 // @desc    Crear un nuevo requerimiento de documentos
 // @route   POST /api/requirements
@@ -347,13 +351,39 @@ async function atletaIdsForCategoryScope(models, { categoriaId, disciplinaId }) 
     return null;
 }
 
+/** Pedidos de documentación visibles para filtros del staff/admin. */
+const listStaffRequirements = asyncHandler(async (req, res) => {
+    const { Requirement } = req.models;
+    const isAdmin = ADMIN_DOC_ROLES.includes(req.user.rol);
+    const filter = { activo: true };
+
+    if (!isAdmin) {
+        if (!STAFF_DOC_ROLES.includes(req.user.rol)) {
+            res.status(403);
+            throw new Error('No autorizado.');
+        }
+        filter.creadoPor = req.user._id;
+    }
+
+    const requirements = await Requirement.find(filter)
+        .select('titulo alcance creadoPor createdAt fechaVencimiento')
+        .sort({ createdAt: -1 })
+        .limit(300)
+        .lean();
+
+    res.json({ requirements });
+});
+
 const getStaffSubmissions = asyncHandler(async (req, res) => {
     const { Requirement, Enrollment, Submission, Category } = req.models;
-    const { categoriaId, estado, disciplinaId } = req.query;
+    const { categoriaId, estado, disciplinaId, requerimientoId } = req.query;
     const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 30, maxLimit: 100 });
 
-    const staffRoles = ['profe', 'preparador_fisico', 'nutricionista', 'psicologo'];
     const isAdmin = ['admin_club', 'administrativo'].includes(req.user.rol);
+    const reqIdFilter =
+        requerimientoId && mongoose.Types.ObjectId.isValid(String(requerimientoId))
+            ? String(requerimientoId)
+            : null;
 
     const respondSubmissions = async (subFilter) => {
         const total = await Submission.countDocuments(subFilter);
@@ -375,12 +405,16 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
     let atletaIds = [];
 
     if (isAdmin) {
-        const reqIds = (await Requirement.find({ activo: true }).select('_id').lean()).map((r) => r._id);
+        const reqQuery = { activo: true };
+        if (reqIdFilter) reqQuery._id = reqIdFilter;
+        const reqIds = (await Requirement.find(reqQuery).select('_id').lean()).map((r) => r._id);
         if (!reqIds.length) {
             return res.json({ submissions: [], ...paginationMeta(page, limit, 0) });
         }
 
-        const subFilter = { requerimiento: { $in: reqIds } };
+        const subFilter = {
+            requerimiento: reqIdFilter ? reqIdFilter : { $in: reqIds },
+        };
 
         if (categoriaId || disciplinaId) {
             const catAtletaIds = await atletaIdsForCategoryScope(req.models, { categoriaId, disciplinaId });
@@ -397,7 +431,7 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
         return respondSubmissions(subFilter);
     }
 
-    if (staffRoles.includes(req.user.rol)) {
+    if (STAFF_DOC_ROLES.includes(req.user.rol)) {
         catIds = await getStaffCategoryIds(req.user._id, req.user.rol, Category);
         if (!catIds.length) {
             return res.json({ submissions: [], ...paginationMeta(page, limit, 0) });
@@ -442,6 +476,7 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
 
     const reqFilter = {
         activo: true,
+        creadoPor: req.user._id,
         $or: [
             { alcance: 'global' },
             { alcance: 'categoria', targetCategoria: { $in: catIds } },
@@ -449,8 +484,8 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
         ],
     };
 
-    if (!isAdmin && staffRoles.includes(req.user.rol)) {
-        reqFilter.creadoPor = req.user._id;
+    if (reqIdFilter) {
+        reqFilter._id = reqIdFilter;
     }
 
     const reqs = await Requirement.find(reqFilter).select('_id').lean();
@@ -461,7 +496,7 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
 
     const subFilter = {
         atleta: { $in: atletaIds },
-        requerimiento: { $in: reqIds },
+        requerimiento: reqIdFilter ? reqIdFilter : { $in: reqIds },
     };
     if (estado && ['pendiente', 'revision', 'aprobado', 'rechazado'].includes(estado)) {
         subFilter.estado = estado;
@@ -470,4 +505,11 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
     return respondSubmissions(subFilter);
 });
 
-export { createRequirement, submitDocument, reviewSubmission, getMyRequirements, getStaffSubmissions };
+export {
+    createRequirement,
+    submitDocument,
+    reviewSubmission,
+    getMyRequirements,
+    getStaffSubmissions,
+    listStaffRequirements,
+};

@@ -446,9 +446,10 @@ const addCourtMetricResult = asyncHandler(async (req, res) => {
         const t = Number(req.body?.tiempoSegundos);
         if (!Number.isFinite(t) || t <= 0) {
             res.status(400);
-            throw new Error('Indicá un tiempo válido en segundos.');
+            throw new Error('Indicá un tiempo válido en segundos (hasta milisegundos).');
         }
-        tiempoSegundos = Math.round(t * 10) / 10;
+        // Store with millisecond precision.
+        tiempoSegundos = Math.round(t * 1000) / 1000;
     } else if (tipoMedicion === 'total') {
         const v = Number(req.body?.valorTotal);
         if (!Number.isFinite(v) || v < 0) {
@@ -542,7 +543,7 @@ const listCourtMetricRuns = asyncHandler(async (req, res) => {
                     const times = rs.map((x) => x.tiempoSegundos).filter((n) => n != null && Number.isFinite(n));
                     tiempoPromedioSegundos =
                         times.length > 0
-                            ? Math.round((times.reduce((s, x) => s + x, 0) / times.length) * 10) / 10
+                            ? Math.round((times.reduce((s, x) => s + x, 0) / times.length) * 1000) / 1000
                             : null;
                 } else if (tipoMedicion === 'total') {
                     const totals = rs.map((x) => x.valorTotal).filter((n) => n != null && Number.isFinite(n));

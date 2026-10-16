@@ -4,6 +4,7 @@ import {
     buildNewsFeedOrConditions,
     buildStaffMuroListFilter,
 } from '../services/notificationFeed.service.js';
+import { notifyNewsPublished } from '../services/newsNotification.service.js';
 
 const ADMIN_NEWS_VIEW = ['admin_club', 'dirigente', 'administrativo'];
 const STAFF_NEWS_AUTHOR_ROLES = ['profe', 'preparador_fisico', 'nutricionista', 'psicologo'];
@@ -181,6 +182,13 @@ const createNews = asyncHandler(async (req, res) => {
 
     const news = await News.create(newsData);
     await news.populate('autor', 'nombre apellido rol fotoPerfil');
+
+    try {
+        await notifyNewsPublished(req.models, news, req.user._id);
+    } catch (e) {
+        console.warn('[news] notify published:', e?.message || e);
+    }
+
     res.status(201).json(news);
 });
 

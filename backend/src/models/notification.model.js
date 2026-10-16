@@ -14,6 +14,7 @@ const notificationSchema = new mongoose.Schema({
             'pago_registrado',
             'documentacion_entregada',
             'general',
+            'noticia',
             'intercambio_espacio',
             'consulta_pendiente',
             'consulta_confirmada',
@@ -32,5 +33,13 @@ const notificationSchema = new mongoose.Schema({
 notificationSchema.index({ usuario: 1, leida: 1, createdAt: -1 });
 
 export const getNotificationModel = (tenantDB) => {
-    return tenantDB.models.Notification || tenantDB.model('Notification', notificationSchema);
+    const existing = tenantDB.models.Notification;
+    if (existing) {
+        const tipoPath = existing.schema.path('tipo');
+        const enums = tipoPath?.enumValues || tipoPath?.options?.enum || [];
+        if (Array.isArray(enums) && enums.includes('noticia')) return existing;
+        delete tenantDB.models.Notification;
+        if (tenantDB.modelSchemas) delete tenantDB.modelSchemas.Notification;
+    }
+    return tenantDB.model('Notification', notificationSchema);
 };
