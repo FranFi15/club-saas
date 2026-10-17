@@ -31,7 +31,7 @@ import FilterPillSheet from '../../components/FilterPillSheet';
 import WellnessMetricsChart from '../../components/WellnessMetricsChart';
 import { seriesFromHistorial, wellnessMetricAverages } from '../../utils/wellnessHistorial';
 import { WELLNESS_METRICS, WELLNESS_CARD_LABELS } from '../../constants/wellnessMetrics';
-import { compareUserByName, sortByNombre, formatUserName } from '../../utils/listSort';
+import { sortByNombre, formatUserName } from '../../utils/listSort';
 import { readScreenCache, writeScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { enableLayoutAnimationsIfNeeded } from '../../utils/layoutAnimation';
 
@@ -41,7 +41,6 @@ const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const CHART_WIDTH = Math.min(SCREEN_W - 64, 360);
 const WELLNESS_MODAL_HEIGHT = Math.round(SCREEN_H * 0.92);
 const PAGE_SIZE = 20;
-const ROSTER_BATCH = 2;
 
 const ATHLETE_PANEL_ANIM = LayoutAnimation.create(
   260,
@@ -62,27 +61,13 @@ function AthletePanelReveal({ children, style }) {
   return <Animated.View style={[style, { opacity }]}>{children}</Animated.View>;
 }
 
-function mergeAthletesByCategory(categories, enrollmentsByCat) {
-  const map = new Map();
-  for (const cat of categories || []) {
-    const rows = enrollmentsByCat[String(cat._id)] || [];
-    for (const e of rows) {
-      const a = e?.atleta;
-      if (!a?._id) continue;
-      const id = String(a._id);
-      const prev = map.get(id);
-      if (!prev) {
-        map.set(id, {
-          atleta: a,
-          categorias: [{ _id: cat._id, nombre: cat.nombre }],
-          primaryCategoriaId: cat._id,
-        });
-      } else if (!prev.categorias.some((c) => String(c._id) === String(cat._id))) {
-        prev.categorias.push({ _id: cat._id, nombre: cat.nombre });
-      }
-    }
-  }
-  return [...map.values()].sort((x, y) => compareUserByName(x.atleta, y.atleta));
+/** Normalize /categories/mis-atletas rows for the Equipo list. */
+function normalizeRosterRows(rows) {
+  return (rows || []).map((row) => ({
+    atleta: row.atleta,
+    categorias: row.categorias || [],
+    primaryCategoriaId: row.categorias?.[0]?._id,
+  }));
 }
 
 function catIdForAthlete(row, selectedCatId) {
@@ -105,11 +90,14 @@ export default function CoachCategoriesScreen({ navigation, route }) {
   const { theme, isDarkMode } = useContext(ThemeContext);
   const badges = useBadgesOptional();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
-  const categoriesCacheKey = clubData?.urlIdentifier ? `coach-categories:${clubData.urlIdentifier}` : '';
+  // v2: roster from a single /mis-atletas call (no per-category N+1).
+  const categoriesCacheKey = clubData?.urlIdentifier
+    ? `coach-categories-v2:${clubData.urlIdentifier}`
+    : '';
 
   const cached = categoriesCacheKey ? readScreenCache(categoriesCacheKey) : undefined;
   const [list, setList] = useState(() => cached?.list ?? []);
-  const [enrollmentsByCat, setEnrollmentsByCat] = useState(() => cached?.enrollmentsByCat ?? {});
+  const [athletes, setAthletes] = useState(() => cached?.athletes ?? []);
   const [wellnessByCat, setWellnessByCat] = useState(() => cached?.wellnessByCat ?? {});
   const [attendanceByCat, setAttendanceByCat] = useState(() => cached?.attendanceByCat ?? {});
   const [plantelPendientes, setPlantelPendientes] = useState(() => cached?.plantelPendientes ?? []);
@@ -129,8 +117,6 @@ export default function CoachCategoriesScreen({ navigation, route }) {
   const [historyModal, setHistoryModal] = useState(null);
   const [docPendingCount, setDocPendingCount] = useState(0);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const [loadingRoster, setLoadingRoster] = useState(false);
-  const [rosterEpoch, setRosterEpoch] = useState(0);
   const [metricsLoadingByCat, setMetricsLoadingByCat] = useState({});
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
@@ -139,8 +125,6 @@ export default function CoachCategoriesScreen({ navigation, route }) {
     onConfirm: () => {},
   });
 
-  const enrollmentsRef = useRef(enrollmentsByCat);
-  enrollmentsRef.current = enrollmentsByCat;
   const wellnessRef = useRef(wellnessByCat);
   wellnessRef.current = wellnessByCat;
   const attendanceRef = useRef(attendanceByCat);
@@ -158,9 +142,9 @@ export default function CoachCategoriesScreen({ navigation, route }) {
 
   const applyShell = useCallback((data) => {
     setList(data.list);
+    setAthletes(data.athletes || []);
     setPlantelPendientes(data.plantelPendientes);
     setUserRol(data.userRol);
-    if (data.enrollmentsByCat) setEnrollmentsByCat(data.enrollmentsByCat);
     if (data.wellnessByCat) setWellnessByCat(data.wellnessByCat);
     if (data.attendanceByCat) setAttendanceByCat(data.attendanceByCat);
   }, []);
@@ -168,8 +152,9 @@ export default function CoachCategoriesScreen({ navigation, route }) {
   const fetchShell = useCallback(async () => {
     const h = await clubHeaders(clubData.urlIdentifier);
     const rol = (await getToken('userRol')) || '';
-    const [res, pendRes] = await Promise.all([
+    const [res, athRes, pendRes] = await Promise.all([
       clubApi.get('/categories/mis-categorias', { headers: h }),
+      clubApi.get('/categories/mis-atletas', { headers: h }).catch(() => ({ data: [] })),
       rol === 'profe'
         ? clubApi.get('/categories/plantel-pendientes', { headers: h }).catch(() => ({ data: [] }))
         : Promise.resolve({ data: [] }),
@@ -178,8 +163,8 @@ export default function CoachCategoriesScreen({ navigation, route }) {
     return {
       userRol: rol,
       list: sortByNombre(res.data || []),
+      athletes: normalizeRosterRows(athRes.data || []),
       plantelPendientes: rol === 'profe' ? pendRes.data || [] : [],
-      enrollmentsByCat: prev.enrollmentsByCat || {},
       wellnessByCat: prev.wellnessByCat || {},
       attendanceByCat: prev.attendanceByCat || {},
     };
@@ -204,66 +189,6 @@ export default function CoachCategoriesScreen({ navigation, route }) {
     [categoriesCacheKey],
   );
 
-  const fetchEnrollmentCat = useCallback(
-    async (catId) => {
-      const id = String(catId);
-      if (enrollmentsRef.current[id]) return enrollmentsRef.current[id];
-      const h = await clubHeaders(clubData.urlIdentifier);
-      try {
-        const enr = await clubApi.get(`/enrollments/categoria/${id}`, { headers: h });
-        const rows = Array.isArray(enr.data) ? enr.data : [];
-        setEnrollmentsByCat((prev) => {
-          if (prev[id]) return prev;
-          const next = { ...prev, [id]: rows };
-          persistRosterCache({ enrollmentsByCat: next });
-          return next;
-        });
-        return rows;
-      } catch {
-        setEnrollmentsByCat((prev) => {
-          if (prev[id]) return prev;
-          const next = { ...prev, [id]: [] };
-          persistRosterCache({ enrollmentsByCat: next });
-          return next;
-        });
-        return [];
-      }
-    },
-    [clubData?.urlIdentifier, persistRosterCache],
-  );
-
-  // Progressive roster load: one category when filtered, batches when "Todas".
-  useEffect(() => {
-    let cancelled = false;
-    if (!clubData?.urlIdentifier || list.length === 0) {
-      setLoadingRoster(false);
-      return undefined;
-    }
-
-    const targets = selectedCatId
-      ? [String(selectedCatId)]
-      : list.map((c) => String(c._id));
-
-    (async () => {
-      const missing = targets.filter((id) => !enrollmentsRef.current[id]);
-      if (missing.length === 0) {
-        setLoadingRoster(false);
-        return;
-      }
-      setLoadingRoster(true);
-      for (let i = 0; i < missing.length; i += ROSTER_BATCH) {
-        if (cancelled) return;
-        const batch = missing.slice(i, i + ROSTER_BATCH);
-        await Promise.all(batch.map((id) => fetchEnrollmentCat(id)));
-      }
-      if (!cancelled) setLoadingRoster(false);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [list, selectedCatId, clubData?.urlIdentifier, fetchEnrollmentCat, rosterEpoch]);
-
   useFocusEffect(
     useCallback(() => {
       badges?.refresh?.();
@@ -275,11 +200,6 @@ export default function CoachCategoriesScreen({ navigation, route }) {
     setActivePanel({});
     setVisibleCount(PAGE_SIZE);
   }, [selectedCatId, playerSearch]);
-
-  const athletes = useMemo(
-    () => mergeAthletesByCategory(list, enrollmentsByCat),
-    [list, enrollmentsByCat],
-  );
 
   const selectedCategory = useMemo(
     () => list.find((c) => String(c._id) === String(selectedCatId)) || null,
@@ -402,18 +322,15 @@ export default function CoachCategoriesScreen({ navigation, route }) {
   );
 
   const handleRefresh = useCallback(async () => {
-    setEnrollmentsByCat({});
     setWellnessByCat({});
     setAttendanceByCat({});
     setVisibleCount(PAGE_SIZE);
     setActivePanel({});
     persistRosterCache({
-      enrollmentsByCat: {},
       wellnessByCat: {},
       attendanceByCat: {},
     });
     await onRefresh();
-    setRosterEpoch((n) => n + 1);
   }, [onRefresh, persistRosterCache]);
 
   useFocusEffect(
@@ -442,7 +359,8 @@ export default function CoachCategoriesScreen({ navigation, route }) {
     }, [selectedCategory, list, clubData?.urlIdentifier]),
   );
 
-  const showInitialLoader = loading && list.length === 0 && plantelPendientes.length === 0;
+  const showInitialLoader =
+    loading && list.length === 0 && athletes.length === 0 && plantelPendientes.length === 0;
 
   const athletePanels = useMemo(() => {
     const panels = [
@@ -690,7 +608,7 @@ export default function CoachCategoriesScreen({ navigation, route }) {
 
   const listFooter = (
     <View style={styles.footerBox}>
-      {loadingRoster || hasMoreVisible ? (
+      {hasMoreVisible ? (
         <ActivityIndicator color={colorMarca} style={{ marginVertical: 12 }} />
       ) : filteredAthletes.length > 0 ? (
         <Text style={[styles.footerDone, { color: theme.textMuted }]}>Fin del listado</Text>
@@ -734,13 +652,11 @@ export default function CoachCategoriesScreen({ navigation, route }) {
             <Text style={[styles.empty, { color: theme.textMuted }]}>
               {list.length === 0
                 ? `Todavía no tenés categorías asignadas. Pedile al administrador que te asigne.`
-                : loadingRoster
-                  ? 'Cargando jugadores…'
-                  : playerSearch.trim()
-                    ? 'No hay atletas que coincidan con la búsqueda.'
-                    : selectedCatId
-                      ? 'No hay atletas en esta categoría.'
-                      : 'No hay atletas en tus categorías.'}
+                : playerSearch.trim()
+                  ? 'No hay atletas que coincidan con la búsqueda.'
+                  : selectedCatId
+                    ? 'No hay atletas en esta categoría.'
+                    : 'No hay atletas en tus categorías.'}
             </Text>
           }
           renderItem={({ item }) => {
