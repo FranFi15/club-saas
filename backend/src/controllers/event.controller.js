@@ -300,6 +300,7 @@ export const cancelEvent = asyncHandler(async (req, res) => {
 export const listEventOrders = asyncHandler(async (req, res) => {
     const { EventTicketOrder } = req.models;
     const orders = await EventTicketOrder.find({ evento: req.params.id })
+        .populate('comprador.user', 'rol nombre apellido')
         .sort({ createdAt: -1 })
         .lean();
     res.json(orders);
