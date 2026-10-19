@@ -57,7 +57,7 @@ export async function applyApprovedMercadoPagoPayment(models, paymentData) {
     const externalRef = paymentData.external_reference || '';
     const { tipo, dbId, extra } = parseExternalRef(externalRef);
     const paidAmount = Number(paymentData.transaction_amount);
-    const { Payment, Rental, MpProcessedPayment } = models;
+    const { Payment, Rental, EventTicketOrder, MpProcessedPayment } = models;
 
     if (MpProcessedPayment) {
         const prior = await MpProcessedPayment.findOne({ mpPaymentId: paymentId }).lean();
@@ -238,6 +238,72 @@ export async function applyApprovedMercadoPagoPayment(models, paymentData) {
         return { applied: false, reason: result.reason || 'rental_not_applied' };
     }
 
+    if (tipo === 'evento' && dbId) {
+        if (!EventTicketOrder) {
+            await markProcessed(models, {
+                mpPaymentId: paymentId,
+                externalReference: externalRef,
+                tipo: 'evento',
+                status: 'skipped',
+                reason: 'model_missing',
+            });
+            return { applied: false, reason: 'model_missing' };
+        }
+        const order = await EventTicketOrder.findById(dbId);
+        if (!order) {
+            await markProcessed(models, {
+                mpPaymentId: paymentId,
+                externalReference: externalRef,
+                tipo: 'evento',
+                status: 'skipped',
+                reason: 'order_not_found',
+            });
+            return { applied: false, reason: 'order_not_found' };
+        }
+        if (['pagada', 'gratis'].includes(order.estado)) {
+            const { issueTicketsForOrder } = await import('./eventTicketIssue.service.js');
+            await issueTicketsForOrder(models, order);
+            await markProcessed(models, {
+                mpPaymentId: paymentId,
+                externalReference: externalRef,
+                tipo: 'evento',
+                appliedIds: [String(order._id)],
+                status: 'applied',
+                reason: 'already_paid',
+            });
+            return {
+                applied: false,
+                reason: 'already_applied',
+                idempotent: true,
+                ids: [String(order._id)],
+            };
+        }
+        if (order.estado !== 'pendiente_pago') {
+            await markProcessed(models, {
+                mpPaymentId: paymentId,
+                externalReference: externalRef,
+                tipo: 'evento',
+                status: 'skipped',
+                reason: `order_${order.estado}`,
+            });
+            return { applied: false, reason: `order_${order.estado}` };
+        }
+        order.estado = 'pagada';
+        order.mpPaymentId = paymentId;
+        await order.save();
+        const { issueTicketsForOrder } = await import('./eventTicketIssue.service.js');
+        await issueTicketsForOrder(models, order);
+        const ids = [String(order._id)];
+        await markProcessed(models, {
+            mpPaymentId: paymentId,
+            externalReference: externalRef,
+            tipo: 'evento',
+            appliedIds: ids,
+            status: 'applied',
+        });
+        return { applied: true, tipo: 'evento', ids };
+    }
+
     await markProcessed(models, {
         mpPaymentId: paymentId,
         externalReference: externalRef,
@@ -296,7 +362,7 @@ export async function reconcileClubMercadoPagoPayments(models, accessToken, opti
     const recent = await searchRecentApprovedMpPayments(accessToken, { days, limit: 100 });
     for (const paymentData of recent) {
         const ref = paymentData?.external_reference || '';
-        if (!/^(cuota_|cuotas_bulk_|alquiler_)/.test(ref)) continue;
+        if (!/^(cuota_|cuotas_bulk_|alquiler_|evento_)/.test(ref)) continue;
         inspectedMp.add(String(paymentData.id));
         const result = await applyApprovedMercadoPagoPayment(models, paymentData);
         if (result.applied) {

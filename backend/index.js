@@ -40,6 +40,7 @@ import clubEntryRoutes from './src/routes/clubEntry.routes.js';
 import chatRoutes from './src/routes/chat.routes.js';
 import inboxRoutes from './src/routes/inbox.routes.js';
 import statsRoutes from './src/routes/stats.routes.js';
+import eventRoutes from './src/routes/event.routes.js';
 
 import { startSessionGenerationCron } from './src/cron/sessionGeneration.cron.js';
 import { startPaymentGenerationCron } from './src/cron/paymentGeneration.cron.js';
@@ -236,6 +237,7 @@ app.use('/api/club-entry', resolveTenant, clubEntryRoutes);
 app.use('/api/chat', resolveTenant, chatRoutes);
 app.use('/api/inbox', resolveTenant, inboxRoutes);
 app.use('/api/stats', resolveTenant, statsRoutes);
+app.use('/api/events', resolveTenant, eventRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

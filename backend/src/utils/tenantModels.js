@@ -37,6 +37,11 @@ import {
     getCourtMetricRunModel,
     getCourtMetricResultModel,
 } from '../models/courtMetric.model.js';
+import {
+    getClubEventModel,
+    getEventTicketOrderModel,
+    getEventTicketModel,
+} from '../models/clubEvent.model.js';
 
 export const getTenantModels = (tenantDB) => {
     // Al llamar a todas estas funciones acá, Mongoose registra TODOS los esquemas 
@@ -81,5 +86,8 @@ export const getTenantModels = (tenantDB) => {
         CourtMetric: getCourtMetricModel(tenantDB),
         CourtMetricRun: getCourtMetricRunModel(tenantDB),
         CourtMetricResult: getCourtMetricResultModel(tenantDB),
+        ClubEvent: getClubEventModel(tenantDB),
+        EventTicketOrder: getEventTicketOrderModel(tenantDB),
+        EventTicket: getEventTicketModel(tenantDB),
     };
 };
