@@ -21,7 +21,7 @@ import {
     categoryMinAgeAsOf,
 } from '../utils/ageHelper.js';
 import { userHasRole } from '../constants/userRoles.js';
-import { isBecaPlan, removeOpenTrainingPaymentsForBeca } from '../services/becaPlan.service.js';
+import { isBecaPlan, removeOpenTrainingPaymentsForBeca, billingOverrideForBecado } from '../services/becaPlan.service.js';
 
 async function applyPreviousBillingClear(models, previousBillingId) {
     if (!previousBillingId) return;
@@ -151,7 +151,8 @@ const enrollAthlete = asyncHandler(async (req, res) => {
         preferencia,
         autoKeepOnConflict: false,
     });
-    const trialBilling = enrollmentBillingForTrial(billing, isAthleteOnTrial(user));
+    const becaBilling = await billingOverrideForBecado(req.models, user, category, billing);
+    const trialBilling = enrollmentBillingForTrial(becaBilling, isAthleteOnTrial(user));
 
     let enrollment;
     if (exists) {
@@ -188,8 +189,8 @@ const enrollAthlete = asyncHandler(async (req, res) => {
     await syncCategoryGroupChatSafe(req.models, categoriaId);
 
     const payload = enrollment.toObject ? enrollment.toObject() : { ...enrollment };
-    if (billing.billingConflict) {
-        payload.billingConflict = billing.billingConflict;
+    if (becaBilling.billingConflict) {
+        payload.billingConflict = becaBilling.billingConflict;
     }
 
     res.status(201).json(payload);

@@ -17,6 +17,7 @@ import {
     resolveNewEnrollmentBilling,
 } from './disciplineBilling.service.js';
 import { enrollmentBillingForTrial, isAthleteOnTrial } from './trialAthlete.service.js';
+import { billingOverrideForBecado } from './becaPlan.service.js';
 import { roleQuery } from '../constants/userRoles.js';
 
 async function applyPreviousBillingClear(models, previousBillingId) {
@@ -255,7 +256,7 @@ export async function syncCategoryAthletes(
     for (const aid of ids) {
         if (activosIds.has(aid)) continue;
 
-        const athleteDoc = await User.findById(aid).select('esPrueba rol').lean();
+        const athleteDoc = await User.findById(aid).select('esPrueba esBecado rol').lean();
         const onTrial = isAthleteOnTrial(athleteDoc);
 
         const billing = await resolveNewEnrollmentBilling(models, {
@@ -263,7 +264,8 @@ export async function syncCategoryAthletes(
             category,
             autoKeepOnConflict: true,
         });
-        const trialBilling = enrollmentBillingForTrial(billing, onTrial);
+        const becaBilling = await billingOverrideForBecado(models, athleteDoc, category, billing);
+        const trialBilling = enrollmentBillingForTrial(becaBilling, onTrial);
 
         let enr = await Enrollment.findOne({ atleta: aid, categoria: categoryId });
         if (enr) {

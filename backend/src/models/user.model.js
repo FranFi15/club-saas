@@ -87,6 +87,9 @@ const userSchema = new mongoose.Schema({
     /** Atletas: si es false, no ven la pestaña Cuotas ni pueden pagar en la app. */
     cuotasEnApp: { type: Boolean, default: true },
 
+    /** Atletas becados: al inscribirse usan el plan Beca en lugar del de la categoría. */
+    esBecado: { type: Boolean, default: false },
+
     /** Atletas de prueba: acceso temporal sin facturar hasta confirmar. */
     esPrueba: { type: Boolean, default: false },
     /** Fin inclusive del período de prueba (UTC fin de día). */

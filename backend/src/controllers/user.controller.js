@@ -31,6 +31,8 @@ import {
 } from '../services/trialAthlete.service.js';
 import { resolveAthleteEmail, isAthleteInternalEmail } from '../utils/athleteLoginEmail.js';
 import { getOpenPaymentsSummary, forgiveOpenPayments } from '../services/userPaymentsStatus.service.js';
+import { syncAthleteBecaFlag } from '../services/becaPlan.service.js';
+import { ensureCurrentMonthPaymentForEnrollment } from '../services/generateMonthlyPayments.service.js';
 
 function parseSueldoNomina(value) {
     if (value === undefined || value === null || value === '') return undefined;
@@ -99,6 +101,7 @@ const registerUser = asyncHandler(async (req, res) => {
         diasPrueba,
         enNomina,
         sueldoNomina,
+        esBecado,
     } = req.body;
 
     const { User } = req.models;
@@ -211,6 +214,7 @@ const registerUser = asyncHandler(async (req, res) => {
         exentoCuotaSocial: trialFields.esPrueba ? true : socialAssignment.exentoCuotaSocial,
         cuotaSocialAsignada: trialFields.esPrueba ? undefined : socialAssignment.cuotaSocialAsignada || undefined,
         esPrueba: trialFields.esPrueba,
+        esBecado: hasAtleta && (esBecado === true || esBecado === 'true'),
         pruebaHasta: trialFields.pruebaHasta || undefined,
         pruebaAvisoEnviadoAt: trialFields.pruebaAvisoEnviadoAt || undefined,
         pruebaDecision: trialFields.pruebaDecision || undefined,
@@ -246,6 +250,7 @@ const registerUser = asyncHandler(async (req, res) => {
             roles: normalizeUserRoles(user),
             fotoPerfil: user.fotoPerfil,
             esPrueba: user.esPrueba,
+            esBecado: user.esBecado === true,
             pruebaHasta: user.pruebaHasta,
             message: emailResolved.generated
                 ? `Usuario creado. Sin email: puede entrar con el usuario "${emailResolved.loginHint}".`
@@ -485,6 +490,13 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
     const staffPayrollRol = nextRoles.find((r) => PAYROLL_STAFF_ROLES.includes(r));
     const payrollRol = hasAtleta ? 'atleta' : staffPayrollRol || user.rol;
 
+    const becaBefore = user.esBecado === true;
+    if (req.body.esBecado !== undefined) {
+        user.esBecado = hasAtleta && (req.body.esBecado === true || req.body.esBecado === 'true');
+    } else if (!hasAtleta) {
+        user.esBecado = false;
+    }
+
     if (req.body.cuotasEnApp !== undefined) {
         const habilitar = req.body.cuotasEnApp === true || req.body.cuotasEnApp === 'true';
         if (hasAtleta) {
@@ -575,7 +587,22 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
         cuotaSocialAsignada: updatedUser.cuotaSocialAsignada,
         enNomina: updatedUser.enNomina === true,
         sueldoNomina: updatedUser.sueldoNomina || 0,
+        esBecado: updatedUser.esBecado === true,
     });
+
+    if (hasAtleta && becaBefore !== (updatedUser.esBecado === true)) {
+        try {
+            const { billableIds } = await syncAthleteBecaFlag(req.models, updatedUser);
+            for (const id of billableIds) {
+                const enr = await req.models.Enrollment.findById(id);
+                if (enr) {
+                    await ensureCurrentMonthPaymentForEnrollment(req.models, enr, req.clubTimezone);
+                }
+            }
+        } catch (e) {
+            console.log('Sync plan beca:', e.message);
+        }
+    }
 
     if (clientRol) {
         try {

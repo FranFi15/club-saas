@@ -15,6 +15,7 @@ import {
     resolveNewEnrollmentBilling,
 } from '../services/disciplineBilling.service.js';
 import { enrollmentBillingForTrial, isAthleteOnTrial } from '../services/trialAthlete.service.js';
+import { billingOverrideForBecado } from '../services/becaPlan.service.js';
 import { roleQuery, userHasRole } from '../constants/userRoles.js';
 
 async function applyPreviousBillingClear(models, previousBillingId) {
@@ -320,7 +321,8 @@ const resolveEnrollmentRequest = asyncHandler(async (req, res) => {
             category,
             autoKeepOnConflict: true,
         });
-        const trialBilling = enrollmentBillingForTrial(billing, isAthleteOnTrial(user));
+        const becaBilling = await billingOverrideForBecado(req.models, user, category, billing);
+        const trialBilling = enrollmentBillingForTrial(becaBilling, isAthleteOnTrial(user));
 
         if (exists) {
             exists.estado = 'activo';
