@@ -66,6 +66,7 @@ import {
     unpaySponsorMonth,
     getMySponsorBenefits,
 } from '../controllers/sponsor.controller.js';
+import { getCaja } from '../controllers/caja.controller.js';
 import { protect, authorize } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
@@ -135,6 +136,9 @@ router.post('/siblings/sync-discounts', protect, authorize('admin_club'), syncSi
 
 // Dashboard de morosidad
 router.get('/stats/morosidad', protect, authorize('admin_club', 'dirigente', 'administrativo'), getMorosidad);
+
+// Caja del período (ingresos + egresos consolidados)
+router.get('/caja', protect, authorize('admin_club', 'dirigente'), getCaja);
 
 // Notificaciones / Recordatorios
 router.post('/notifications/send-reminders', protect, authorize('admin_club', 'administrativo'), sendReminders);
