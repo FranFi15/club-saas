@@ -128,11 +128,22 @@ const allowedOrigins = isProd
     ? [...new Set([...parseFrontendOrigins(), ...marketingOrigins()])]
     : null;
 
+/** Local Vite / Expo web hitting the deployed API. Browsers only send these origins from the same machine. */
+function isLocalDevOrigin(origin) {
+    try {
+        const u = new URL(origin);
+        return u.hostname === 'localhost' || u.hostname === '127.0.0.1';
+    } catch {
+        return false;
+    }
+}
+
 app.use(cors({
     origin: isProd
         ? (origin, callback) => {
             if (!origin) return callback(null, true);
-            const ok = allowedOrigins.includes(origin.replace(/\/$/, ''));
+            const normalized = origin.replace(/\/$/, '');
+            const ok = allowedOrigins.includes(normalized) || isLocalDevOrigin(normalized);
             callback(null, ok ? origin : false);
         }
         : true,
