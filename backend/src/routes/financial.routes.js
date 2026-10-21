@@ -7,6 +7,7 @@ import {
     reactivatePlan,
     generarCuotasMes,
     advanceAthletePayments,
+    backfillAthletePayments,
     getAdvancePaymentsInfo,
     getSocialFee,
     updateSocialFee,
@@ -96,6 +97,7 @@ router.get('/payments', protect, authorize('admin_club', 'dirigente', 'administr
 router.get('/payments/stats', protect, authorize('admin_club', 'dirigente', 'administrativo'), getPaymentStats);
 router.post('/payments/generate', protect, authorize('admin_club', 'administrativo'), generarCuotasMes);
 router.post('/payments/advance', protect, authorize('admin_club', 'administrativo'), advanceAthletePayments);
+router.post('/payments/backfill', protect, authorize('admin_club', 'administrativo'), backfillAthletePayments);
 router.get('/payments/advance-info/:atletaId', protect, authorize('admin_club', 'dirigente', 'administrativo'), getAdvancePaymentsInfo);
 router.post('/payments/check-overdue', protect, authorize('admin_club', 'administrativo'), checkOverdue);
 router.get('/payments/pending-review', protect, authorize('admin_club', 'dirigente', 'administrativo'), getPendingTransferReviews);

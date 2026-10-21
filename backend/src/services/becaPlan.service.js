@@ -108,7 +108,7 @@ export async function billingOverrideForBecado(models, user, category, billing) 
             if (existingPlanId === String(plan._id)) {
                 return {
                     esFacturacion: false,
-                    plan: undefined,
+                    plan: plan._id,
                     billingConflict: null,
                     previousBillingId: null,
                 };
@@ -156,16 +156,10 @@ export async function syncAthleteBecaFlag(models, user) {
             groups.get(key).push(enr);
         }
         for (const group of groups.values()) {
-            const primary = group.find((e) => e.esFacturacion) || group.find((e) => e.plan);
-            if (!primary) continue;
+            const primary = group.find((e) => e.esFacturacion) || group.find((e) => e.plan) || group[0];
             for (const enr of group) {
-                if (String(enr._id) === String(primary._id)) {
-                    enr.plan = beca._id;
-                    enr.esFacturacion = !user.esPrueba;
-                } else if (enr.plan || enr.esFacturacion) {
-                    enr.plan = null;
-                    enr.esFacturacion = false;
-                }
+                enr.plan = beca._id;
+                enr.esFacturacion = String(enr._id) === String(primary._id) && !user.esPrueba;
                 await enr.save();
             }
             await removeOpenTrainingPaymentsForBeca(models, {

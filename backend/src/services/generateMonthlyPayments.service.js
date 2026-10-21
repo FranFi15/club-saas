@@ -706,3 +706,250 @@ export async function advancePaymentsForAthlete(
             : null,
     };
 }
+
+function periodsInRange(desdeMes, desdeAnio, hastaMes, hastaAnio) {
+    const start = monthRank(desdeMes, desdeAnio);
+    const end = monthRank(hastaMes, hastaAnio);
+    if (end < start) {
+        const err = new Error('El mes hasta tiene que ser igual o posterior al mes desde.');
+        err.statusCode = 400;
+        throw err;
+    }
+    const count = end - start + 1;
+    if (count > 36) {
+        const err = new Error('El rango máximo es de 36 meses.');
+        err.statusCode = 400;
+        throw err;
+    }
+    const periods = [];
+    for (let i = 0; i < count; i += 1) {
+        periods.push(addCalendarMonths(desdeMes, desdeAnio, i));
+    }
+    return periods;
+}
+
+function parseOptionalMoney(value) {
+    if (value === undefined || value === null || value === '') return null;
+    const n = Number(String(value).replace(',', '.'));
+    if (!Number.isFinite(n) || n < 0) {
+        const err = new Error('Monto inválido.');
+        err.statusCode = 400;
+        throw err;
+    }
+    return Math.round(n * 100) / 100;
+}
+
+/**
+ * Carga cuotas de meses ya cerrados (deuda previa al alta en la app).
+ * Sin monto custom usa el plan / cuota social actuales. Quedan vencidas.
+ */
+export async function backfillOwedPaymentsForAthlete(
+    models,
+    atletaId,
+    {
+        desdeMes,
+        desdeAnio,
+        hastaMes,
+        hastaAnio,
+        incluirEntrenamiento = true,
+        incluirSocial = true,
+        montoEntrenamiento,
+        montoSocial,
+        timezone = DEFAULT_CLUB_TIMEZONE,
+    } = {},
+) {
+    const { Enrollment, User, Payment } = models;
+    const user = await User.findById(atletaId)
+        .select('nombre apellido rol roles estado exentoCuotaSocial cuotaSocialAsignada esPrueba')
+        .lean();
+    if (!user) {
+        const err = new Error('Usuario no encontrado.');
+        err.statusCode = 404;
+        throw err;
+    }
+    if (user.estado === 'inactivo') {
+        const err = new Error('El usuario está inactivo.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const now = calendarMonthYearInTz(new Date(), timezone);
+    const periods = periodsInRange(
+        Number(desdeMes),
+        Number(desdeAnio),
+        Number(hastaMes),
+        Number(hastaAnio),
+    );
+    const last = periods[periods.length - 1];
+    if (monthRank(last.mes, last.anio) >= monthRank(now.mes, now.anio)) {
+        const err = new Error(
+            'Solo se pueden cargar meses anteriores al actual. El mes en curso se genera desde Finanzas.',
+        );
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const montoEnt = parseOptionalMoney(montoEntrenamiento);
+    const montoSoc = parseOptionalMoney(montoSocial);
+    const wantTraining = incluirEntrenamiento !== false;
+    const wantSocial = incluirSocial !== false;
+    if (!wantTraining && !wantSocial) {
+        const err = new Error('Elegí cuota de plan, cuota social, o las dos.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const enrollments = wantTraining
+        ? await Enrollment.find({
+              atleta: atletaId,
+              estado: 'activo',
+              esFacturacion: true,
+              plan: { $ne: null },
+          })
+              .select('atleta plan categoria descuentoPorcentaje motivoDescuento esFacturacion')
+              .populate('plan')
+              .populate({
+                  path: 'categoria',
+                  select: 'nombre disciplina',
+                  populate: { path: 'disciplina', select: 'nombre' },
+              })
+        : [];
+
+    if (wantTraining && !enrollments.length && montoEnt == null) {
+        const err = new Error(
+            'Este atleta no tiene un plan de facturación. Indicá el monto de la cuota anterior.',
+        );
+        err.statusCode = 400;
+        throw err;
+    }
+    if (wantSocial && montoSoc == null && (user.exentoCuotaSocial || !user.cuotaSocialAsignada)) {
+        const err = new Error(
+            'No tiene cuota social asignada. Indicá el monto o asignale una cuota social.',
+        );
+        err.statusCode = 400;
+        throw err;
+    }
+
+    let cuotasCreadas = 0;
+    let cuotasOmitidas = 0;
+    let socialesCreadas = 0;
+    let socialesOmitidas = 0;
+    const paymentIds = [];
+
+    const markVencida = async (paymentId) => {
+        if (!paymentId) return;
+        await Payment.updateOne(
+            { _id: paymentId, estado: 'pendiente' },
+            { $set: { estado: 'vencido', notasAdmin: 'Deuda anterior' } },
+        );
+    };
+
+    for (const period of periods) {
+        if (wantTraining) {
+            if (montoEnt != null) {
+                const exists = await Payment.findOne({
+                    atleta: atletaId,
+                    mes: period.mes,
+                    anio: period.anio,
+                    $or: [{ tipo: 'entrenamiento' }, { tipo: { $exists: false } }, { tipo: null }],
+                }).select('_id');
+                if (exists) {
+                    cuotasOmitidas += 1;
+                } else {
+                    const insc = enrollments[0];
+                    const dia = insc?.plan?.diaVencimiento || 10;
+                    const ymd = `${period.anio}-${String(period.mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+                    const doc = await Payment.create({
+                        atleta: atletaId,
+                        tipo: 'entrenamiento',
+                        plan: insc?.plan?._id || insc?.plan || undefined,
+                        categoria: insc?.categoria?._id || insc?.categoria || undefined,
+                        mes: period.mes,
+                        anio: period.anio,
+                        montoOriginal: montoEnt,
+                        descuentoAplicado: 0,
+                        montoFinal: montoEnt,
+                        fechaVencimiento: zonedWallTimeToDate(ymd, '23:59', timezone),
+                        estado: 'vencido',
+                        notasAdmin: 'Deuda anterior',
+                    });
+                    cuotasCreadas += 1;
+                    paymentIds.push(String(doc._id));
+                }
+            } else {
+                for (const insc of enrollments) {
+                    const result = await ensurePaymentForEnrollment(
+                        models,
+                        insc,
+                        period.mes,
+                        period.anio,
+                        timezone,
+                    );
+                    if (result.created) {
+                        await markVencida(result.paymentId);
+                        cuotasCreadas += 1;
+                        if (result.paymentId) paymentIds.push(String(result.paymentId));
+                    } else {
+                        cuotasOmitidas += 1;
+                    }
+                }
+            }
+        }
+
+        if (wantSocial) {
+            if (montoSoc != null) {
+                const exists = await Payment.findOne({
+                    atleta: atletaId,
+                    tipo: 'social',
+                    mes: period.mes,
+                    anio: period.anio,
+                }).select('_id');
+                if (exists) {
+                    socialesOmitidas += 1;
+                } else {
+                    const dia = 10;
+                    const ymd = `${period.anio}-${String(period.mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+                    const doc = await Payment.create({
+                        atleta: atletaId,
+                        tipo: 'social',
+                        cuotaSocial: user.cuotaSocialAsignada || undefined,
+                        mes: period.mes,
+                        anio: period.anio,
+                        montoOriginal: montoSoc,
+                        descuentoAplicado: 0,
+                        montoFinal: montoSoc,
+                        fechaVencimiento: zonedWallTimeToDate(ymd, '23:59', timezone),
+                        estado: 'vencido',
+                        notasAdmin: 'Deuda anterior',
+                    });
+                    socialesCreadas += 1;
+                    paymentIds.push(String(doc._id));
+                }
+            } else {
+                const social = await ensureSocialFeeForUser(
+                    models,
+                    user,
+                    period.mes,
+                    period.anio,
+                    timezone,
+                );
+                if (social.created) {
+                    await markVencida(social.paymentId);
+                    socialesCreadas += 1;
+                    if (social.paymentId) paymentIds.push(String(social.paymentId));
+                } else {
+                    socialesOmitidas += 1;
+                }
+            }
+        }
+    }
+
+    return {
+        periodos: periods,
+        cuotasCreadas,
+        cuotasOmitidas,
+        socialesCreadas,
+        socialesOmitidas,
+        paymentIds,
+    };
+}

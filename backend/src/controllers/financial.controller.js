@@ -2,7 +2,7 @@ import asyncHandler from 'express-async-handler';
 import { calendarMonthYearInTz } from '../utils/timeHelper.js';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
-import { generateMonthlyPaymentsForTenant, advancePaymentsForAthlete, getAthleteAdvanceBillingInfo } from '../services/generateMonthlyPayments.service.js';
+import { generateMonthlyPaymentsForTenant, advancePaymentsForAthlete, getAthleteAdvanceBillingInfo, backfillOwedPaymentsForAthlete } from '../services/generateMonthlyPayments.service.js';
 import {
     generateSocialFeesForTenant,
     sanitizeSocialFeeRoles,
@@ -198,6 +198,58 @@ const advanceAthletePayments = asyncHandler(async (req, res) => {
             message,
             ...result,
         });
+    } catch (e) {
+        if (e.statusCode) res.status(e.statusCode);
+        throw e;
+    }
+});
+
+// @desc    Cargar cuotas vencidas de meses anteriores (deuda previa)
+// @route   POST /api/financial/payments/backfill
+const backfillAthletePayments = asyncHandler(async (req, res) => {
+    const {
+        atletaId,
+        desdeMes,
+        desdeAnio,
+        hastaMes,
+        hastaAnio,
+        incluirEntrenamiento = true,
+        incluirSocial = true,
+        montoEntrenamiento,
+        montoSocial,
+    } = req.body || {};
+
+    if (!atletaId) {
+        res.status(400);
+        throw new Error('Indicá el atleta.');
+    }
+
+    try {
+        const result = await backfillOwedPaymentsForAthlete(req.models, atletaId, {
+            desdeMes,
+            desdeAnio,
+            hastaMes,
+            hastaAnio,
+            incluirEntrenamiento,
+            incluirSocial,
+            montoEntrenamiento,
+            montoSocial,
+            timezone: req.clubTimezone,
+        });
+        const total = result.cuotasCreadas + result.socialesCreadas;
+        const from = result.periodos[0];
+        const to = result.periodos[result.periodos.length - 1];
+        const rango =
+            from && to
+                ? from.mes === to.mes && from.anio === to.anio
+                    ? `${from.mes}/${from.anio}`
+                    : `${from.mes}/${from.anio} → ${to.mes}/${to.anio}`
+                : '';
+        const message =
+            total > 0
+                ? `Se cargaron ${total} cuota(s) vencida(s)${rango ? ` (${rango})` : ''}.`
+                : `No se crearon cuotas${rango ? ` para ${rango}` : ''} (ya existían).`;
+        res.status(201).json({ message, ...result });
     } catch (e) {
         if (e.statusCode) res.status(e.statusCode);
         throw e;
@@ -1817,6 +1869,7 @@ export {
     getPlans,
     generarCuotasMes,
     advanceAthletePayments,
+    backfillAthletePayments,
     getAdvancePaymentsInfo,
     listSocialFees,
     createSocialFee,

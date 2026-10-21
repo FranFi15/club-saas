@@ -21,7 +21,7 @@ import {
     categoryMinAgeAsOf,
 } from '../utils/ageHelper.js';
 import { userHasRole } from '../constants/userRoles.js';
-import { isBecaPlan, removeOpenTrainingPaymentsForBeca, billingOverrideForBecado } from '../services/becaPlan.service.js';
+import { isBecaPlan, removeOpenTrainingPaymentsForBeca, billingOverrideForBecado, ensureBecaPlan } from '../services/becaPlan.service.js';
 
 async function applyPreviousBillingClear(models, previousBillingId) {
     if (!previousBillingId) return;
@@ -238,15 +238,38 @@ const getAthletesByCategory = asyncHandler(async (req, res) => {
         .populate({
             path: 'atleta',
             select:
-                'nombre apellido dni fotoPerfil email estado fechaNacimiento telefono direccion contactoEmergencia obraSocial sexo disponibilidad tutorPrincipal',
+                'nombre apellido dni fotoPerfil email estado fechaNacimiento telefono direccion contactoEmergencia obraSocial sexo disponibilidad tutorPrincipal esBecado',
             match: { estado: 'activo' },
             populate: {
                 path: 'tutorPrincipal',
                 select: 'nombre apellido telefono email',
             },
         })
-        .populate('plan', 'nombre monto')
+        .populate('plan', 'nombre monto esBeca')
         .lean();
+
+    const needsBeca = enrollments.some((e) => e.atleta?.esBecado && !e.plan?.esBeca);
+    if (needsBeca) {
+        const beca = await ensureBecaPlan(req.models);
+        if (beca) {
+            const missingIds = enrollments
+                .filter((e) => e.atleta?.esBecado && !e.plan?.esBeca)
+                .map((e) => e._id);
+            await Enrollment.updateMany(
+                { _id: { $in: missingIds } },
+                { $set: { plan: beca._id } },
+            );
+            const becaPlan = {
+                _id: beca._id,
+                nombre: beca.nombre,
+                monto: beca.monto,
+                esBeca: true,
+            };
+            for (const e of enrollments) {
+                if (e.atleta?.esBecado && !e.plan?.esBeca) e.plan = becaPlan;
+            }
+        }
+    }
 
     const category = await Category.findById(req.params.categoryId)
         .select('edadMinima edadMaxima edadCorteDesde edadCorteHasta')
