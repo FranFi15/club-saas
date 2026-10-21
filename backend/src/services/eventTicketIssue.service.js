@@ -10,6 +10,39 @@ function shortCode() {
 }
 
 /**
+ * One holder per ticket: name, last name, and DNI. DNIs must be unique in the order.
+ */
+export function normalizeAsistentes(raw, cantidad) {
+    const list = Array.isArray(raw) ? raw : [];
+    const n = Number(cantidad) || 0;
+    if (!n || list.length !== n) {
+        const err = new Error(
+            `Completá nombre, apellido y DNI de cada entrada (${n || 'la cantidad elegida'}).`,
+        );
+        err.statusCode = 400;
+        throw err;
+    }
+    const seen = new Set();
+    return list.map((a, i) => {
+        const nombre = String(a?.nombre || '').trim();
+        const apellido = String(a?.apellido || '').trim();
+        const dni = String(a?.dni || '').replace(/\D/g, '');
+        if (!nombre || !apellido || dni.length < 6 || dni.length > 10) {
+            const err = new Error(`Entrada ${i + 1}: nombre, apellido y DNI son obligatorios.`);
+            err.statusCode = 400;
+            throw err;
+        }
+        if (seen.has(dni)) {
+            const err = new Error(`El DNI ${dni} está repetido. Cada entrada es de una persona.`);
+            err.statusCode = 400;
+            throw err;
+        }
+        seen.add(dni);
+        return { nombre, apellido, dni };
+    });
+}
+
+/**
  * Issue EventTicket docs for a paid/free order. Idempotent if tickets already exist.
  */
 export async function issueTicketsForOrder(models, order, { clubIdentifier, event } = {}) {
@@ -61,6 +94,18 @@ export async function issueTicketsForOrder(models, order, { clubIdentifier, even
     for (let i = 0; i < toCreate; i += 1) {
         const nonce = crypto.randomBytes(16).toString('hex');
         const precioCobrado = prices[existing.length + i] ?? (Number(order.precioLista) || 0);
+        const holder = (order.asistentes || [])[existing.length + i];
+        const titular = holder?.dni
+            ? {
+                nombre: holder.nombre || '',
+                apellido: holder.apellido || '',
+                dni: holder.dni || '',
+            }
+            : {
+                nombre: order.comprador?.nombre || '',
+                apellido: order.comprador?.apellido || '',
+                dni: order.comprador?.dni || '',
+            };
         let codigo = shortCode();
         for (let attempt = 0; attempt < 5; attempt += 1) {
             const clash = await EventTicket.exists({ codigo });
@@ -82,6 +127,7 @@ export async function issueTicketsForOrder(models, order, { clubIdentifier, even
                 email: order.comprador?.email || '',
                 dni: order.comprador?.dni || '',
             },
+            titular,
             _exp: exp,
         });
     }

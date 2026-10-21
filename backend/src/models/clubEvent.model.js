@@ -88,6 +88,14 @@ const eventTicketOrderSchema = new mongoose.Schema(
         },
         descuentoBloqueadoPorDeuda: { type: Boolean, default: false },
         montoTotal: { type: Number, required: true, min: 0 },
+        /** Una persona por entrada. El comprador puede ser distinto. */
+        asistentes: [
+            {
+                nombre: { type: String, required: true, trim: true },
+                apellido: { type: String, required: true, trim: true },
+                dni: { type: String, required: true, trim: true },
+            },
+        ],
         estado: {
             type: String,
             enum: ['pendiente_pago', 'pagada', 'gratis', 'cancelada', 'expirada'],
@@ -129,6 +137,12 @@ const eventTicketSchema = new mongoose.Schema(
             apellido: String,
             email: String,
             dni: String,
+        },
+        /** Persona que entra con esta entrada. */
+        titular: {
+            nombre: { type: String, trim: true, default: '' },
+            apellido: { type: String, trim: true, default: '' },
+            dni: { type: String, trim: true, default: '' },
         },
     },
     { timestamps: true },

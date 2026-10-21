@@ -8,6 +8,7 @@ import {
     ticketsWithQr,
     expireStaleHolds,
     releaseOrderHold,
+    normalizeAsistentes,
 } from '../services/eventTicketIssue.service.js';
 import { parseEventTicketToken } from '../services/eventTicketToken.service.js';
 import { createEventOrderMpPreference } from '../services/eventMp.service.js';
@@ -357,7 +358,7 @@ export const publicCheckout = asyncHandler(async (req, res) => {
         throw new Error('Evento no encontrado.');
     }
 
-    const { tipoEntradaId, cantidad, nombre, apellido, email, dni } = req.body || {};
+    const { tipoEntradaId, cantidad, nombre, apellido, email, dni, asistentes } = req.body || {};
     if (!nombre?.trim() || !apellido?.trim() || !email?.trim()) {
         res.status(400);
         throw new Error('Nombre, apellido y email son obligatorios.');
@@ -370,6 +371,7 @@ export const publicCheckout = asyncHandler(async (req, res) => {
         cantidad,
         context,
     });
+    const holders = normalizeAsistentes(asistentes, quote.cantidad);
 
     await reserveCupo(event, quote.tipoEntradaId, quote.cantidad);
 
@@ -384,6 +386,7 @@ export const publicCheckout = asyncHandler(async (req, res) => {
             dni: dni ? String(dni).trim() : '',
             user: null,
         },
+        asistentes: holders,
         precioLista: quote.precioLista,
         precioConDescuento: quote.precioConDescuento,
         cantidadConDescuento: quote.cantidadConDescuento,
@@ -454,7 +457,7 @@ export const memberCheckout = asyncHandler(async (req, res) => {
         throw new Error('Evento no encontrado.');
     }
 
-    const { tipoEntradaId, cantidad } = req.body || {};
+    const { tipoEntradaId, cantidad, asistentes } = req.body || {};
     const context = await resolveBuyerContext(req.models, req.user);
     const quote = quoteEventTickets({
         event,
@@ -462,6 +465,7 @@ export const memberCheckout = asyncHandler(async (req, res) => {
         cantidad,
         context,
     });
+    const holders = normalizeAsistentes(asistentes, quote.cantidad);
 
     await reserveCupo(event, quote.tipoEntradaId, quote.cantidad);
 
@@ -476,6 +480,7 @@ export const memberCheckout = asyncHandler(async (req, res) => {
             dni: req.user.dni || '',
             user: req.user._id,
         },
+        asistentes: holders,
         precioLista: quote.precioLista,
         precioConDescuento: quote.precioConDescuento,
         cantidadConDescuento: quote.cantidadConDescuento,
@@ -652,6 +657,13 @@ export const scanEventTicket = asyncHandler(async (req, res) => {
         ticket: {
             codigo: ticket.codigo,
             tipoEntradaNombre: ticket.tipoEntradaNombre,
+            titular: ticket.titular?.dni
+                ? ticket.titular
+                : {
+                    nombre: ticket.compradorSnapshot?.nombre || '',
+                    apellido: ticket.compradorSnapshot?.apellido || '',
+                    dni: ticket.compradorSnapshot?.dni || '',
+                },
             comprador: ticket.compradorSnapshot,
             usadoEn: ticket.usadoEn,
         },
