@@ -144,3 +144,9 @@ export function sanitizeTimeInput(str) {
 export function courtBoardHeight(_deporte, { edit = false } = {}) {
   return edit ? 420 : 400;
 }
+
+/**
+ * Content width of the court card on a phone. Web uses this same frame so the
+ * drawing, photo crop, and pin positions match iOS and Android.
+ */
+export const COURT_BOARD_PHONE_WIDTH = 358;

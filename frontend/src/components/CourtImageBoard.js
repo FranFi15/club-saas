@@ -11,7 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import CourtPresetImage from './CourtPresetImage';
-import { isCourtPresetUrl } from '../constants/courtMetrics';
+import { COURT_BOARD_PHONE_WIDTH, isCourtPresetUrl } from '../constants/courtMetrics';
 
 /**
  * Court image with normalized pin markers.
@@ -135,7 +135,7 @@ export default function CourtImageBoard({
           const { width, height: h } = e.nativeEvent.layout;
           setLayout({ w: width || 1, h: h || 1 });
         }}
-        style={[styles.board, { height }]}
+        style={[styles.board, { height }, Platform.OS === 'web' && styles.boardWeb]}
       >
         {isCourtPresetUrl(imagenUrl) ? (
           <CourtPresetImage imagenUrl={imagenUrl} deporte={deporte} height={height} />
@@ -233,6 +233,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: 'hidden',
     position: 'relative',
+  },
+  boardWeb: {
+    maxWidth: COURT_BOARD_PHONE_WIDTH,
+    alignSelf: 'center',
   },
   pin: {
     position: 'absolute',

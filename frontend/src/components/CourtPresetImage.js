@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import Svg, { Rect, Line, Circle, Path, G } from 'react-native-svg';
 import { deporteFromPresetUrl, isCourtPresetUrl } from '../constants/courtMetrics';
 
@@ -24,7 +24,13 @@ export default function CourtPresetImage({ imagenUrl, deporte, style, width = '1
         sport === 'voley' && styles.wrapVoley,
       ]}
     >
-      <Svg width="100%" height="100%" viewBox={VIEWBOX}>
+      <Svg
+        width="100%"
+        height="100%"
+        viewBox={VIEWBOX}
+        preserveAspectRatio="xMidYMid meet"
+        style={Platform.OS === 'web' ? styles.svgFill : undefined}
+      >
         {sport === 'basquet' ? <BasquetCourt /> : null}
         {sport === 'futbol' ? <FutbolPitch /> : null}
         {sport === 'voley' ? <VoleyCourt /> : null}
@@ -347,7 +353,15 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 10,
     overflow: 'hidden',
+    position: 'relative',
     backgroundColor: '#14532d',
+  },
+  svgFill: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
   },
   wrapBasquet: {
     backgroundColor: '#c47a3a',
