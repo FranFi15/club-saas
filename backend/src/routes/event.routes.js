@@ -10,6 +10,9 @@ import {
     cancelEvent,
     listEventOrders,
     listPricingPickers,
+    searchEventBuyers,
+    adminCashQuote,
+    adminCashSale,
     listPublicEvents,
     getPublicEvent,
     publicCheckout,
@@ -21,8 +24,8 @@ import {
     listScanTargets,
     scanEventTicket,
     ADMIN_WRITE,
+    EVENT_MANAGE,
     ADMIN_READ,
-    SCAN_ROLES,
     MEMBER_ROLES,
 } from '../controllers/event.controller.js';
 
@@ -35,8 +38,9 @@ router.get('/public/:slug', getPublicEvent);
 router.post('/public/:slug/checkout', publicCheckout);
 
 // Scan
-router.get('/scan-targets', protect, authorize(...SCAN_ROLES), listScanTargets);
-router.post('/tickets/scan', protect, authorize(...SCAN_ROLES), scanEventTicket);
+router.get('/scan-targets', protect, listScanTargets);
+router.get('/door', protect, listScanTargets);
+router.post('/tickets/scan', protect, scanEventTicket);
 
 // Member
 router.get('/tickets/mine', protect, authorize(...MEMBER_ROLES), myTickets);
@@ -45,14 +49,17 @@ router.post('/:id/quote', protect, authorize(...MEMBER_ROLES), quoteMemberEvent)
 router.post('/:id/checkout', protect, authorize(...MEMBER_ROLES), memberCheckout);
 
 // Admin
-router.get('/admin/pricing-pickers', protect, authorize(...ADMIN_WRITE, 'dirigente'), listPricingPickers);
+router.get('/admin/pricing-pickers', protect, authorize(...EVENT_MANAGE), listPricingPickers);
+router.get('/admin/user-search', protect, authorize(...ADMIN_WRITE), searchEventBuyers);
 router.get('/admin', protect, authorize(...ADMIN_READ), listAdminEvents);
+router.post('/admin/:id/cash-quote', protect, authorize(...ADMIN_WRITE), adminCashQuote);
+router.post('/admin/:id/cash-sale', protect, authorize(...ADMIN_WRITE), adminCashSale);
 router.get('/admin/:id/orders', protect, authorize(...ADMIN_READ), listEventOrders);
 router.get('/admin/:id', protect, authorize(...ADMIN_READ), getAdminEvent);
-router.post('/admin', protect, authorize(...ADMIN_WRITE), createEvent);
-router.patch('/admin/:id', protect, authorize(...ADMIN_WRITE), updateEvent);
-router.delete('/admin/:id', protect, authorize(...ADMIN_WRITE), deleteEvent);
-router.post('/admin/:id/publish', protect, authorize(...ADMIN_WRITE), publishEvent);
-router.post('/admin/:id/cancel', protect, authorize(...ADMIN_WRITE), cancelEvent);
+router.post('/admin', protect, authorize(...EVENT_MANAGE), createEvent);
+router.patch('/admin/:id', protect, authorize(...EVENT_MANAGE), updateEvent);
+router.delete('/admin/:id', protect, authorize(...EVENT_MANAGE), deleteEvent);
+router.post('/admin/:id/publish', protect, authorize(...EVENT_MANAGE), publishEvent);
+router.post('/admin/:id/cancel', protect, authorize(...EVENT_MANAGE), cancelEvent);
 
 export default router;

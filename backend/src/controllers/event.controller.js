@@ -1,4 +1,5 @@
 import asyncHandler from 'express-async-handler';
+import mongoose from 'mongoose';
 import {
     resolveBuyerContext,
     quoteEventTickets,
@@ -11,10 +12,11 @@ import {
     normalizeAsistentes,
 } from '../services/eventTicketIssue.service.js';
 import { parseEventTicketToken } from '../services/eventTicketToken.service.js';
-import { createEventOrderMpPreference } from '../services/eventMp.service.js';
+import { calendarPartsInTz, DEFAULT_CLUB_TIMEZONE } from '../utils/timeHelper.js';
 
 const HOLD_MS = 15 * 60 * 1000;
 const ADMIN_WRITE = ['admin_club', 'administrativo'];
+const EVENT_MANAGE = ['admin_club'];
 const ADMIN_READ = ['admin_club', 'dirigente', 'administrativo'];
 const SCAN_ROLES = ['admin_club', 'administrativo', 'control_ingreso'];
 const MEMBER_ROLES = ['atleta', 'tutor', 'socio'];
@@ -156,15 +158,52 @@ async function buildCheckoutResponse(models, clubIdentifier, order, event) {
 
 // ─── Admin ───────────────────────────────────────────────────────────────────
 
+function normalizeDoorIds(raw) {
+    if (!Array.isArray(raw)) return [];
+    const ids = [];
+    const seen = new Set();
+    for (const item of raw) {
+        const id = String(item?._id || item || '').trim();
+        if (!mongoose.Types.ObjectId.isValid(id) || seen.has(id)) continue;
+        seen.add(id);
+        ids.push(id);
+        if (ids.length >= 40) break;
+    }
+    return ids;
+}
+
+async function resolveDoorUsers(User, raw) {
+    const ids = normalizeDoorIds(raw);
+    if (!ids.length) return [];
+    const users = await User.find({ _id: { $in: ids }, estado: { $ne: 'inactivo' } }).select('_id');
+    const ok = new Set(users.map((u) => String(u._id)));
+    return ids.filter((id) => ok.has(id));
+}
+
+function isClubOwnerUser(user) {
+    return user?.rol === 'admin_club' || (user?.roles || []).includes('admin_club');
+}
+
+function userCanScanEvent(user, event) {
+    if (!event || event.estado !== 'publicado') return false;
+    if (isClubOwnerUser(user)) return true;
+    return (event.controlIngreso || []).some((id) => String(id?._id || id) === String(user?._id));
+}
+
 export const listAdminEvents = asyncHandler(async (req, res) => {
     const { ClubEvent } = req.models;
-    const events = await ClubEvent.find().sort({ fechaInicio: -1 }).lean();
+    const events = await ClubEvent.find()
+        .sort({ fechaInicio: -1 })
+        .populate('controlIngreso', 'nombre apellido rol')
+        .lean();
     res.json(events);
 });
 
 export const getAdminEvent = asyncHandler(async (req, res) => {
     const { ClubEvent } = req.models;
-    const event = await ClubEvent.findById(req.params.id).lean();
+    const event = await ClubEvent.findById(req.params.id)
+        .populate('controlIngreso', 'nombre apellido rol')
+        .lean();
     if (!event) {
         res.status(404);
         throw new Error('Evento no encontrado.');
@@ -183,6 +222,7 @@ export const createEvent = asyncHandler(async (req, res) => {
         fechaFin,
         tiposEntrada,
         reglasDescuento,
+        controlIngreso,
         estado,
         slug: slugIn,
     } = req.body || {};
@@ -203,6 +243,7 @@ export const createEvent = asyncHandler(async (req, res) => {
         slug,
         tiposEntrada: normalizeTipos(tiposEntrada),
         reglasDescuento: normalizeReglas(reglasDescuento),
+        controlIngreso: await resolveDoorUsers(req.models.User, controlIngreso),
         estado: ['borrador', 'publicado'].includes(estado) ? estado : 'borrador',
         creadoPor: req.user._id,
     });
@@ -241,6 +282,9 @@ export const updateEvent = asyncHandler(async (req, res) => {
     }
     if (b.reglasDescuento != null) {
         event.reglasDescuento = normalizeReglas(b.reglasDescuento);
+    }
+    if (b.controlIngreso != null) {
+        event.controlIngreso = await resolveDoorUsers(req.models.User, b.controlIngreso);
     }
     if (b.slug != null && String(b.slug).trim()) {
         event.slug = await uniqueSlug(ClubEvent, b.slug, event._id);
@@ -314,6 +358,180 @@ export const listPricingPickers = asyncHandler(async (req, res) => {
         Plan.find().select('nombre monto activo').sort({ nombre: 1 }).lean(),
     ]);
     res.json({ cuotasSociales, planes, roles: MEMBER_ROLES });
+});
+
+function escapeRegex(s) {
+    return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export const searchEventBuyers = asyncHandler(async (req, res) => {
+    const q = String(req.query.q || '').trim();
+    if (q.length < 2) return res.json([]);
+    const { User } = req.models;
+    const tokens = q.split(/\s+/).filter(Boolean);
+    const users = await User.find({
+        estado: { $ne: 'inactivo' },
+        $and: tokens.map((token) => {
+            const rx = new RegExp(escapeRegex(token), 'i');
+            const digits = token.replace(/\D/g, '');
+            const ors = [{ nombre: rx }, { apellido: rx }, { email: rx }, { dni: rx }];
+            if (digits.length >= 2 && digits !== token) {
+                ors.push({ dni: new RegExp(escapeRegex(digits)) });
+            }
+            return { $or: ors };
+        }),
+    })
+        .select('nombre apellido email dni rol')
+        .limit(12)
+        .lean();
+    res.json(users);
+});
+
+async function buyerForCashSale(req) {
+    const { User } = req.models;
+    const { userId, nombre, apellido, email, dni } = req.body || {};
+    if (userId) {
+        const user = await User.findById(userId).select(
+            'nombre apellido email dni rol cuotaSocialAsignada estado',
+        );
+        if (!user || user.estado === 'inactivo') {
+            const err = new Error('Usuario no encontrado.');
+            err.statusCode = 404;
+            throw err;
+        }
+        return {
+            user,
+            comprador: {
+                nombre: user.nombre || 'Socio',
+                apellido: user.apellido || '',
+                email: String(user.email || `${user._id}@miembro.local`).toLowerCase(),
+                dni: user.dni || '',
+                user: user._id,
+            },
+        };
+    }
+    if (!nombre?.trim() || !apellido?.trim() || !email?.trim()) {
+        const err = new Error('Nombre, apellido y email son obligatorios.');
+        err.statusCode = 400;
+        throw err;
+    }
+    return {
+        user: null,
+        comprador: {
+            nombre: nombre.trim(),
+            apellido: apellido.trim(),
+            email: email.trim().toLowerCase(),
+            dni: dni ? String(dni).replace(/\D/g, '') : '',
+            user: null,
+        },
+    };
+}
+
+function ymdKeyInTz(date, tz) {
+    const { year, month, day } = calendarPartsInTz(date, tz || DEFAULT_CLUB_TIMEZONE);
+    return year * 10000 + month * 100 + day;
+}
+
+function eventDayHasPassed(event, tz) {
+    if (!event?.fechaInicio) return false;
+    const start = new Date(event.fechaInicio);
+    if (Number.isNaN(start.getTime())) return false;
+    return ymdKeyInTz(start, tz) < ymdKeyInTz(new Date(), tz);
+}
+
+async function quoteCashSale(req) {
+    const { ClubEvent } = req.models;
+    const event = await ClubEvent.findById(req.params.id);
+    if (!event) {
+        const err = new Error('Evento no encontrado.');
+        err.statusCode = 404;
+        throw err;
+    }
+    if (event.estado === 'cancelado' || event.estado === 'finalizado') {
+        const err = new Error('Este evento no admite nuevas entradas.');
+        err.statusCode = 400;
+        throw err;
+    }
+    if (event.estado !== 'publicado') {
+        const err = new Error('Publicá el evento antes de cargar una venta en efectivo.');
+        err.statusCode = 400;
+        throw err;
+    }
+    if (eventDayHasPassed(event, req.clubTimezone)) {
+        const err = new Error('Este evento ya pasó. No se pueden vender más entradas.');
+        err.statusCode = 400;
+        throw err;
+    }
+    let user = null;
+    if (req.body?.userId) {
+        const loaded = await buyerForCashSale(req);
+        user = loaded.user;
+    }
+    const context = user
+        ? await resolveBuyerContext(req.models, user)
+        : { rol: null, cuotaSocialId: null, planIds: [], tieneVencidos: false };
+    const quote = quoteEventTickets({
+        event,
+        tipoEntradaId: req.body?.tipoEntradaId,
+        cantidad: req.body?.cantidad,
+        context,
+    });
+    return { event, quote };
+}
+
+export const adminCashQuote = asyncHandler(async (req, res) => {
+    const { quote } = await quoteCashSale(req);
+    res.json(quote);
+});
+
+export const adminCashSale = asyncHandler(async (req, res) => {
+    const { EventTicketOrder } = req.models;
+    const { event, quote } = await quoteCashSale(req);
+    const { comprador } = await buyerForCashSale(req);
+    const holders = normalizeAsistentes(req.body?.asistentes, quote.cantidad);
+
+    await reserveCupo(event, quote.tipoEntradaId, quote.cantidad);
+    const order = await EventTicketOrder.create({
+        evento: event._id,
+        tipoEntrada: quote.tipoEntradaId,
+        cantidad: quote.cantidad,
+        comprador,
+        asistentes: holders,
+        precioLista: quote.precioLista,
+        precioConDescuento: quote.precioConDescuento,
+        cantidadConDescuento: quote.cantidadConDescuento,
+        cantidadPrecioLleno: quote.cantidadPrecioLleno,
+        reglaAplicada: quote.reglaAplicada
+            ? { id: quote.reglaAplicada.id, nombre: quote.reglaAplicada.nombre }
+            : { id: null, nombre: null },
+        descuentoBloqueadoPorDeuda: quote.descuentoBloqueadoPorDeuda,
+        montoTotal: quote.montoTotal,
+        estado: quote.montoTotal > 0 ? 'pagada' : 'gratis',
+        medioPago: quote.montoTotal > 0 ? 'efectivo' : '',
+        registradoPor: req.user._id,
+    });
+
+    try {
+        const tickets = await issueTicketsForOrder(req.models, order, {
+            clubIdentifier: req.clubIdentifier,
+            event,
+        });
+        res.status(201).json({
+            orderId: String(order._id),
+            estado: order.estado,
+            montoTotal: order.montoTotal,
+            medioPago: order.medioPago,
+            tickets: ticketsWithQr(tickets, req.clubIdentifier, event),
+        });
+    } catch (e) {
+        const tipo = event.tiposEntrada.id(quote.tipoEntradaId);
+        if (tipo) {
+            tipo.vendidas = Math.max(0, Number(tipo.vendidas || 0) - quote.cantidad);
+            await event.save();
+        }
+        await EventTicketOrder.findByIdAndUpdate(order._id, { estado: 'cancelada' });
+        throw e;
+    }
 });
 
 // ─── Public ──────────────────────────────────────────────────────────────────
@@ -584,14 +802,17 @@ export const getPublicOrderTickets = asyncHandler(async (req, res) => {
 export const listScanTargets = asyncHandler(async (req, res) => {
     const { ClubEvent } = req.models;
     const now = new Date();
-    const windowStart = new Date(now.getTime() - 12 * 60 * 60 * 1000);
-    const windowEnd = new Date(now.getTime() + 36 * 60 * 60 * 1000);
-    const events = await ClubEvent.find({
+    const windowStart = new Date(now.getTime() - 18 * 60 * 60 * 1000);
+    const windowEnd = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000);
+    const filter = {
         estado: 'publicado',
-        fechaInicio: { $lte: windowEnd },
-        $or: [{ fechaFin: null }, { fechaFin: { $gte: windowStart } }],
-    })
-        .select('titulo fechaInicio fechaFin lugar slug')
+        fechaInicio: { $gte: windowStart, $lte: windowEnd },
+    };
+    if (!isClubOwnerUser(req.user)) {
+        filter.controlIngreso = req.user._id;
+    }
+    const events = await ClubEvent.find(filter)
+        .select('titulo fechaInicio lugar')
         .sort({ fechaInicio: 1 })
         .lean();
     res.json(events);
@@ -607,6 +828,16 @@ export const scanEventTicket = asyncHandler(async (req, res) => {
     if (!token) {
         res.status(400);
         throw new Error('Falta el código QR.');
+    }
+
+    const doorEvent = await ClubEvent.findById(eventoId).select('estado controlIngreso');
+    if (!doorEvent || doorEvent.estado !== 'publicado') {
+        res.status(404);
+        throw new Error('Evento no encontrado.');
+    }
+    if (!userCanScanEvent(req.user, doorEvent)) {
+        res.status(403);
+        throw new Error('No tenés acceso al control de ingreso de este evento.');
     }
 
     let parsed;
@@ -678,6 +909,7 @@ export const scanEventTicket = asyncHandler(async (req, res) => {
 
 export {
     ADMIN_WRITE,
+    EVENT_MANAGE,
     ADMIN_READ,
     SCAN_ROLES,
     MEMBER_ROLES,

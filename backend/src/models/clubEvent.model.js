@@ -50,6 +50,8 @@ const clubEventSchema = new mongoose.Schema(
         slug: { type: String, required: true, trim: true, lowercase: true },
         tiposEntrada: [tipoEntradaSchema],
         reglasDescuento: [reglaDescuentoSchema],
+        /** Usuarios que ven el escáner de este evento. El ingreso de socios no usa esta lista. */
+        controlIngreso: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
         creadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     },
     { timestamps: true },
@@ -101,6 +103,13 @@ const eventTicketOrderSchema = new mongoose.Schema(
             enum: ['pendiente_pago', 'pagada', 'gratis', 'cancelada', 'expirada'],
             default: 'pendiente_pago',
         },
+        /** Vacío en compras online anteriores. Efectivo = carga manual del club. */
+        medioPago: {
+            type: String,
+            enum: ['', 'efectivo', 'mercadopago'],
+            default: '',
+        },
+        registradoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
         holdUntil: { type: Date },
         mpPreferenceId: { type: String, default: '' },
         mpPaymentId: { type: String, default: '' },
