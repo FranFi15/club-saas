@@ -15,6 +15,7 @@ import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
+import FormSheet from '../../components/FormSheet';
 import DesignCard from '../../components/DesignCard';
 import SearchableDropdown from '../../components/SearchableDropdown';
 import { isoCalendarDateToDisplay, displayDateToIsoCalendar, formatJsDateToDisplay, maskDateDDMMAAAA } from '../../utils/dateDisplay';
@@ -557,18 +558,13 @@ export default function EspaciosFisicosScreen({ navigation }) {
       ) : null}
 
       {/* MODAL CREAR / EDITAR */}
-      <Modal visible={isModalVisible} animationType="slide" transparent={true}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <View style={styles.modalOverlay}>
-           <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-              <View style={styles.modalHeader}>
-                 <Text style={[styles.modalTitle, { color: theme.text }]}>{editingSpace ? 'Editar Espacio' : 'Nuevo Espacio'}</Text>
-                 <TouchableOpacity onPress={() => setIsModalVisible(false)}>
-                    <Ionicons name="close" size={28} color={theme.icon} />
-                 </TouchableOpacity>
-              </View>
-
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <FormSheet
+        visible={isModalVisible}
+        onClose={() => setIsModalVisible(false)}
+        title={editingSpace ? 'Editar espacio' : 'Nuevo espacio'}
+        theme={theme}
+        isDarkMode={isDarkMode}
+      >
               <Text style={[styles.label, { color: theme.textMuted }]}>Nombre del Espacio *</Text>
               <TextInput style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
                  placeholder="Ej: Cancha 1" placeholderTextColor={theme.textMuted}
@@ -751,11 +747,7 @@ export default function EspaciosFisicosScreen({ navigation }) {
               <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colorMarca, marginTop: 20 }]} onPress={handleSaveSpace} disabled={isSaving}>
                 {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Guardar</Text>}
               </TouchableOpacity>
-              </ScrollView>
-           </View>
-        </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      </FormSheet>
 
       {/* MODAL ESTADO */}
       <Modal visible={statusModalVisible} animationType="fade" transparent={true}>

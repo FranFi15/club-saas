@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   View,
   Image,
@@ -8,6 +8,7 @@ import {
   Modal,
   TextInput,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import CourtPresetImage from './CourtPresetImage';
 import { isCourtPresetUrl } from '../constants/courtMetrics';
@@ -30,13 +31,52 @@ export default function CourtImageBoard({
 }) {
   const [layout, setLayout] = useState({ w: 1, h: 1 });
   const [draft, setDraft] = useState(null);
+  const unbindClick = useRef(null);
+
+  const placeDraft = (x, y) => {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    setDraft({
+      x: Math.min(1, Math.max(0, x)),
+      y: Math.min(1, Math.max(0, y)),
+      label: '',
+      notas: '',
+      isNew: true,
+    });
+  };
+
+  // Web press events report locationX/locationY as 0 on the court SVG, so the
+  // pin was saved in the corner. Measure the click against the board itself.
+  const bindBoard = useCallback((node) => {
+    if (unbindClick.current) {
+      unbindClick.current();
+      unbindClick.current = null;
+    }
+    if (Platform.OS !== 'web' || !editMode || !node || typeof node.addEventListener !== 'function') {
+      return;
+    }
+    const onClick = (ev) => {
+      if (ev.target?.closest?.('[data-testid="court-pin"]')) return;
+      const rect = node.getBoundingClientRect?.();
+      if (!rect || rect.width <= 0 || rect.height <= 0) return;
+      const x = (ev.clientX - rect.left) / rect.width;
+      const y = (ev.clientY - rect.top) / rect.height;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      setDraft({
+        x: Math.min(1, Math.max(0, x)),
+        y: Math.min(1, Math.max(0, y)),
+        label: '',
+        notas: '',
+        isNew: true,
+      });
+    };
+    node.addEventListener('click', onClick);
+    unbindClick.current = () => node.removeEventListener('click', onClick);
+  }, [editMode]);
 
   const handleBoardPress = (e) => {
-    if (!editMode) return;
+    if (!editMode || Platform.OS === 'web') return;
     const { locationX, locationY } = e.nativeEvent;
-    const x = Math.min(1, Math.max(0, locationX / layout.w));
-    const y = Math.min(1, Math.max(0, locationY / layout.h));
-    setDraft({ x, y, label: '', notas: '', isNew: true });
+    placeDraft(locationX / layout.w, locationY / layout.h);
   };
 
   const saveDraft = () => {
@@ -89,6 +129,7 @@ export default function CourtImageBoard({
   return (
     <View>
       <Pressable
+        ref={bindBoard}
         onPress={handleBoardPress}
         onLayout={(e) => {
           const { width, height: h } = e.nativeEvent.layout;
@@ -104,6 +145,7 @@ export default function CourtImageBoard({
         {pines.map((pin, index) => (
           <Pressable
             key={String(pin._id || `${pin.label}-${index}`)}
+            testID="court-pin"
             onPress={(ev) => {
               ev.stopPropagation?.();
               openPin(pin, index);

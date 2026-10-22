@@ -12,6 +12,11 @@
       "bundleIdentifier": "com.hermesclubapp.app",
       "buildNumber": "18"
     },
+    "androidStatusBar": {
+      "translucent": true,
+      "barStyle": "light-content",
+      "backgroundColor": "#00000000"
+    },
     "android": {
       "package": "com.hermesclubapp.app",
       "versionCode": 23,

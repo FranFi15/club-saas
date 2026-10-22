@@ -20,6 +20,8 @@ import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
 import { tabBadgeText } from '../utils/tabBadgeLabel';
 import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
+import AdminClubEntryScanScreen from '../screens/admin/AdminClubEntryScanScreen';
+import { useEventDoorEvents } from '../hooks/useEventDoorEvents';
 
 const Tab = createSwipeBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -66,6 +68,7 @@ function SocioTabs() {
     }, [refresh]),
   );
 
+  const doorEvents = useEventDoorEvents();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const insets = useSafeAreaInsets();
   const tabBottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 10);
@@ -86,6 +89,7 @@ function SocioTabs() {
             SocioCuotas: focused ? 'wallet' : 'wallet-outline',
             SocioNoticias: focused ? 'newspaper' : 'newspaper-outline',
             SocioQr: focused ? 'qr-code' : 'qr-code-outline',
+            SocioEventos: focused ? 'ticket' : 'ticket-outline',
             SocioChat: focused ? 'chatbubbles' : 'chatbubbles-outline',
             SocioProfile: focused ? 'person' : 'person-outline',
           };
@@ -102,6 +106,7 @@ function SocioTabs() {
             SocioCuotas: 'Cuota',
             SocioNoticias: 'Noticias',
             SocioQr: 'Mi QR',
+            SocioEventos: 'Eventos',
             SocioChat: 'Chat',
             SocioProfile: 'Perfil',
           })[name],
@@ -114,6 +119,13 @@ function SocioTabs() {
         listeners={tabPressResetToRoot('SocioNoticias', 'SocioNewsMain')}
       />
       <Tab.Screen name="SocioQr" component={MemberClubEntryScreen} />
+      {doorEvents.length ? (
+        <Tab.Screen
+          name="SocioEventos"
+          component={AdminClubEntryScanScreen}
+          initialParams={{ gate: 'event', tabRoot: true }}
+        />
+      ) : null}
       <Tab.Screen
         name="SocioChat"
         component={SocioChatStack}

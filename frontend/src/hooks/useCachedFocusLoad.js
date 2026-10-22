@@ -104,6 +104,7 @@ export function useCachedFocusLoad({
     runFetch({ background: cached !== undefined });
   }, [cacheKey, enabled, runFetch]);
 
+  const focusedOnce = useRef(false);
   useFocusEffect(
     useCallback(() => {
       if (!enabled) {
@@ -112,7 +113,10 @@ export function useCachedFocusLoad({
         return undefined;
       }
 
-      runFetch({ background: true });
+      // The mount effect already loads the screen. A second focus fetch on the
+      // same open cancelled that request and ran the query again.
+      if (focusedOnce.current) runFetch({ background: true });
+      focusedOnce.current = true;
       onFocus?.();
       return undefined;
     }, [enabled, runFetch, onFocus]),

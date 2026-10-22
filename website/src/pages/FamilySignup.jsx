@@ -254,26 +254,60 @@ export default function FamilySignup() {
   const onSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    const blank = (value) => !String(value || '').trim();
     if (!acceptTerms) {
       setError('Tenés que aceptar los Términos y la Política de privacidad.');
       return;
     }
     if (requiereTutor) {
-      if (!tutor.direccion.trim()) {
+      if (blank(tutor.nombre) || blank(tutor.apellido) || blank(tutor.email) || blank(tutor.password)) {
+        setError('Completá nombre, apellido, email y contraseña del tutor.');
+        return;
+      }
+      if (blank(tutor.telefono)) {
+        setError('Indicá el teléfono del tutor.');
+        return;
+      }
+      if (blank(tutor.dni)) {
+        setError('Indicá el DNI del tutor.');
+        return;
+      }
+      if (blank(tutor.obraSocial)) {
+        setError('Indicá la obra social del tutor.');
+        return;
+      }
+      if (blank(tutor.direccion)) {
         setError('Indicá la dirección del tutor.');
         return;
       }
-      if (!tutor.fotoPerfil.trim()) {
+      if (blank(tutor.fotoPerfil)) {
         setError('Subí una foto del tutor (cámara o galería).');
         return;
       }
     }
     for (let i = 0; i < atletas.length; i += 1) {
-      if (!atletas[i]?.fotoPerfil?.trim()) {
+      const a = atletas[i] || {};
+      if (blank(a.nombre) || blank(a.apellido) || blank(a.password) || blank(a.fechaNacimiento)) {
+        setError(`Atleta ${i + 1}: completá nombre, apellido, contraseña y fecha de nacimiento.`);
+        return;
+      }
+      if (a.sexo !== 'M' && a.sexo !== 'F') {
+        setError(`Atleta ${i + 1}: elegí el sexo.`);
+        return;
+      }
+      if (blank(a.dni)) {
+        setError(`Atleta ${i + 1}: indicá el DNI.`);
+        return;
+      }
+      if (blank(a.obraSocial)) {
+        setError(`Atleta ${i + 1}: indicá la obra social.`);
+        return;
+      }
+      if (blank(a.fotoPerfil)) {
         setError(`Atleta ${i + 1}: subí una foto (cámara o galería).`);
         return;
       }
-      if (!requiereTutor && !atletas[i]?.direccion?.trim()) {
+      if (!requiereTutor && blank(a.direccion)) {
         setError(`Atleta ${i + 1}: indicá la dirección.`);
         return;
       }
@@ -394,15 +428,15 @@ export default function FamilySignup() {
             />
             <div className="fs-grid">
               <label className="fs-field">
-                <span>Nombre</span>
+                <span>Nombre *</span>
                 <input required value={tutor.nombre} onChange={(e) => updateTutor('nombre', e.target.value)} />
               </label>
               <label className="fs-field">
-                <span>Apellido</span>
+                <span>Apellido *</span>
                 <input required value={tutor.apellido} onChange={(e) => updateTutor('apellido', e.target.value)} />
               </label>
               <label className="fs-field">
-                <span>Email</span>
+                <span>Email *</span>
                 <input
                   required
                   type="email"
@@ -412,29 +446,36 @@ export default function FamilySignup() {
                 />
               </label>
               <PasswordField
-                label="Contraseña"
+                label="Contraseña *"
                 required
                 value={tutor.password}
                 onChange={(e) => updateTutor('password', e.target.value)}
               />
               <label className="fs-field">
-                <span>Teléfono</span>
-                <input value={tutor.telefono} onChange={(e) => updateTutor('telefono', e.target.value)} />
-              </label>
-              <label className="fs-field">
-                <span>DNI</span>
-                <input value={tutor.dni} onChange={(e) => updateTutor('dni', e.target.value)} />
-              </label>
-              <label className="fs-field">
-                <span>Obra social</span>
+                <span>Teléfono *</span>
                 <input
+                  required
+                  type="tel"
+                  autoComplete="tel"
+                  value={tutor.telefono}
+                  onChange={(e) => updateTutor('telefono', e.target.value)}
+                />
+              </label>
+              <label className="fs-field">
+                <span>DNI *</span>
+                <input required value={tutor.dni} onChange={(e) => updateTutor('dni', e.target.value)} />
+              </label>
+              <label className="fs-field">
+                <span>Obra social *</span>
+                <input
+                  required
                   value={tutor.obraSocial}
                   onChange={(e) => updateTutor('obraSocial', e.target.value)}
                   placeholder="Ej. OSDE, Swiss Medical"
                 />
               </label>
               <label className="fs-field fs-field--full">
-                <span>Dirección</span>
+                <span>Dirección *</span>
                 <input
                   required
                   autoComplete="street-address"
@@ -474,7 +515,7 @@ export default function FamilySignup() {
             />
             <div className="fs-grid">
               <label className="fs-field">
-                <span>Nombre</span>
+                <span>Nombre *</span>
                 <input
                   required
                   value={atletas[index]?.nombre || ''}
@@ -482,7 +523,7 @@ export default function FamilySignup() {
                 />
               </label>
               <label className="fs-field">
-                <span>Apellido</span>
+                <span>Apellido *</span>
                 <input
                   required
                   value={atletas[index]?.apellido || ''}
@@ -498,18 +539,18 @@ export default function FamilySignup() {
                   placeholder="Si no tiene, dejalo vacío"
                 />
                 <small className="fs-hint">
-                  Sin email: entra a la app con nombre.apellido (ej. juan.perez) y la contraseña de
-                  abajo.
+                  Opcional si el atleta no tiene email. Entra a la app con nombre.apellido (ej.
+                  juan.perez) y la contraseña de abajo.
                 </small>
               </label>
               <PasswordField
-                label="Contraseña"
+                label="Contraseña *"
                 required
                 value={atletas[index]?.password || ''}
                 onChange={(e) => updateAthlete(index, 'password', e.target.value)}
               />
               <label className="fs-field">
-                <span>Fecha de nacimiento</span>
+                <span>Fecha de nacimiento *</span>
                 <input
                   required
                   type="date"
@@ -518,27 +559,29 @@ export default function FamilySignup() {
                 />
               </label>
               <label className="fs-field">
-                <span>Sexo</span>
+                <span>Sexo *</span>
                 <select
+                  required
                   value={atletas[index]?.sexo || ''}
                   onChange={(e) => updateAthlete(index, 'sexo', e.target.value)}
-                  required={slot.categoria?.sexo === 'M' || slot.categoria?.sexo === 'F'}
                 >
-                  <option value="">Preferible</option>
+                  <option value="">Elegí</option>
                   <option value="M">Masculino</option>
                   <option value="F">Femenino</option>
                 </select>
               </label>
               <label className="fs-field">
-                <span>DNI</span>
+                <span>DNI *</span>
                 <input
+                  required
                   value={atletas[index]?.dni || ''}
                   onChange={(e) => updateAthlete(index, 'dni', e.target.value)}
                 />
               </label>
               <label className="fs-field">
-                <span>Obra social</span>
+                <span>Obra social *</span>
                 <input
+                  required
                   value={atletas[index]?.obraSocial || ''}
                   onChange={(e) => updateAthlete(index, 'obraSocial', e.target.value)}
                   placeholder="Ej. OSDE, Swiss Medical"
@@ -546,7 +589,7 @@ export default function FamilySignup() {
               </label>
               {!requiereTutor ? (
                 <label className="fs-field fs-field--full">
-                  <span>Dirección</span>
+                  <span>Dirección *</span>
                   <input
                     required
                     autoComplete="street-address"
@@ -561,7 +604,12 @@ export default function FamilySignup() {
         ))}
 
         <label className="fs-terms">
-          <input type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} />
+          <input
+            type="checkbox"
+            required
+            checked={acceptTerms}
+            onChange={(e) => setAcceptTerms(e.target.checked)}
+          />
           <span>
             Acepto los{' '}
             <a href={TERMS_URL} target="_blank" rel="noreferrer">

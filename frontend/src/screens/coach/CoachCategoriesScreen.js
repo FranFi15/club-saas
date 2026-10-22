@@ -149,28 +149,35 @@ export default function CoachCategoriesScreen({ navigation, route }) {
     if (data.attendanceByCat) setAttendanceByCat(data.attendanceByCat);
   }, []);
 
+  const rosterReq = useRef(0);
   const fetchShell = useCallback(async () => {
+    const gen = ++rosterReq.current;
     const h = await clubHeaders(clubData.urlIdentifier);
     const rol = (await getToken('userRol')) || '';
-    const [res, athRes, pendRes] = await Promise.all([
-      clubApi.get('/categories/mis-categorias', { headers: h }),
-      clubApi.get('/categories/mis-atletas', { headers: h }).catch(() => ({ data: [] })),
+    const athReq = clubApi.get('/categories/mis-atletas', { headers: h }).catch(() => ({ data: [] }));
+    const catReq = clubApi.get('/categories/mis-categorias', { headers: h });
+    const pendReq =
       rol === 'profe'
         ? clubApi.get('/categories/plantel-pendientes', { headers: h }).catch(() => ({ data: [] }))
-        : Promise.resolve({ data: [] }),
-    ]);
+        : Promise.resolve({ data: [] });
+
+    const athRes = await athReq;
+    const athletes = normalizeRosterRows(athRes.data || []);
+    if (gen === rosterReq.current) setAthletes(athletes);
+
+    const [res, pendRes] = await Promise.all([catReq, pendReq]);
     const prev = readScreenCache(categoriesCacheKey) || {};
     return {
       userRol: rol,
       list: sortByNombre(res.data || []),
-      athletes: normalizeRosterRows(athRes.data || []),
+      athletes,
       plantelPendientes: rol === 'profe' ? pendRes.data || [] : [],
       wellnessByCat: prev.wellnessByCat || {},
       attendanceByCat: prev.attendanceByCat || {},
     };
   }, [clubData?.urlIdentifier, categoriesCacheKey]);
 
-  const { loading, refreshing, onRefresh, reload } = useCachedFocusLoad({
+  const { loading, refreshing, onRefresh } = useCachedFocusLoad({
     cacheKey: categoriesCacheKey,
     enabled: !!categoriesCacheKey,
     fetchData: fetchShell,
@@ -192,8 +199,7 @@ export default function CoachCategoriesScreen({ navigation, route }) {
   useFocusEffect(
     useCallback(() => {
       badges?.refresh?.();
-      if (categoriesCacheKey) reload({ background: true });
-    }, [badges, categoriesCacheKey, reload]),
+    }, [badges]),
   );
 
   useEffect(() => {

@@ -54,14 +54,24 @@ export async function pickAndUploadAttachment(clubData, { preferDocument = false
   return url;
 }
 
-export async function pickAndUploadImage(clubData) {
+/**
+ * Pick an image from the gallery (no upload).
+ * On web, skips native crop — use WebImageCropModal instead.
+ * @returns {{ uri, filename, mime, webFile } | null}
+ */
+export async function pickImageAsset(opts = {}) {
+  const { allowsEditing = false, aspect, quality = 0.85 } = opts;
   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (status !== 'granted') {
     throw new Error('Necesitamos permiso para acceder a la galería.');
   }
+  // Native crop UI is unreliable on web; callers should crop separately.
+  const useNativeEdit = allowsEditing && Platform.OS !== 'web';
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
-    quality: 0.85,
+    quality,
+    allowsEditing: useNativeEdit,
+    ...(useNativeEdit && aspect ? { aspect } : {}),
     ...iosCompatiblePhotoOptions(),
     ...(Platform.OS === 'ios' && ImagePicker.UIImagePickerPresentationStyle
       ? { presentationStyle: ImagePicker.UIImagePickerPresentationStyle.FULL_SCREEN }
@@ -71,8 +81,21 @@ export async function pickAndUploadImage(clubData) {
   const asset = result.assets[0];
   const uri = asset.uri;
   const { filename, mime } = imageFromPickerAsset(asset, uri);
-  const { url } = await uploadFileToClub(clubData, uri, filename, mime, {
-    webFile: pickWebFile(asset, result),
+  return { uri, filename, mime, webFile: pickWebFile(asset, result) };
+}
+
+/**
+ * Pick an image and upload to club Cloudinary.
+ * @param {object} [opts]
+ * @param {boolean} [opts.allowsEditing] - native crop UI before upload (not on web)
+ * @param {[number, number]} [opts.aspect] - crop aspect, e.g. [16, 9]
+ * @param {number} [opts.quality]
+ */
+export async function pickAndUploadImage(clubData, opts = {}) {
+  const picked = await pickImageAsset(opts);
+  if (!picked) return null;
+  const { url } = await uploadFileToClub(clubData, picked.uri, picked.filename, picked.mime, {
+    webFile: picked.webFile,
   });
   return url;
 }

@@ -7,13 +7,16 @@ import { useMember } from '../../context/MemberContext';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import MemberChildPicker from '../../components/MemberChildPicker';
 import HubMenuCard from '../../components/HubMenuCard';
+import EventDoorCard from '../../components/EventDoorCard';
 import { useBadges } from '../../context/BadgeContext';
+import { useMercadoPagoLinked } from '../../hooks/useMercadoPagoLinked';
 
 export default function MemberCommsHubScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const { isTutor } = useMember();
   const { hub } = useBadges();
+  const mpLinked = useMercadoPagoLinked();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
 
   return (
@@ -34,6 +37,7 @@ export default function MemberCommsHubScreen({ navigation }) {
       />
       {isTutor ? <MemberChildPicker theme={theme} colorMarca={colorMarca} /> : null}
       <View style={styles.body}>
+        <EventDoorCard navigation={navigation} />
         <HubMenuCard
           theme={theme}
           colorMarca={colorMarca}
@@ -74,6 +78,16 @@ export default function MemberCommsHubScreen({ navigation }) {
           badge={hub('recursos')}
           onPress={() => navigation.navigate('MemberResources')}
         />
+        {mpLinked ? (
+          <HubMenuCard
+            theme={theme}
+            colorMarca={colorMarca}
+            icon="calendar-outline"
+            title="Eventos"
+            subtitle="Comprá entradas y mirá tus QR"
+            onPress={() => navigation.navigate('MemberEvents')}
+          />
+        ) : null}
       </View>
     </SafeAreaView>
   );

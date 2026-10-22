@@ -30,6 +30,7 @@ const swapRequestSchema = new mongoose.Schema(
 );
 
 swapRequestSchema.index({ sesionOrigen: 1, sesionDestino: 1, estado: 1 });
+swapRequestSchema.index({ estado: 1, sesionDestino: 1 });
 
 export const getSwapRequestModel = (tenantDB) =>
     tenantDB.models.SwapRequest || tenantDB.model('SwapRequest', swapRequestSchema);

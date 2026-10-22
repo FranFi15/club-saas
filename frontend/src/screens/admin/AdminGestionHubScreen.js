@@ -1,4 +1,4 @@
-import React, { useContext, useCallback, useState, useEffect } from 'react';
+import React, { useContext, useCallback, useState, useEffect, Fragment } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { StyleSheet, ScrollView, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,7 +8,9 @@ import { useBadges } from '../../context/BadgeContext';
 import HubMenuCard from '../../components/HubMenuCard';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { getToken } from '../../utils/storage';
-import { isDirigenteRole } from '../../constants/appRoles';
+import { isDirigenteRole, isClubOpsRole } from '../../constants/appRoles';
+import EventDoorCard from '../../components/EventDoorCard';
+import { useMercadoPagoLinked } from '../../hooks/useMercadoPagoLinked';
 
 const GESTION_ITEMS = [
   {
@@ -20,6 +22,7 @@ const GESTION_ITEMS = [
   },
   { title: 'Control de ingreso', subtitle: 'Escaneá el QR de socios y personal', icon: 'qr-code', route: 'EscanearIngreso' },
   { title: 'Alquiler de cancha', subtitle: 'Reservas externas y disponibilidad', icon: 'time', route: 'Alquileres', badgeKey: 'alquileres' },
+  { title: 'Eventos', subtitle: 'Entradas, descuentos y link público', icon: 'calendar', route: 'Eventos' },
   { title: 'Chat', subtitle: 'Mensajes con cualquier usuario del club', icon: 'chatbubbles', route: 'ChatInbox', badgeKey: 'chat' },
   { title: 'Muro de noticias', subtitle: 'Comunicados al club', icon: 'newspaper', route: 'Noticias' },
   { title: 'Pedir documentación', subtitle: 'Solicitá archivos a categorías o atletas', icon: 'document-text', route: 'PedirDocumentacion' },
@@ -40,6 +43,7 @@ export default function AdminGestionHubScreen({ navigation }) {
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const { hub, refresh } = useBadges();
   const [viewerRol, setViewerRol] = useState('');
+  const mpLinked = useMercadoPagoLinked();
 
   useEffect(() => {
     getToken('userRol').then((r) => setViewerRol(r || ''));
@@ -51,13 +55,20 @@ export default function AdminGestionHubScreen({ navigation }) {
     }, [refresh]),
   );
 
-  const items = isDirigenteRole(viewerRol)
+  const items = (isDirigenteRole(viewerRol)
     ? GESTION_ITEMS.filter((i) => !DIRIGENTE_HIDDEN.has(i.route)).map((i) =>
         i.route === 'ChatInbox'
           ? { ...i, subtitle: 'Mensajes con staff y administración' }
           : i,
       )
-    : GESTION_ITEMS;
+    : GESTION_ITEMS
+  )
+    .filter((item) => item.route !== 'Eventos' || mpLinked)
+    .map((item) =>
+      isClubOpsRole(viewerRol) && item.route === 'Eventos'
+        ? { ...item, subtitle: 'Vender entradas y ver compradores' }
+        : item,
+    );
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
@@ -75,16 +86,20 @@ export default function AdminGestionHubScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       >
         {items.map(({ title, subtitle, icon, route, badgeKey }) => (
-          <HubMenuCard
-            key={route}
-            title={title}
-            subtitle={subtitle}
-            icon={icon}
-            badge={badgeKey ? hub(badgeKey) : 0}
-            theme={theme}
-            colorMarca={colorMarca}
-            onPress={() => navigation.navigate(route)}
-          />
+          <Fragment key={route}>
+            <HubMenuCard
+              title={title}
+              subtitle={subtitle}
+              icon={icon}
+              badge={badgeKey ? hub(badgeKey) : 0}
+              theme={theme}
+              colorMarca={colorMarca}
+              onPress={() => navigation.navigate(route)}
+            />
+            {route === 'EscanearIngreso' ? (
+              <EventDoorCard navigation={navigation} routeName="EscanearEvento" />
+            ) : null}
+          </Fragment>
         ))}
       </ScrollView>
     </SafeAreaView>

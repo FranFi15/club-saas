@@ -5,6 +5,7 @@ import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import HubMenuCard from '../../components/HubMenuCard';
+import EventDoorCard from '../../components/EventDoorCard';
 import { useBadges } from '../../context/BadgeContext';
 
 export default function CoachCommsHubScreen({ navigation }) {
@@ -28,6 +29,7 @@ export default function CoachCommsHubScreen({ navigation }) {
         }
       />
       <View style={styles.body}>
+        <EventDoorCard navigation={navigation} />
         <HubMenuCard
           theme={theme}
           colorMarca={colorMarca}

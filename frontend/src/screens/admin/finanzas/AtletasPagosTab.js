@@ -31,6 +31,7 @@ function AthleteActionsMenu({
   onSelectPayments,
   onHistory,
   onAdvance,
+  onPastCuotas,
 }) {
   const pendingActionRef = useRef(null);
 
@@ -83,6 +84,11 @@ function AthleteActionsMenu({
     runAfterClose(() => onAdvance(atleta));
   };
 
+  const handlePast = () => {
+    if (!onPastCuotas) return;
+    runAfterClose(() => onPastCuotas(atleta));
+  };
+
   return (
     <Modal
       visible={visible}
@@ -121,6 +127,12 @@ function AthleteActionsMenu({
               <Text style={[styles.menuItemText, { color: theme.text }]}>Adelantar cuotas</Text>
             </TouchableOpacity>
           ) : null}
+          {onPastCuotas ? (
+            <TouchableOpacity style={styles.menuItem} onPress={handlePast} activeOpacity={0.75}>
+              <Ionicons name="archive-outline" size={20} color={colorMarca || theme.text} />
+              <Text style={[styles.menuItemText, { color: theme.text }]}>Cuotas anteriores</Text>
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity style={[styles.menuCancel, { borderTopColor: theme.border }]} onPress={onClose} activeOpacity={0.75}>
             <Text style={{ color: theme.textMuted, fontWeight: '600' }}>Cancelar</Text>
           </TouchableOpacity>
@@ -152,6 +164,7 @@ export default function AtletasPagosTab({
   onSelectPayments,
   onHistory,
   onAdvance,
+  onPastCuotas,
   hasMorePayments = false,
   loadingMorePayments = false,
   onLoadMorePayments,
@@ -511,6 +524,7 @@ export default function AtletasPagosTab({
         onSelectPayments={onSelectPayments}
         onHistory={onHistory}
         onAdvance={onAdvance}
+        onPastCuotas={onPastCuotas}
       />
     </View>
   );

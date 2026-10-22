@@ -67,6 +67,10 @@ const categorySchema = new mongoose.Schema({
 
 // Evitamos que en la misma disciplina existan dos categorías con el mismo nombre
 categorySchema.index({ nombre: 1, disciplina: 1 }, { unique: true });
+categorySchema.index({ profesores: 1 });
+categorySchema.index({ preparadoresFisicos: 1 });
+categorySchema.index({ nutricionistas: 1 });
+categorySchema.index({ psicologos: 1 });
 
 export const getCategoryModel = (tenantDB) => {
     return tenantDB.models.Category || tenantDB.model('Category', categorySchema);

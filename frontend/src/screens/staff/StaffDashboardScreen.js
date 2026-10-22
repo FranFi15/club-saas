@@ -19,6 +19,7 @@ import {
 import { formatRolStaff } from './staffUtils';
 import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScreenHeader';
 import HubMenuCard from '../../components/HubMenuCard';
+import EventDoorCard from '../../components/EventDoorCard';
 import DesignCard from '../../components/DesignCard';
 
 export default function StaffDashboardScreen({ navigation }) {
@@ -64,6 +65,7 @@ export default function StaffDashboardScreen({ navigation }) {
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Accesos rápidos</Text>
+        <EventDoorCard navigation={navigation} />
 
         <HubMenuCard
           theme={theme}

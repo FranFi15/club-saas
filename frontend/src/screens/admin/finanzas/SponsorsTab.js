@@ -16,6 +16,7 @@ import {
   Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import FormSheet from '../../../components/FormSheet';
 import { clubApi } from '../../../utils/api';
 import { readScreenCache, useCachedFocusLoad } from '../../../hooks/useCachedFocusLoad';
 import { useClientInfiniteScroll } from '../../../hooks/useClientInfiniteScroll';
@@ -447,19 +448,11 @@ export default function SponsorsTab({
       />
 
       <View style={styles.topBar}>
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: theme.textMuted, fontSize: 13 }}>
-            {canMutate
-              ? 'Confirmá el pago y adjuntá el comprobante'
-              : 'Sponsors del club (solo lectura)'}
-          </Text>
-        </View>
-        {canMutate ? (
-          <TouchableOpacity style={[styles.addBtn, { backgroundColor: cc }]} onPress={openCreate}>
-            <Ionicons name="add" size={18} color="#fff" />
-            <Text style={styles.addBtnTxt}>Nuevo</Text>
-          </TouchableOpacity>
-        ) : null}
+        <Text style={{ color: theme.textMuted, fontSize: 13 }}>
+          {canMutate
+            ? 'Confirmá el pago y adjuntá el comprobante'
+            : 'Sponsors del club (solo lectura)'}
+        </Text>
       </View>
 
       {loading && !sponsors.length ? (
@@ -468,7 +461,7 @@ export default function SponsorsTab({
         <FlatList
           data={visibleItems}
           keyExtractor={(item) => String(item._id)}
-          contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: canMutate ? 100 : 40 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cc} />}
           onEndReached={onEndReached}
           onEndReachedThreshold={onEndReachedThreshold}
@@ -481,6 +474,12 @@ export default function SponsorsTab({
           renderItem={renderItem}
         />
       )}
+
+      {canMutate ? (
+        <TouchableOpacity style={[s.fab, { backgroundColor: cc }]} onPress={openCreate}>
+          <Ionicons name="add" size={28} color="#fff" />
+        </TouchableOpacity>
+      ) : null}
 
       <Modal visible={payOpen} animationType="slide" transparent onRequestClose={() => setPayOpen(false)}>
         <KeyboardAvoidingView
@@ -611,27 +610,13 @@ export default function SponsorsTab({
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={formOpen} animationType="slide" transparent onRequestClose={() => setFormOpen(false)}>
-        <KeyboardAvoidingView
-          style={s.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setFormOpen(false)} />
-          <View style={[s.modalContent, { backgroundColor: theme.surface, maxHeight: '88%' }]}>
-            <View style={s.modalHeader}>
-              <Text style={[s.modalTitle, { color: theme.text }]}>
-                {editingId ? 'Editar sponsor' : 'Nuevo sponsor'}
-              </Text>
-              <TouchableOpacity onPress={() => setFormOpen(false)} hitSlop={12} accessibilityLabel="Cerrar">
-                <Ionicons name="close" size={24} color={theme.textMuted} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 12 }}
-            >
+      <FormSheet
+        visible={formOpen}
+        onClose={() => setFormOpen(false)}
+        title={editingId ? 'Editar sponsor' : 'Nuevo sponsor'}
+        theme={theme}
+        isDarkMode={isDarkMode}
+      >
               <TouchableOpacity style={styles.photoBtn} onPress={uploadPhoto} disabled={uploading}>
                 {form.fotoUrl ? (
                   <Image source={{ uri: form.fotoUrl }} style={styles.photoPreview} />
@@ -775,10 +760,7 @@ export default function SponsorsTab({
               >
                 <Text style={[s.saveBtnTxt, { color: theme.text }]}>Cancelar</Text>
               </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      </FormSheet>
     </View>
   );
 }
@@ -792,15 +774,6 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     gap: 12,
   },
-  addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    gap: 4,
-  },
-  addBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
   cardInner: { paddingBottom: 10 },
   cardMain: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   logo: { width: 52, height: 52, borderRadius: 10 },

@@ -14,6 +14,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import FormSheet from '../../../components/FormSheet';
 import { clubApi } from '../../../utils/api';
 import { readScreenCache, useCachedFocusLoad } from '../../../hooks/useCachedFocusLoad';
 import { finanzasStyles as s } from './finanzasStyles';
@@ -414,22 +415,13 @@ export default function CuotaSocialSection({
         })
       )}
 
-      <Modal visible={modalOpen} animationType="slide" transparent>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={s.modalOverlay}
-        >
-          <View style={[s.modalContent, { backgroundColor: theme.surface, maxHeight: '88%' }]}>
-            <View style={s.modalHeader}>
-              <Text style={[s.modalTitle, { color: theme.text, flex: 1 }]}>
-                {editingFee ? 'Editar cuota social' : 'Nueva cuota social'}
-              </Text>
-              <TouchableOpacity onPress={() => setModalOpen(false)} disabled={saving}>
-                <Ionicons name="close" size={28} color={theme.icon} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView keyboardShouldPersistTaps="handled">
+      <FormSheet
+        visible={modalOpen}
+        onClose={() => { if (!saving) setModalOpen(false); }}
+        title={editingFee ? 'Editar cuota social' : 'Nueva cuota social'}
+        theme={theme}
+        isDarkMode={isDarkMode}
+      >
               <Text style={[styles.label, { color: theme.textMuted }]}>Nombre</Text>
               <TextInput
                 style={[styles.input, { color: theme.text, borderColor: theme.border }]}
@@ -541,10 +533,7 @@ export default function CuotaSocialSection({
                   </Text>
                 )}
               </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      </FormSheet>
 
       <Modal visible={!!assignFee} animationType="slide" transparent>
         <KeyboardAvoidingView

@@ -21,6 +21,7 @@ import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
 import { useBadgesOptional } from '../../context/BadgeContext';
 import { useFocusEffect } from '@react-navigation/native';
 import NewsFeedPost from '../../components/NewsFeedPost';
+import FormSheet from '../../components/FormSheet';
 
 const ADMIN_ALCANCE_OPTIONS = [
   { value: 'global', label: 'Todo el club', icon: 'globe-outline' },
@@ -587,18 +588,18 @@ export default function NoticiasScreen({ navigation, route }) {
       )}
 
       {/* Modal de creación */}
-      <Modal visible={isModalVisible} animationType="slide" transparent>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent,{backgroundColor:theme.surface}]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle,{color:theme.text}]}>Nueva Noticia</Text>
-              <TouchableOpacity onPress={()=>{setIsModalVisible(false); if(isCoachComposer) resetFormCoachComposer(); else if(isStaffComposer) resetFormStaffComposer(); else resetForm();}}>
-                <Ionicons name="close" size={28} color={theme.icon} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+      <FormSheet
+        visible={isModalVisible}
+        onClose={() => {
+          setIsModalVisible(false);
+          if (isCoachComposer) resetFormCoachComposer();
+          else if (isStaffComposer) resetFormStaffComposer();
+          else resetForm();
+        }}
+        title="Nueva noticia"
+        theme={theme}
+        isDarkMode={isDarkMode}
+      >
               {/* Título */}
               <Text style={[styles.label,{color:theme.textMuted}]}>Título</Text>
               <TextInput style={[styles.input,{backgroundColor:theme.background,borderColor:theme.border,color:theme.text}]}
@@ -855,11 +856,7 @@ export default function NoticiasScreen({ navigation, route }) {
                   <><Ionicons name="send" size={18} color="#fff" style={{marginRight:8}} /><Text style={styles.saveBtnText}>Publicar Noticia</Text></>
                 )}
               </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      </FormSheet>
 
       <Modal
         visible={!!fullscreenImage}

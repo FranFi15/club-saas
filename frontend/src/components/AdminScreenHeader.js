@@ -1,9 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COACH_HEADER_HEIGHT, CoachHeaderActions } from './CoachScreenHeader';
+import { COACH_HEADER_HEIGHT, COACH_HEADER_HEIGHT_WITH_TOOLBAR, CoachHeaderActions } from './CoachScreenHeader';
 import NotificationBell from './NotificationBell';
 import HeaderClubLogo, { HEADER_CLUB_LOGO_SIZE } from './HeaderClubLogo';
+import { statusBarStyleForColor } from '../utils/statusBarContrast';
 
 const BACK_BTN_SIZE = 36;
 
@@ -14,15 +16,20 @@ export default function AdminScreenHeader({
   kicker,
   title,
   subtitle,
+  subtitleLines = 1,
   onBack,
   backAccessibilityLabel = 'Volver',
   rightAccessory,
+  leadingAccessory,
   bottomRightAccessory,
   showNotifications = true,
   showClubLogo = true,
 }) {
   // Con volver: acciones + campana van juntos arriba a la derecha (evita solaparse con el título).
-  const showTopToolbar = !!onBack;
+  const showTopToolbar = !!onBack || !!leadingAccessory;
+  const insets = useSafeAreaInsets();
+  const topInset = Platform.OS === 'web' ? 0 : insets.top;
+  const statusBarStyle = statusBarStyleForColor(colorMarca);
   const midRightAccessory = !onBack ? rightAccessory : null;
   const showMidRight = !onBack && (showNotifications || !!midRightAccessory);
   const midRightWide = showNotifications && !!midRightAccessory;
@@ -35,29 +42,44 @@ export default function AdminScreenHeader({
     ) : null;
 
   return (
-    <View style={[styles.headerWrap, { backgroundColor: theme.background }]}>
+    <View
+      style={[
+        styles.headerWrap,
+        {
+          backgroundColor: colorMarca,
+          marginTop: -topInset,
+          paddingTop: topInset,
+        },
+      ]}
+    >
+      {Platform.OS === 'web' ? null : (
+        <StatusBar barStyle={statusBarStyle} translucent backgroundColor="transparent" />
+      )}
       <View
         style={[
           styles.headerCard,
           {
             backgroundColor: colorMarca,
-            height: COACH_HEADER_HEIGHT,
+            height: showTopToolbar ? COACH_HEADER_HEIGHT_WITH_TOOLBAR : COACH_HEADER_HEIGHT,
           },
         ]}
       >
         {showTopToolbar ? (
           <View style={styles.toolbar}>
             <View style={styles.toolbarLeft}>
-              <CoachHeaderActions>
-                <TouchableOpacity
-                  onPress={onBack}
-                  style={styles.toolbarBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel={backAccessibilityLabel}
-                >
-                  <Ionicons name="arrow-back" size={20} color="#ffffff" />
-                </TouchableOpacity>
-              </CoachHeaderActions>
+              {onBack ? (
+                <CoachHeaderActions>
+                  <TouchableOpacity
+                    onPress={onBack}
+                    style={styles.toolbarBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={backAccessibilityLabel}
+                  >
+                    <Ionicons name="arrow-back" size={20} color="#ffffff" />
+                  </TouchableOpacity>
+                </CoachHeaderActions>
+              ) : null}
+              {leadingAccessory ? <View style={styles.toolbarLeading}>{leadingAccessory}</View> : null}
             </View>
             <View style={styles.toolbarRight}>
               {toolbarRightContent ? (
@@ -86,7 +108,7 @@ export default function AdminScreenHeader({
               {title}
             </Text>
             {subtitle ? (
-              <Text style={styles.headerSub} numberOfLines={1}>
+              <Text style={styles.headerSub} numberOfLines={subtitleLines}>
                 {subtitle}
               </Text>
             ) : null}
@@ -116,16 +138,11 @@ export default function AdminScreenHeader({
 }
 
 const styles = StyleSheet.create({
-  headerWrap: { width: '100%', paddingTop: 8, paddingBottom: 4 },
+  headerWrap: { width: '100%' },
   headerCard: {
     borderRadius: 0,
     width: '100%',
     paddingHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    elevation: 8,
   },
   toolbar: {
     flexDirection: 'row',
@@ -138,7 +155,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-start',
-    flexShrink: 0,
+    flexShrink: 1,
+    minWidth: 0,
+    gap: 8,
+  },
+  toolbarLeading: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   toolbarRight: {
     flexDirection: 'row',

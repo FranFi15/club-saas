@@ -17,6 +17,7 @@ import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
 import { tabBadgeText } from '../utils/tabBadgeLabel';
 import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
+import { useEventDoorEvents } from '../hooks/useEventDoorEvents';
 
 const Tab = createSwipeBottomTabNavigator();
 const ChatStack = createNativeStackNavigator();
@@ -49,6 +50,7 @@ export default function ControlIngresoNavigator() {
   const { theme, isDarkMode } = useContext(ThemeContext);
   const { tab, refresh } = useBadges();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
+  const doorEvents = useEventDoorEvents();
   const insets = useSafeAreaInsets();
   const tabBottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 10);
   const tabBarHeight = 64 + tabBottomPad;
@@ -74,6 +76,7 @@ export default function ControlIngresoNavigator() {
           const map = {
             ControlIngresoNoticias: focused ? 'newspaper' : 'newspaper-outline',
             ControlIngresoScan: focused ? 'qr-code' : 'qr-code-outline',
+            ControlIngresoEventos: focused ? 'ticket' : 'ticket-outline',
             ControlIngresoChat: focused ? 'chatbubbles' : 'chatbubbles-outline',
             ControlIngresoPerfil: focused ? 'person' : 'person-outline',
           };
@@ -89,6 +92,7 @@ export default function ControlIngresoNavigator() {
           ({
             ControlIngresoNoticias: 'Noticias',
             ControlIngresoScan: 'Ingreso',
+            ControlIngresoEventos: 'Eventos',
             ControlIngresoChat: 'Chat',
             ControlIngresoPerfil: 'Perfil',
           })[name],
@@ -98,8 +102,15 @@ export default function ControlIngresoNavigator() {
       <Tab.Screen
         name="ControlIngresoScan"
         component={AdminClubEntryScanScreen}
-        initialParams={{ standalone: true }}
+        initialParams={{ standalone: true, gate: 'club' }}
       />
+      {doorEvents.length ? (
+        <Tab.Screen
+          name="ControlIngresoEventos"
+          component={AdminClubEntryScanScreen}
+          initialParams={{ gate: 'event', tabRoot: true }}
+        />
+      ) : null}
       <Tab.Screen
         name="ControlIngresoChat"
         component={ControlChatStackNav}

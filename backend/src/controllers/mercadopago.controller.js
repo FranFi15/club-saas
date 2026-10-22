@@ -365,6 +365,12 @@ const mercadoPagoOAuthCallback = asyncHandler(async (req, res) => {
     res.status(200).type('html').send(oauthCallbackHtml(true, 'Tu club ya puede usar Mercado Pago con cobros en su nombre.'));
 });
 
+// @route   GET /api/mercadopago/linked
+const getMercadoPagoLinked = asyncHandler(async (req, res) => {
+    const linked = await isClubMercadoPagoLinked(req.models);
+    res.json({ linked });
+});
+
 // @route   GET /api/mercadopago/integration
 const getMpIntegration = asyncHandler(async (req, res) => {
     const { ClubSettings } = req.models;
@@ -1104,6 +1110,7 @@ export {
     webhookReceiver,
     syncMemberPayments,
     reconcilePayments,
+    getMercadoPagoLinked,
     getMpIntegration,
     backfillSellerMapping,
     updateMpIntegration,

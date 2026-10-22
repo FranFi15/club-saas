@@ -16,6 +16,8 @@ import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
 import { tabBadgeText } from '../utils/tabBadgeLabel';
 import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
+import AdminClubEntryScanScreen from '../screens/admin/AdminClubEntryScanScreen';
+import { useEventDoorEvents } from '../hooks/useEventDoorEvents';
 
 const Tab = createSwipeBottomTabNavigator();
 const ChatStack = createNativeStackNavigator();
@@ -48,6 +50,7 @@ export default function ColaboradorTabNavigator() {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const { tab, refresh } = useBadges();
+  const doorEvents = useEventDoorEvents();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const insets = useSafeAreaInsets();
   const tabBottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 10);
@@ -74,6 +77,7 @@ export default function ColaboradorTabNavigator() {
           const map = {
             ColabNoticias: focused ? 'newspaper' : 'newspaper-outline',
             ColabChat: focused ? 'chatbubbles' : 'chatbubbles-outline',
+            ColabEventos: focused ? 'ticket' : 'ticket-outline',
             ColabPerfil: focused ? 'person' : 'person-outline',
           };
           return <Ionicons name={map[name] || 'ellipse-outline'} size={22} color={color} />;
@@ -87,11 +91,19 @@ export default function ColaboradorTabNavigator() {
           ({
             ColabNoticias: 'Noticias',
             ColabChat: 'Chat',
+            ColabEventos: 'Eventos',
             ColabPerfil: 'Perfil',
           })[name],
       })}
     >
       <Tab.Screen name="ColabNoticias" component={ColaboradorNewsScreen} />
+      {doorEvents.length ? (
+        <Tab.Screen
+          name="ColabEventos"
+          component={AdminClubEntryScanScreen}
+          initialParams={{ gate: 'event', tabRoot: true }}
+        />
+      ) : null}
       <Tab.Screen
         name="ColabChat"
         component={ColaboradorChatStackNav}

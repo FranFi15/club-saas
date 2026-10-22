@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import connectDB from './src/config/db.js'; 
+import connectDB, { closeDB } from './src/config/db.js'; 
 
 // Importamos las rutas
 import adminRoutes from './src/routes/admin.routes.js';
@@ -29,6 +29,29 @@ app.get('/health', (req, res) => {
 
 const PORT = process.env.PORT || 4000;
 
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`[Super-Admin] Servidor corriendo en puerto ${PORT}`);
+});
+
+let closing = false;
+async function shutdown(signal) {
+  if (closing) return;
+  closing = true;
+  console.log(`[Super-Admin] Cerrando Mongo (${signal})`);
+  server.close();
+  const force = setTimeout(() => process.exit(0), 5_000);
+  force.unref();
+  try {
+    await closeDB();
+  } catch (err) {
+    console.error('[Super-Admin] No se pudo cerrar Mongo:', err.message);
+  }
+  clearTimeout(force);
+  process.exit(0);
+}
+process.on('SIGTERM', () => {
+  shutdown('SIGTERM');
+});
+process.on('SIGINT', () => {
+  shutdown('SIGINT');
 });

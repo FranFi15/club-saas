@@ -726,7 +726,12 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
 
   const renderListItem = ({ item }) => {
     const user = activeTab === 'atletas' ? item.atleta : item;
-    const planName = activeTab === 'atletas' ? (item.plan?.nombre || 'Sin plan') : null;
+    const planName =
+      activeTab === 'atletas'
+        ? item.atleta?.esBecado
+          ? item.plan?.nombre || 'Beca'
+          : item.plan?.nombre || 'Sin plan'
+        : null;
     const atletaId = user?._id;
     const attKey = atletaId ? String(atletaId) : '';
     const attExpanded = !!expandedAttendance[attKey];

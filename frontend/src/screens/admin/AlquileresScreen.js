@@ -10,6 +10,7 @@ import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
+import FormSheet from '../../components/FormSheet';
 import {
   generateTimeSlots,
   getSlotStatus,
@@ -833,18 +834,14 @@ export default function AlquileresScreen({ navigation }) {
       ) : null}
 
       {/* New Rental Modal */}
-      <Modal visible={isModalVisible} animationType="slide" transparent>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: theme.text }]}>Nuevo Alquiler</Text>
-                <TouchableOpacity onPress={()=>setIsModalVisible(false)}><Ionicons name="close" size={28} color={theme.icon}/></TouchableOpacity>
-              </View>
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                <Text style={{ color: cc, fontWeight: 'bold', marginBottom: 15 }}>
-                  Fecha: {formatJsDateToDisplay(selectedDate)} — {isoCalendarWeekday(selectedDate, { style: 'long' }) || dayName}
-                </Text>
+      <FormSheet
+        visible={isModalVisible}
+        onClose={() => setIsModalVisible(false)}
+        title="Nuevo alquiler"
+        subtitle={`${formatJsDateToDisplay(selectedDate)} — ${isoCalendarWeekday(selectedDate, { style: 'long' }) || dayName}`}
+        theme={theme}
+        isDarkMode={isDarkMode}
+      >
                 <Text style={[styles.label,{color:theme.textMuted}]}>Nombre del Cliente</Text>
                 <TextInput style={[styles.input,{backgroundColor:theme.background,borderColor:theme.border,color:theme.text}]}
                   placeholder="Ej: Juan Pérez" placeholderTextColor={theme.textMuted}
@@ -886,11 +883,7 @@ export default function AlquileresScreen({ navigation }) {
                 <TouchableOpacity style={[styles.saveBtn,{backgroundColor:'#10b981',marginTop:15}]} onPress={handleSaveRental} disabled={isSaving}>
                   {isSaving ? <ActivityIndicator color="#fff"/> : <Text style={styles.saveBtnText}>Confirmar Reserva</Text>}
                 </TouchableOpacity>
-              </ScrollView>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      </FormSheet>
 
       {/* Rental Detail Bottom Sheet (MP cobro vive acá — no apilar otro Modal) */}
       <Modal

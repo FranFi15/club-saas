@@ -63,6 +63,8 @@ const submissionSchema = new mongoose.Schema(
     { timestamps: true },
 );
 
+submissionSchema.index({ requerimiento: 1, estado: 1, atleta: 1 });
+
 function getOrCompileModel(tenantDB, name, schema, requiredPaths = []) {
     const existing = tenantDB.models[name];
     if (existing) {

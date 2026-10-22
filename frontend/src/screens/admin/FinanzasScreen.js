@@ -23,6 +23,7 @@ import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
 import BusyOverlay from '../../components/BusyOverlay';
+import FormSheet from '../../components/FormSheet';
 import { TABS, METODOS, MN, fmtMoney, parsePct, sanitizePctInput } from './finanzas/finanzasConstants';
 import { finanzasStyles as s } from './finanzas/finanzasStyles';
 import AtletasPagosTab from './finanzas/AtletasPagosTab';
@@ -33,7 +34,9 @@ import NominaTab from './finanzas/NominaTab';
 import GastosTab from './finanzas/GastosTab';
 import PaymentHistoryModal from './finanzas/PaymentHistoryModal';
 import AdvancePaymentsModal from './finanzas/AdvancePaymentsModal';
+import PastCuotasModal from './finanzas/PastCuotasModal';
 import SponsorsTab from './finanzas/SponsorsTab';
+import CajaTab from './finanzas/CajaTab';
 import SelectPaymentsModal from '../../components/SelectPaymentsModal';
 import PaymentPaySummary from '../../components/PaymentPaySummary';
 import { useBadges } from '../../context/BadgeContext';
@@ -136,11 +139,14 @@ export default function FinanzasScreen({ route }) {
   const leaveRevision = () => selectMainTab('atletas');
   const openPlanes = () => setTab('planes');
   const leavePlanes = () => selectMainTab('atletas');
+  const openCaja = () => setTab('caja');
+  const leaveCaja = () => selectMainTab('atletas');
   const [viewerRol, setViewerRol] = useState('');
   const canManageClubFinances = isClubOwnerRole(viewerRol);
   const canRunPeriodActions = canMutateAsAdmin(viewerRol);
   const canViewFullFinanzas = canViewOwnerAdminUI(viewerRol);
-  const showAccionesMenu = canRunPeriodActions || canManageClubFinances;
+  const showAccionesMenu =
+    canRunPeriodActions || canManageClubFinances || canViewFullFinanzas;
   const visibleTabs = canViewFullFinanzas
     ? TABS
     : TABS.filter((t) => t.key === 'atletas' || t.key === 'familias');
@@ -200,7 +206,15 @@ export default function FinanzasScreen({ route }) {
 
   useEffect(() => {
     if (canViewFullFinanzas) return;
-    if (tab === 'planes' || tab === 'sponsors' || tab === 'nomina' || tab === 'gastos') selectMainTab('atletas');
+    if (
+      tab === 'planes' ||
+      tab === 'sponsors' ||
+      tab === 'nomina' ||
+      tab === 'gastos' ||
+      tab === 'caja'
+    ) {
+      selectMainTab('atletas');
+    }
   }, [canViewFullFinanzas, tab, selectMainTab]);
 
   const now = new Date();
@@ -223,13 +237,20 @@ export default function FinanzasScreen({ route }) {
     tab === 'familias' ||
     tab === 'nomina' ||
     tab === 'gastos' ||
-    tab === 'sponsors';
+    tab === 'sponsors' ||
+    tab === 'caja';
   const showVencidosHeader = tab === 'atletas' && filtroEstado === 'vencido';
   const showCuotaPeriodActions =
-    showMonthNav && canRunPeriodActions && tab !== 'nomina' && tab !== 'gastos' && tab !== 'sponsors';
+    showMonthNav &&
+    canRunPeriodActions &&
+    tab !== 'nomina' &&
+    tab !== 'gastos' &&
+    tab !== 'sponsors' &&
+    tab !== 'caja';
   const showRevisionHeader = tab === 'revision';
   const showPlanesHeader = tab === 'planes';
-  const hideMainTabs = showRevisionHeader || showPlanesHeader;
+  const showCajaHeader = tab === 'caja';
+  const hideMainTabs = showRevisionHeader || showPlanesHeader || showCajaHeader;
 
   const [athletes, setAthletes] = useState(() => readScreenCache(paymentsCacheKey)?.athletes ?? []);
   const PAYMENTS_PAGE_SIZE = 50;
@@ -291,6 +312,8 @@ export default function FinanzasScreen({ route }) {
   const [historyRefresh, setHistoryRefresh] = useState(0);
   const [advanceModal, setAdvanceModal] = useState(false);
   const [advanceAtleta, setAdvanceAtleta] = useState(null);
+  const [pastModal, setPastModal] = useState(false);
+  const [pastAtleta, setPastAtleta] = useState(null);
 
   const [plans, setPlans] = useState([]);
   const [isLoadingPlans, setIsLoadingPlans] = useState(false);
@@ -939,6 +962,28 @@ export default function FinanzasScreen({ route }) {
     setAdvanceModal(true);
   };
 
+  const openPastCuotas = (atleta) => {
+    setPastAtleta(atleta);
+    setPastModal(true);
+  };
+
+  const handlePastCuotas = async (payload) => {
+    try {
+      const h = await getHeaders();
+      const r = await clubApi.post('/financial/payments/backfill', payload, { headers: h });
+      setHistoryRefresh((k) => k + 1);
+      if (tab === 'atletas') reloadPayments?.({ background: true });
+      if (tab === 'familias') fetchSiblingsFirstPage?.();
+      queueAlertAfterModalsClose('Listo', r.data?.message || 'Cuotas anteriores cargadas.');
+    } catch (e) {
+      queueAlertAfterModalsClose(
+        'Error',
+        e.response?.data?.message || 'No se pudieron cargar las cuotas anteriores.',
+      );
+      throw e;
+    }
+  };
+
   const handleAdvancePayments = async ({
     atletaId,
     cantidadMeses,
@@ -1295,22 +1340,28 @@ export default function FinanzasScreen({ route }) {
             ? 'Revisión'
             : showPlanesHeader
               ? 'Cuotas y Planes'
-              : 'Pagos'
+              : showCajaHeader
+                ? 'Caja'
+                : 'Pagos'
         }
         subtitle={
           showRevisionHeader
             ? 'Comprobantes pendientes'
             : showPlanesHeader
               ? 'Planes y cuota social'
-              : showVencidosHeader
-                ? 'Todas las cuotas vencidas'
-                : undefined
+              : showCajaHeader
+                ? `${MN[mes - 1]} ${anio}`
+                : showVencidosHeader
+                  ? 'Todas las cuotas vencidas'
+                  : undefined
         }
         onBack={
-          showRevisionHeader || showPlanesHeader
-            ? showPlanesHeader
-              ? leavePlanes
-              : leaveRevision
+          showRevisionHeader || showPlanesHeader || showCajaHeader
+            ? showCajaHeader
+              ? leaveCaja
+              : showPlanesHeader
+                ? leavePlanes
+                : leaveRevision
             : undefined
         }
         rightAccessory={
@@ -1399,6 +1450,18 @@ export default function FinanzasScreen({ route }) {
               >
                 <Ionicons name="document-text-outline" size={20} color={theme.text} />
                 <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Cuotas y Planes</Text>
+              </TouchableOpacity>
+            ) : null}
+            {canViewFullFinanzas && !showCajaHeader ? (
+              <TouchableOpacity
+                style={financeHeader.menuItem}
+                onPress={() => {
+                  setMoreOpen(false);
+                  openCaja();
+                }}
+              >
+                <Ionicons name="cash-outline" size={20} color={theme.text} />
+                <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Caja</Text>
               </TouchableOpacity>
             ) : null}
             {canRunPeriodActions && (showCuotaPeriodActions || showVencidosHeader) ? (
@@ -1551,6 +1614,7 @@ export default function FinanzasScreen({ route }) {
                     }
                     onHistory={openHistory}
                     onAdvance={canRunPeriodActions ? openAdvance : undefined}
+                    onPastCuotas={canRunPeriodActions ? openPastCuotas : undefined}
                     hasMorePayments={paymentsHasMore}
                     loadingMorePayments={loadingMorePayments}
                     onLoadMorePayments={loadMorePayments}
@@ -1674,6 +1738,19 @@ export default function FinanzasScreen({ route }) {
         />
       )}
 
+      {tab === 'caja' && canViewFullFinanzas ? (
+        <CajaTab
+          clubData={clubData}
+          theme={theme}
+          isDarkMode={isDarkMode}
+          primaryColor={cc}
+          getHeaders={getHeaders}
+          showAlert={showAlert}
+          mes={mes}
+          anio={anio}
+        />
+      ) : null}
+
       <SelectPaymentsModal
         visible={selectModalOpen}
         onClose={() => setSelectModalOpen(false)}
@@ -1709,6 +1786,15 @@ export default function FinanzasScreen({ route }) {
               }
             : undefined
         }
+        onPastCuotas={
+          canRunPeriodActions
+            ? () => {
+                const a = historyAtleta;
+                setHistoryModal(false);
+                openPastCuotas(a);
+              }
+            : undefined
+        }
         canDelete={canRunPeriodActions}
         onDismiss={handleNestedModalDismissed}
       />
@@ -1726,6 +1812,19 @@ export default function FinanzasScreen({ route }) {
         anio={anio}
         getHeaders={getHeaders}
         onConfirm={handleAdvancePayments}
+        onDismiss={handleNestedModalDismissed}
+      />
+
+      <PastCuotasModal
+        visible={pastModal}
+        onClose={() => {
+          setPastModal(false);
+          setPastAtleta(null);
+        }}
+        atleta={pastAtleta}
+        theme={theme}
+        primaryColor={cc}
+        onConfirm={handlePastCuotas}
         onDismiss={handleNestedModalDismissed}
       />
 
@@ -1750,18 +1849,13 @@ export default function FinanzasScreen({ route }) {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={planFormVisible} animationType="slide" transparent onRequestClose={() => setPlanFormVisible(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <View style={s.modalOverlay}>
-            <View style={[s.modalContent, { backgroundColor: theme.surface }]}>
-              <View style={s.modalHeader}>
-                <Text style={[s.modalTitle, { color: theme.text }]}>
-                  {editingPlan ? 'Editar plan' : 'Nuevo plan'}
-                </Text>
-                <TouchableOpacity onPress={() => setPlanFormVisible(false)}>
-                  <Ionicons name="close" size={28} color={theme.icon} />
-                </TouchableOpacity>
-              </View>
+      <FormSheet
+        visible={planFormVisible}
+        onClose={() => setPlanFormVisible(false)}
+        title={editingPlan ? 'Editar plan' : 'Nuevo plan'}
+        theme={theme}
+        isDarkMode={isDarkMode}
+      >
 
               <Text style={[s.label, { color: theme.textMuted }]}>Nombre</Text>
               <TextInput
@@ -1836,10 +1930,7 @@ export default function FinanzasScreen({ route }) {
                   <Text style={s.saveBtnTxt}>{editingPlan ? 'Guardar cambios' : 'Crear plan'}</Text>
                 )}
               </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      </FormSheet>
 
       <BusyOverlay
         visible={periodBusy}

@@ -44,11 +44,11 @@ function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <AndroidSystemChrome />
           <ClubProvider>
             <BadgeProvider>
               <MemberRoot>
                 <AppNavigator />
+                <AndroidSystemChrome />
               </MemberRoot>
             </BadgeProvider>
           </ClubProvider>

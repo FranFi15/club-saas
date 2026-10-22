@@ -13,6 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import FormSheet from '../../../components/FormSheet';
 import { clubApi } from '../../../utils/api';
 import { readScreenCache, useCachedFocusLoad } from '../../../hooks/useCachedFocusLoad';
 import { useClientInfiniteScroll } from '../../../hooks/useClientInfiniteScroll';
@@ -430,21 +431,13 @@ export default function NominaTab({
         </TouchableOpacity>
       ) : null}
 
-      <Modal visible={modalOpen} animationType="slide" transparent onRequestClose={closeModal}>
-        <KeyboardAvoidingView
-          style={s.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <View style={[s.modalContent, { backgroundColor: panelBg, maxHeight: '92%' }]}>
-            <View style={s.modalHeader}>
-              <Text style={[s.modalTitle, { color: theme.text }]}>
-                {editingId ? 'Editar pago' : 'Registrar pago'}
-              </Text>
-              <TouchableOpacity onPress={closeModal}>
-                <Ionicons name="close" size={24} color={theme.textMuted} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView keyboardShouldPersistTaps="handled">
+      <FormSheet
+        visible={modalOpen}
+        onClose={closeModal}
+        title={editingId ? 'Editar pago' : 'Registrar pago'}
+        theme={theme}
+        isDarkMode={isDarkMode}
+      >
               <Text style={[s.label, { color: theme.textMuted }]}>Personal</Text>
               {editingId ? (
                 <View
@@ -677,10 +670,7 @@ export default function NominaTab({
                   <Text style={s.saveBtnTxt}>{editingId ? 'Guardar cambios' : 'Guardar pago'}</Text>
                 )}
               </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      </FormSheet>
 
       <CustomAlert
         visible={confirmCfg.visible}

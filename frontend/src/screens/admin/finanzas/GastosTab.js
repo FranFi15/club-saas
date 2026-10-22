@@ -13,6 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import FormSheet from '../../../components/FormSheet';
 import { clubApi } from '../../../utils/api';
 import { readScreenCache, useCachedFocusLoad } from '../../../hooks/useCachedFocusLoad';
 import { useClientInfiniteScroll } from '../../../hooks/useClientInfiniteScroll';
@@ -559,21 +560,13 @@ export default function GastosTab({
       </Modal>
 
       {/* Create / edit bill */}
-      <Modal visible={createOpen} animationType="slide" transparent onRequestClose={closeCreate}>
-        <KeyboardAvoidingView
-          style={s.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <View style={[s.modalContent, { backgroundColor: theme.surface, maxHeight: '92%' }]}>
-            <View style={s.modalHeader}>
-              <Text style={[s.modalTitle, { color: theme.text }]}>
-                {editingId ? 'Editar factura' : 'Nueva factura'}
-              </Text>
-              <TouchableOpacity onPress={closeCreate}>
-                <Ionicons name="close" size={24} color={theme.textMuted} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView keyboardShouldPersistTaps="handled">
+      <FormSheet
+        visible={createOpen}
+        onClose={closeCreate}
+        title={editingId ? 'Editar factura' : 'Nueva factura'}
+        theme={theme}
+        isDarkMode={isDarkMode}
+      >
               <Text style={[s.label, { color: theme.textMuted }]}>Concepto</Text>
               <TextInput
                 style={[s.input, { borderColor: theme.border, color: theme.text, backgroundColor: theme.background }]}
@@ -677,10 +670,7 @@ export default function GastosTab({
                   <Text style={s.saveBtnTxt}>{editingId ? 'Guardar cambios' : 'Guardar'}</Text>
                 )}
               </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      </FormSheet>
 
       {/* Select existing pending */}
       <Modal visible={selectOpen} animationType="slide" transparent onRequestClose={() => setSelectOpen(false)}>

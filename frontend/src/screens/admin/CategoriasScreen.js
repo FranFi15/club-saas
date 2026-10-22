@@ -20,6 +20,7 @@ import { sortByNombre } from '../../utils/listSort';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
 import CalendarDateField from '../../components/CalendarDateField';
+import FormSheet from '../../components/FormSheet';
 import { displayDateToIsoCalendar, isoCalendarDateToDisplay, formatDayMonthLong } from '../../utils/dateDisplay';
 import { isClubOwnerRole } from '../../constants/appRoles';
 
@@ -376,28 +377,13 @@ export default function CategoriasScreen({ navigation, route }) {
         </TouchableOpacity>
       ) : null}
 
-      <Modal visible={isModalVisible} animationType="slide" transparent={true} onRequestClose={closeModal}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: theme.text }]}>
-                  {editingCategory ? "Editar Categoría" : "Nueva Categoría"}
-                </Text>
-                <TouchableOpacity onPress={closeModal}>
-                  <Ionicons name="close" size={28} color={theme.icon} />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                contentContainerStyle={styles.modalScrollContent}
-              >
+      <FormSheet
+        visible={isModalVisible}
+        onClose={closeModal}
+        title={editingCategory ? 'Editar categoría' : 'Nueva categoría'}
+        theme={theme}
+        isDarkMode={isDarkMode}
+      >
               <Text style={[styles.modalLabel, { color: theme.textMuted }]}>
                 Nombre (Ej: Primera, U-15, Reserva)
               </Text>
@@ -531,12 +517,7 @@ export default function CategoriasScreen({ navigation, route }) {
                   </Text>
                 )}
               </TouchableOpacity>
-              </ScrollView>
-
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      </FormSheet>
 
       <Modal visible={planPickerVisible} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>

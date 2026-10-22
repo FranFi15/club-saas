@@ -7,7 +7,6 @@ import {
     delegateCategoryRosterToCoach,
     listRosterPendingForCoach,
 } from '../services/categoryRoster.service.js';
-import { getCoachCategoryAlertCounts } from '../services/coachCategoryAlerts.service.js';
 import {
     syncCategoryGroupChatSafe,
     deactivateCategoryGroupChat,
@@ -199,24 +198,10 @@ const getMisCategoriasCoach = asyncHandler(async (req, res) => {
                 : { profesores: req.user._id };
     const cats = await Category.find(query)
         .populate('disciplina', 'nombre color')
-        .populate('profesores', 'nombre apellido')
-        .populate('preparadoresFisicos', 'nombre apellido')
-        .populate('nutricionistas', 'nombre apellido')
-        .populate('psicologos', 'nombre apellido')
         .sort({ nombre: 1 })
         .lean();
 
-    const alertCounts = await getCoachCategoryAlertCounts(req.user, req.models);
-    const withAlerts = cats.map((c) => {
-        const alertasCount = alertCounts[String(c._id)] || 0;
-        return {
-            ...c,
-            alertasCount,
-            tieneAlertas: alertasCount > 0,
-        };
-    });
-
-    res.json(sortByField(withAlerts));
+    res.json(sortByField(cats));
 });
 
 function staffCategoriesQuery(rol, userId) {
@@ -253,6 +238,7 @@ const getMisAtletasStaff = asyncHandler(async (req, res) => {
         categoria: { $in: catIds },
         estado: 'activo',
     })
+        .select('atleta categoria')
         .populate({
             path: 'atleta',
             select: 'nombre apellido dni fotoPerfil email tutorPrincipal',

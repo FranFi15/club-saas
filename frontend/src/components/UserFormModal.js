@@ -13,6 +13,7 @@ import { isClubOwnerRole } from '../constants/appRoles';
 import { sortUsersByName, formatUserName } from '../utils/listSort';
 import { displayDateToIsoCalendar, isoCalendarDateToDisplay, maskDateDDMMAAAA } from '../utils/dateDisplay';
 import ProfilePhotoField from './ProfilePhotoField';
+import FormSheet from './FormSheet';
 
 /** Roles de personal que ya entran en nómina por su cargo. */
 const PAYROLL_STAFF_ROLES = [
@@ -60,7 +61,7 @@ export default function UserFormModal({
   onConvertTrial,
   convertingTrial = false,
 }) {
-  const { theme } = useContext(ThemeContext);
+  const { theme, isDarkMode } = useContext(ThemeContext);
   const { clubData } = useContext(ClubContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
 
@@ -68,7 +69,7 @@ export default function UserFormModal({
     nombre: '', apellido: '', email: '', password: '', 
     dni: '', telefono: '', direccion: '', obraSocial: '', rol: 'atleta', roles: ['atleta'], tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
     cuotasEnApp: true, sexo: '', exentoCuotaSocial: false, cuotaSocialAsignada: null,
-    esPrueba: false, diasPrueba: '15', enNomina: false, sueldoNomina: '',
+    esPrueba: false, diasPrueba: '15', enNomina: false, sueldoNomina: '', esBecado: false,
   });
 
   const [tutors, setTutors] = useState([]);
@@ -138,6 +139,7 @@ export default function UserFormModal({
         cuotaSocialAsignada:
           initialData.cuotaSocialAsignada?._id || initialData.cuotaSocialAsignada || null,
         esPrueba: initialData.esPrueba === true,
+        esBecado: initialData.esBecado === true,
         diasPrueba: initialData.pruebaHasta
           ? String(
               Math.max(
@@ -158,7 +160,7 @@ export default function UserFormModal({
       setFormData({
         nombre: '', apellido: '', email: '', password: '', dni: '', telefono: '', direccion: '', obraSocial: '', rol: 'atleta', roles: ['atleta'], tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
         cuotasEnApp: true, sexo: '', exentoCuotaSocial: false, cuotaSocialAsignada: null,
-        esPrueba: false, diasPrueba: '15', enNomina: false, sueldoNomina: '',
+        esPrueba: false, diasPrueba: '15', enNomina: false, sueldoNomina: '', esBecado: false,
       });
     }
   }, [initialData, visible]);
@@ -331,6 +333,7 @@ export default function UserFormModal({
       delete payload.diasPrueba;
       delete payload.enNomina;
       delete payload.tutorPrincipal;
+      delete payload.esBecado;
     } else if (payload.sexo !== 'M' && payload.sexo !== 'F') {
       payload.sexo = '';
     }
@@ -347,6 +350,7 @@ export default function UserFormModal({
         payload.esPrueba = false;
         delete payload.diasPrueba;
       }
+      payload.esBecado = !!payload.esBecado;
       payload.enNomina = !!payload.enNomina;
       if (payload.enNomina) {
         const sueldo = Number(String(payload.sueldoNomina || '0').replace(',', '.'));
@@ -372,20 +376,13 @@ export default function UserFormModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <View style={styles.overlay}>
-          <View style={[styles.content, { backgroundColor: theme.surface }]}>
-            <View style={styles.header}>
-              <Text style={[styles.title, { color: theme.text }]}>
-                {initialData ? 'Editar Usuario' : 'Nuevo Usuario'}
-              </Text>
-              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                <Ionicons name="close" size={24} color={theme.icon} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+    <FormSheet
+      visible={visible}
+      onClose={onClose}
+      title={initialData ? 'Editar usuario' : 'Nuevo usuario'}
+      theme={theme}
+      isDarkMode={isDarkMode}
+    >
 
               <ProfilePhotoField
                 value={formData.fotoPerfil}
@@ -687,6 +684,23 @@ export default function UserFormModal({
                 </View>
               ) : null}
 
+              {hasAtleta ? (
+                <View style={[styles.switchRow, { borderColor: theme.border, backgroundColor: theme.background, marginBottom: 15 }]}>
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text style={[styles.switchTitle, { color: theme.text }]}>Plan beca</Text>
+                    <Text style={[styles.switchHint, { color: theme.textMuted }]}>
+                      Al inscribirlo en una categoría usa el plan Beca, no el de la categoría. No genera cuota de entrenamiento.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={!!formData.esBecado}
+                    onValueChange={(v) => handleChange('esBecado', v)}
+                    trackColor={{ false: theme.border, true: colorMarca + '88' }}
+                    thumbColor={formData.esBecado ? colorMarca : theme.textMuted}
+                  />
+                </View>
+              ) : null}
+
               {hasAtleta && !initialData ? (
                 <>
                   <View style={[styles.switchRow, { borderColor: theme.border, backgroundColor: theme.background }]}>
@@ -831,11 +845,7 @@ export default function UserFormModal({
                 {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>{initialData ? 'Guardar Cambios' : 'Crear Usuario'}</Text>}
               </TouchableOpacity>
 
-            </ScrollView>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+    </FormSheet>
   );
 }
 

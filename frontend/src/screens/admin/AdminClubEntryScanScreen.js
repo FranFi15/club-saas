@@ -10,6 +10,7 @@ import {
   Platform,
   ScrollView,
   TextInput,
+  Modal,
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,6 +26,7 @@ import UserAvatar from '../../components/UserAvatar';
 import CustomAlert from '../../components/CustomAlert';
 import VisitorEntryModal from '../../components/VisitorEntryModal';
 import HistoryDayPickerModal from '../../components/HistoryDayPickerModal';
+import FilterPillSheet from '../../components/FilterPillSheet';
 import { formatRolStaff } from '../staff/staffUtils';
 import { USER_ROL_LABELS } from '../../constants/userRoles';
 import { useCachedFocusLoad, clearScreenCache } from '../../hooks/useCachedFocusLoad';
@@ -65,6 +67,33 @@ function extractEntryToken(raw) {
   const prefix = 'gpsports:entry:';
   if (value.startsWith(prefix)) return value.slice(prefix.length);
   return value;
+}
+
+function detectQrKind(raw) {
+  const value = String(raw || '').trim();
+  if (value.startsWith('gpsports:event:')) return 'event';
+  if (value.startsWith('gpsports:entry:')) return 'entry';
+  return 'unknown';
+}
+
+function pendingPersonName(pending) {
+  if (!pending) return '';
+  if (pending.gate === 'event') {
+    const holder = pending.preview?.ticket?.titular || {};
+    return `${holder.apellido || ''} ${holder.nombre || ''}`.trim() || 'Entrada';
+  }
+  return formatUserName(pending.preview?.member || pending.preview?.visitor) || 'Ingreso';
+}
+
+function pendingPersonDetail(pending) {
+  if (!pending) return '';
+  if (pending.gate === 'event') {
+    const holder = pending.preview?.ticket?.titular || {};
+    const tipo = pending.preview?.ticket?.tipoEntradaNombre;
+    return [`DNI ${holder.dni || 'sin cargar'}`, tipo].filter(Boolean).join(' · ');
+  }
+  const person = pending.preview?.member || {};
+  return [entryRoleLabel(person.rol), person.dni ? `DNI ${person.dni}` : ''].filter(Boolean).join(' · ');
 }
 
 function formatTime(iso) {
@@ -120,15 +149,68 @@ function entrySearchBlob(item) {
     .toLowerCase();
 }
 
-function ResultCard({ result, onDismiss, theme }) {
+function ResultCard({ result, onDismiss, theme, gate = 'club' }) {
   if (!result) {
     return (
       <View style={[styles.emptyResult, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Ionicons name="person-outline" size={40} color={theme.icon} />
-        <Text style={[styles.emptyResultTitle, { color: theme.text }]}>Sin ingresos recientes</Text>
-        <Text style={[styles.emptyResultSub, { color: theme.textMuted }]}>
-          Escaneá un QR o registrá un visitante para verlo acá.
+        <Ionicons name={gate === 'event' ? 'ticket-outline' : 'person-outline'} size={40} color={theme.icon} />
+        <Text style={[styles.emptyResultTitle, { color: theme.text }]}>
+          {gate === 'event' ? 'Sin entradas recientes' : 'Sin ingresos recientes'}
         </Text>
+        <Text style={[styles.emptyResultSub, { color: theme.textMuted }]}>
+          {gate === 'event'
+            ? 'Escaneá el QR de una entrada para verla acá.'
+            : 'Escaneá un QR o registrá un visitante para verlo acá.'}
+        </Text>
+      </View>
+    );
+  }
+
+  if (result.entryType === 'event' || result.ticket) {
+    const holder = result.ticket?.titular?.nombre || result.ticket?.titular?.dni
+      ? result.ticket.titular
+      : result.ticket?.comprador || {};
+    const name = `${holder.apellido || ''} ${holder.nombre || ''}`.trim() || 'Entrada';
+    const blocked = !!result.alreadyUsed;
+    const declined = result.decision === 'no_entro';
+    const title = blocked
+      ? 'Este ticket ya se usó'
+      : declined
+        ? 'No entró'
+        : result.decision === 'entro'
+          ? 'Entró'
+          : 'Entrada válida';
+    return (
+      <View
+        style={[
+          styles.resultCard,
+          {
+            backgroundColor: blocked || declined ? '#fef3c7' : '#ecfdf5',
+            borderColor: blocked ? '#ef4444' : declined ? '#f59e0b' : '#10b981',
+          },
+        ]}
+      >
+        <TouchableOpacity style={styles.resultClose} onPress={onDismiss} hitSlop={10}>
+          <Ionicons name="close" size={20} color="#374151" />
+        </TouchableOpacity>
+        <View style={styles.resultRow}>
+          <Ionicons name="ticket-outline" size={40} color="#15803d" />
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.resultTitle}>{title}</Text>
+            <Text style={styles.resultName}>{name}</Text>
+            <Text style={styles.resultDni}>DNI {holder.dni || 'sin cargar'}</Text>
+            <Text style={styles.resultHint}>Pedí el DNI y comparalo con este número.</Text>
+            <Text style={styles.resultMeta}>
+              {result.evento?.titulo || 'Evento'}
+              {result.ticket?.tipoEntradaNombre
+                ? ` · ${result.ticket.tipoEntradaNombre}`
+                : ''}
+            </Text>
+            {result.ticket?.codigo ? (
+              <Text style={styles.resultMeta}>Código {result.ticket.codigo}</Text>
+            ) : null}
+          </View>
+        </View>
       </View>
     );
   }
@@ -164,13 +246,19 @@ function ResultCard({ result, onDismiss, theme }) {
         <UserAvatar user={person} size={56} />
         <View style={{ flex: 1 }}>
           <Text style={styles.resultTitle}>
-            {result.duplicate
-              ? 'Ingreso duplicado'
-              : hasWarnings || billing?.isMoroso
-                ? 'Ingreso con alerta'
-                : isVisitor
-                  ? 'Visitante registrado'
-                  : 'Ingreso registrado'}
+            {result.alreadyEntered
+              ? 'Ya entró'
+              : result.decision === 'no_entro'
+                ? 'No entró'
+                : result.decision === 'entro'
+                  ? 'Entró'
+                  : result.duplicate
+                    ? 'Ingreso duplicado'
+                    : hasWarnings || billing?.isMoroso
+                      ? 'Ingreso con alerta'
+                      : isVisitor
+                        ? 'Visitante registrado'
+                        : 'Ingreso registrado'}
           </Text>
           <Text style={styles.resultName}>
             {formatUserName(person)}
@@ -247,10 +335,12 @@ function ResultCard({ result, onDismiss, theme }) {
 
 export default function AdminClubEntryScanScreen({ navigation, route }) {
   const standalone = route?.params?.standalone === true;
+  const tabRoot = route?.params?.tabRoot === true;
+  const gate = route?.params?.gate === 'event' ? 'event' : 'club';
   const isFocused = useIsFocused();
   const { width: windowWidth } = useWindowDimensions();
   const cameraHeight = Math.min(360, Math.round(windowWidth * 0.78));
-  const cameraWidth = Math.max(1, windowWidth - 32); // body paddingHorizontal 16 * 2
+  const cameraWidth = Math.max(1, windowWidth - 32);
   const { clubData, clearSession } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
@@ -266,6 +356,13 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
   const [visitorOpen, setVisitorOpen] = useState(false);
   const [savingVisitor, setSavingVisitor] = useState(false);
   const [cameraKey, setCameraKey] = useState(0);
+  const [eventTargets, setEventTargets] = useState([]);
+  const [selectedEventId, setSelectedEventId] = useState('');
+  const [eventFilterOpen, setEventFilterOpen] = useState(null);
+  const [pendingEntry, setPendingEntry] = useState(null);
+  const [savingDecision, setSavingDecision] = useState(false);
+  const [doorLog, setDoorLog] = useState([]);
+  const [doorLogTick, setDoorLogTick] = useState(0);
   const lastScanRef = useRef({ token: '', at: 0 });
   const cooldownRef = useRef(null);
 
@@ -363,9 +460,76 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
     }
   };
 
+  const loadEventTargets = useCallback(async () => {
+    try {
+      const h = await getHeaders();
+      const { data } = await clubApi.get('/events/scan-targets', { headers: h });
+      const list = data || [];
+      setEventTargets(list);
+      setSelectedEventId((prev) => {
+        if (prev && list.some((e) => String(e._id) === String(prev))) return prev;
+        return list[0] ? String(list[0]._id) : '';
+      });
+    } catch {
+      setEventTargets([]);
+    }
+  }, [getHeaders]);
+
+  useEffect(() => {
+    if (gate === 'event' && isFocused) {
+      loadEventTargets();
+    }
+  }, [gate, isFocused, loadEventTargets]);
+
+  useEffect(() => {
+    if (gate !== 'event' || !selectedEventId || !isFocused) {
+      setDoorLog([]);
+      return undefined;
+    }
+    let cancel = false;
+    (async () => {
+      try {
+        const h = await getHeaders();
+        const { data } = await clubApi.get('/events/door-log', {
+          headers: h,
+          params: { eventoId: selectedEventId },
+        });
+        if (!cancel) setDoorLog(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancel) setDoorLog([]);
+      }
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [gate, selectedEventId, isFocused, doorLogTick, getHeaders]);
+
+  const selectedEvent = useMemo(
+    () => eventTargets.find((e) => String(e._id) === String(selectedEventId)),
+    [eventTargets, selectedEventId],
+  );
+
+  const resumeScanning = () => {
+    if (cooldownRef.current) clearTimeout(cooldownRef.current);
+    cooldownRef.current = setTimeout(() => setScanning(true), 600);
+  };
+
   const handleScan = async (rawData) => {
-    if (!scanning || processing) return;
-    const token = extractEntryToken(rawData);
+    if (!scanning || processing || pendingEntry) return;
+    const kind = detectQrKind(rawData);
+    const raw = String(rawData || '').trim();
+    if (!raw) return;
+
+    if (gate === 'club' && kind === 'event') {
+      showAlert('Ingreso de socios', 'Este QR es de un evento. Usá Ingreso a eventos.');
+      return;
+    }
+    if (gate === 'event' && kind === 'entry') {
+      showAlert('Ingreso al evento', 'Este QR es de ingreso al club, no de una entrada.');
+      return;
+    }
+
+    const token = gate === 'event' ? raw : extractEntryToken(raw);
     if (!token) return;
 
     const now = Date.now();
@@ -376,24 +540,72 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
 
     setProcessing(true);
     setScanning(false);
+    let awaitingDecision = false;
     try {
       const h = await getHeaders();
-      const { data } = await clubApi.post('/club-entry/scan', { token }, { headers: h });
-      setLastResult(data);
-      setTab('scan');
-      refreshHistoryAfterEntry();
-      if ((data.warnings || []).length > 0) {
-        showAlert(
-          'Atención — decidí el ingreso',
-          data.warnings.join('\n\n'),
+      if (gate === 'event') {
+        if (!selectedEventId) {
+          showAlert('Elegí el evento', 'Seleccioná el evento de la puerta antes de escanear.');
+          return;
+        }
+        const { data } = await clubApi.post(
+          '/events/tickets/scan',
+          { token, eventoId: selectedEventId },
+          { headers: h },
         );
+        if (data.needsDecision) {
+          awaitingDecision = true;
+          setPendingEntry({ gate: 'event', token, eventoId: selectedEventId, preview: data });
+          return;
+        }
+        setLastResult({ ...data, entryType: 'event' });
+        setTab('scan');
+      } else {
+        const { data } = await clubApi.post('/club-entry/scan', { token }, { headers: h });
+        if (data.needsDecision) {
+          awaitingDecision = true;
+          setPendingEntry({ gate: 'club', token, preview: data });
+          return;
+        }
+        setLastResult(data);
+        setTab('scan');
       }
     } catch (e) {
       showAlert('No se pudo registrar', e.response?.data?.message || 'Código inválido o expirado.');
     } finally {
       setProcessing(false);
-      if (cooldownRef.current) clearTimeout(cooldownRef.current);
-      cooldownRef.current = setTimeout(() => setScanning(true), 1800);
+      if (!awaitingDecision) resumeScanning();
+    }
+  };
+
+  const dismissPendingEntry = () => {
+    if (savingDecision) return;
+    setPendingEntry(null);
+    lastScanRef.current = { token: '', at: 0 };
+    resumeScanning();
+  };
+
+  const chooseEntry = async (decision) => {
+    if (!pendingEntry || savingDecision) return;
+    setSavingDecision(true);
+    try {
+      const h = await getHeaders();
+      const url = pendingEntry.gate === 'event'
+        ? '/events/tickets/scan/confirm'
+        : '/club-entry/scan/confirm';
+      const body = { token: pendingEntry.token, decision };
+      if (pendingEntry.gate === 'event') body.eventoId = pendingEntry.eventoId;
+      const { data } = await clubApi.post(url, body, { headers: h });
+      setLastResult(pendingEntry.gate === 'event' ? { ...data, entryType: 'event' } : data);
+      setPendingEntry(null);
+      if (pendingEntry.gate === 'event') setDoorLogTick((n) => n + 1);
+      else refreshHistoryAfterEntry();
+      lastScanRef.current = { token: '', at: 0 };
+    } catch (e) {
+      showAlert('No se pudo registrar', e.response?.data?.message || 'No se pudo guardar la decisión.');
+    } finally {
+      setSavingDecision(false);
+      resumeScanning();
     }
   };
 
@@ -448,6 +660,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
           <Text style={{ color: theme.textMuted, fontSize: 12 }}>
             {entryRoleLabel(m?.rol)}
             {m?.dni ? ` · DNI ${m.dni}` : ''}
+            {item.decision === 'no_entro' ? ' · No entró' : ' · Entró'}
             {item.duplicate ? ' · duplicado' : ''}
           </Text>
           {m?.nota ? (
@@ -457,7 +670,9 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
           ) : null}
           <Text style={{ color: theme.textMuted, fontSize: 12 }}>{formatTime(item.scannedAt)}</Text>
         </View>
-        {item.duplicate ? (
+        {item.decision === 'no_entro' ? (
+          <Ionicons name="close-circle-outline" size={18} color="#ef4444" />
+        ) : item.duplicate ? (
           <Ionicons name="alert-circle-outline" size={18} color="#f59e0b" />
         ) : (
           <Ionicons name="checkmark-circle-outline" size={18} color="#10b981" />
@@ -466,19 +681,72 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
     );
   };
 
+  const eventHeaderSubtitle = useMemo(() => {
+    if (!selectedEvent) return 'No hay eventos asignados para escanear';
+    const when = selectedEvent.fechaInicio
+      ? new Date(selectedEvent.fechaInicio).toLocaleString('es-AR', {
+          day: '2-digit',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '';
+    return [selectedEvent.titulo, when, selectedEvent.lugar].filter(Boolean).join(' · ');
+  }, [selectedEvent]);
+
+  const eventFilterPills = useMemo(
+    () => [
+      {
+        key: 'evento',
+        placeholder: 'Evento',
+        displayLabel: selectedEvent?.titulo || 'Evento',
+        value: selectedEventId,
+        onChange: (id) => setSelectedEventId(String(id)),
+        options: eventTargets.map((ev) => {
+          const when = ev.fechaInicio
+            ? new Date(ev.fechaInicio).toLocaleString('es-AR', {
+                day: '2-digit',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+            : '';
+          return {
+            value: String(ev._id),
+            label: [ev.titulo, when].filter(Boolean).join(' · '),
+          };
+        }),
+      },
+    ],
+    [eventTargets, selectedEvent, selectedEventId],
+  );
+
   const cameraReady = !!permission?.granted;
   const canRequestCamera = permission?.canAskAgain !== false;
   const showLiveCamera =
-    cameraReady && isFocused && tab === 'scan' && !visitorOpen && !historyPickerOpen;
+    cameraReady && isFocused && tab === 'scan' && !visitorOpen && !historyPickerOpen && !eventFilterOpen && !pendingEntry;
 
   const permissionMessage =
     Platform.OS === 'web'
       ? 'Necesitamos acceso a la cámara para escanear los QR. Tocá el botón y aceptá el permiso en el navegador (HTTPS requerido).'
       : 'Necesitamos acceso a la cámara para escanear los QR de ingreso.';
 
+  const eventFilter =
+    gate === 'event' && eventTargets.length > 1 ? (
+      <FilterPillSheet
+        appearance="header"
+        pills={eventFilterPills}
+        openKey={eventFilterOpen}
+        onOpen={setEventFilterOpen}
+        onClose={() => setEventFilterOpen(null)}
+        colorMarca={colorMarca}
+        theme={theme}
+      />
+    ) : null;
+
   const renderScanTab = () => (
     <View style={styles.scanTab}>
-      {!cameraReady ? (
+      {gate === 'event' && !eventTargets.length ? null : !cameraReady ? (
         <View style={[styles.permissionBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           {permission == null ? (
             <ActivityIndicator color={colorMarca} />
@@ -503,11 +771,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
         </View>
       ) : (
         <View
-          style={[
-            styles.cameraWrap,
-            { width: cameraWidth, height: cameraHeight },
-            Platform.OS === 'web' && styles.cameraWrapWeb,
-          ]}
+          style={[styles.cameraWrap, { width: cameraWidth, height: cameraHeight }]}
           collapsable={false}
         >
           {showLiveCamera ? (
@@ -529,15 +793,14 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
               </Text>
             </View>
           )}
-          <View style={styles.cameraOverlay} pointerEvents="none">
-            <View style={styles.scanFrame} />
-            {processing ? (
+          {processing ? (
+            <View style={styles.cameraOverlay} pointerEvents="none">
               <View style={styles.processingBadge} pointerEvents="none">
                 <ActivityIndicator color="#fff" />
                 <Text style={styles.processingTxt}>Verificando…</Text>
               </View>
-            ) : null}
-          </View>
+            </View>
+          ) : null}
         </View>
       )}
 
@@ -547,25 +810,62 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <TouchableOpacity
-          style={[styles.visitorBtn, { backgroundColor: colorMarca, opacity: savingVisitor ? 0.7 : 1 }]}
-          onPress={() => setVisitorOpen(true)}
-          disabled={savingVisitor}
-          accessibilityRole="button"
-          accessibilityLabel="Registrar visitante"
-        >
-          {savingVisitor ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <>
-              <Ionicons name="person-add-outline" size={18} color="#fff" />
-              <Text style={styles.visitorBtnTxt}>Registrar visitante</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        {gate === 'club' ? (
+          <TouchableOpacity
+            style={[styles.visitorBtn, { backgroundColor: colorMarca, opacity: savingVisitor ? 0.7 : 1 }]}
+            onPress={() => setVisitorOpen(true)}
+            disabled={savingVisitor}
+            accessibilityRole="button"
+            accessibilityLabel="Registrar visitante"
+          >
+            {savingVisitor ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="person-add-outline" size={18} color="#fff" />
+                <Text style={styles.visitorBtnTxt}>Registrar visitante</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        ) : null}
 
-        <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Último ingreso</Text>
-        <ResultCard result={lastResult} onDismiss={dismissResult} theme={theme} />
+        <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>
+          {gate === 'event' ? 'Última entrada' : 'Último ingreso'}
+        </Text>
+        <ResultCard result={lastResult} onDismiss={dismissResult} theme={theme} gate={gate} />
+        {gate === 'event' && doorLog.length > 0 ? (
+          <>
+            <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Historial</Text>
+            {doorLog.map((row) => {
+              const holder = row.titular || {};
+              const name = `${holder.apellido || ''} ${holder.nombre || ''}`.trim() || 'Entrada';
+              const entered = row.decision !== 'no_entro';
+              return (
+                <View
+                  key={row._id}
+                  style={[styles.logRow, { borderColor: theme.border, backgroundColor: theme.surface, marginBottom: 8 }]}
+                >
+                  <Ionicons
+                    name={entered ? 'checkmark-circle-outline' : 'close-circle-outline'}
+                    size={22}
+                    color={entered ? '#10b981' : '#ef4444'}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: theme.text, fontWeight: '700' }} numberOfLines={1}>
+                      {name}
+                    </Text>
+                    <Text style={{ color: theme.textMuted, fontSize: 12 }}>
+                      {entered ? 'Entró' : 'No entró'}
+                      {holder.dni ? ` · DNI ${holder.dni}` : ''}
+                      {row.tipoEntradaNombre ? ` · ${row.tipoEntradaNombre}` : ''}
+                    </Text>
+                    <Text style={{ color: theme.textMuted, fontSize: 12 }}>{formatTime(row.scannedAt)}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -703,10 +1003,18 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
         theme={theme}
         colorMarca={colorMarca}
         kicker="Acceso"
-        title="Control de ingreso"
-        subtitle={standalone ? clubData?.nombre || 'Tu club' : 'Escaneá el QR del socio '}
-        onBack={standalone ? undefined : () => navigation.goBack()}
-        showNotifications={!standalone}
+        title={gate === 'event' ? 'Ingreso al evento' : 'Control de ingreso'}
+        subtitle={
+          gate === 'event'
+            ? eventHeaderSubtitle
+            : standalone
+              ? clubData?.nombre || 'Tu club'
+              : 'Escaneá el QR del socio'
+        }
+        subtitleLines={gate === 'event' ? 2 : 1}
+        onBack={standalone || tabRoot ? undefined : () => navigation.goBack()}
+        leadingAccessory={eventFilter}
+        showNotifications={!standalone && !tabRoot}
         rightAccessory={
           standalone ? (
             <TouchableOpacity
@@ -721,6 +1029,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
         }
       />
 
+      {gate === 'club' ? (
       <View style={[styles.tabs, { borderBottomColor: theme.border }]}>
         {ENTRY_TABS.map((t) => {
           const active = tab === t.key;
@@ -749,8 +1058,9 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
           );
         })}
       </View>
+      ) : null}
 
-      <View style={styles.body}>{tab === 'scan' ? renderScanTab() : renderHistoryTab()}</View>
+      <View style={styles.body}>{gate === 'event' || tab === 'scan' ? renderScanTab() : renderHistoryTab()}</View>
 
       <HistoryDayPickerModal
         visible={historyPickerOpen}
@@ -770,6 +1080,52 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
         saving={savingVisitor}
       />
 
+      <Modal
+        visible={!!pendingEntry}
+        transparent
+        animationType="fade"
+        onRequestClose={dismissPendingEntry}
+      >
+        <View style={styles.decisionOverlay}>
+          <View style={[styles.decisionCard, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.decisionTitle, { color: theme.text }]}>
+              {pendingPersonName(pendingEntry)}
+            </Text>
+            <Text style={[styles.decisionSub, { color: theme.textMuted }]}>
+              {pendingPersonDetail(pendingEntry)}
+            </Text>
+            {(pendingEntry?.preview?.warnings || []).map((w) => (
+              <Text key={w} style={styles.decisionWarn}>
+                {w}
+              </Text>
+            ))}
+            <View style={styles.decisionActions}>
+              <TouchableOpacity
+                style={[styles.decisionBtn, { borderColor: theme.border, borderWidth: 1 }]}
+                onPress={() => chooseEntry('no_entro')}
+                disabled={savingDecision}
+              >
+                <Text style={{ color: theme.text, fontWeight: '800' }}>No entró</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.decisionBtn, { backgroundColor: colorMarca, opacity: savingDecision ? 0.7 : 1 }]}
+                onPress={() => chooseEntry('entro')}
+                disabled={savingDecision}
+              >
+                {savingDecision ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={{ color: '#fff', fontWeight: '800' }}>Entró</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity onPress={dismissPendingEntry} disabled={savingDecision} style={{ marginTop: 14 }}>
+              <Text style={{ color: theme.textMuted, textAlign: 'center', fontWeight: '700' }}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <CustomAlert
         visible={alertConfig.visible}
         title={alertConfig.title}
@@ -782,6 +1138,24 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  decisionOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.45)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  decisionCard: { borderRadius: 18, padding: 20 },
+  decisionTitle: { fontSize: 20, fontWeight: '800' },
+  decisionSub: { fontSize: 14, marginTop: 6, lineHeight: 20 },
+  decisionWarn: { color: '#b45309', fontSize: 13, marginTop: 8, lineHeight: 18 },
+  decisionActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  decisionBtn: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   logoutBtn: {
     width: 36,
     height: 36,
@@ -816,6 +1190,14 @@ const styles = StyleSheet.create({
   },
   tabBadgeTxt: { color: '#fff', fontSize: 10, fontWeight: '800' },
   scanTab: { flex: 1 },
+  modeRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  modeChip: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
   tabScroll: { flex: 1 },
   scanTabContent: { paddingTop: 4, paddingBottom: 24 },
   historyTab: { flex: 1, paddingTop: 8 },
@@ -859,21 +1241,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cameraPausedTxt: { color: 'rgba(255,255,255,0.55)', fontWeight: '600', fontSize: 13 },
-  cameraWrapWeb: {
-    overflow: 'hidden',
-  },
   cameraOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     backgroundColor: 'transparent',
-  },
-  scanFrame: {
-    width: 200,
-    height: 200,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.85)',
-    borderRadius: 16,
   },
   processingBadge: {
     position: 'absolute',
@@ -905,6 +1277,8 @@ const styles = StyleSheet.create({
   resultRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   resultTitle: { fontWeight: '800', fontSize: 13, color: '#374151', textTransform: 'uppercase' },
   resultName: { fontSize: 20, fontWeight: '800', color: '#111827', marginTop: 2 },
+  resultDni: { fontSize: 22, fontWeight: '800', color: '#14532d', marginTop: 4, letterSpacing: 0.4 },
+  resultHint: { fontSize: 12, color: '#166534', marginTop: 2 },
   resultMeta: { fontSize: 13, color: '#4b5563', marginTop: 2 },
   resultNote: { fontSize: 12, color: '#4b5563', marginTop: 4, fontStyle: 'italic' },
   billingBlock: { marginTop: 8, gap: 4 },

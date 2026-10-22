@@ -1,17 +1,27 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import NotificationBell from './NotificationBell';
 import HeaderClubLogo, { HEADER_CLUB_LOGO_SIZE } from './HeaderClubLogo';
-import { lightTheme } from '../theme/colors';
+import { statusBarStyleForColor } from '../utils/statusBarContrast';
 
-/** Altura fija del bloque de marca (todas las pantallas). */
-export const COACH_HEADER_HEIGHT = 152;
+/** Altura del bloque de marca. Con toolbar (volver) hace falta un poco más. */
+export const COACH_HEADER_HEIGHT = 120;
+export const COACH_HEADER_HEIGHT_WITH_TOOLBAR = 146;
 
 const TOOLBAR_HEIGHT = 40;
 const TOOLBAR_TOP_PAD = 6;
 const FOOTER_SLOT_HEIGHT = 28;
 const BACK_BTN_SIZE = 36;
+/** La campana ocupa este ancho desde el borde. Los FABs quedan a su izquierda. */
+const NOTIFICATION_BTN_SIZE = 36;
+const HEADER_EDGE = 12;
+const FAB_SIZE = 40;
+const FAB_GAP = 8;
+const FAB_CLEAR_OF_BELL = HEADER_EDGE + NOTIFICATION_BTN_SIZE + FAB_GAP;
+/** Dos botones (estadísticas + nueva sesión) más el hueco de la campana. */
+const FAB_PAIR_INSET = FAB_CLEAR_OF_BELL + FAB_SIZE + FAB_GAP + FAB_SIZE + 8;
 /** Espacio reservado a la derecha del texto cuando hay avatar en el hero. */
 export const COACH_HEADER_HERO_RIGHT_SIZE = 100;
 
@@ -33,7 +43,9 @@ export default function CoachScreenHeader({
   showNotifications = true,
   showClubLogo = true,
 }) {
-  const safeTheme = theme || lightTheme;
+  const insets = useSafeAreaInsets();
+  const topInset = Platform.OS === 'web' ? 0 : insets.top;
+  const statusBarStyle = statusBarStyleForColor(colorMarca);
   const toolbarLeft = onBack ? (
     <CoachHeaderActions>
       <TouchableOpacity
@@ -55,18 +67,30 @@ export default function CoachScreenHeader({
   const displayClubLogo = showClubLogo && !heroRight;
 
   return (
-    <View style={[styles.heroWrap, { backgroundColor: safeTheme.background }]}>
+    <View
+      style={[
+        styles.heroWrap,
+        {
+          backgroundColor: colorMarca,
+          marginTop: -topInset,
+          paddingTop: topInset,
+        },
+      ]}
+    >
+      {Platform.OS === 'web' ? null : (
+        <StatusBar barStyle={statusBarStyle} translucent backgroundColor="transparent" />
+      )}
       <View
         style={[
           styles.hero,
           {
             backgroundColor: colorMarca,
-            height: COACH_HEADER_HEIGHT,
+            height: showTopToolbar ? COACH_HEADER_HEIGHT_WITH_TOOLBAR : COACH_HEADER_HEIGHT,
           },
         ]}
       >
         {showTopToolbar ? (
-          <View style={styles.toolbar}>
+          <View style={styles.toolbar} pointerEvents="box-none">
             <View style={styles.toolbarLeft}>{toolbarLeft}</View>
             <View style={styles.toolbarRight}>{toolbarRight}</View>
           </View>
@@ -180,7 +204,7 @@ export function CoachHeaderBadge({ children }) {
 }
 
 const styles = StyleSheet.create({
-  heroWrap: { width: '100%', paddingTop: 8, paddingBottom: 4 },
+  heroWrap: { width: '100%' },
   headerFabHost: {
     position: 'relative',
     zIndex: 2,
@@ -188,22 +212,17 @@ const styles = StyleSheet.create({
   },
   headerFabOverlay: {
     position: 'absolute',
-    right: 12,
+    right: FAB_CLEAR_OF_BELL,
     bottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: FAB_GAP,
     zIndex: 3,
   },
   hero: {
     borderRadius: 0,
     width: '100%',
     paddingHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    elevation: 8,
   },
   toolbar: {
     flexDirection: 'row',
@@ -211,19 +230,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: TOOLBAR_TOP_PAD,
     minHeight: TOOLBAR_HEIGHT + TOOLBAR_TOP_PAD,
+    zIndex: 5,
   },
   toolbarLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-start',
     flexShrink: 0,
+    zIndex: 6,
   },
   toolbarRight: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    flexShrink: 1,
-    maxWidth: '72%',
+    flexShrink: 0,
+    maxWidth: '50%',
+    zIndex: 6,
   },
   heroRightMid: {
     position: 'absolute',
@@ -236,11 +258,11 @@ const styles = StyleSheet.create({
   },
   actionMidRight: {
     position: 'absolute',
-    right: 12,
+    right: HEADER_EDGE,
     top: 0,
     bottom: 0,
     justifyContent: 'center',
-    zIndex: 2,
+    zIndex: 3,
   },
   toolbarBtn: {
     width: BACK_BTN_SIZE,
@@ -278,10 +300,10 @@ const styles = StyleSheet.create({
     paddingRight: BACK_BTN_SIZE + 10,
   },
   heroBodyWithBackAndFabs: {
-    paddingRight: Math.max(BACK_BTN_SIZE + 10, 100),
+    paddingRight: FAB_PAIR_INSET,
   },
   heroBodyFabInset: {
-    paddingRight: 100,
+    paddingRight: FAB_PAIR_INSET,
   },
   heroKicker: {
     color: 'rgba(255,255,255,0.88)',
@@ -327,9 +349,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   fabOverlay: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: FAB_SIZE,
+    height: FAB_SIZE,
+    borderRadius: FAB_SIZE / 2,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',

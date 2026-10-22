@@ -30,6 +30,7 @@ export default function FilterPillSheet({
   onClose,
   colorMarca,
   theme,
+  appearance = 'default',
 }) {
   const active = pills.find((f) => f.key === openKey);
   const [query, setQuery] = useState('');
@@ -69,6 +70,8 @@ export default function FilterPillSheet({
         .includes(q);
     });
   }, [active, query]);
+
+  const onHeader = appearance === 'header';
 
   const renderOptionRow = (item) => {
     if (item.type === 'header') {
@@ -111,7 +114,7 @@ export default function FilterPillSheet({
 
   return (
     <>
-      <View style={styles.filterPillsRow}>
+      <View style={[styles.filterPillsRow, onHeader && styles.filterPillsRowHeader]}>
         {pills.map((f) => {
           const flatOpts = f.options || [];
           const selected =
@@ -131,18 +134,20 @@ export default function FilterPillSheet({
               onPress={() => onOpen(f.key)}
               style={[
                 styles.filterChip,
-                {
-                  borderColor: hasValue ? colorMarca : theme.border,
-                  backgroundColor: hasValue ? `${colorMarca}18` : theme.surface,
-                  flex: pills.length === 1 ? 0 : 1,
-                  alignSelf: pills.length === 1 ? 'flex-start' : undefined,
-                  minWidth: pills.length === 1 ? 140 : 0,
-                },
+                onHeader
+                  ? styles.filterChipHeader
+                  : {
+                      borderColor: hasValue ? colorMarca : theme.border,
+                      backgroundColor: hasValue ? `${colorMarca}18` : theme.surface,
+                      flex: pills.length === 1 ? 0 : 1,
+                      alignSelf: pills.length === 1 ? 'flex-start' : undefined,
+                      minWidth: pills.length === 1 ? 140 : 0,
+                    },
               ]}
             >
               <Text
                 style={{
-                  color: hasValue ? colorMarca : theme.text,
+                  color: onHeader ? '#fff' : hasValue ? colorMarca : theme.text,
                   fontSize: 12,
                   fontWeight: '600',
                   flexShrink: 1,
@@ -154,7 +159,7 @@ export default function FilterPillSheet({
               <Ionicons
                 name="chevron-down"
                 size={14}
-                color={hasValue ? colorMarca : theme.textMuted}
+                color={onHeader ? '#fff' : hasValue ? colorMarca : theme.textMuted}
                 style={{ marginLeft: 4 }}
               />
             </TouchableOpacity>
@@ -259,6 +264,7 @@ export default function FilterPillSheet({
 
 const styles = StyleSheet.create({
   filterPillsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' },
+  filterPillsRowHeader: { marginBottom: 0, flexWrap: 'nowrap', flexShrink: 1, minWidth: 0 },
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -268,6 +274,15 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     borderWidth: 1,
     minWidth: 0,
+  },
+  filterChipHeader: {
+    height: 36,
+    maxWidth: 190,
+    minWidth: 0,
+    flexShrink: 1,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderColor: 'transparent',
+    justifyContent: 'flex-start',
   },
   filterModalOverlay: {
     flex: 1,

@@ -1,5 +1,6 @@
 import express from 'express';
 import { protect, authorize } from '../middlewares/auth.middleware.js';
+import { isClubMercadoPagoLinked } from '../services/mercadoPagoClub.service.js';
 import {
     listAdminEvents,
     getAdminEvent,
@@ -32,6 +33,17 @@ import {
 } from '../controllers/event.controller.js';
 
 const router = express.Router();
+
+router.use(async (req, res, next) => {
+    try {
+        if (await isClubMercadoPagoLinked(req.models)) return next();
+        return res.status(403).json({
+            message: 'El club todavía no vinculó Mercado Pago.',
+        });
+    } catch (error) {
+        return next(error);
+    }
+});
 
 // Public (no JWT) — static paths before :slug
 router.get('/public', listPublicEvents);

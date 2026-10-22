@@ -8,6 +8,8 @@ import MemberMediaViewerScreen from '../screens/member/MemberMediaViewerScreen';
 import ChatInboxScreen from '../screens/chat/ChatInboxScreen';
 import ChatThreadScreen from '../screens/chat/ChatThreadScreen';
 import ChatNewScreen from '../screens/chat/ChatNewScreen';
+import MemberEventsScreen from '../screens/member/MemberEventsScreen';
+import MemberEventTicketsScreen from '../screens/member/MemberEventTicketsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -18,6 +20,8 @@ export default function MemberCommsStack() {
       <Stack.Screen name="MemberNews" component={AthleteNewsScreen} />
       <Stack.Screen name="MemberDocuments" component={AthleteDocumentsScreen} />
       <Stack.Screen name="MemberResources" component={AthleteResourcesScreen} />
+      <Stack.Screen name="MemberEvents" component={MemberEventsScreen} />
+      <Stack.Screen name="MemberEventTickets" component={MemberEventTicketsScreen} />
       <Stack.Screen name="MemberMediaViewer" component={MemberMediaViewerScreen} />
       <Stack.Screen name="ChatInbox" component={ChatInboxScreen} />
       <Stack.Screen name="ChatThread" component={ChatThreadScreen} />

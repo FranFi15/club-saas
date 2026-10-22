@@ -21,6 +21,7 @@ import AdminStatsScreen from '../screens/admin/AdminStatsScreen';
 import AdminGestionHubScreen from '../screens/admin/AdminGestionHubScreen';
 import AdminPendientesScreen from '../screens/admin/AdminPendientesScreen';
 import AlquileresScreen from '../screens/admin/AlquileresScreen';
+import AdminEventosScreen from '../screens/admin/AdminEventosScreen';
 import NoticiasScreen from '../screens/admin/NoticiasScreen';
 import AdminRequestDocScreen from '../screens/admin/AdminRequestDocScreen';
 import AdminClubEntryScanScreen from '../screens/admin/AdminClubEntryScanScreen';
@@ -68,9 +69,15 @@ function GestionStackNavigator() {
       <GestionStack.Screen name="GestionMenu" component={AdminGestionHubScreen} />
       <GestionStack.Screen name="Pendientes" component={AdminPendientesScreen} />
       <GestionStack.Screen name="Alquileres" component={AlquileresScreen} />
+      <GestionStack.Screen name="Eventos" component={AdminEventosScreen} />
       <GestionStack.Screen name="Noticias" component={NoticiasScreen} />
       <GestionStack.Screen name="PedirDocumentacion" component={AdminRequestDocScreen} />
       <GestionStack.Screen name="EscanearIngreso" component={AdminClubEntryScanScreen} />
+      <GestionStack.Screen
+        name="EscanearEvento"
+        component={AdminClubEntryScanScreen}
+        initialParams={{ gate: 'event' }}
+      />
       <GestionStack.Screen
         name="RevisarDocumentacion"
         component={CoachTeamDocumentsScreen}

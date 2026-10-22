@@ -8,6 +8,7 @@ import {
     webhookReceiver,
     syncMemberPayments,
     reconcilePayments,
+    getMercadoPagoLinked,
     getMpIntegration,
     backfillSellerMapping,
     updateMpIntegration,
@@ -22,6 +23,7 @@ const router = express.Router();
 router.get('/oauth/callback', mercadoPagoOAuthCallback);
 router.post('/oauth/start', protect, authorize('admin_club'), startMercadoPagoOAuth);
 
+router.get('/linked', protect, getMercadoPagoLinked);
 router.get('/integration', protect, authorize('admin_club', 'dirigente', 'administrativo'), getMpIntegration);
 router.post('/backfill-seller-mapping', protect, authorize('admin_club'), backfillSellerMapping);
 router.put('/integration', protect, authorize('admin_club'), updateMpIntegration);

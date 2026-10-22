@@ -16,6 +16,7 @@ import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
 import BusyOverlay from '../../components/BusyOverlay';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
+import FormSheet from '../../components/FormSheet';
 import DesignCard from '../../components/DesignCard';
 import { sortByNombre } from '../../utils/listSort';
 import SearchableDropdown from '../../components/SearchableDropdown';
@@ -636,26 +637,21 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
         </TouchableOpacity>
       )}
 
-      <Modal visible={isModalVisible} animationType="slide" transparent={true}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <View style={styles.modalOverlay}>
-           <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-              <View style={styles.modalHeader}>
-                 <Text style={[styles.modalTitle, { color: theme.text }]}>{isEditingId ? 'Editar Horario' : 'Agregar a la Grilla'}</Text>
-                 <TouchableOpacity onPress={() => {
-                   setIsModalVisible(false);
-                   setFormData({
-                     ...EMPTY_FORM,
-                     vigenteDesde: defaultVigenteDesdeDisplay(),
-                     vigenteHasta: defaultVigenteHastaDisplay(),
-                   });
-                   setIsEditingId(null);
-                 }}>
-                    <Ionicons name="close" size={28} color={theme.icon} />
-                 </TouchableOpacity>
-              </View>
-
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <FormSheet
+        visible={isModalVisible}
+        onClose={() => {
+          setIsModalVisible(false);
+          setFormData({
+            ...EMPTY_FORM,
+            vigenteDesde: defaultVigenteDesdeDisplay(),
+            vigenteHasta: defaultVigenteHastaDisplay(),
+          });
+          setIsEditingId(null);
+        }}
+        title={isEditingId ? 'Editar horario' : 'Agregar a la grilla'}
+        theme={theme}
+        isDarkMode={isDarkMode}
+      >
               
               <Text style={[styles.label, { color: theme.textMuted }]}>Día de la Semana</Text>
               {!isEditingId ? (
@@ -800,11 +796,7 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
                   <Text style={styles.saveBtnText}>{isEditingId ? 'Guardar horario' : 'Guardar en la grilla'}</Text>
                 )}
               </TouchableOpacity>
-              </ScrollView>
-           </View>
-        </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      </FormSheet>
 
       <BusyOverlay
         visible={isSaving}

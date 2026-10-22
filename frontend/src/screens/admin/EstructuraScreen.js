@@ -18,6 +18,7 @@ import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import DesignCard from '../../components/DesignCard';
+import FormSheet from '../../components/FormSheet';
 import { sortByNombre } from '../../utils/listSort';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { isClubOwnerRole } from '../../constants/appRoles';
@@ -316,25 +317,13 @@ export default function EstructuraScreen({ navigation }) {
         </TouchableOpacity>
       ) : null}
 
-      <Modal visible={isModalVisible} animationType="slide" transparent={true} onRequestClose={closeModal}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-              <View style={styles.modalHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  {planPickerVisible ? (
-                    <TouchableOpacity onPress={() => setPlanPickerVisible(false)} style={{ paddingVertical: 4, paddingRight: 6 }}>
-                      <Ionicons name="arrow-back" size={22} color={theme.icon} />
-                    </TouchableOpacity>
-                  ) : null}
-                  <Text style={[styles.modalTitle, { color: theme.text }]}>
-                    {planPickerVisible ? 'Elegir Plan' : (editingDiscipline ? "Editar Disciplina" : "Nueva Disciplina")}
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={closeModal}>
-                  <Ionicons name="close" size={28} color={theme.icon} />
-                </TouchableOpacity>
-              </View>
+      <FormSheet
+        visible={isModalVisible}
+        onClose={() => (planPickerVisible ? setPlanPickerVisible(false) : closeModal())}
+        title={planPickerVisible ? 'Elegir plan' : (editingDiscipline ? 'Editar disciplina' : 'Nueva disciplina')}
+        theme={theme}
+        isDarkMode={isDarkMode}
+      >
               {planPickerVisible ? (
                 <>
                   {isLoadingPlans ? (
@@ -419,10 +408,7 @@ export default function EstructuraScreen({ navigation }) {
                   </TouchableOpacity>
                 </>
               )}
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      </FormSheet>
 
       {/* 4. RENDERIZAMOS EL CUSTOM ALERT AL FINAL DE TODO */}
       <CustomAlert 

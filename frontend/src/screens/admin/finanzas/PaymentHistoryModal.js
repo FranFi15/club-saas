@@ -34,6 +34,7 @@ export default function PaymentHistoryModal({
   onPay,
   onDeletePayment,
   onAdvance,
+  onPastCuotas,
   canDelete = true,
   refreshKey = 0,
   onDismiss,
@@ -317,6 +318,17 @@ export default function PaymentHistoryModal({
           <View style={styles.header}>
             <Text style={[styles.title, { color: theme.text }]}>Historial de pagos</Text>
             <View style={styles.headerActions}>
+              {onPastCuotas ? (
+                <TouchableOpacity
+                  onPress={onPastCuotas}
+                  style={[styles.advanceBtn, { borderColor: primaryColor }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cuotas anteriores"
+                >
+                  <Ionicons name="archive-outline" size={18} color={primaryColor} />
+                  <Text style={[styles.advanceBtnTxt, { color: primaryColor }]}>Anteriores</Text>
+                </TouchableOpacity>
+              ) : null}
               {onAdvance ? (
                 <TouchableOpacity
                   onPress={onAdvance}
