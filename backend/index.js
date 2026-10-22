@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import mongoSanitize from 'express-mongo-sanitize';
 
+import { closeTenantDBs } from './src/config/db.js';
 import { resolveTenant } from './src/middlewares/tenant.middleware.js';
 import { notFound, errorHandler } from './src/middlewares/error.middleware.js';
 import { captureException } from './src/config/sentry.js';
@@ -300,3 +301,26 @@ const server = app.listen(PORT, HOST, () => {
 // Render's proxy idle timeout is ~120s; Node's default keepAliveTimeout (5s) causes 502s.
 server.keepAliveTimeout = 120_000;
 server.headersTimeout = 125_000;
+
+let closing = false;
+async function shutdown(signal) {
+    if (closing) return;
+    closing = true;
+    console.log(`[Club-Backend] Cerrando pool Mongo (${signal})`);
+    server.close();
+    const force = setTimeout(() => process.exit(0), 5_000);
+    force.unref();
+    try {
+        await closeTenantDBs();
+    } catch (err) {
+        console.error('[Club-Backend] No se pudo cerrar Mongo:', err.message);
+    }
+    clearTimeout(force);
+    process.exit(0);
+}
+process.on('SIGTERM', () => {
+    shutdown('SIGTERM');
+});
+process.on('SIGINT', () => {
+    shutdown('SIGINT');
+});

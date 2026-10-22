@@ -286,6 +286,18 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
             res.status(400);
             throw new Error('La contraseña del tutor debe tener al menos 6 caracteres.');
         }
+        if (!String(tutor.telefono || '').trim()) {
+            res.status(400);
+            throw new Error('Indicá el teléfono del tutor.');
+        }
+        if (!String(tutor.dni || '').trim()) {
+            res.status(400);
+            throw new Error('Indicá el DNI del tutor.');
+        }
+        if (!String(tutor.obraSocial || '').trim()) {
+            res.status(400);
+            throw new Error('Indicá la obra social del tutor.');
+        }
         if (!String(tutor.direccion || '').trim()) {
             res.status(400);
             throw new Error('Indicá la dirección del tutor.');
@@ -312,6 +324,18 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
         if (String(a.password).length < 6) {
             res.status(400);
             throw new Error(`Atleta ${i + 1}: la contraseña debe tener al menos 6 caracteres.`);
+        }
+        if (a.sexo !== 'M' && a.sexo !== 'F') {
+            res.status(400);
+            throw new Error(`Atleta ${i + 1}: elegí el sexo.`);
+        }
+        if (!String(a.dni || '').trim()) {
+            res.status(400);
+            throw new Error(`Atleta ${i + 1}: indicá el DNI.`);
+        }
+        if (!String(a.obraSocial || '').trim()) {
+            res.status(400);
+            throw new Error(`Atleta ${i + 1}: indicá la obra social.`);
         }
         if (!String(a.fotoPerfil || '').trim()) {
             res.status(400);
