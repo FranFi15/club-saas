@@ -4,7 +4,6 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 import mongoSanitize from 'express-mongo-sanitize';
 
 import { closeTenantDBs } from './src/config/db.js';
@@ -157,39 +156,6 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 900,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'Demasiadas peticiones desde esta IP. Por favor intente de nuevo más tarde.' },
-    skip: (req) => req.method === 'OPTIONS',
-});
-app.use('/api', limiter);
-
-const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 40,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'Demasiados intentos. Probá de nuevo en unos minutos.' },
-    skip: (req) => req.method === 'OPTIONS',
-});
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/refresh', authLimiter);
-app.use('/api/auth/forgot-password', authLimiter);
-app.use('/api/auth/reset-password', authLimiter);
-
-const uploadLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 60,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'Demasiadas subidas. Probá de nuevo más tarde.' },
-    skip: (req) => req.method === 'OPTIONS',
-});
-app.use('/api/upload', uploadLimiter);
-
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
@@ -284,7 +250,7 @@ const server = app.listen(PORT, HOST, () => {
     if (isProd) {
         console.log(`[Club-Backend] CORS origins: ${allowedOrigins.join(', ') || '(ninguno)'}`);
     }
-    console.log('🛡️  Capas de seguridad activas (Helmet, RateLimit, Sanitize)');
+    console.log('🛡️  Capas de seguridad activas (Helmet, Sanitize)');
     try {
         startSessionGenerationCron();
         startPaymentGenerationCron();

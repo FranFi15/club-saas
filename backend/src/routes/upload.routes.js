@@ -36,7 +36,7 @@ function handleUpload(req, res) {
 }
 
 // Cualquier usuario autenticado del club (fotos, docs, comprobantes).
-// Límites MIME/tamaño en multer + rate limit en index.js.
+// Límites MIME/tamaño en multer.
 router.post('/', protect, (req, res) => {
     upload.single('archivo')(req, res, (err) => {
         if (err) {
