@@ -41,6 +41,7 @@ import {
     getClubEventModel,
     getEventTicketOrderModel,
     getEventTicketModel,
+    getEventDoorLogModel,
 } from '../models/clubEvent.model.js';
 
 export const getTenantModels = (tenantDB) => {
@@ -89,5 +90,6 @@ export const getTenantModels = (tenantDB) => {
         ClubEvent: getClubEventModel(tenantDB),
         EventTicketOrder: getEventTicketOrderModel(tenantDB),
         EventTicket: getEventTicketModel(tenantDB),
+        EventDoorLog: getEventDoorLogModel(tenantDB),
     };
 };

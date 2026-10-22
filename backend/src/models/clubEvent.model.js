@@ -164,4 +164,27 @@ eventTicketSchema.index({ orden: 1 });
 export const getEventTicketModel = (tenantDB) =>
     tenantDB.models.EventTicket || tenantDB.model('EventTicket', eventTicketSchema);
 
+const eventDoorLogSchema = new mongoose.Schema(
+    {
+        evento: { type: mongoose.Schema.Types.ObjectId, ref: 'ClubEvent', required: true, index: true },
+        ticket: { type: mongoose.Schema.Types.ObjectId, ref: 'EventTicket', required: true, index: true },
+        decision: { type: String, enum: ['entro', 'no_entro'], required: true },
+        scannedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        scannedAt: { type: Date, default: Date.now, index: true },
+        codigo: { type: String, trim: true, default: '' },
+        tipoEntradaNombre: { type: String, trim: true, default: '' },
+        titular: {
+            nombre: { type: String, trim: true, default: '' },
+            apellido: { type: String, trim: true, default: '' },
+            dni: { type: String, trim: true, default: '' },
+        },
+    },
+    { timestamps: true },
+);
+
+eventDoorLogSchema.index({ evento: 1, scannedAt: -1 });
+
+export const getEventDoorLogModel = (tenantDB) =>
+    tenantDB.models.EventDoorLog || tenantDB.model('EventDoorLog', eventDoorLogSchema);
+
 export { MEMBER_ROLES as EVENT_MEMBER_ROLES };

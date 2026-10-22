@@ -156,8 +156,6 @@ const MEMBER_QR_ROLES = [
     'administrativo',
 ];
 const SCANNER_ROLES = ['admin_club', 'administrativo', 'control_ingreso'];
-const DUPLICATE_WINDOW_MS = 3 * 60 * 1000;
-
 function entryUserPayload(user) {
     return {
         _id: user._id,
@@ -208,6 +206,7 @@ function mapClubEntryRow(e) {
         entryType,
         scannedAt: e.scannedAt,
         duplicate: !!e.duplicate,
+        decision: e.decision === 'no_entro' ? 'no_entro' : 'entro',
         member:
             entryType === 'member' && e.user
                 ? {
@@ -260,30 +259,41 @@ const getMyClubEntryQr = asyncHandler(async (req, res) => {
     });
 });
 
-// @route POST /api/club-entry/scan
-const scanClubEntryQr = asyncHandler(async (req, res) => {
+async function findEnteredToday(ClubEntry, userId) {
+    const dayStart = startOfToday();
+    return ClubEntry.findOne({
+        user: userId,
+        scannedAt: { $gte: dayStart, $lte: endOfDay(dayStart) },
+        decision: { $ne: 'no_entro' },
+        duplicate: { $ne: true },
+    })
+        .sort({ scannedAt: -1 })
+        .lean();
+}
+
+async function loadMemberScan(req) {
     const { token } = req.body || {};
     const { User, ClubEntry } = req.models;
-
     const parsed = parseClubEntryToken(token, req.clubIdentifier);
     const member = await User.findById(parsed.userId)
         .select('-password')
         .populate('cuotaSocialAsignada', 'nombre monto activo');
     if (!member) {
-        res.status(404);
-        throw new Error('Socio no encontrado en este club.');
+        const err = new Error('Socio no encontrado en este club.');
+        err.statusCode = 404;
+        throw err;
+    }
+    if (member.estado === 'inactivo') {
+        const err = new Error('El usuario está inactivo y no puede ingresar.');
+        err.statusCode = 403;
+        throw err;
     }
 
     const warnings = [];
-    if (member.estado === 'inactivo') {
-        res.status(403);
-        throw new Error('El usuario está inactivo y no puede ingresar.');
-    }
     if (member.estado === 'moroso') {
         warnings.push('El usuario figura como moroso. Decidí si puede ingresar.');
     }
 
-    // Actualizar cuotas vencidas de este socio y avisar (no bloquea el ingreso).
     let billing = null;
     try {
         await markOverduePayments(req.models, { atleta: member._id });
@@ -305,22 +315,106 @@ const scanClubEntryQr = asyncHandler(async (req, res) => {
         );
     }
 
-    const alreadyUsed = await ClubEntry.findOne({ tokenNonce: parsed.nonce }).select('_id').lean();
-    if (alreadyUsed) {
+    const already = await findEnteredToday(ClubEntry, member._id);
+    return { token, parsed, member, warnings, billing, cuotasVencidasCount, already, ClubEntry };
+}
+
+function memberScanBody(member, extras) {
+    return {
+        ok: true,
+        entryType: 'member',
+        warnings: extras.warnings || [],
+        hasCuotasVencidas: (extras.cuotasVencidasCount || 0) > 0,
+        cuotasVencidasCount: extras.cuotasVencidasCount || 0,
+        billing: extras.billing || null,
+        member: entryUserPayload(member),
+        visitor: null,
+        ...extras.rest,
+    };
+}
+
+// @route POST /api/club-entry/scan
+// Valida el QR y deja la decisión (entró / no entró) para /scan/confirm.
+const scanClubEntryQr = asyncHandler(async (req, res) => {
+    let loaded;
+    try {
+        loaded = await loadMemberScan(req);
+    } catch (e) {
+        res.status(e.statusCode || 400);
+        throw new Error(e.message || 'No se pudo leer el QR.');
+    }
+    const { parsed, member, warnings, billing, cuotasVencidasCount, already, ClubEntry } = loaded;
+
+    if (already) {
+        return res.json(memberScanBody(member, {
+            warnings,
+            billing,
+            cuotasVencidasCount,
+            rest: {
+                needsDecision: false,
+                alreadyEntered: true,
+                message: 'Ya entró',
+                decision: 'entro',
+                scannedAt: already.scannedAt,
+            },
+        }));
+    }
+
+    const nonceUsed = await ClubEntry.findOne({ tokenNonce: parsed.nonce }).select('_id decision').lean();
+    if (nonceUsed && nonceUsed.decision !== 'no_entro') {
         res.status(409);
         throw new Error('Este QR ya fue utilizado. Pedile al socio que actualice su pantalla.');
     }
 
-    const recentCutoff = new Date(Date.now() - DUPLICATE_WINDOW_MS);
-    const recent = await ClubEntry.findOne({
-        user: member._id,
-        scannedAt: { $gte: recentCutoff },
-        duplicate: false,
-    })
-        .sort({ scannedAt: -1 })
-        .lean();
+    res.json(memberScanBody(member, {
+        warnings,
+        billing,
+        cuotasVencidasCount,
+        rest: {
+            needsDecision: true,
+            alreadyEntered: false,
+            message: null,
+            decision: null,
+            scannedAt: null,
+        },
+    }));
+});
 
-    const duplicate = !!recent;
+// @route POST /api/club-entry/scan/confirm
+const confirmClubEntryScan = asyncHandler(async (req, res) => {
+    const decision = req.body?.decision === 'no_entro' ? 'no_entro' : req.body?.decision === 'entro' ? 'entro' : '';
+    if (!decision) {
+        res.status(400);
+        throw new Error('Elegí si entró o no entró.');
+    }
+
+    let loaded;
+    try {
+        loaded = await loadMemberScan(req);
+    } catch (e) {
+        res.status(e.statusCode || 400);
+        throw new Error(e.message || 'No se pudo leer el QR.');
+    }
+    const { parsed, member, warnings, billing, cuotasVencidasCount, already, ClubEntry } = loaded;
+
+    if (already) {
+        return res.json(memberScanBody(member, {
+            warnings,
+            billing,
+            cuotasVencidasCount,
+            rest: {
+                needsDecision: false,
+                alreadyEntered: true,
+                message: 'Ya entró',
+                decision: 'entro',
+                scannedAt: already.scannedAt,
+            },
+        }));
+    }
+
+    const tokenNonce = decision === 'entro'
+        ? parsed.nonce
+        : `declined:${parsed.nonce}:${Date.now()}`;
 
     let entry;
     try {
@@ -328,37 +422,45 @@ const scanClubEntryQr = asyncHandler(async (req, res) => {
             entryType: 'member',
             user: member._id,
             scannedBy: req.user._id,
-            tokenNonce: parsed.nonce,
-            duplicate,
+            tokenNonce,
+            duplicate: false,
+            decision,
         });
     } catch (e) {
         if (e?.code === 11000) {
-            res.status(409);
-            throw new Error('Este QR ya fue utilizado. Pedile al socio que actualice su pantalla.');
+            return res.json(memberScanBody(member, {
+                warnings,
+                billing,
+                cuotasVencidasCount,
+                rest: {
+                    needsDecision: false,
+                    alreadyEntered: true,
+                    message: 'Ya entró',
+                    decision: 'entro',
+                    scannedAt: new Date(),
+                },
+            }));
         }
         throw e;
     }
 
-    res.json({
-        ok: true,
-        entryType: 'member',
-        duplicate,
-        duplicateMinutesAgo: duplicate
-            ? Math.max(1, Math.round((Date.now() - new Date(recent.scannedAt).getTime()) / 60000))
-            : null,
+    res.json(memberScanBody(member, {
         warnings,
-        hasCuotasVencidas: cuotasVencidasCount > 0,
-        cuotasVencidasCount,
         billing,
-        scannedAt: entry.scannedAt,
-        member: entryUserPayload(member),
-        visitor: null,
-        scannedBy: {
-            _id: req.user._id,
-            nombre: req.user.nombre,
-            apellido: req.user.apellido,
+        cuotasVencidasCount,
+        rest: {
+            needsDecision: false,
+            alreadyEntered: false,
+            message: decision === 'entro' ? 'Entró' : 'No entró',
+            decision,
+            scannedAt: entry.scannedAt,
+            scannedBy: {
+                _id: req.user._id,
+                nombre: req.user.nombre,
+                apellido: req.user.apellido,
+            },
         },
-    });
+    }));
 });
 
 function visitorPayload(entry) {
@@ -445,6 +547,7 @@ const getTodayClubEntries = asyncHandler(async (req, res) => {
 export {
     getMyClubEntryQr,
     scanClubEntryQr,
+    confirmClubEntryScan,
     registerVisitorEntry,
     getTodayClubEntries,
     MEMBER_QR_ROLES,

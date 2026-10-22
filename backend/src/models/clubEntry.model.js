@@ -15,6 +15,8 @@ const clubEntrySchema = new mongoose.Schema(
         /** Nonce del QR — solo ingresos de socio. */
         tokenNonce: { type: String, required: false, default: '' },
         duplicate: { type: Boolean, default: false },
+        /** entro cuenta como ingreso. no_entro queda en el historial y el QR se puede volver a escanear. */
+        decision: { type: String, enum: ['entro', 'no_entro'], default: 'entro' },
 
         /** Visitante externo (sin cuenta en el club). */
         visitorNombre: { type: String, trim: true, default: '' },

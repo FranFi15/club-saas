@@ -818,85 +818,27 @@ export const listScanTargets = asyncHandler(async (req, res) => {
     res.json(events);
 });
 
-export const scanEventTicket = asyncHandler(async (req, res) => {
-    const { EventTicket, ClubEvent } = req.models;
-    const { token, eventoId } = req.body || {};
-    if (!eventoId) {
-        res.status(400);
-        throw new Error('Seleccioná el evento de la puerta.');
-    }
-    if (!token) {
-        res.status(400);
-        throw new Error('Falta el código QR.');
-    }
+function ticketHolder(ticket) {
+    if (ticket?.titular?.dni || ticket?.titular?.nombre) return ticket.titular;
+    return {
+        nombre: ticket?.compradorSnapshot?.nombre || '',
+        apellido: ticket?.compradorSnapshot?.apellido || '',
+        dni: ticket?.compradorSnapshot?.dni || '',
+    };
+}
 
-    const doorEvent = await ClubEvent.findById(eventoId).select('estado controlIngreso');
-    if (!doorEvent || doorEvent.estado !== 'publicado') {
-        res.status(404);
-        throw new Error('Evento no encontrado.');
-    }
-    if (!userCanScanEvent(req.user, doorEvent)) {
-        res.status(403);
-        throw new Error('No tenés acceso al control de ingreso de este evento.');
-    }
-
-    let parsed;
-    try {
-        parsed = parseEventTicketToken(token, req.clubIdentifier);
-    } catch (e) {
-        res.status(400);
-        throw new Error(e.message || 'QR inválido.');
-    }
-
-    if (String(parsed.eventId) !== String(eventoId)) {
-        res.status(400);
-        throw new Error('Esta entrada es de otro evento. Revisá el evento seleccionado.');
-    }
-
-    const ticket = await EventTicket.findById(parsed.ticketId);
-    if (!ticket) {
-        res.status(404);
-        throw new Error('Entrada no encontrada.');
-    }
-    if (String(ticket.evento) !== String(eventoId)) {
-        res.status(400);
-        throw new Error('Esta entrada es de otro evento.');
-    }
-    if (ticket.tokenNonce && ticket.tokenNonce !== parsed.nonce) {
-        res.status(400);
-        throw new Error('Código QR no válido para esta entrada.');
-    }
-    if (ticket.estado === 'anulada') {
-        res.status(400);
-        throw new Error('Entrada anulada.');
-    }
-    if (ticket.estado === 'usada') {
-        res.status(400);
-        throw new Error(
-            `Entrada ya utilizada${ticket.usadoEn ? ` (${new Date(ticket.usadoEn).toLocaleString('es-AR')})` : ''}.`,
-        );
-    }
-
-    ticket.estado = 'usada';
-    ticket.usadoEn = new Date();
-    ticket.escaneadoPor = req.user._id;
-    await ticket.save();
-
-    const event = await ClubEvent.findById(ticket.evento).lean();
-    res.json({
+function ticketScanBody(ticket, event, extras = {}) {
+    return {
         ok: true,
+        entryType: 'event',
         ticket: {
+            _id: ticket._id,
             codigo: ticket.codigo,
             tipoEntradaNombre: ticket.tipoEntradaNombre,
-            titular: ticket.titular?.dni
-                ? ticket.titular
-                : {
-                    nombre: ticket.compradorSnapshot?.nombre || '',
-                    apellido: ticket.compradorSnapshot?.apellido || '',
-                    dni: ticket.compradorSnapshot?.dni || '',
-                },
+            titular: ticketHolder(ticket),
             comprador: ticket.compradorSnapshot,
-            usadoEn: ticket.usadoEn,
+            usadoEn: ticket.usadoEn || null,
+            estado: ticket.estado,
         },
         evento: {
             _id: event?._id,
@@ -904,7 +846,192 @@ export const scanEventTicket = asyncHandler(async (req, res) => {
             fechaInicio: event?.fechaInicio,
             lugar: event?.lugar,
         },
+        ...extras,
+    };
+}
+
+async function loadTicketForDoor(req) {
+    const { EventTicket, ClubEvent } = req.models;
+    const { token, eventoId } = req.body || {};
+    if (!eventoId) {
+        const err = new Error('Seleccioná el evento de la puerta.');
+        err.statusCode = 400;
+        throw err;
+    }
+    if (!token) {
+        const err = new Error('Falta el código QR.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const doorEvent = await ClubEvent.findById(eventoId).select('estado controlIngreso titulo fechaInicio lugar');
+    if (!doorEvent || doorEvent.estado !== 'publicado') {
+        const err = new Error('Evento no encontrado.');
+        err.statusCode = 404;
+        throw err;
+    }
+    if (!userCanScanEvent(req.user, doorEvent)) {
+        const err = new Error('No tenés acceso al control de ingreso de este evento.');
+        err.statusCode = 403;
+        throw err;
+    }
+
+    let parsed;
+    try {
+        parsed = parseEventTicketToken(token, req.clubIdentifier);
+    } catch (e) {
+        const err = new Error(e.message || 'QR inválido.');
+        err.statusCode = 400;
+        throw err;
+    }
+    if (String(parsed.eventId) !== String(eventoId)) {
+        const err = new Error('Esta entrada es de otro evento. Revisá el evento seleccionado.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const ticket = await EventTicket.findById(parsed.ticketId);
+    if (!ticket) {
+        const err = new Error('Entrada no encontrada.');
+        err.statusCode = 404;
+        throw err;
+    }
+    if (String(ticket.evento) !== String(eventoId)) {
+        const err = new Error('Esta entrada es de otro evento.');
+        err.statusCode = 400;
+        throw err;
+    }
+    if (ticket.tokenNonce && ticket.tokenNonce !== parsed.nonce) {
+        const err = new Error('Código QR no válido para esta entrada.');
+        err.statusCode = 400;
+        throw err;
+    }
+    return { ticket, event: doorEvent };
+}
+
+async function writeDoorLog(req, ticket, event, decision) {
+    const { EventDoorLog } = req.models;
+    const holder = ticketHolder(ticket);
+    return EventDoorLog.create({
+        evento: event._id,
+        ticket: ticket._id,
+        decision,
+        scannedBy: req.user._id,
+        codigo: ticket.codigo,
+        tipoEntradaNombre: ticket.tipoEntradaNombre,
+        titular: {
+            nombre: holder.nombre || '',
+            apellido: holder.apellido || '',
+            dni: holder.dni || '',
+        },
     });
+}
+
+export const scanEventTicket = asyncHandler(async (req, res) => {
+    let loaded;
+    try {
+        loaded = await loadTicketForDoor(req);
+    } catch (e) {
+        res.status(e.statusCode || 400);
+        throw new Error(e.message || 'QR inválido.');
+    }
+    const { ticket, event } = loaded;
+
+    if (ticket.estado === 'anulada') {
+        res.status(400);
+        throw new Error('Entrada anulada.');
+    }
+    if (ticket.estado === 'usada') {
+        return res.json(ticketScanBody(ticket, event, {
+            needsDecision: false,
+            alreadyUsed: true,
+            message: 'Este ticket ya se usó',
+            decision: 'entro',
+        }));
+    }
+
+    res.json(ticketScanBody(ticket, event, {
+        needsDecision: true,
+        alreadyUsed: false,
+        message: null,
+        decision: null,
+    }));
+});
+
+export const confirmEventTicketScan = asyncHandler(async (req, res) => {
+    const decision = req.body?.decision === 'no_entro' ? 'no_entro' : req.body?.decision === 'entro' ? 'entro' : '';
+    if (!decision) {
+        res.status(400);
+        throw new Error('Elegí si entró o no entró.');
+    }
+
+    let loaded;
+    try {
+        loaded = await loadTicketForDoor(req);
+    } catch (e) {
+        res.status(e.statusCode || 400);
+        throw new Error(e.message || 'QR inválido.');
+    }
+    const { ticket, event } = loaded;
+
+    if (ticket.estado === 'anulada') {
+        res.status(400);
+        throw new Error('Entrada anulada.');
+    }
+    if (ticket.estado === 'usada') {
+        return res.json(ticketScanBody(ticket, event, {
+            needsDecision: false,
+            alreadyUsed: true,
+            message: 'Este ticket ya se usó',
+            decision: 'entro',
+        }));
+    }
+
+    if (decision === 'entro') {
+        ticket.estado = 'usada';
+        ticket.usadoEn = new Date();
+        ticket.escaneadoPor = req.user._id;
+        await ticket.save();
+    }
+
+    const log = await writeDoorLog(req, ticket, event, decision);
+    res.json(ticketScanBody(ticket, event, {
+        needsDecision: false,
+        alreadyUsed: false,
+        message: decision === 'entro' ? 'Entró' : 'No entró',
+        decision,
+        scannedAt: log.scannedAt,
+    }));
+});
+
+export const listEventDoorLog = asyncHandler(async (req, res) => {
+    const { ClubEvent, EventDoorLog } = req.models;
+    const eventoId = req.query.eventoId;
+    if (!eventoId) {
+        res.status(400);
+        throw new Error('Falta el evento.');
+    }
+    const doorEvent = await ClubEvent.findById(eventoId).select('estado controlIngreso');
+    if (!doorEvent) {
+        res.status(404);
+        throw new Error('Evento no encontrado.');
+    }
+    if (!userCanScanEvent(req.user, doorEvent)) {
+        res.status(403);
+        throw new Error('No tenés acceso al control de ingreso de este evento.');
+    }
+    const logs = await EventDoorLog.find({ evento: eventoId })
+        .sort({ scannedAt: -1 })
+        .limit(40)
+        .lean();
+    res.json(logs.map((row) => ({
+        _id: row._id,
+        decision: row.decision,
+        scannedAt: row.scannedAt,
+        codigo: row.codigo,
+        tipoEntradaNombre: row.tipoEntradaNombre,
+        titular: row.titular || {},
+    })));
 });
 
 export {

@@ -23,6 +23,8 @@ import {
     getPublicOrderTickets,
     listScanTargets,
     scanEventTicket,
+    confirmEventTicketScan,
+    listEventDoorLog,
     ADMIN_WRITE,
     EVENT_MANAGE,
     ADMIN_READ,
@@ -41,6 +43,8 @@ router.post('/public/:slug/checkout', publicCheckout);
 router.get('/scan-targets', protect, listScanTargets);
 router.get('/door', protect, listScanTargets);
 router.post('/tickets/scan', protect, scanEventTicket);
+router.post('/tickets/scan/confirm', protect, confirmEventTicketScan);
+router.get('/door-log', protect, listEventDoorLog);
 
 // Member
 router.get('/tickets/mine', protect, authorize(...MEMBER_ROLES), myTickets);
