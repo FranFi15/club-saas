@@ -301,8 +301,11 @@ export default function MemberEventsScreen({ navigation }) {
               onPress={() => navigation.navigate('MemberEventTickets')}
               hitSlop={10}
               style={styles.headerIconBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Mis entradas"
             >
-              <Ionicons name="ticket-outline" size={22} color="#fff" />
+              <Ionicons name="ticket-outline" size={18} color="#fff" />
+              <Text style={styles.headerIconBtnTxt}>Mis entradas</Text>
             </TouchableOpacity>
           }
         />
@@ -604,13 +607,16 @@ const styles = StyleSheet.create({
     elevation: 20,
   },
   headerIconBtn: {
-    width: 36,
     height: 36,
     borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.22)',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
   },
+  headerIconBtnTxt: { color: '#fff', fontSize: 13, fontWeight: '700' },
   body: { flex: 1, minHeight: 0 },
   list: { flex: 1 },
   listContent: { padding: 16, paddingBottom: 40, flexGrow: 1 },

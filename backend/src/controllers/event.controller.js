@@ -755,6 +755,7 @@ export const myTickets = asyncHandler(async (req, res) => {
             eventoTitulo: ev?.titulo || '',
             eventoFechaInicio: ev?.fechaInicio,
             eventoLugar: ev?.lugar || '',
+            eventoImagenUrl: ev?.imagenUrl || '',
         };
     });
     res.json(result);

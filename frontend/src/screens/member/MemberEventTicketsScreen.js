@@ -7,6 +7,8 @@ import {
   ActivityIndicator,
   StatusBar,
   RefreshControl,
+  TouchableOpacity,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,6 +35,7 @@ export default function MemberEventTicketsScreen({ navigation }) {
   const { theme, isDarkMode } = useContext(ThemeContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const [tickets, setTickets] = useState([]);
+  const [selected, setSelected] = useState(null);
 
   const getHeaders = useCallback(async () => {
     const token = await getToken('userToken');
@@ -63,13 +66,60 @@ export default function MemberEventTicketsScreen({ navigation }) {
         <CoachScreenHeader
           colorMarca={colorMarca}
           theme={theme}
-          title="Mis entradas"
-          subtitle="Mostrá el QR en la puerta del evento"
-          onBack={() => navigation.goBack()}
+          title={selected ? selected.eventoTitulo || 'Entrada' : 'Mis entradas'}
+          subtitle={selected ? 'Mostrá el QR en la puerta del evento' : 'Elegí una entrada para ver el QR'}
+          onBack={() => (selected ? setSelected(null) : navigation.goBack())}
           showNotifications={false}
         />
       </View>
-      {loading && !tickets.length ? (
+      {selected ? (
+        <View style={styles.detail}>
+          {(() => {
+            const used = selected.estado === 'usada';
+            const who = `${selected.titular?.apellido || ''} ${selected.titular?.nombre || ''}`.trim();
+            return (
+              <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                {selected.eventoImagenUrl ? (
+                  <Image source={{ uri: selected.eventoImagenUrl }} style={styles.ticketImage} />
+                ) : null}
+                <View style={styles.ticketBody}>
+                {selected.eventoFechaInicio ? (
+                  <Text style={{ color: theme.textMuted, marginBottom: 4 }}>
+                    {formatWhen(selected.eventoFechaInicio)}
+                    {selected.eventoLugar ? ` · ${selected.eventoLugar}` : ''}
+                  </Text>
+                ) : null}
+                <Text style={{ color: theme.textMuted }}>
+                  {selected.tipoEntradaNombre}
+                  {used ? ' · Usada' : ''}
+                </Text>
+                {who || selected.titular?.dni ? (
+                  <Text style={{ color: theme.text, fontWeight: '700', marginTop: 4 }}>
+                    {who}
+                    {selected.titular?.dni ? ` · DNI ${selected.titular.dni}` : ''}
+                  </Text>
+                ) : null}
+                <Text style={{ color: theme.textMuted, marginBottom: 14, marginTop: 2 }}>
+                  Código {selected.codigo}
+                </Text>
+                {selected.qrValue && selected.estado === 'valida' ? (
+                  <View style={styles.qrWrap}>
+                    <QRCode value={selected.qrValue} size={220} backgroundColor="#fff" color="#111827" />
+                  </View>
+                ) : used ? (
+                  <View style={[styles.usedBadge, { backgroundColor: `${colorMarca}18` }]}>
+                    <Ionicons name="checkmark-circle" size={20} color={colorMarca} />
+                    <Text style={{ color: colorMarca, fontWeight: '700', marginLeft: 6 }}>
+                      Entrada utilizada
+                    </Text>
+                  </View>
+                ) : null}
+                </View>
+              </View>
+            );
+          })()}
+        </View>
+      ) : loading && !tickets.length ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={colorMarca} />
       ) : (
         <FlatList
@@ -85,51 +135,41 @@ export default function MemberEventTicketsScreen({ navigation }) {
               <Ionicons name="ticket-outline" size={40} color={theme.textMuted} />
               <Text style={[styles.emptyTitle, { color: theme.text }]}>Sin entradas</Text>
               <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 6 }}>
-                Cuando compres una entrada, el QR aparece acá.
+                Cuando compres una entrada, aparece en esta lista.
               </Text>
             </View>
           }
           renderItem={({ item }) => {
             const used = item.estado === 'usada';
+            const who = `${item.titular?.apellido || ''} ${item.titular?.nombre || ''}`.trim();
             return (
-              <View
-                style={[
-                  styles.card,
-                  { backgroundColor: theme.surface, borderColor: theme.border },
-                ]}
+              <TouchableOpacity
+                onPress={() => setSelected(item)}
+                activeOpacity={0.85}
+                style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}
               >
-                <Text style={[styles.title, { color: theme.text }]}>{item.eventoTitulo}</Text>
-                {item.eventoFechaInicio ? (
-                  <Text style={{ color: theme.textMuted, marginBottom: 4 }}>
-                    {formatWhen(item.eventoFechaInicio)}
-                  </Text>
-                ) : null}
-                <Text style={{ color: theme.textMuted }}>
-                  {item.tipoEntradaNombre}
-                  {used ? ' · Usada' : ''}
-                </Text>
-                {item.titular?.nombre || item.titular?.dni ? (
-                  <Text style={{ color: theme.text, fontWeight: '700', marginTop: 4 }}>
-                    {`${item.titular.apellido || ''} ${item.titular.nombre || ''}`.trim()}
-                    {item.titular.dni ? ` · DNI ${item.titular.dni}` : ''}
-                  </Text>
-                ) : null}
-                <Text style={{ color: theme.textMuted, marginBottom: 14, marginTop: 2 }}>
-                  Código {item.codigo}
-                </Text>
-                {item.qrValue && item.estado === 'valida' ? (
-                  <View style={styles.qrWrap}>
-                    <QRCode value={item.qrValue} size={200} backgroundColor="#fff" color="#111827" />
+                {item.eventoImagenUrl ? (
+                  <Image source={{ uri: item.eventoImagenUrl }} style={styles.rowImage} />
+                ) : (
+                  <View style={[styles.rowIcon, { backgroundColor: `${colorMarca}18` }]}>
+                    <Ionicons name="ticket-outline" size={22} color={colorMarca} />
                   </View>
-                ) : used ? (
-                  <View style={[styles.usedBadge, { backgroundColor: `${colorMarca}18` }]}>
-                    <Ionicons name="checkmark-circle" size={20} color={colorMarca} />
-                    <Text style={{ color: colorMarca, fontWeight: '700', marginLeft: 6 }}>
-                      Entrada utilizada
+                )}
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
+                    {item.eventoTitulo || 'Evento'}
+                  </Text>
+                  {item.eventoFechaInicio ? (
+                    <Text style={{ color: theme.textMuted, marginTop: 2 }} numberOfLines={1}>
+                      {formatWhen(item.eventoFechaInicio)}
                     </Text>
-                  </View>
-                ) : null}
-              </View>
+                  ) : null}
+                  <Text style={{ color: theme.textMuted, marginTop: 2 }} numberOfLines={1}>
+                    {[item.tipoEntradaNombre, who, used ? 'Usada' : null].filter(Boolean).join(' · ')}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+              </TouchableOpacity>
             );
           }}
         />
@@ -143,18 +183,34 @@ const styles = StyleSheet.create({
   headerLayer: { zIndex: 20, elevation: 20 },
   list: { flex: 1 },
   listContent: { padding: 16, paddingBottom: 40, flexGrow: 1 },
+  detail: { flex: 1, padding: 16 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 10,
+  },
+  rowIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   card: {
     borderWidth: 1,
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 14,
-    alignItems: 'center',
+    overflow: 'hidden',
   },
+  ticketImage: { width: '100%', height: 160 },
+  ticketBody: { padding: 16, alignItems: 'center' },
+  rowImage: { width: 56, height: 56, borderRadius: 12 },
   title: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
-    marginBottom: 4,
-    alignSelf: 'stretch',
   },
   qrWrap: {
     backgroundColor: '#fff',
