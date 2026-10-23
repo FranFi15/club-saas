@@ -195,7 +195,6 @@ export default function AdminEventosScreen({ navigation }) {
   const formListMax = Math.max(240, Math.round(windowHeight * 0.94 - 210));
 
   const [events, setEvents] = useState([]);
-  const [whenTab, setWhenTab] = useState('upcoming');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [viewerRol, setViewerRol] = useState('');
@@ -250,6 +249,7 @@ export default function AdminEventosScreen({ navigation }) {
   const [cashQuoting, setCashQuoting] = useState(false);
   const [cashSaving, setCashSaving] = useState(false);
   const [cashDone, setCashDone] = useState(null);
+  const [sellNotice, setSellNotice] = useState('');
 
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
@@ -633,11 +633,13 @@ export default function AdminEventosScreen({ navigation }) {
     setCashQuote(null);
     setCashQuoteError('');
     setCashDone(null);
+    setSellNotice('');
   };
 
   const closeAdd = () => {
     setAddEvent(null);
     setCashDone(null);
+    setSellNotice('');
   };
 
   const seedHolder = (person) => ({
@@ -796,12 +798,12 @@ export default function AdminEventosScreen({ navigation }) {
   const submitCashSale = async () => {
     if (!addEvent) return;
     if (addMode === 'app' && !pickedUser) {
-      showAlert('Persona', 'Elegí un usuario de la app.');
+      setSellNotice('Elegí un usuario de la app.');
       return;
     }
     if (addMode === 'fuera') {
       if (!guest.nombre.trim() || !guest.apellido.trim() || !guest.email.trim()) {
-        showAlert('Persona', 'Nombre, apellido y email son obligatorios.');
+        setSellNotice('Nombre, apellido y email son obligatorios.');
         return;
       }
     }
@@ -814,15 +816,16 @@ export default function AdminEventosScreen({ navigation }) {
     for (let i = 0; i < addQty; i += 1) {
       const person = asistentes[i] || { nombre: '', apellido: '', dni: '' };
       if (!person.nombre || !person.apellido || person.dni.length < 6 || person.dni.length > 10) {
-        showAlert('Entradas', `Entrada ${i + 1}: completá nombre, apellido y DNI de quien entra.`);
+        setSellNotice(`Entrada ${i + 1}: completá nombre, apellido y DNI de quien entra.`);
         return;
       }
       if (seen.has(person.dni)) {
-        showAlert('Entradas', `El DNI ${person.dni} está repetido. Cada entrada es de una persona.`);
+        setSellNotice(`El DNI ${person.dni} está repetido. Cada entrada es de una persona.`);
         return;
       }
       seen.add(person.dni);
     }
+    setSellNotice('');
     setCashSaving(true);
     try {
       const h = await getHeaders();
@@ -853,7 +856,7 @@ export default function AdminEventosScreen({ navigation }) {
         }
       }
     } catch (e) {
-      showAlert('No se pudo cargar', e.response?.data?.message || 'Revisá los datos e intentá de nuevo.');
+      setSellNotice(e.response?.data?.message || 'Revisá los datos e intentá de nuevo.');
     } finally {
       setCashSaving(false);
     }
@@ -1467,21 +1470,12 @@ export default function AdminEventosScreen({ navigation }) {
     </View>
   );
 
-  const { upcoming, past } = useMemo(() => {
-    const now = Date.now();
-    const next = [];
-    const done = [];
+  const visibleEvents = useMemo(() => {
     const source = canManageEvents ? events : events.filter((ev) => ev.estado !== 'borrador');
-    for (const ev of source) {
-      const when = ev.fechaInicio ? new Date(ev.fechaInicio).getTime() : 0;
-      if (when >= now) next.push(ev);
-      else done.push(ev);
-    }
-    next.sort((a, b) => new Date(a.fechaInicio) - new Date(b.fechaInicio));
-    done.sort((a, b) => new Date(b.fechaInicio) - new Date(a.fechaInicio));
-    return { upcoming: next, past: done };
+    return source
+      .filter((ev) => eventDayStillOpen(ev.fechaInicio))
+      .sort((a, b) => new Date(a.fechaInicio) - new Date(b.fechaInicio));
   }, [events, canManageEvents]);
-  const visibleEvents = whenTab === 'past' ? past : upcoming;
 
   const renderEvent = ({ item }) => {
     const disp = toDisplayDate(item.fechaInicio);
@@ -1596,28 +1590,6 @@ export default function AdminEventosScreen({ navigation }) {
         <ActivityIndicator style={{ marginTop: 40 }} color={colorMarca} />
       ) : (
         <View style={{ flex: 1 }}>
-          <View style={[styles.whenTabs, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-            {[
-              { id: 'upcoming', label: 'Próximos', count: upcoming.length },
-              { id: 'past', label: 'Pasados', count: past.length },
-            ].map((tab) => {
-              const on = whenTab === tab.id;
-              return (
-                <TouchableOpacity
-                  key={tab.id}
-                  onPress={() => setWhenTab(tab.id)}
-                  style={[
-                    styles.whenTab,
-                    on && { backgroundColor: colorMarca },
-                  ]}
-                >
-                  <Text style={{ color: on ? '#fff' : theme.text, fontWeight: '800', fontSize: 14 }}>
-                    {tab.label} ({tab.count})
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
           <FlatList
             style={{ flex: 1 }}
             data={visibleEvents}
@@ -1627,10 +1599,8 @@ export default function AdminEventosScreen({ navigation }) {
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
             ListEmptyComponent={
               <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 40 }}>
-                {upcoming.length + past.length
-                  ? whenTab === 'past'
-                    ? 'No hay eventos pasados.'
-                    : 'No hay eventos próximos.'
+                {events.length
+                  ? 'No hay eventos próximos.'
                   : canManageEvents
                     ? 'Todavía no hay eventos. Creá el primero.'
                     : 'No hay eventos publicados.'}
@@ -2336,6 +2306,9 @@ export default function AdminEventosScreen({ navigation }) {
                   </View>
                 ))}
               </ScrollView>
+              {sellNotice ? (
+                <Text style={styles.sellNotice}>{sellNotice}</Text>
+              ) : null}
               <View style={[styles.footerBar, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
                 <View style={{ flex: 1 }}>
                   {cashQuoting ? (
@@ -2588,6 +2561,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   chipText: { fontSize: 13, fontWeight: '600' },
+  sellNotice: {
+    color: '#b45309',
+    fontSize: 13,
+    fontWeight: '600',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+  },
   footerBar: {
     flexDirection: 'row',
     alignItems: 'center',

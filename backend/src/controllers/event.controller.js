@@ -12,7 +12,7 @@ import {
     normalizeAsistentes,
 } from '../services/eventTicketIssue.service.js';
 import { parseEventTicketToken } from '../services/eventTicketToken.service.js';
-import { calendarPartsInTz, DEFAULT_CLUB_TIMEZONE } from '../utils/timeHelper.js';
+import { calendarPartsInTz, DEFAULT_CLUB_TIMEZONE, todayYmdClub, zonedWallTimeToDate } from '../utils/timeHelper.js';
 
 const HOLD_MS = 15 * 60 * 1000;
 const ADMIN_WRITE = ['admin_club', 'administrativo'];
@@ -536,14 +536,18 @@ export const adminCashSale = asyncHandler(async (req, res) => {
 
 // ─── Public ──────────────────────────────────────────────────────────────────
 
+function openEventsQuery() {
+    const startOfToday = zonedWallTimeToDate(todayYmdClub(), '00:00', DEFAULT_CLUB_TIMEZONE);
+    return {
+        estado: 'publicado',
+        fechaInicio: { $gte: startOfToday },
+    };
+}
+
 export const listPublicEvents = asyncHandler(async (req, res) => {
     const { ClubEvent } = req.models;
     await expireStaleHolds(req.models);
-    const now = new Date();
-    const events = await ClubEvent.find({
-        estado: 'publicado',
-        $or: [{ fechaFin: { $gte: now } }, { fechaFin: null, fechaInicio: { $gte: new Date(now.getTime() - 86400000) } }],
-    })
+    const events = await ClubEvent.find(openEventsQuery())
         .sort({ fechaInicio: 1 })
         .lean();
     res.json(events.map(publicEventCard));
@@ -637,11 +641,7 @@ export const publicCheckout = asyncHandler(async (req, res) => {
 export const listMemberEvents = asyncHandler(async (req, res) => {
     const { ClubEvent } = req.models;
     await expireStaleHolds(req.models);
-    const now = new Date();
-    const events = await ClubEvent.find({
-        estado: 'publicado',
-        $or: [{ fechaFin: { $gte: now } }, { fechaFin: null, fechaInicio: { $gte: new Date(now.getTime() - 86400000) } }],
-    })
+    const events = await ClubEvent.find(openEventsQuery())
         .sort({ fechaInicio: 1 })
         .lean();
     res.json(events.map(publicEventCard));
