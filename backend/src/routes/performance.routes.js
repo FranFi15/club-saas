@@ -18,7 +18,16 @@ import { protect, authorize } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
 
-// Definiciones de métricas (Staff deportivo + profe en área física)
+// Definiciones de métricas (Staff deportivo + profe en área física).
+// /definiciones is the path the app calls. /metrics/definitions stays so
+// already-installed builds keep working; browsers block URLs that contain /metrics/.
+router.get('/definiciones', protect, listMetricDefinitions);
+router.post(
+    '/definiciones',
+    protect,
+    authorize('admin_club', 'preparador_fisico', 'nutricionista', 'profe'),
+    createMetricDefinition
+);
 router.get('/metrics/definitions', protect, listMetricDefinitions);
 router.post(
     '/metrics/definitions',

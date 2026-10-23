@@ -230,7 +230,7 @@ export default function CoachMeasurementScreen({ navigation, route }) {
       ) {
         continue;
       }
-      const { data } = await clubApi.post('/performance/metrics/definitions', preset, { headers: h });
+      const { data } = await clubApi.post('/performance/definiciones', preset, { headers: h });
       defs.push(data);
       existing.add(key);
       canonNames.add(canon);
@@ -245,7 +245,7 @@ export default function CoachMeasurementScreen({ navigation, route }) {
     const areas = rol === 'nutricionista' ? NUTRI_MEASUREMENT_AREAS : ['fisico'];
     const h = await headers();
     const [defsRes, perfRes] = await Promise.all([
-      clubApi.get('/performance/metrics/definitions', { headers: h }),
+      clubApi.get('/performance/definiciones', { headers: h }),
       clubApi.get(`/performance/atleta/${atletaId}`, { headers: h }),
     ]);
     const raw = defsRes.data;
@@ -301,7 +301,7 @@ export default function CoachMeasurementScreen({ navigation, route }) {
       const rolForArea = userRol || (await getToken('userRol')) || '';
       const areaPayload = rolForArea === 'nutricionista' ? newMetricArea : 'fisico';
       const { data } = await clubApi.post(
-        '/performance/metrics/definitions',
+        '/performance/definiciones',
         {
           nombre: newName.trim(),
           unidad: newUnit.trim() || 'u',
