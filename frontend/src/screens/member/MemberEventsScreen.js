@@ -27,6 +27,21 @@ import { clubApi } from '../../utils/api';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import CustomAlert from '../../components/CustomAlert';
 import { useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { useMember } from '../../context/MemberContext';
+
+function normalizeTicketDni(raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length === 11) return digits.slice(2, 10);
+  return digits;
+}
+
+function holderFromProfile(p) {
+  return {
+    nombre: String(p?.nombre || '').trim(),
+    apellido: String(p?.apellido || '').trim(),
+    dni: normalizeTicketDni(p?.dni),
+  };
+}
 
 function formatWhen(iso) {
   if (!iso) return '';
@@ -52,6 +67,7 @@ function lowestPrice(tipos) {
 
 export default function MemberEventsScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
+  const { profile } = useMember();
   const { theme, isDarkMode } = useContext(ThemeContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const { height: windowHeight } = useWindowDimensions();
@@ -62,7 +78,10 @@ export default function MemberEventsScreen({ navigation }) {
   const [tipoId, setTipoId] = useState('');
   const [cantidad, setCantidad] = useState(1);
   const [holders, setHolders] = useState([{ nombre: '', apellido: '', dni: '' }]);
-  const meRef = useRef(null);
+  const holdersRef = useRef(holders);
+  holdersRef.current = holders;
+  const holderTouched = useRef(false);
+  const [buyNotice, setBuyNotice] = useState('');
   const [quote, setQuote] = useState(null);
   const [quoting, setQuoting] = useState(false);
   const [buying, setBuying] = useState(false);
@@ -105,35 +124,34 @@ export default function MemberEventsScreen({ navigation }) {
     onFetched: (d) => setEvents(d.list || []),
   });
 
-  const openBuy = async (ev) => {
+  const openBuy = (ev) => {
+    holderTouched.current = false;
+    setBuyNotice('');
     setSelected(ev);
     const first = (ev.tiposEntrada || [])[0];
     setTipoId(first ? String(first._id) : '');
     setCantidad(1);
     setQuote(null);
-    let me = meRef.current;
-    if (!me) {
-      try {
-        const h = await getHeaders();
-        const { data } = await clubApi.get('/users/me', { headers: h });
-        me = data?.user || data;
-        meRef.current = me;
-      } catch {
-        me = null;
-      }
-    }
-    setHolders([
-      {
-        nombre: me?.nombre || '',
-        apellido: me?.apellido || '',
-        dni: String(me?.dni || '').replace(/\D/g, ''),
-      },
-    ]);
+    setHolders([holderFromProfile(profile)]);
   };
+
+  useEffect(() => {
+    if (!selected || holderTouched.current) return;
+    const next = holderFromProfile(profile);
+    if (!next.nombre && !next.apellido && !next.dni) return;
+    setHolders((prev) => {
+      const first = prev[0] || { nombre: '', apellido: '', dni: '' };
+      if (first.nombre || first.apellido || first.dni) return prev;
+      const copy = prev.slice();
+      copy[0] = next;
+      return copy;
+    });
+  }, [selected, profile]);
 
   const closeBuy = () => {
     setSelected(null);
     setQuote(null);
+    setBuyNotice('');
     quoteSeq.current += 1;
   };
 
@@ -183,29 +201,41 @@ export default function MemberEventsScreen({ navigation }) {
   };
 
   const updateHolder = (index, field, value) => {
+    holderTouched.current = true;
+    setBuyNotice('');
     setHolders((prev) => prev.map((h, i) => (i === index ? { ...h, [field]: value } : h)));
   };
 
   const buy = async () => {
     if (!selected?._id || !tipoId) return;
-    const asistentes = holders.slice(0, cantidad).map((h) => ({
-      nombre: String(h.nombre || '').trim(),
-      apellido: String(h.apellido || '').trim(),
-      dni: String(h.dni || '').replace(/\D/g, ''),
-    }));
+    const me = holderFromProfile(profile);
+    const source = holdersRef.current;
+    const asistentes = Array.from({ length: cantidad }, (_, i) => {
+      const h = source[i] || {};
+      return {
+        nombre: String(h.nombre || '').trim() || (i === 0 ? me.nombre : ''),
+        apellido: String(h.apellido || '').trim() || (i === 0 ? me.apellido : ''),
+        dni: normalizeTicketDni(h.dni) || (i === 0 ? me.dni : ''),
+      };
+    });
     const seen = new Set();
     for (let i = 0; i < cantidad; i += 1) {
       const person = asistentes[i] || { nombre: '', apellido: '', dni: '' };
-      if (!person.nombre || !person.apellido || person.dni.length < 6) {
-        showAlert('Titulares', `Entrada ${i + 1}: completá nombre, apellido y DNI de quien entra.`);
+      if (!person.nombre || !person.apellido) {
+        setBuyNotice(`Entrada ${i + 1}: completá nombre y apellido.`);
+        return;
+      }
+      if (person.dni.length < 6 || person.dni.length > 8) {
+        setBuyNotice(`Entrada ${i + 1}: el DNI tiene que tener entre 6 y 8 números.`);
         return;
       }
       if (seen.has(person.dni)) {
-        showAlert('Titulares', `El DNI ${person.dni} está repetido. Cada entrada es de una persona.`);
+        setBuyNotice(`El DNI ${person.dni} está repetido. Cada entrada es de una persona.`);
         return;
       }
       seen.add(person.dni);
     }
+    setBuyNotice('');
     setBuying(true);
     try {
       const h = await getHeaders();
@@ -564,6 +594,9 @@ export default function MemberEventsScreen({ navigation }) {
               { borderTopColor: theme.border, backgroundColor: theme.background },
             ]}
           >
+            {buyNotice ? (
+              <Text style={styles.buyNotice}>{buyNotice}</Text>
+            ) : null}
             <TouchableOpacity
               style={[
                 styles.buyBtn,
@@ -738,6 +771,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  buyNotice: {
+    color: '#b45309',
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 8,
   },
   buyBtn: { borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
   buyBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 16 },

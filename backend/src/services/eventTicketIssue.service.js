@@ -9,6 +9,13 @@ function shortCode() {
     return crypto.randomBytes(4).toString('hex').toUpperCase();
 }
 
+/** DNI (6–8 digits) or CUIL/CUIT (11): the document number is the middle 8 digits. */
+export function normalizeTicketDni(raw) {
+    const digits = String(raw || '').replace(/\D/g, '');
+    if (digits.length === 11) return digits.slice(2, 10);
+    return digits;
+}
+
 /**
  * One holder per ticket: name, last name, and DNI. DNIs must be unique in the order.
  */
@@ -26,9 +33,14 @@ export function normalizeAsistentes(raw, cantidad) {
     return list.map((a, i) => {
         const nombre = String(a?.nombre || '').trim();
         const apellido = String(a?.apellido || '').trim();
-        const dni = String(a?.dni || '').replace(/\D/g, '');
-        if (!nombre || !apellido || dni.length < 6 || dni.length > 10) {
-            const err = new Error(`Entrada ${i + 1}: nombre, apellido y DNI son obligatorios.`);
+        const dni = normalizeTicketDni(a?.dni);
+        if (!nombre || !apellido) {
+            const err = new Error(`Entrada ${i + 1}: completá nombre y apellido.`);
+            err.statusCode = 400;
+            throw err;
+        }
+        if (dni.length < 6 || dni.length > 8) {
+            const err = new Error(`Entrada ${i + 1}: el DNI tiene que tener entre 6 y 8 números.`);
             err.statusCode = 400;
             throw err;
         }

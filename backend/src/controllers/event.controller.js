@@ -12,6 +12,7 @@ import {
     normalizeAsistentes,
 } from '../services/eventTicketIssue.service.js';
 import { parseEventTicketToken } from '../services/eventTicketToken.service.js';
+import { createEventOrderMpPreference } from '../services/eventMp.service.js';
 import { calendarPartsInTz, DEFAULT_CLUB_TIMEZONE, todayYmdClub, zonedWallTimeToDate } from '../utils/timeHelper.js';
 
 const HOLD_MS = 15 * 60 * 1000;
