@@ -1,4 +1,5 @@
 import asyncHandler from 'express-async-handler';
+import mongoose from 'mongoose';
 import { parsePageLimit, paginationMeta } from '../utils/pagination.js';
 import {
     deliverResourceToChat,
@@ -125,6 +126,33 @@ const getSentResources = asyncHandler(async (req, res) => {
     const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 30, maxLimit: 100 });
 
     const filter = req.user.rol === 'admin_club' ? {} : { autor: req.user._id };
+    const tipos = ['rutina', 'nutricion', 'estudio_medico', 'tactico', 'stats', 'highlights', 'playbook', 'otro'];
+    if (tipos.includes(req.query.tipo)) filter.tipo = req.query.tipo;
+
+    const categoriaId = String(req.query.categoriaId || '');
+    if (mongoose.Types.ObjectId.isValid(categoriaId)) {
+        const { Enrollment } = req.models;
+        const enrollments = await Enrollment.find({ categoria: categoriaId, estado: 'activo' })
+            .select('atleta')
+            .lean();
+        const atletaIds = enrollments.map((row) => row.atleta).filter(Boolean);
+        const destino = [{ alcance: 'categoria', targetCategoria: categoriaId }];
+        if (atletaIds.length) destino.push({ alcance: 'usuario', targetUsuario: { $in: atletaIds } });
+        filter.$or = destino;
+    }
+
+    const q = String(req.query.q || '').trim().slice(0, 80);
+    if (q) {
+        const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        const text = { $or: [{ titulo: rx }, { descripcion: rx }] };
+        if (filter.$or) {
+            const destino = filter.$or;
+            delete filter.$or;
+            filter.$and = [{ $or: destino }, text];
+        } else {
+            Object.assign(filter, text);
+        }
+    }
 
     const total = await Resource.countDocuments(filter);
     const resources = await Resource.find(filter)
@@ -226,12 +254,22 @@ const getMyResources = asyncHandler(async (req, res) => {
     const inscripciones = await Enrollment.find({ atleta: userId, estado: 'activo' });
     const categoriasIds = inscripciones.map((i) => i.categoria);
 
-    const filter = {
-        $or: [
-            { alcance: 'usuario', targetUsuario: userId },
-            { alcance: 'categoria', targetCategoria: { $in: categoriasIds } },
-        ],
-    };
+    const clauses = [
+        {
+            $or: [
+                { alcance: 'usuario', targetUsuario: userId },
+                { alcance: 'categoria', targetCategoria: { $in: categoriasIds } },
+            ],
+        },
+    ];
+    const tipos = ['rutina', 'nutricion', 'estudio_medico', 'tactico', 'stats', 'highlights', 'playbook', 'otro'];
+    if (tipos.includes(req.query.tipo)) clauses.push({ tipo: req.query.tipo });
+    const q = String(req.query.q || '').trim().slice(0, 80);
+    if (q) {
+        const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        clauses.push({ $or: [{ titulo: rx }, { descripcion: rx }] });
+    }
+    const filter = clauses.length === 1 ? clauses[0] : { $and: clauses };
 
     const total = await Resource.countDocuments(filter);
     const recursos = await Resource.find(filter)

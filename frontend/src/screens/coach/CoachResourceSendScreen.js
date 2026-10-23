@@ -1,4 +1,4 @@
-import React, { useContext, useState, useCallback, useMemo } from 'react';
+import React, { useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -121,6 +121,16 @@ export default function CoachResourceSendScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [openFilter, setOpenFilter] = useState(null);
+  const [historyTipo, setHistoryTipo] = useState('');
+  const [historyCategoria, setHistoryCategoria] = useState('');
+  const [historyFilter, setHistoryFilter] = useState(null);
+  const [historySearchText, setHistorySearchText] = useState('');
+  const [historySearch, setHistorySearch] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setHistorySearch(historySearchText.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [historySearchText]);
 
   const [history, setHistory] = useState([]);
   const [historyPage, setHistoryPage] = useState(1);
@@ -200,9 +210,13 @@ export default function CoachResourceSendScreen({ navigation }) {
       if (page === 1) setLoadingHistory(true);
       try {
         const h = await headers();
+        const params = { page, limit: 20 };
+        if (historyTipo) params.tipo = historyTipo;
+        if (historyCategoria) params.categoriaId = historyCategoria;
+        if (historySearch) params.q = historySearch;
         const res = await clubApi.get('/resources', {
           headers: h,
-          params: { page, limit: 20 },
+          params,
         });
         const rows = pickPaginatedRows(res.data, 'resources');
         setHistory((prev) => (append ? [...prev, ...rows] : rows));
@@ -218,7 +232,7 @@ export default function CoachResourceSendScreen({ navigation }) {
         setLoadingMoreHistory(false);
       }
     },
-    [clubData?.urlIdentifier],
+    [clubData?.urlIdentifier, historyTipo, historyCategoria, historySearch],
   );
 
   const loadMeta = useCallback(async () => {
@@ -694,6 +708,15 @@ export default function CoachResourceSendScreen({ navigation }) {
     );
   };
 
+  const historyFilterOptions =
+    historyFilter === 'categoria'
+      ? [
+          { value: '', label: 'Todas las categorías' },
+          ...categories.map((cat) => ({ value: String(cat._id), label: cat.nombre })),
+        ]
+      : [{ value: '', label: 'Todos los tipos' }, ...tipoOptions];
+  const historyFilterValue = historyFilter === 'categoria' ? historyCategoria : historyTipo;
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
@@ -730,17 +753,79 @@ export default function CoachResourceSendScreen({ navigation }) {
           onEndReached={loadMoreHistory}
           onEndReachedThreshold={0.4}
           ListHeaderComponent={
-            <Text style={[styles.histCount, { color: theme.textMuted }]}>
-              {history.length} material{history.length === 1 ? '' : 'es'} enviado
-              {history.length === 1 ? '' : 's'}
-            </Text>
+            <View>
+              <View style={[styles.searchBox, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+                <Ionicons name="search-outline" size={18} color={theme.textMuted} />
+                <TextInput
+                  value={historySearchText}
+                  onChangeText={setHistorySearchText}
+                  placeholder="Buscar por título o descripción"
+                  placeholderTextColor={theme.textMuted}
+                  style={[styles.searchInput, { color: theme.text }]}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  returnKeyType="search"
+                />
+                {historySearchText ? (
+                  <TouchableOpacity onPress={() => setHistorySearchText('')} hitSlop={8}>
+                    <Ionicons name="close-circle" size={18} color={theme.textMuted} />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+              <View style={styles.filterPillsRow}>
+                <TouchableOpacity
+                  onPress={() => setHistoryFilter('tipo')}
+                  style={[
+                    styles.filterChip,
+                    {
+                      borderColor: historyTipo ? colorMarca : theme.border,
+                      backgroundColor: historyTipo ? `${colorMarca}18` : theme.surface,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={{ color: historyTipo ? colorMarca : theme.text, fontSize: 12, fontWeight: '600', flexShrink: 1 }}
+                    numberOfLines={1}
+                  >
+                    {historyTipo ? TIPO_LABELS[historyTipo] || 'Tipo' : 'Tipo'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={14} color={historyTipo ? colorMarca : theme.textMuted} style={{ marginLeft: 4 }} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setHistoryFilter('categoria')}
+                  style={[
+                    styles.filterChip,
+                    {
+                      borderColor: historyCategoria ? colorMarca : theme.border,
+                      backgroundColor: historyCategoria ? `${colorMarca}18` : theme.surface,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={{ color: historyCategoria ? colorMarca : theme.text, fontSize: 12, fontWeight: '600', flexShrink: 1 }}
+                    numberOfLines={1}
+                  >
+                    {historyCategoria
+                      ? categories.find((cat) => String(cat._id) === String(historyCategoria))?.nombre || 'Categoría'
+                      : 'Categoría'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={14} color={historyCategoria ? colorMarca : theme.textMuted} style={{ marginLeft: 4 }} />
+                </TouchableOpacity>
+              </View>
+              <Text style={[styles.histCount, { color: theme.textMuted }]}>
+                {history.length} material{history.length === 1 ? '' : 'es'} enviado
+                {history.length === 1 ? '' : 's'}
+              </Text>
+            </View>
           }
           ListEmptyComponent={
             loadingHistory ? (
               <ActivityIndicator color={colorMarca} style={{ marginTop: 28 }} />
             ) : (
               <Text style={[styles.emptyHist, { color: theme.textMuted }]}>
-                Todavía no enviaste material.
+                {historyTipo || historyCategoria || historySearch
+                  ? 'No hay material con estos filtros.'
+                  : 'Todavía no enviaste material.'}
               </Text>
             )
           }
@@ -1061,6 +1146,41 @@ export default function CoachResourceSendScreen({ navigation }) {
           </>
         )}
       </FormSheet>
+
+      <FormSheet
+        visible={!!historyFilter}
+        onClose={() => setHistoryFilter(null)}
+        title={historyFilter === 'categoria' ? 'Categoría' : 'Tipo'}
+        theme={theme}
+        isDarkMode={isDarkMode}
+      >
+        {historyFilterOptions.map((option) => {
+          const selected = String(option.value) === String(historyFilterValue);
+          return (
+            <TouchableOpacity
+              key={option.value || 'all'}
+              style={[styles.filterOptionRow, { borderBottomColor: theme.border }]}
+              onPress={() => {
+                if (historyFilter === 'categoria') setHistoryCategoria(option.value);
+                else setHistoryTipo(option.value);
+                setHistoryFilter(null);
+              }}
+            >
+              <Text
+                style={{
+                  color: selected ? colorMarca : theme.text,
+                  fontWeight: selected ? '700' : '500',
+                  fontSize: 15,
+                  flex: 1,
+                }}
+              >
+                {option.label}
+              </Text>
+              {selected ? <Ionicons name="checkmark" size={22} color={colorMarca} /> : null}
+            </TouchableOpacity>
+          );
+        })}
+      </FormSheet>
     </SafeAreaView>
   );
 }
@@ -1132,6 +1252,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   editBannerTxt: { fontSize: 13, fontWeight: '700', flex: 1, marginRight: 8 },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+  },
+  searchInput: { flex: 1, fontSize: 15, paddingVertical: 10 },
   filterPillsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',

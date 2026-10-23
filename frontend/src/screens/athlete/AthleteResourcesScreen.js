@@ -9,6 +9,7 @@ import {
   StatusBar,
   ActivityIndicator,
   Modal,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,6 +28,18 @@ import { formatRolStaff, sortStaffRolesAlpha } from '../staff/staffUtils';
 import { useBadges } from '../../context/BadgeContext';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { formatUserName } from '../../utils/listSort';
+
+const TIPO_FILTER_OPTIONS = [
+  { value: '', label: 'Todos los tipos' },
+  { value: 'tactico', label: 'Táctico' },
+  { value: 'stats', label: 'Stats' },
+  { value: 'highlights', label: 'Highlights' },
+  { value: 'playbook', label: 'Playbook' },
+  { value: 'rutina', label: 'Rutina' },
+  { value: 'nutricion', label: 'Nutrición' },
+  { value: 'estudio_medico', label: 'Estudio médico' },
+  { value: 'otro', label: 'Otro' },
+];
 
 const TIPO_LABELS = {
   rutina: 'Rutina',
@@ -55,9 +68,19 @@ export default function AthleteResourcesScreen({ navigation }) {
   const { isTutor, memberId } = useMember();
   const { markSeen, refresh } = useBadges();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
+  const [tipoFilter, setTipoFilter] = useState('');
+  const [searchText, setSearchText] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [picker, setPicker] = useState(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchQuery(searchText.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchText]);
+
   const resourcesCacheKey =
     clubData?.urlIdentifier && memberId
-      ? `member-resources:${clubData.urlIdentifier}:${memberId}`
+      ? `member-resources:${clubData.urlIdentifier}:${memberId}:${tipoFilter}:${searchQuery}`
       : '';
 
   const [list, setList] = useState(() => readScreenCache(resourcesCacheKey) ?? []);
@@ -65,7 +88,6 @@ export default function AthleteResourcesScreen({ navigation }) {
   const [resourcesHasMore, setResourcesHasMore] = useState(false);
   const [loadingMoreResources, setLoadingMoreResources] = useState(false);
   const [selectedStaffRol, setSelectedStaffRol] = useState('');
-  const [openFilter, setOpenFilter] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
@@ -88,13 +110,19 @@ export default function AthleteResourcesScreen({ navigation }) {
     const h = await clubHeaders(clubData);
     const res = await clubApi.get('/resources/me', {
       headers: h,
-      params: { ...memberScopeParams(isTutor, memberId), page: 1, limit: 30 },
+      params: {
+        ...memberScopeParams(isTutor, memberId),
+        page: 1,
+        limit: 30,
+        ...(tipoFilter ? { tipo: tipoFilter } : {}),
+        ...(searchQuery ? { q: searchQuery } : {}),
+      },
     });
     const rows = pickPaginatedRows(res.data, 'resources');
     setResourcesPage(res.data?.page ?? 1);
     setResourcesHasMore(Boolean(res.data?.hasMore));
     return rows;
-  }, [clubData?.urlIdentifier, memberId, isTutor]);
+  }, [clubData?.urlIdentifier, memberId, isTutor, tipoFilter, searchQuery]);
 
   const loadMoreResources = useCallback(async () => {
     if (loadingMoreResources || !resourcesHasMore) return;
@@ -104,7 +132,13 @@ export default function AthleteResourcesScreen({ navigation }) {
       const nextPage = resourcesPage + 1;
       const res = await clubApi.get('/resources/me', {
         headers: h,
-        params: { ...memberScopeParams(isTutor, memberId), page: nextPage, limit: 30 },
+        params: {
+          ...memberScopeParams(isTutor, memberId),
+          page: nextPage,
+          limit: 30,
+          ...(tipoFilter ? { tipo: tipoFilter } : {}),
+          ...(searchQuery ? { q: searchQuery } : {}),
+        },
       });
       const rows = pickPaginatedRows(res.data, 'resources');
       setList((prev) => [...prev, ...rows]);
@@ -115,7 +149,17 @@ export default function AthleteResourcesScreen({ navigation }) {
     } finally {
       setLoadingMoreResources(false);
     }
-  }, [loadingMoreResources, resourcesHasMore, resourcesPage, clubData, memberId, isTutor]);
+  }, [loadingMoreResources, resourcesHasMore, resourcesPage, clubData, memberId, isTutor, tipoFilter, searchQuery]);
+
+  const filterKey = `${tipoFilter}|${searchQuery}`;
+  const filterKeyRef = React.useRef(filterKey);
+  useEffect(() => {
+    if (filterKeyRef.current === filterKey) return;
+    filterKeyRef.current = filterKey;
+    setList([]);
+    setResourcesPage(1);
+    setResourcesHasMore(false);
+  }, [filterKey]);
 
   const onResourcesFocus = useCallback(() => {
     (async () => {
@@ -261,43 +305,88 @@ export default function AthleteResourcesScreen({ navigation }) {
     );
   };
 
-  const listHeader = staffRolOptions.length > 1 ? (
-    <View style={styles.filterPillsRow}>
-      <TouchableOpacity
-        onPress={() => setOpenFilter(true)}
-        style={[
-          styles.filterChip,
-          {
-            borderColor: selectedStaffRol ? colorMarca : theme.border,
-            backgroundColor: selectedStaffRol ? `${colorMarca}18` : theme.surface,
-          },
-        ]}
-      >
-        <Text
-          style={{
-            color: selectedStaffRol ? colorMarca : theme.text,
-            fontSize: 12,
-            fontWeight: '600',
-            flexShrink: 1,
-          }}
-          numberOfLines={1}
-        >
-          {selectedStaffRol ? selectedStaffLabel || 'Área' : 'Área del staff'}
-        </Text>
-        <Ionicons
-          name="chevron-down"
-          size={14}
-          color={selectedStaffRol ? colorMarca : theme.textMuted}
-          style={{ marginLeft: 4 }}
+  const listHeader = (
+    <View>
+      <View style={[styles.searchBox, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+        <Ionicons name="search-outline" size={18} color={theme.textMuted} />
+        <TextInput
+          value={searchText}
+          onChangeText={setSearchText}
+          placeholder="Buscar por título o descripción"
+          placeholderTextColor={theme.textMuted}
+          style={[styles.searchInput, { color: theme.text }]}
+          autoCorrect={false}
+          autoCapitalize="none"
+          returnKeyType="search"
         />
-      </TouchableOpacity>
+        {searchText ? (
+          <TouchableOpacity onPress={() => setSearchText('')} hitSlop={8}>
+            <Ionicons name="close-circle" size={18} color={theme.textMuted} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+      <View style={styles.filterPillsRow}>
+        <TouchableOpacity
+          onPress={() => setPicker('tipo')}
+          style={[
+            styles.filterChip,
+            {
+              borderColor: tipoFilter ? colorMarca : theme.border,
+              backgroundColor: tipoFilter ? `${colorMarca}18` : theme.surface,
+            },
+          ]}
+        >
+          <Text
+            style={{
+              color: tipoFilter ? colorMarca : theme.text,
+              fontSize: 12,
+              fontWeight: '600',
+              flexShrink: 1,
+            }}
+            numberOfLines={1}
+          >
+            {tipoFilter ? TIPO_LABELS[tipoFilter] || 'Tipo' : 'Tipo'}
+          </Text>
+          <Ionicons name="chevron-down" size={14} color={tipoFilter ? colorMarca : theme.textMuted} style={{ marginLeft: 4 }} />
+        </TouchableOpacity>
+        {staffRolOptions.length > 1 ? (
+          <TouchableOpacity
+            onPress={() => setPicker('staff')}
+            style={[
+              styles.filterChip,
+              {
+                borderColor: selectedStaffRol ? colorMarca : theme.border,
+                backgroundColor: selectedStaffRol ? `${colorMarca}18` : theme.surface,
+              },
+            ]}
+          >
+            <Text
+              style={{
+                color: selectedStaffRol ? colorMarca : theme.text,
+                fontSize: 12,
+                fontWeight: '600',
+                flexShrink: 1,
+              }}
+              numberOfLines={1}
+            >
+              {selectedStaffRol ? selectedStaffLabel || 'Área' : 'Área del staff'}
+            </Text>
+            <Ionicons
+              name="chevron-down"
+              size={14}
+              color={selectedStaffRol ? colorMarca : theme.textMuted}
+              style={{ marginLeft: 4 }}
+            />
+          </TouchableOpacity>
+        ) : null}
+      </View>
     </View>
-  ) : null;
+  );
 
-  const emptyMessage =
-    list.length === 0
-      ? 'Todavía no hay recursos para vos.'
-      : 'No hay recursos de esta área. Probá con otro filtro.';
+  const filtersActive = Boolean(tipoFilter || searchQuery || selectedStaffRol);
+  const emptyMessage = filtersActive
+    ? 'No hay recursos con estos filtros.'
+    : 'Todavía no hay recursos para vos.';
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
@@ -319,32 +408,35 @@ export default function AthleteResourcesScreen({ navigation }) {
       />
 
       <Modal
-        visible={openFilter}
+        visible={!!picker}
         animationType="slide"
         transparent
-        onRequestClose={() => setOpenFilter(false)}
+        onRequestClose={() => setPicker(null)}
       >
         <View style={styles.filterModalOverlay}>
           <View style={[styles.filterModalContent, { backgroundColor: theme.surface }]}>
             <View style={styles.filterModalHeader}>
-              <TouchableOpacity onPress={() => setOpenFilter(false)} hitSlop={8}>
+              <TouchableOpacity onPress={() => setPicker(null)} hitSlop={8}>
                 <Ionicons name="close" size={26} color={theme.icon} />
               </TouchableOpacity>
-              <Text style={[styles.filterModalTitle, { color: theme.text }]}>Área del staff</Text>
+              <Text style={[styles.filterModalTitle, { color: theme.text }]}>
+                {picker === 'tipo' ? 'Tipo' : 'Área del staff'}
+              </Text>
               <View style={{ width: 26 }} />
             </View>
             <FlatList
-              data={staffFilterOptions}
+              data={picker === 'tipo' ? TIPO_FILTER_OPTIONS : staffFilterOptions}
               keyExtractor={(item, index) => (item.value ? String(item.value) : `all-${index}`)}
               keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => {
-                const selected = item.value === selectedStaffRol;
+                const selected = picker === 'tipo' ? item.value === tipoFilter : item.value === selectedStaffRol;
                 return (
                   <TouchableOpacity
                     style={[styles.filterOptionRow, { borderBottomColor: theme.border }]}
                     onPress={() => {
-                      setSelectedStaffRol(item.value);
-                      setOpenFilter(false);
+                      if (picker === 'tipo') setTipoFilter(item.value);
+                      else setSelectedStaffRol(item.value);
+                      setPicker(null);
                     }}
                   >
                     <Text
@@ -400,7 +492,18 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   list: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 4 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  filterPillsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, paddingTop: 8 },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  searchInput: { flex: 1, fontSize: 15, paddingVertical: 10 },
+  filterPillsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   filterChip: {
     flex: 1,
     flexDirection: 'row',
