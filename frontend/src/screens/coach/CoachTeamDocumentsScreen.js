@@ -158,9 +158,13 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const isAdminVariant = route?.params?.variant === 'admin';
   const returnToEquipo = Boolean(route?.params?.returnToEquipo);
+  const lockedCategoriaId =
+    !isAdminVariant && route?.params?.categoriaId ? String(route.params.categoriaId) : '';
+  const lockedAtletaId =
+    !isAdminVariant && route?.params?.atletaId ? String(route.params.atletaId) : '';
 
   const [browseLevel, setBrowseLevel] = useState(() =>
-    route?.params?.requerimientoId ? 'deliveries' : 'folders',
+    route?.params?.requerimientoId || route?.params?.atletaId ? 'deliveries' : 'folders',
   );
   const [selectedFolderKey, setSelectedFolderKey] = useState(null);
   const [folders, setFolders] = useState([]);
@@ -199,18 +203,22 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
     }
     if (route?.params?.estado != null && route.params.estado !== '') {
       setEstadoFilter(String(route.params.estado));
+    } else if (!isAdminVariant && route?.params?.categoriaId) {
+      setEstadoFilter('');
     }
     if (route?.params?.requerimientoId) {
       setRequerimientoFilter(String(route.params.requerimientoId));
       setBrowseLevel('deliveries');
+    } else if (route?.params?.atletaId && !isAdminVariant) {
+      setBrowseLevel('deliveries');
     }
-  }, [route?.params?.categoriaId, route?.params?.estado, route?.params?.requerimientoId]);
+  }, [isAdminVariant, route?.params?.categoriaId, route?.params?.estado, route?.params?.requerimientoId, route?.params?.atletaId]);
 
   const filterMetaCacheKey = clubData?.urlIdentifier
     ? `${isAdminVariant ? 'admin' : 'coach'}-doc-filters-v2:${clubData.urlIdentifier}`
     : '';
   const docsCacheKey = clubData?.urlIdentifier
-    ? `${isAdminVariant ? 'admin' : 'team'}-docs:${clubData.urlIdentifier}:${selectedFolderKey || ''}:${estadoFilter}:${disciplinaFilter}:${categoriaFilter}:${requerimientoFilter}`
+    ? `${isAdminVariant ? 'admin' : 'team'}-docs:${clubData.urlIdentifier}:${lockedAtletaId}:${selectedFolderKey || ''}:${estadoFilter}:${disciplinaFilter}:${categoriaFilter}:${requerimientoFilter}`
     : '';
 
   const cachedFilterMeta = readScreenCache(filterMetaCacheKey);
@@ -277,23 +285,28 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
 
   const fetchFolders = useCallback(async () => {
     const h = await headers();
-    const res = await clubApi.get('/requirements/folders', { headers: h });
+    const params = lockedCategoriaId ? { categoriaId: lockedCategoriaId } : undefined;
+    const res = await clubApi.get('/requirements/folders', { headers: h, params });
     setFolders(res.data?.folders || []);
     setSinCarpetaCount(res.data?.sinCarpetaCount ?? 0);
-  }, [headers]);
+  }, [headers, lockedCategoriaId]);
 
   const fetchFolderPedidos = useCallback(async () => {
     if (!selectedFolderKey) return;
     const h = await headers();
     const params =
       selectedFolderKey === UNFILED_KEY ? { sinCarpeta: 1 } : { carpetaId: selectedFolderKey };
+    if (lockedCategoriaId) params.categoriaId = lockedCategoriaId;
     const res = await clubApi.get('/requirements/pedidos', { headers: h, params });
     setFolderPedidos(res.data?.requirements || []);
-  }, [headers, selectedFolderKey]);
+  }, [headers, selectedFolderKey, lockedCategoriaId]);
 
   const fetchFilterMeta = useCallback(async () => {
     const h = await headers();
-    const pedidosReq = clubApi.get('/requirements/pedidos', { headers: h }).catch(() => ({ data: { requirements: [] } }));
+    const pedidoParams = lockedCategoriaId ? { categoriaId: lockedCategoriaId } : undefined;
+    const pedidosReq = clubApi
+      .get('/requirements/pedidos', { headers: h, params: pedidoParams })
+      .catch(() => ({ data: { requirements: [] } }));
     if (isAdminVariant) {
       const [catRes, discRes, pedRes] = await Promise.all([
         clubApi.get('/categories', { headers: h }),
@@ -315,21 +328,23 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
       disciplines: [],
       requirements: pedRes.data?.requirements || [],
     };
-  }, [headers, isAdminVariant]);
+  }, [headers, isAdminVariant, lockedCategoriaId]);
 
   const fetchSubmissions = useCallback(async () => {
     const h = await headers();
     const params = { page: 1, limit: 30 };
+    const categoryId = lockedCategoriaId || categoriaFilter;
     if (estadoFilter) params.estado = estadoFilter;
-    if (disciplinaFilter) params.disciplinaId = disciplinaFilter;
-    if (categoriaFilter) params.categoriaId = categoriaFilter;
+    if (!lockedCategoriaId && disciplinaFilter) params.disciplinaId = disciplinaFilter;
+    if (categoryId) params.categoriaId = categoryId;
+    if (lockedAtletaId) params.atletaId = lockedAtletaId;
     applyCarpetaParams(params);
     const res = await clubApi.get('/requirements/submissions', { headers: h, params });
     const rows = pickPaginatedRows(res.data, 'submissions');
     setSubmissionsPage(res.data?.page ?? 1);
     setSubmissionsHasMore(Boolean(res.data?.hasMore));
     return rows;
-  }, [headers, estadoFilter, disciplinaFilter, categoriaFilter, applyCarpetaParams]);
+  }, [headers, estadoFilter, disciplinaFilter, categoriaFilter, lockedCategoriaId, lockedAtletaId, applyCarpetaParams]);
 
   const loadMoreSubmissions = useCallback(async () => {
     if (loadingMoreSubmissions || !submissionsHasMore || browseLevel !== 'deliveries') return;
@@ -337,9 +352,11 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
     try {
       const h = await headers();
       const params = { page: submissionsPage + 1, limit: 30 };
+      const categoryId = lockedCategoriaId || categoriaFilter;
       if (estadoFilter) params.estado = estadoFilter;
-      if (disciplinaFilter) params.disciplinaId = disciplinaFilter;
-      if (categoriaFilter) params.categoriaId = categoriaFilter;
+      if (!lockedCategoriaId && disciplinaFilter) params.disciplinaId = disciplinaFilter;
+      if (categoryId) params.categoriaId = categoryId;
+      if (lockedAtletaId) params.atletaId = lockedAtletaId;
       applyCarpetaParams(params);
       const res = await clubApi.get('/requirements/submissions', { headers: h, params });
       const rows = pickPaginatedRows(res.data, 'submissions');
@@ -359,6 +376,8 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
     estadoFilter,
     disciplinaFilter,
     categoriaFilter,
+    lockedCategoriaId,
+    lockedAtletaId,
     applyCarpetaParams,
     browseLevel,
   ]);
@@ -438,7 +457,7 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
   );
 
   useEffect(() => {
-    if (browseLevel === 'pedidos' && selectedFolderKey) {
+    if (selectedFolderKey && (browseLevel === 'pedidos' || browseLevel === 'deliveries')) {
       reloadPedidos();
     }
   }, [browseLevel, selectedFolderKey, reloadPedidos]);
@@ -622,7 +641,7 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
     [categories, categoriaFilter],
   );
 
-  const showScopeFilters = categories.length > 0;
+  const showScopeFilters = !lockedCategoriaId && categories.length > 0;
 
   const selectedFolderName = useMemo(() => {
     if (selectedFolderKey === UNFILED_KEY) return 'Sin carpeta';
@@ -631,6 +650,9 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
   }, [selectedFolderKey, folders]);
 
   const headerTitle = useMemo(() => {
+    if (lockedAtletaId && browseLevel === 'deliveries') {
+      return route?.params?.atletaNombre || 'Documentos';
+    }
     if (browseLevel === 'folders') {
       return isAdminVariant ? 'Revisar documentación' : 'Documentación enviada';
     }
@@ -647,13 +669,16 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
     requerimientoFilter,
     scopedRequirements,
     selectedFolderKey,
+    lockedAtletaId,
+    route?.params?.atletaNombre,
   ]);
 
   const headerKicker = useMemo(() => {
+    if (lockedAtletaId && browseLevel === 'deliveries') return 'Documentos';
     if (browseLevel === 'folders') return isAdminVariant ? 'Gestión' : 'Equipo';
     if (browseLevel === 'pedidos') return 'Pedidos';
     return 'Entregas';
-  }, [browseLevel, isAdminVariant]);
+  }, [browseLevel, isAdminVariant, lockedAtletaId]);
 
   const exitToEquipoOrBack = () => {
     if (returnToEquipo) {
@@ -670,14 +695,13 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
   };
 
   const handleBack = () => {
+    if (lockedAtletaId && browseLevel === 'deliveries') {
+      exitToEquipoOrBack();
+      return;
+    }
     if (browseLevel === 'deliveries') {
-      if (selectedFolderKey) {
-        setBrowseLevel('pedidos');
-        setRequerimientoFilter('');
-        setList([]);
-        return;
-      }
       setBrowseLevel('folders');
+      setSelectedFolderKey(null);
       setRequerimientoFilter('');
       setList([]);
       return;
@@ -694,7 +718,9 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
   const openFolder = (key) => {
     setSelectedFolderKey(key);
     setRequerimientoFilter('');
-    setBrowseLevel('pedidos');
+    setEstadoFilter('');
+    setList([]);
+    setBrowseLevel('deliveries');
   };
 
   const openPedidoDeliveries = (pedidoId) => {
@@ -849,7 +875,7 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
         </View>
         <Ionicons name="chevron-forward" size={20} color={theme.textMuted} />
       </TouchableOpacity>
-      {!item.isUnfiled && item.folder ? (
+      {!item.isUnfiled && item.folder && (isAdmin || String(item.folder.creadoPor) === String(userId)) ? (
         <View style={styles.rowActions}>
           <TouchableOpacity
             style={[styles.viewBtn, { borderColor: theme.border }]}
@@ -1047,7 +1073,7 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
       onCategoriaChange={setCategoriaFilter}
       onRequerimientoChange={setRequerimientoFilter}
       showScopeFilters={showScopeFilters}
-      showPedidoFilter={!requerimientoFilter || scopedRequirements.length > 1}
+      showPedidoFilter={scopedRequirements.length > 0}
     />
   );
 

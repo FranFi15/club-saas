@@ -371,16 +371,19 @@ export default function CoachCategoriesScreen({ navigation, route }) {
   const athletePanels = useMemo(() => {
     const panels = [
       { key: 'wellness', label: 'Wellness', shortLabel: 'Well.', icon: 'pulse-outline' },
-      { key: 'asistencias', label: 'Asistencias', shortLabel: 'Asist.', icon: 'checkbox-outline' },
     ];
     if (userRol !== 'psicologo') {
-      panels.splice(1, 0, {
+      panels.push({
         key: 'mediciones',
         label: userRol === 'nutricionista' ? 'Mediciones' : 'Medición',
         shortLabel: 'Med.',
         icon: 'analytics-outline',
       });
     }
+    panels.push(
+      { key: 'docs', label: 'Documentos', shortLabel: 'Docs', icon: 'document-attach-outline' },
+      { key: 'asistencias', label: 'Asistencias', shortLabel: 'Asist.', icon: 'checkbox-outline' },
+    );
     return panels;
   }, [userRol]);
 
@@ -572,7 +575,6 @@ export default function CoachCategoriesScreen({ navigation, route }) {
             if (!cat) return;
             navigation.navigate('CoachTeamDocuments', {
               categoriaId: String(cat._id),
-              estado: 'revision',
               returnToEquipo: true,
             });
           }}
@@ -710,6 +712,15 @@ export default function CoachCategoriesScreen({ navigation, route }) {
                               openAthleteMeasurement(a);
                               return;
                             }
+                            if (tab.key === 'docs') {
+                              navigation.navigate('CoachTeamDocuments', {
+                                atletaId: a._id,
+                                atletaNombre: formatUserName(a),
+                                categoriaId: catId || undefined,
+                                returnToEquipo: true,
+                              });
+                              return;
+                            }
                             openAthletePanel(aid, tab.key, catId);
                           }}
                           accessibilityLabel={tab.label}
@@ -729,7 +740,7 @@ export default function CoachCategoriesScreen({ navigation, route }) {
 
                 {!panel ? (
                   <Text style={[styles.panelHint, { color: theme.textMuted, marginBottom: 0 }]}>
-                    Elegí Wellness, Medición o Asistencias para ver el detalle.
+                    Elegí Wellness, {userRol === 'psicologo' ? 'Docs' : 'Medición, Docs'} o Asistencias para ver el detalle.
                   </Text>
                 ) : null}
 

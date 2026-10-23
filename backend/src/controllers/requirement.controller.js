@@ -389,6 +389,35 @@ const getMyRequirements = asyncHandler(async (req, res) => {
     });
 });
 
+/** Pedidos que el staff puede ver: los de sus categorías, no solo los que creó. */
+async function staffVisibleRequirementFilter(req, { categoriaId } = {}) {
+    const { Category, Enrollment } = req.models;
+    let catIds = await getStaffCategoryIds(req.user._id, req.user.rol, Category);
+    if (categoriaId && mongoose.Types.ObjectId.isValid(String(categoriaId))) {
+        const allowed = catIds.some((id) => String(id) === String(categoriaId));
+        if (!allowed) {
+            const err = new Error('No tenés acceso a esta categoría.');
+            err.statusCode = 403;
+            throw err;
+        }
+        catIds = catIds.filter((id) => String(id) === String(categoriaId));
+    }
+    if (!catIds.length) return null;
+
+    const enrollments = await Enrollment.find({ categoria: { $in: catIds }, estado: 'activo' })
+        .select('atleta')
+        .lean();
+    const atletaIds = [...new Set(enrollments.map((e) => e.atleta))];
+    const or = [
+        { alcance: 'global' },
+        { alcance: 'categoria', targetCategoria: { $in: catIds } },
+    ];
+    if (atletaIds.length) {
+        or.push({ alcance: 'usuario', targetUsuario: { $in: atletaIds } });
+    }
+    return { activo: true, $or: or };
+}
+
 async function getStaffCategoryIds(userId, rol, Category) {
     let query;
     if (rol === 'profe') query = { profesores: userId };
@@ -438,19 +467,28 @@ async function atletaIdsForCategoryScope(models, { categoriaId, disciplinaId }) 
 const listStaffRequirements = asyncHandler(async (req, res) => {
     const { Requirement } = req.models;
     const isAdmin = ADMIN_DOC_ROLES.includes(req.user.rol);
-    const filter = { activo: true };
-    const { carpetaId, sinCarpeta } = req.query;
+    const { carpetaId, sinCarpeta, categoriaId } = req.query;
+    let filter = { activo: true };
 
     if (!isAdmin) {
         if (!STAFF_DOC_ROLES.includes(req.user.rol)) {
             res.status(403);
             throw new Error('No autorizado.');
         }
-        filter.creadoPor = req.user._id;
+        try {
+            filter = await staffVisibleRequirementFilter(req, { categoriaId });
+        } catch (e) {
+            res.status(e.statusCode || 403);
+            throw e;
+        }
+        if (!filter) {
+            return res.json({ requirements: [] });
+        }
     }
 
     if (sinCarpeta === '1' || sinCarpeta === 'true') {
-        filter.$or = [{ carpeta: null }, { carpeta: { $exists: false } }];
+        const unfiled = { $or: [{ carpeta: null }, { carpeta: { $exists: false } }] };
+        filter = { $and: [filter, unfiled] };
     } else if (carpetaId && mongoose.Types.ObjectId.isValid(String(carpetaId))) {
         filter.carpeta = String(carpetaId);
     }
@@ -474,18 +512,56 @@ const listRequirementFolders = asyncHandler(async (req, res) => {
         throw new Error('No autorizado.');
     }
 
-    const folderFilter = {};
     if (!isDocAdmin(req.user)) {
-        folderFilter.creadoPor = req.user._id;
+        if (!STAFF_DOC_ROLES.includes(req.user.rol)) {
+            res.status(403);
+            throw new Error('No autorizado.');
+        }
+        let scope;
+        try {
+            scope = await staffVisibleRequirementFilter(req, { categoriaId: req.query.categoriaId });
+        } catch (e) {
+            res.status(e.statusCode || 403);
+            throw e;
+        }
+        if (!scope) {
+            return res.json({ folders: [], sinCarpetaCount: 0 });
+        }
+        const scopedReqs = await Requirement.find(scope).select('carpeta').lean();
+        const countMap = new Map();
+        let sinCarpetaCount = 0;
+        const folderIds = [];
+        scopedReqs.forEach((row) => {
+            if (!row.carpeta) {
+                sinCarpetaCount += 1;
+                return;
+            }
+            const id = String(row.carpeta);
+            countMap.set(id, (countMap.get(id) || 0) + 1);
+            folderIds.push(row.carpeta);
+        });
+        const folders = await RequirementFolder.find({
+            $or: [{ creadoPor: req.user._id }, { _id: { $in: folderIds } }],
+        })
+            .sort({ nombre: 1 })
+            .lean();
+        const visible = folders.filter((folder) => {
+            const count = countMap.get(String(folder._id)) || 0;
+            return count > 0 || String(folder.creadoPor) === String(req.user._id);
+        });
+        return res.json({
+            folders: visible.map((folder) => ({
+                ...folder,
+                pedidosCount: countMap.get(String(folder._id)) || 0,
+            })),
+            sinCarpetaCount,
+        });
     }
 
-    const folders = await RequirementFolder.find(folderFilter).sort({ nombre: 1 }).lean();
+    const folders = await RequirementFolder.find({}).sort({ nombre: 1 }).lean();
     const folderIds = folders.map((f) => f._id);
 
     const reqFilter = { activo: true, carpeta: { $in: folderIds } };
-    if (!isDocAdmin(req.user)) {
-        reqFilter.creadoPor = req.user._id;
-    }
     const counts = await Requirement.aggregate([
         { $match: reqFilter },
         { $group: { _id: '$carpeta', count: { $sum: 1 } } },
@@ -496,9 +572,6 @@ const listRequirementFolders = asyncHandler(async (req, res) => {
         activo: true,
         $or: [{ carpeta: null }, { carpeta: { $exists: false } }],
     };
-    if (!isDocAdmin(req.user)) {
-        unfiledFilter.creadoPor = req.user._id;
-    }
     const sinCarpetaCount = await Requirement.countDocuments(unfiledFilter);
 
     res.json({
@@ -643,7 +716,7 @@ const deleteRequirement = asyncHandler(async (req, res) => {
 
 const getStaffSubmissions = asyncHandler(async (req, res) => {
     const { Requirement, Enrollment, Submission, Category } = req.models;
-    const { categoriaId, estado, disciplinaId, requerimientoId, carpetaId, sinCarpeta } = req.query;
+    const { categoriaId, estado, disciplinaId, requerimientoId, carpetaId, sinCarpeta, atletaId } = req.query;
     const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 30, maxLimit: 100 });
 
     const isAdmin = ['admin_club', 'administrativo'].includes(req.user.rol);
@@ -654,6 +727,8 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
     const carpetaFilter =
         carpetaId && mongoose.Types.ObjectId.isValid(String(carpetaId)) ? String(carpetaId) : null;
     const onlyUnfiled = sinCarpeta === '1' || sinCarpeta === 'true';
+    const atletaFilter =
+        atletaId && mongoose.Types.ObjectId.isValid(String(atletaId)) ? String(atletaId) : null;
 
     const respondSubmissions = async (subFilter) => {
         const total = await Submission.countDocuments(subFilter);
@@ -712,6 +787,14 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
             subFilter.atleta = { $in: catAtletaIds };
         }
 
+        if (atletaFilter) {
+            const scoped = subFilter.atleta?.$in;
+            if (scoped && !scoped.some((id) => String(id) === atletaFilter)) {
+                return res.json({ submissions: [], ...paginationMeta(page, limit, 0) });
+            }
+            subFilter.atleta = atletaFilter;
+        }
+
         if (estado && ['pendiente', 'revision', 'aprobado', 'rechazado'].includes(estado)) {
             subFilter.estado = estado;
         }
@@ -753,6 +836,14 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
         }
         const enrollments = await Enrollment.find(enrollmentFilter).select('atleta').lean();
         atletaIds = [...new Set(enrollments.map((e) => e.atleta))];
+        if (atletaFilter) {
+            const allowed = atletaIds.some((id) => String(id) === atletaFilter);
+            if (!allowed) {
+                res.status(403);
+                throw new Error('No tenés acceso a este atleta.');
+            }
+            atletaIds = [atletaFilter];
+        }
     } else {
         res.status(403);
         throw new Error('No autorizado.');
@@ -764,7 +855,6 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
 
     const reqFilter = {
         activo: true,
-        creadoPor: req.user._id,
         $or: [
             { alcance: 'global' },
             { alcance: 'categoria', targetCategoria: { $in: catIds } },
