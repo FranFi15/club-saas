@@ -31,6 +31,12 @@ import {
     ADMIN_READ,
     MEMBER_ROLES,
 } from '../controllers/event.controller.js';
+import {
+    listStadiums,
+    createStadium,
+    updateStadium,
+    deleteStadium,
+} from '../controllers/stadium.controller.js';
 
 const router = express.Router();
 
@@ -66,6 +72,10 @@ router.post('/:id/checkout', protect, authorize(...MEMBER_ROLES), memberCheckout
 
 // Admin
 router.get('/admin/pricing-pickers', protect, authorize(...EVENT_MANAGE), listPricingPickers);
+router.get('/admin/stadiums', protect, authorize(...EVENT_MANAGE), listStadiums);
+router.post('/admin/stadiums', protect, authorize(...EVENT_MANAGE), createStadium);
+router.patch('/admin/stadiums/:id', protect, authorize(...EVENT_MANAGE), updateStadium);
+router.delete('/admin/stadiums/:id', protect, authorize(...EVENT_MANAGE), deleteStadium);
 router.get('/admin/user-search', protect, authorize(...ADMIN_WRITE), searchEventBuyers);
 router.get('/admin', protect, authorize(...ADMIN_READ), listAdminEvents);
 router.post('/admin/:id/cash-quote', protect, authorize(...ADMIN_WRITE), adminCashQuote);

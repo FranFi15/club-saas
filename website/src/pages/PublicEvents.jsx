@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CLUB_API_URL, SUPER_API_URL } from '../api';
 import './PublicEvents.css';
 
@@ -55,6 +55,204 @@ function formatClock(iso) {
   return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
 }
 
+function SeatBoard({ children }) {
+  const viewRef = useRef(null);
+  const trackRef = useRef(null);
+  const pointers = useRef(new Map());
+  const gesture = useRef(null);
+  const moved = useRef(false);
+  const moveRef = useRef(null);
+  const endRef = useRef(null);
+  const windowMove = useRef((event) => moveRef.current?.(event));
+  const windowEnd = useRef((event) => endRef.current?.(event));
+  const zoomRef = useRef(1);
+  const panRef = useRef({ x: 0, y: 0 });
+  const fitRef = useRef(1);
+  const naturalRef = useRef({ w: 1, h: 1 });
+  const [fit, setFit] = useState(1);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [natural, setNatural] = useState({ w: 1, h: 1 });
+
+  const measure = () => {
+    const view = viewRef.current;
+    const track = trackRef.current;
+    if (!view || !track) return;
+    const w = track.scrollWidth || 1;
+    const h = track.scrollHeight || 1;
+    const nextFit = Math.min(1, view.clientWidth / w);
+    naturalRef.current = { w, h };
+    fitRef.current = nextFit;
+    setNatural({ w, h });
+    setFit(nextFit);
+  };
+
+  useEffect(() => {
+    measure();
+    const view = viewRef.current;
+    const track = trackRef.current;
+    if (!view || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(view);
+    if (track) observer.observe(track);
+    return () => observer.disconnect();
+  }, []);
+
+  const maxZoom = Math.min(8, Math.max(2.5, 42 / 36 / Math.max(fit, 0.05)));
+  const scale = fit * zoom;
+  const viewH = Math.max(72, natural.h * fit);
+
+  const clampPan = (next, z) => {
+    const view = viewRef.current;
+    const s = fitRef.current * z;
+    const width = view?.clientWidth || 0;
+    const height = naturalRef.current.h * fitRef.current;
+    return {
+      x: Math.min(0, Math.max(Math.min(0, width - naturalRef.current.w * s), next.x)),
+      y: Math.min(0, Math.max(Math.min(0, height - naturalRef.current.h * s), next.y)),
+    };
+  };
+
+  const applyZoom = (nextZoom, focusX, focusY) => {
+    const prevScale = fitRef.current * zoomRef.current || 1;
+    const z = Math.max(1, Math.min(maxZoom, nextZoom));
+    const nextScale = fitRef.current * z;
+    const nextPan = clampPan(
+      {
+        x: focusX - ((focusX - panRef.current.x) / prevScale) * nextScale,
+        y: focusY - ((focusY - panRef.current.y) / prevScale) * nextScale,
+      },
+      z,
+    );
+    zoomRef.current = z;
+    panRef.current = nextPan;
+    setZoom(z);
+    setPan(nextPan);
+  };
+
+  useEffect(() => () => {
+    window.removeEventListener('pointermove', windowMove.current);
+    window.removeEventListener('pointerup', windowEnd.current);
+    window.removeEventListener('pointercancel', windowEnd.current);
+  }, []);
+
+  const onPointerMove = (event) => {
+    if (!pointers.current.has(event.pointerId)) return;
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const view = viewRef.current;
+    const pts = [...pointers.current.values()];
+    if (!view || !pts.length) return;
+    const rect = view.getBoundingClientRect();
+    if (pts.length >= 2) {
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      if (!gesture.current || gesture.current.type !== 'pinch') {
+        gesture.current = { type: 'pinch', dist, zoom: zoomRef.current };
+      }
+      moved.current = true;
+      applyZoom(
+        gesture.current.zoom * (dist / (gesture.current.dist || dist)),
+        (pts[0].x + pts[1].x) / 2 - rect.left,
+        (pts[0].y + pts[1].y) / 2 - rect.top,
+      );
+      return;
+    }
+    if (gesture.current?.type !== 'pan' || zoomRef.current <= 1.01) return;
+    const dx = event.clientX - gesture.current.x;
+    const dy = event.clientY - gesture.current.y;
+    if (Math.hypot(dx, dy) <= 8) return;
+    moved.current = true;
+    const next = clampPan({ x: gesture.current.pan.x + dx, y: gesture.current.pan.y + dy }, zoomRef.current);
+    panRef.current = next;
+    setPan(next);
+  };
+
+  const endPointer = (event) => {
+    pointers.current.delete(event.pointerId);
+    if (pointers.current.size < 2 && gesture.current?.type === 'pinch') {
+      const left = [...pointers.current.entries()][0];
+      gesture.current = left
+        ? { type: 'pan', x: left[1].x, y: left[1].y, pan: { ...panRef.current } }
+        : null;
+    }
+    if (!pointers.current.size) {
+      gesture.current = null;
+      window.removeEventListener('pointermove', windowMove.current);
+      window.removeEventListener('pointerup', windowEnd.current);
+      window.removeEventListener('pointercancel', windowEnd.current);
+    }
+  };
+
+  moveRef.current = onPointerMove;
+  endRef.current = endPointer;
+
+  const onPointerDown = (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    const first = pointers.current.size === 0;
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const pts = [...pointers.current.values()];
+    if (pts.length >= 2) {
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      gesture.current = { type: 'pinch', dist, zoom: zoomRef.current };
+      moved.current = true;
+    } else {
+      moved.current = false;
+      gesture.current = { type: 'pan', x: event.clientX, y: event.clientY, pan: { ...panRef.current } };
+    }
+    if (!first) return;
+    window.addEventListener('pointermove', windowMove.current);
+    window.addEventListener('pointerup', windowEnd.current);
+    window.addEventListener('pointercancel', windowEnd.current);
+  };
+
+  const onClickCapture = (event) => {
+    if (!moved.current) return;
+    event.preventDefault();
+    event.stopPropagation();
+    moved.current = false;
+  };
+
+  return (
+    <div className="pe-zoom">
+      <div className="pe-zoom-bar">
+        <button
+          type="button"
+          className="pe-zoom-btn"
+          aria-label="Alejar"
+          disabled={zoom <= 1.01}
+          onClick={() => applyZoom(zoomRef.current / 1.4, (viewRef.current?.clientWidth || 0) / 2, viewH / 2)}
+        >
+          −
+        </button>
+        <button
+          type="button"
+          className="pe-zoom-btn"
+          aria-label="Acercar"
+          disabled={zoom >= maxZoom - 0.05}
+          onClick={() => applyZoom(zoomRef.current * 1.4, (viewRef.current?.clientWidth || 0) / 2, viewH / 2)}
+        >
+          +
+        </button>
+      </div>
+      <div
+        ref={viewRef}
+        className="pe-zoom-view"
+        data-tiny={scale < 0.55 ? '1' : '0'}
+        style={{ height: viewH }}
+        onPointerDown={onPointerDown}
+        onClickCapture={onClickCapture}
+      >
+        <div
+          ref={trackRef}
+          className="pe-zoom-track"
+          style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})` }}
+        >
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function formatMoney(n) {
   return Number(n || 0).toLocaleString('es-AR');
 }
@@ -68,6 +266,8 @@ export default function PublicEvents() {
   const [error, setError] = useState('');
   const [tipoId, setTipoId] = useState('');
   const [cantidad, setCantidad] = useState(1);
+  const [seats, setSeats] = useState([]);
+  const [openSection, setOpenSection] = useState('');
   const [form, setForm] = useState({ nombre: '', apellido: '', email: '', dni: '' });
   const [holders, setHolders] = useState([{ nombre: '', apellido: '', dni: '' }]);
   const [step, setStep] = useState(1);
@@ -142,6 +342,8 @@ export default function PublicEvents() {
       const first = (detail.tiposEntrada || [])[0];
       setTipoId(first ? String(first._id) : '');
       setCantidad(1);
+      setSeats([]);
+      setOpenSection('');
       setHolders([{ nombre: '', apellido: '', dni: '' }]);
       setStep(1);
       const url = new URL(window.location.href);
@@ -184,7 +386,11 @@ export default function PublicEvents() {
       setError('Completá nombre, apellido y email de quien compra.');
       return;
     }
-    const qty = Number(cantidad) || 1;
+    const qty = sectionsForTipo.length ? seats.length : Number(cantidad) || 1;
+    if (sectionsForTipo.length && !seats.length) {
+      setError('Elegí un asiento en el plano.');
+      return;
+    }
     setHolders((prev) => {
       const next = prev.slice(0, qty);
       while (next.length < qty) next.push({ nombre: '', apellido: '', dni: '' });
@@ -209,11 +415,24 @@ export default function PublicEvents() {
   const checkout = async (ev) => {
     ev.preventDefault();
     if (!selected) return;
-    const qty = Number(cantidad) || 1;
-    const asistentes = holders.slice(0, qty).map((h) => ({
+    const needsSeat = (selected.secciones || []).some((section) => String(section.tipoEntrada) === String(tipoId));
+    const qty = needsSeat ? seats.length : Number(cantidad) || 1;
+    if (needsSeat && !seats.length) {
+      setError('Elegí un asiento en el plano.');
+      return;
+    }
+    const asistentes = holders.slice(0, qty).map((h, index) => ({
       nombre: h.nombre.trim(),
       apellido: h.apellido.trim(),
       dni: h.dni.replace(/\D/g, ''),
+      asiento: seats[index]
+        ? {
+            seccionId: seats[index].seccionId,
+            seccionNombre: seats[index].seccionNombre,
+            fila: seats[index].fila,
+            numero: seats[index].numero,
+          }
+        : undefined,
     }));
     const seen = new Set();
     for (let i = 0; i < qty; i += 1) {
@@ -269,7 +488,24 @@ export default function PublicEvents() {
   const heroUrl = selected?.imagenUrl || (viewingTickets ? success?.evento?.imagenUrl : '');
   const showEvent = Boolean(selected || viewingTickets);
   const selectedTipo = (selected?.tiposEntrada || []).find((t) => String(t._id) === String(tipoId));
-  const ticketTotal = selectedTipo ? (Number(cantidad) || 1) * (Number(selectedTipo.precio) || 0) : null;
+  const sectionsForTipo = (selected?.secciones || []).filter(
+    (section) => String(section.tipoEntrada) === String(tipoId),
+  );
+  const openSeatSection =
+    sectionsForTipo.find((section) => String(section._id) === String(openSection)) || sectionsForTipo[0];
+  const ticketTotal = selectedTipo
+    ? (sectionsForTipo.length ? seats.length || 0 : Number(cantidad) || 1) * (Number(selectedTipo.precio) || 0)
+    : null;
+
+  useEffect(() => {
+    if (!sectionsForTipo.length || !seats.length) return;
+    setCantidad(seats.length);
+    setHolders((prev) => {
+      const next = prev.slice(0, seats.length);
+      while (next.length < seats.length) next.push({ nombre: '', apellido: '', dni: '' });
+      return next;
+    });
+  }, [seats, sectionsForTipo.length]);
 
   return (
     <div className={`pe-page${showEvent ? ' pe-page--event' : ''}`} style={{ '--pe-brand': brand }}>
@@ -377,7 +613,15 @@ export default function PublicEvents() {
             <form className="pe-form" onSubmit={goToHolders}>
               <label>
                 Tipo de entrada
-                <select value={tipoId} onChange={(e) => setTipoId(e.target.value)} required>
+                <select
+                  value={tipoId}
+                  onChange={(e) => {
+                    setTipoId(e.target.value);
+                    setSeats([]);
+                    setOpenSection('');
+                  }}
+                  required
+                >
                   {(selected.tiposEntrada || []).map((t) => (
                     <option key={t._id} value={t._id}>
                       {t.nombre} — {Number(t.precio) === 0 ? 'Gratis' : `$${formatMoney(t.precio)}`} ({t.disponibles} disp.)
@@ -385,6 +629,157 @@ export default function PublicEvents() {
                   ))}
                 </select>
               </label>
+              {sectionsForTipo.length ? (
+                <div className="pe-seatmap">
+                  <span>Elegí tu lugar</span>
+                  <p className="pe-muted pe-small">Tocá un sector y después el asiento.</p>
+                  {selected.mapaEstadioUrl ? (
+                    <div className="pe-map">
+                      <img src={selected.mapaEstadioUrl} alt="" />
+                      {sectionsForTipo.map((section) => {
+                        const hasArea = Number(section.w) > 0 && Number(section.h) > 0;
+                        const on = openSeatSection && String(openSeatSection._id) === String(section._id);
+                        return (
+                          <button
+                            key={section._id}
+                            type="button"
+                            className={`${hasArea ? 'pe-area' : 'pe-pin'}${on ? ' is-on' : ''}`}
+                            style={
+                              hasArea
+                                ? {
+                                    left: `${section.x || 0}%`,
+                                    top: `${section.y || 0}%`,
+                                    width: `${section.w}%`,
+                                    height: `${section.h}%`,
+                                  }
+                                : { left: `${section.x || 0}%`, top: `${section.y || 0}%` }
+                            }
+                            onClick={() => setOpenSection(String(section._id))}
+                          >
+                            {section.nombre}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                  {sectionsForTipo.length > 1 ? (
+                    <div className="pe-section-chips">
+                      {sectionsForTipo.map((section) => (
+                        <button
+                          key={`chip-${section._id}`}
+                          type="button"
+                          className={`pe-section-chip${openSeatSection && String(openSeatSection._id) === String(section._id) ? ' is-on' : ''}`}
+                          onClick={() => setOpenSection(String(section._id))}
+                        >
+                          {section.nombre}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="pe-legend">
+                    <span><i className="pe-swatch" /> Libre</span>
+                    <span><i className="pe-swatch is-on" /> Elegido</span>
+                    <span><i className="pe-swatch is-off" /> Ocupado</span>
+                  </div>
+                  {openSeatSection ? (
+                    <div className="pe-seat-grid">
+                      <div className="pe-pitch">Cancha</div>
+                      <p className="pe-muted pe-small">
+                        {openSeatSection.nombre}. La fila 1 es la más cercana a la cancha. Se ven todos: acercá con + para elegir.
+                      </p>
+                      <SeatBoard key={openSeatSection._id}>
+                        {Array.from({ length: Number(openSeatSection.filas) || 0 }, (_, row) => (
+                          <div key={`row-${row + 1}`} className="pe-seat-row">
+                            <span><small>Fila</small>{row + 1}</span>
+                            {Array.from({ length: Number(openSeatSection.asientosPorFila) || 0 }, (_, col) => {
+                              const fila = row + 1;
+                              const numero = col + 1;
+                              const taken = (selected.ocupados || []).some(
+                                (seat) =>
+                                  String(seat.seccionId) === String(openSeatSection._id) &&
+                                  Number(seat.fila) === fila &&
+                                  Number(seat.numero) === numero,
+                              );
+                              const on = seats.some(
+                                (seat) =>
+                                  String(seat.seccionId) === String(openSeatSection._id) &&
+                                  seat.fila === fila &&
+                                  seat.numero === numero,
+                              );
+                              return (
+                                <button
+                                  key={`${fila}-${numero}`}
+                                  type="button"
+                                  className={`pe-seat${on ? ' is-on' : ''}`}
+                                  disabled={taken}
+                                  aria-label={`Fila ${fila}, asiento ${numero}${taken ? ', ocupado' : ''}`}
+                                  onClick={() => {
+                                    const seat = {
+                                      seccionId: String(openSeatSection._id),
+                                      seccionNombre: openSeatSection.nombre,
+                                      fila,
+                                      numero,
+                                    };
+                                    setSeats((prev) => {
+                                      const exists = prev.some(
+                                        (item) =>
+                                          item.seccionId === seat.seccionId &&
+                                          item.fila === fila &&
+                                          item.numero === numero,
+                                      );
+                                      if (exists) {
+                                        return prev.filter(
+                                          (item) =>
+                                            !(
+                                              item.seccionId === seat.seccionId &&
+                                              item.fila === fila &&
+                                              item.numero === numero
+                                            ),
+                                        );
+                                      }
+                                      if (prev.length >= 20) return prev;
+                                      return [...prev, seat];
+                                    });
+                                  }}
+                                >
+                                  {numero}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </SeatBoard>
+                    </div>
+                  ) : null}
+                  <div className="pe-picked">
+                    {seats.length ? (
+                      seats.map((seat) => (
+                        <button
+                          key={`${seat.seccionId}-${seat.fila}-${seat.numero}`}
+                          type="button"
+                          className="pe-picked-chip"
+                          onClick={() =>
+                            setSeats((prev) =>
+                              prev.filter(
+                                (item) =>
+                                  !(
+                                    item.seccionId === seat.seccionId &&
+                                    item.fila === seat.fila &&
+                                    item.numero === seat.numero
+                                  ),
+                              ),
+                            )
+                          }
+                        >
+                          {seat.seccionNombre} · Fila {seat.fila} · Asiento {seat.numero} ×
+                        </button>
+                      ))
+                    ) : (
+                      <p className="pe-muted pe-small">Todavía no elegiste un asiento.</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
               <div className="pe-qty">
                 <span>Cantidad</span>
                 <div className="pe-qty-controls">
@@ -407,6 +802,7 @@ export default function PublicEvents() {
                   </button>
                 </div>
               </div>
+              )}
               {ticketTotal != null ? (
                 <p className="pe-total">
                   <span>Total</span>
@@ -527,6 +923,11 @@ export default function PublicEvents() {
           {(success.tickets || []).map((t) => (
             <div key={t._id || t.codigo} className="pe-ticket">
               <strong>{t.tipoEntradaNombre || 'Entrada'}</strong>
+              {t.asiento?.seccionNombre ? (
+                <p>
+                  {t.asiento.seccionNombre} · fila {t.asiento.fila} · asiento {t.asiento.numero}
+                </p>
+              ) : null}
               {t.titular?.nombre || t.titular?.apellido ? (
                 <p>
                   {`${t.titular.apellido || ''} ${t.titular.nombre || ''}`.trim()}

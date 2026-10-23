@@ -26,6 +26,7 @@ import { getToken } from '../../utils/storage';
 import { clubApi } from '../../utils/api';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import CustomAlert from '../../components/CustomAlert';
+import StadiumSeatPicker from '../../components/StadiumSeatPicker';
 import { useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { useMember } from '../../context/MemberContext';
 
@@ -82,6 +83,7 @@ export default function MemberEventsScreen({ navigation }) {
   holdersRef.current = holders;
   const holderTouched = useRef(false);
   const [buyNotice, setBuyNotice] = useState('');
+  const [seats, setSeats] = useState([]);
   const [quote, setQuote] = useState(null);
   const [quoting, setQuoting] = useState(false);
   const [buying, setBuying] = useState(false);
@@ -132,6 +134,7 @@ export default function MemberEventsScreen({ navigation }) {
     setTipoId(first ? String(first._id) : '');
     setCantidad(1);
     setQuote(null);
+    setSeats([]);
     setHolders([holderFromProfile(profile)]);
   };
 
@@ -152,6 +155,7 @@ export default function MemberEventsScreen({ navigation }) {
     setSelected(null);
     setQuote(null);
     setBuyNotice('');
+    setSeats([]);
     quoteSeq.current += 1;
   };
 
@@ -188,6 +192,19 @@ export default function MemberEventsScreen({ navigation }) {
     return () => clearTimeout(t);
   }, [selected?._id, tipoId, cantidad, runQuote]);
 
+  useEffect(() => {
+    const seated = (selected?.secciones || []).some(
+      (section) => String(section.tipoEntrada) === String(tipoId),
+    );
+    if (!seated || !seats.length) return;
+    setCantidad(Math.max(1, Math.min(20, seats.length)));
+    setHolders((prev) => {
+      const list = prev.slice(0, seats.length);
+      while (list.length < seats.length) list.push({ nombre: '', apellido: '', dni: '' });
+      return list;
+    });
+  }, [seats, tipoId, selected]);
+
   const changeQty = (delta) => {
     setCantidad((q) => {
       const next = Math.max(1, Math.min(20, Number(q) + delta));
@@ -208,6 +225,11 @@ export default function MemberEventsScreen({ navigation }) {
 
   const buy = async () => {
     if (!selected?._id || !tipoId) return;
+    const seated = (selected.secciones || []).some((section) => String(section.tipoEntrada) === String(tipoId));
+    if (seated && seats.length !== cantidad) {
+      setBuyNotice('Elegí un asiento en el plano.');
+      return;
+    }
     const me = holderFromProfile(profile);
     const source = holdersRef.current;
     const asistentes = Array.from({ length: cantidad }, (_, i) => {
@@ -216,6 +238,14 @@ export default function MemberEventsScreen({ navigation }) {
         nombre: String(h.nombre || '').trim() || (i === 0 ? me.nombre : ''),
         apellido: String(h.apellido || '').trim() || (i === 0 ? me.apellido : ''),
         dni: normalizeTicketDni(h.dni) || (i === 0 ? me.dni : ''),
+        asiento: seats[i]
+          ? {
+              seccionId: seats[i].seccionId,
+              seccionNombre: seats[i].seccionNombre,
+              fila: seats[i].fila,
+              numero: seats[i].numero,
+            }
+          : undefined,
       };
     });
     const seen = new Set();
@@ -427,7 +457,10 @@ export default function MemberEventsScreen({ navigation }) {
                 <TouchableOpacity
                   key={t._id}
                   disabled={soldOut}
-                  onPress={() => setTipoId(String(t._id))}
+                  onPress={() => {
+                    setTipoId(String(t._id));
+                    setSeats([]);
+                  }}
                   style={[
                     styles.tipoRow,
                     {
@@ -459,6 +492,25 @@ export default function MemberEventsScreen({ navigation }) {
               );
             })}
 
+            {(selected?.secciones || []).some((section) => String(section.tipoEntrada) === String(tipoId)) ? (
+              <View style={{ marginTop: 8 }}>
+                <Text style={[styles.sectionLabel, { color: theme.text }]}>Elegí tu lugar</Text>
+                <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 8 }}>
+                  Tocá un sector y después el asiento. Los ocupados no se pueden elegir.
+                </Text>
+                <StadiumSeatPicker
+                  imageUrl={selected?.mapaEstadioUrl}
+                  sections={(selected?.secciones || []).filter(
+                    (section) => String(section.tipoEntrada) === String(tipoId),
+                  )}
+                  occupied={quote?.ocupados || []}
+                  selected={seats}
+                  onChange={setSeats}
+                  color={colorMarca}
+                  theme={theme}
+                />
+              </View>
+            ) : (
             <View
               style={[
                 styles.qtyRow,
@@ -498,6 +550,7 @@ export default function MemberEventsScreen({ navigation }) {
                 <Ionicons name="add" size={22} color="#fff" />
               </TouchableOpacity>
             </View>
+            )}
 
             <Text style={[styles.sectionLabel, { color: theme.text }]}>Quién entra</Text>
             <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 8 }}>
@@ -513,6 +566,9 @@ export default function MemberEventsScreen({ navigation }) {
               >
                 <Text style={{ color: theme.text, fontWeight: '800', marginBottom: 8 }}>
                   Entrada {index + 1}
+                  {seats[index]
+                    ? ` · ${seats[index].seccionNombre} fila ${seats[index].fila} asiento ${seats[index].numero}`
+                    : ''}
                 </Text>
                 <TextInput
                   value={person.nombre}

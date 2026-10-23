@@ -39,7 +39,8 @@ const clubEventSchema = new mongoose.Schema(
         titulo: { type: String, required: true, trim: true },
         descripcion: { type: String, trim: true, default: '' },
         imagenUrl: { type: String, trim: true, default: '' },
-        /** Plano del estadio. Las secciones se marcan encima y el comprador solo elige un asiento. */
+        /** Plano reutilizable. El evento guarda una copia de las secciones. */
+        estadioId: { type: mongoose.Schema.Types.ObjectId, default: null },
         mapaEstadioUrl: { type: String, trim: true, default: '' },
         lugar: { type: String, trim: true, default: '' },
         fechaInicio: { type: Date, required: true },

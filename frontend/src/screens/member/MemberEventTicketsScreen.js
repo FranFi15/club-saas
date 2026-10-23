@@ -91,6 +91,9 @@ export default function MemberEventTicketsScreen({ navigation }) {
                 ) : null}
                 <Text style={{ color: theme.textMuted }}>
                   {selected.tipoEntradaNombre}
+                  {selected.asiento?.seccionNombre
+                    ? ` · ${selected.asiento.seccionNombre} fila ${selected.asiento.fila} asiento ${selected.asiento.numero}`
+                    : ''}
                   {used ? ' · Usada' : ''}
                 </Text>
                 {who || selected.titular?.dni ? (
@@ -165,7 +168,14 @@ export default function MemberEventTicketsScreen({ navigation }) {
                     </Text>
                   ) : null}
                   <Text style={{ color: theme.textMuted, marginTop: 2 }} numberOfLines={1}>
-                    {[item.tipoEntradaNombre, who, used ? 'Usada' : null].filter(Boolean).join(' · ')}
+                    {[
+                      item.tipoEntradaNombre,
+                      item.asiento?.seccionNombre
+                        ? `${item.asiento.seccionNombre} fila ${item.asiento.fila} asiento ${item.asiento.numero}`
+                        : null,
+                      who,
+                      used ? 'Usada' : null,
+                    ].filter(Boolean).join(' · ')}
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />

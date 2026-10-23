@@ -1,4 +1,4 @@
-import React, { useState, useContext, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useContext, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -26,6 +26,9 @@ import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
+import StadiumSeatPicker from '../../components/StadiumSeatPicker';
+import StadiumLibrary from '../../components/StadiumLibrary';
+import StadiumAreaStage from '../../components/StadiumAreaStage';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { canMutateAsAdmin, isClubOwnerRole } from '../../constants/appRoles';
 import { USER_ROL_LABELS } from '../../constants/userRoles';
@@ -208,6 +211,12 @@ export default function AdminEventosScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [cropUri, setCropUri] = useState(null);
+  const imageTarget = useRef('evento');
+  const stadiumMapWait = useRef(null);
+  const [stadiums, setStadiums] = useState([]);
+  const [stadiumOpen, setStadiumOpen] = useState(false);
+  const [stadiumMode, setStadiumMode] = useState('manage');
+  const [placingSection, setPlacingSection] = useState(null);
   const [editing, setEditing] = useState(null);
   /** Which tipo/regla card is expanded; others stay collapsed. */
   const [expandedTipoIdx, setExpandedTipoIdx] = useState(0);
@@ -217,6 +226,9 @@ export default function AdminEventosScreen({ navigation }) {
     descripcion: '',
     lugar: '',
     imagenUrl: '',
+    mapaEstadioUrl: '',
+    estadioId: '',
+    secciones: [],
     fechaInicioDisplay: '',
     horaInicio: '',
     tiposEntrada: [emptyTipo()],
@@ -242,6 +254,7 @@ export default function AdminEventosScreen({ navigation }) {
   const [pickedUser, setPickedUser] = useState(null);
   const [guest, setGuest] = useState({ nombre: '', apellido: '', email: '', dni: '' });
   const [addTipoId, setAddTipoId] = useState('');
+  const [addSeats, setAddSeats] = useState([]);
   const [addQty, setAddQty] = useState(1);
   const [addHolders, setAddHolders] = useState([{ nombre: '', apellido: '', dni: '' }]);
   const [cashQuote, setCashQuote] = useState(null);
@@ -286,11 +299,13 @@ export default function AdminEventosScreen({ navigation }) {
   const load = useCallback(async () => {
     if (!clubData?.urlIdentifier) return;
     const h = await getHeaders();
-    const [evRes, pickRes] = await Promise.all([
+    const [evRes, pickRes, stadiumRes] = await Promise.all([
       clubApi.get('/events/admin', { headers: h }),
       clubApi.get('/events/admin/pricing-pickers', { headers: h }).catch(() => ({ data: {} })),
+      clubApi.get('/events/admin/stadiums', { headers: h }).catch(() => ({ data: [] })),
     ]);
     setEvents(evRes.data || []);
+    setStadiums(stadiumRes.data || []);
     setPickers({
       cuotasSociales: pickRes.data?.cuotasSociales || [],
       planes: pickRes.data?.planes || [],
@@ -376,6 +391,9 @@ export default function AdminEventosScreen({ navigation }) {
       descripcion: '',
       lugar: '',
       imagenUrl: '',
+      mapaEstadioUrl: '',
+      estadioId: '',
+      secciones: [],
       fechaInicioDisplay: formatJsDateToDisplay(new Date()),
       horaInicio: '18:00',
       tiposEntrada: [emptyTipo()],
@@ -397,6 +415,22 @@ export default function AdminEventosScreen({ navigation }) {
       descripcion: ev.descripcion || '',
       lugar: ev.lugar || '',
       imagenUrl: ev.imagenUrl || '',
+      mapaEstadioUrl: ev.mapaEstadioUrl || '',
+      estadioId: ev.estadioId ? String(ev.estadioId) : '',
+      secciones: (ev.secciones || []).map((section) => ({
+        _id: section._id,
+        nombre: section.nombre || '',
+        filas: String(section.filas || 1),
+        asientosPorFila: String(section.asientosPorFila || 1),
+        tipoIndex: Math.max(
+          0,
+          (ev.tiposEntrada || []).findIndex((tipo) => String(tipo._id) === String(section.tipoEntrada)),
+        ),
+        x: Number(section.x) || 50,
+        y: Number(section.y) || 50,
+        w: Number(section.w) || 0,
+        h: Number(section.h) || 0,
+      })),
       fechaInicioDisplay: toDisplayDate(ev.fechaInicio),
       horaInicio: toDisplayTime(ev.fechaInicio) || '18:00',
       tiposEntrada: (ev.tiposEntrada || []).map((t) => ({
@@ -436,11 +470,79 @@ export default function AdminEventosScreen({ navigation }) {
     setModalOpen(true);
   };
 
-  const uploadEventImage = async () => {
+  const finishStadiumMap = (url) => {
+    if (imageTarget.current !== 'estadio-lib' || !stadiumMapWait.current) return;
+    stadiumMapWait.current(url || null);
+    stadiumMapWait.current = null;
+  };
+
+  const deliverUploadedImage = (field, url) => {
+    if (imageTarget.current === 'estadio-lib') {
+      finishStadiumMap(url);
+      return;
+    }
+    setForm((current) => ({ ...current, [field]: url }));
+  };
+
+  const applyStadium = (stadium) => {
+    setForm((current) => {
+      const tipos = current.tiposEntrada.map((tipo) => ({ ...tipo }));
+      const sections = stadium.secciones || [];
+      const singleType = tipos.length === 1;
+      const secciones = sections.map((section) => {
+        let tipoIndex = singleType
+          ? 0
+          : tipos.findIndex(
+              (tipo) => tipo.nombre.trim().toLowerCase() === String(section.nombre || '').trim().toLowerCase(),
+            );
+        if (tipoIndex < 0) {
+          tipos.push({
+            nombre: section.nombre || 'Sector',
+            precio: '0',
+            cupo: String((Number(section.filas) || 1) * (Number(section.asientosPorFila) || 1)),
+            activo: true,
+          });
+          tipoIndex = tipos.length - 1;
+        }
+        return {
+          nombre: section.nombre || '',
+          filas: String(section.filas || 1),
+          asientosPorFila: String(section.asientosPorFila || 1),
+          tipoIndex,
+          x: Number(section.x) || 0,
+          y: Number(section.y) || 0,
+          w: Number(section.w) || 0,
+          h: Number(section.h) || 0,
+        };
+      });
+      return {
+        ...current,
+        estadioId: String(stadium._id || ''),
+        mapaEstadioUrl: stadium.mapaUrl || '',
+        tiposEntrada: tipos,
+        secciones,
+      };
+    });
+    setExpandedTipoIdx(0);
+    setStadiumOpen(false);
+  };
+
+  const requestStadiumMap = () =>
+    new Promise((resolve) => {
+      stadiumMapWait.current = resolve;
+      uploadEventImage('estadio-lib');
+    });
+
+  const uploadEventImage = async (target = 'evento') => {
+    imageTarget.current = target;
+    const field = target === 'estadio' ? 'mapaEstadioUrl' : 'imagenUrl';
     try {
       if (Platform.OS === 'web') {
         const picked = await pickImageAsset({ quality: 0.9 });
-        if (!picked?.uri) return;
+        if (!picked?.uri) {
+          finishStadiumMap(null);
+          return;
+        }
         setCropUri(picked.uri);
         return;
       }
@@ -450,7 +552,8 @@ export default function AdminEventosScreen({ navigation }) {
         aspect: [16, 9],
         quality: 0.85,
       });
-      if (url) setForm((f) => ({ ...f, imagenUrl: url }));
+      if (url) deliverUploadedImage(field, url);
+      else if (imageTarget.current === 'estadio-lib') finishStadiumMap(null);
     } catch (e) {
       showAlert('Imagen', e.message || 'No se pudo subir la imagen.');
     } finally {
@@ -459,13 +562,15 @@ export default function AdminEventosScreen({ navigation }) {
   };
 
   const confirmCroppedImage = async (file) => {
+    const field = imageTarget.current === 'estadio' ? 'mapaEstadioUrl' : 'imagenUrl';
     setCropUri(null);
     setUploadingImage(true);
     try {
       const name = file?.name || `evento-${Date.now()}.jpg`;
       const mime = file?.type || 'image/jpeg';
       const { url } = await uploadFileToClub(clubData, '', name, mime, { webFile: file });
-      if (url) setForm((f) => ({ ...f, imagenUrl: url }));
+      if (url) deliverUploadedImage(field, url);
+      else if (imageTarget.current === 'estadio-lib') finishStadiumMap(null);
     } catch (e) {
       showAlert('Imagen', e.message || 'No se pudo subir la imagen.');
     } finally {
@@ -486,6 +591,24 @@ export default function AdminEventosScreen({ navigation }) {
       descripcion: form.descripcion.trim(),
       lugar: form.lugar.trim(),
       imagenUrl: (form.imagenUrl || '').trim(),
+      mapaEstadioUrl: (form.mapaEstadioUrl || '').trim(),
+      estadioId: form.estadioId || null,
+      secciones: (form.secciones || [])
+        .filter((section) => form.tiposEntrada[section.tipoIndex])
+        .map((section) => ({
+          ...(section._id ? { _id: section._id } : {}),
+          nombre: section.nombre.trim() || form.tiposEntrada[section.tipoIndex]?.nombre?.trim() || 'Sector',
+          filas: Math.max(1, parseInt(section.filas, 10) || 1),
+          asientosPorFila: Math.max(1, parseInt(section.asientosPorFila, 10) || 1),
+          tipoIndex: Number(section.tipoIndex) || 0,
+          ...(form.tiposEntrada[section.tipoIndex]?._id
+            ? { tipoEntrada: form.tiposEntrada[section.tipoIndex]._id }
+            : {}),
+          x: Number(section.x) || 50,
+          y: Number(section.y) || 50,
+          w: Number(section.w) || 0,
+          h: Number(section.h) || 0,
+        })),
       fechaInicio,
       fechaFin: null,
       tiposEntrada: form.tiposEntrada.map((t) => ({
@@ -717,6 +840,12 @@ export default function AdminEventosScreen({ navigation }) {
   }, [modalOpen, doorQuery, getHeaders]);
 
   useEffect(() => {
+    const seated = (addEvent?.secciones || []).some((section) => String(section.tipoEntrada) === String(addTipoId));
+    if (!seated || !addSeats.length) return;
+    changeAddQty(addSeats.length);
+  }, [addSeats, addTipoId, addEvent]);
+
+  useEffect(() => {
     if (!addEvent || !addTipoId) return undefined;
     if (addMode === 'app' && !pickedUser) {
       setCashQuote(null);
@@ -807,10 +936,23 @@ export default function AdminEventosScreen({ navigation }) {
         return;
       }
     }
-    const asistentes = addHolders.slice(0, addQty).map((h) => ({
+    const seated = (addEvent.secciones || []).some((section) => String(section.tipoEntrada) === String(addTipoId));
+    if (seated && addSeats.length !== addQty) {
+      setSellNotice('Elegí un asiento en el plano.');
+      return;
+    }
+    const asistentes = addHolders.slice(0, addQty).map((h, index) => ({
       nombre: String(h.nombre || '').trim(),
       apellido: String(h.apellido || '').trim(),
       dni: String(h.dni || '').replace(/\D/g, ''),
+      asiento: addSeats[index]
+        ? {
+            seccionId: addSeats[index].seccionId,
+            seccionNombre: addSeats[index].seccionNombre,
+            fila: addSeats[index].fila,
+            numero: addSeats[index].numero,
+          }
+        : undefined,
     }));
     const seen = new Set();
     for (let i = 0; i < addQty; i += 1) {
@@ -925,9 +1067,19 @@ export default function AdminEventosScreen({ navigation }) {
   };
 
   const removeTipo = (idx) => {
+    setPlacingSection(null);
     setForm((f) => {
       if (f.tiposEntrada.length <= 1) return f;
-      return { ...f, tiposEntrada: f.tiposEntrada.filter((_, i) => i !== idx) };
+      return {
+        ...f,
+        tiposEntrada: f.tiposEntrada.filter((_, i) => i !== idx),
+        secciones: (f.secciones || [])
+          .filter((section) => section.tipoIndex !== idx)
+          .map((section) => ({
+            ...section,
+            tipoIndex: section.tipoIndex > idx ? section.tipoIndex - 1 : section.tipoIndex,
+          })),
+      };
     });
   };
 
@@ -946,6 +1098,177 @@ export default function AdminEventosScreen({ navigation }) {
     styles.input,
     { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface },
   ];
+
+  const updateSeccion = (idx, patch) => {
+    setForm((current) => {
+      const secciones = [...(current.secciones || [])];
+      secciones[idx] = { ...secciones[idx], ...patch };
+      return { ...current, secciones };
+    });
+  };
+
+  const toggleTipoSeccion = (idx) => {
+    setPlacingSection(null);
+    setForm((current) => {
+      const existing = (current.secciones || []).some((section) => section.tipoIndex === idx);
+      if (existing) {
+        return {
+          ...current,
+          secciones: (current.secciones || []).filter((section) => section.tipoIndex !== idx),
+        };
+      }
+      return {
+        ...current,
+        secciones: [
+          ...(current.secciones || []),
+          {
+            nombre: current.tiposEntrada[idx]?.nombre || '',
+            filas: '5',
+            asientosPorFila: '10',
+            tipoIndex: idx,
+            x: 50,
+            y: 40,
+            w: 0,
+            h: 0,
+          },
+        ],
+      };
+    });
+  };
+
+  const nudgeSeccion = (idx, dx, dy, dw, dh) => {
+    setForm((current) => {
+      const secciones = [...(current.secciones || [])];
+      const section = secciones[idx];
+      if (!section) return current;
+      const w = Math.max(8, Math.min(80, (Number(section.w) || 24) + dw));
+      const h = Math.max(8, Math.min(80, (Number(section.h) || 16) + dh));
+      secciones[idx] = {
+        ...section,
+        w,
+        h,
+        x: Math.max(0, Math.min(100 - w, (Number(section.x) || 0) + dx)),
+        y: Math.max(0, Math.min(100 - h, (Number(section.y) || 0) + dy)),
+      };
+      return { ...current, secciones };
+    });
+  };
+
+  const beginPlacing = (idx) => {
+    const section = form.secciones?.[idx];
+    if (!section) return;
+    const w = Number(section.w) > 0 ? Number(section.w) : 24;
+    const h = Number(section.h) > 0 ? Number(section.h) : 16;
+    const hadArea = Number(section.w) > 0 && Number(section.h) > 0;
+    updateSeccion(idx, {
+      w,
+      h,
+      x: Math.max(0, Math.min(100 - w, hadArea ? Number(section.x) || 0 : (Number(section.x) || 50) - w / 2)),
+      y: Math.max(0, Math.min(100 - h, hadArea ? Number(section.y) || 0 : (Number(section.y) || 40) - h / 2)),
+    });
+    setPlacingSection(idx);
+  };
+
+  const renderStadiumMap = () => (
+    <View>
+      <Field
+        label="Plano del estadio"
+        theme={theme}
+        hint={
+          Platform.OS === 'web'
+            ? 'Arrastrá el área para moverla y una esquina para cambiar el tamaño.'
+            : 'Hay un solo plano. Tocá para mover el área y ajustala con los botones.'
+        }
+      >
+        {form.mapaEstadioUrl ? (
+          <StadiumAreaStage
+            uri={form.mapaEstadioUrl}
+            sections={form.secciones || []}
+            activeIndex={placingSection}
+            color={colorMarca}
+            onChange={(idx, box) => updateSeccion(idx, box)}
+            onPressPoint={(px, py) => {
+              const section = form.secciones?.[placingSection];
+              if (!section) return;
+              const w = Number(section.w) > 0 ? Number(section.w) : 24;
+              const h = Number(section.h) > 0 ? Number(section.h) : 16;
+              updateSeccion(placingSection, {
+                w,
+                h,
+                x: Math.max(0, Math.min(100 - w, px - w / 2)),
+                y: Math.max(0, Math.min(100 - h, py - h / 2)),
+              });
+            }}
+            style={[styles.mapStage, { backgroundColor: theme.surface, borderColor: theme.border }]}
+          />
+        ) : (
+          <TouchableOpacity
+            style={[styles.imagePicker, { borderColor: theme.border, backgroundColor: theme.surface }]}
+            onPress={() => uploadEventImage('estadio')}
+            disabled={uploadingImage}
+          >
+            <View style={styles.imagePlaceholder}>
+              {uploadingImage ? (
+                <ActivityIndicator color={colorMarca} />
+              ) : (
+                <>
+                  <Ionicons name="map-outline" size={32} color={theme.textMuted} />
+                  <Text style={{ color: theme.textMuted, marginTop: 8, fontWeight: '600' }}>Subir plano</Text>
+                </>
+              )}
+            </View>
+          </TouchableOpacity>
+        )}
+        {form.mapaEstadioUrl ? (
+          <View style={styles.imageActions}>
+            <TouchableOpacity onPress={() => uploadEventImage('estadio')} disabled={uploadingImage}>
+              <Text style={{ color: colorMarca, fontWeight: '700' }}>
+                {uploadingImage ? 'Subiendo…' : 'Cambiar'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setForm((current) => ({ ...current, mapaEstadioUrl: '' }))}>
+              <Text style={{ color: '#ef4444', fontWeight: '600' }}>Quitar</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </Field>
+      {placingSection != null && form.mapaEstadioUrl ? (
+        <View style={{ marginBottom: 12 }}>
+          <Text style={{ color: colorMarca, fontWeight: '700', marginBottom: 8 }}>
+            Área de {form.secciones[placingSection]?.nombre || 'el sector'}
+          </Text>
+          <View style={styles.mapControls}>
+            {Platform.OS === 'web'
+              ? null
+              : [
+                  ['←', -4, 0, 0, 0],
+                  ['↑', 0, -4, 0, 0],
+                  ['↓', 0, 4, 0, 0],
+                  ['→', 4, 0, 0, 0],
+                  ['Ancho −', 0, 0, -4, 0],
+                  ['Ancho +', 0, 0, 4, 0],
+                  ['Alto −', 0, 0, 0, -4],
+                  ['Alto +', 0, 0, 0, 4],
+                ].map(([label, dx, dy, dw, dh]) => (
+                  <TouchableOpacity
+                    key={label}
+                    onPress={() => nudgeSeccion(placingSection, dx, dy, dw, dh)}
+                    style={[styles.mapControl, { borderColor: theme.border, backgroundColor: theme.surface }]}
+                  >
+                    <Text style={{ color: theme.text, fontWeight: '800' }}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+            <TouchableOpacity
+              onPress={() => setPlacingSection(null)}
+              style={[styles.mapControl, { borderColor: colorMarca, backgroundColor: colorMarca }]}
+            >
+              <Text style={{ color: '#fff', fontWeight: '800' }}>Listo</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
 
   const renderStepDatos = () => (
     <View>
@@ -1137,7 +1460,7 @@ export default function AdminEventosScreen({ navigation }) {
         <View style={{ flex: 1, paddingRight: 12 }}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Tipos de entrada</Text>
           <Text style={[styles.stepIntro, { color: theme.textMuted, marginBottom: 0 }]}>
-            Tocá una fila para editar. Precio de lista = visitante.
+            Cada tipo puede tener un sector. Si lo tiene, el comprador elige el asiento.
           </Text>
         </View>
         <TouchableOpacity
@@ -1152,8 +1475,49 @@ export default function AdminEventosScreen({ navigation }) {
           <Text style={{ color: colorMarca, fontWeight: '700', marginLeft: 4 }}>Agregar</Text>
         </TouchableOpacity>
       </View>
+      <Text style={[styles.label, { color: theme.textMuted, marginTop: 4 }]}>Estadio</Text>
+      <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8 }}>
+        Reutilizá uno guardado o creá uno nuevo. Si hay un solo tipo de entrada, todos los sectores usan ese tipo.
+      </Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 12 }}>
+        {stadiums.map((stadium) => {
+          const on = String(form.estadioId) === String(stadium._id);
+          return (
+            <TouchableOpacity
+              key={stadium._id}
+              onPress={() => applyStadium(stadium)}
+              style={[
+                styles.addPill,
+                { borderColor: on ? colorMarca : theme.border, backgroundColor: on ? colorMarca : theme.surface },
+              ]}
+            >
+              <Ionicons name="business-outline" size={16} color={on ? '#fff' : colorMarca} />
+              <Text style={{ color: on ? '#fff' : theme.text, fontWeight: '700', marginLeft: 6 }}>{stadium.nombre}</Text>
+            </TouchableOpacity>
+          );
+        })}
+        <TouchableOpacity
+          onPress={() => {
+            setStadiumMode('create');
+            setStadiumOpen(true);
+          }}
+          style={[styles.addPill, { borderColor: colorMarca }]}
+        >
+          <Ionicons name="add" size={16} color={colorMarca} />
+          <Text style={{ color: colorMarca, fontWeight: '800', marginLeft: 4 }}>Nuevo</Text>
+        </TouchableOpacity>
+      </ScrollView>
       {form.tiposEntrada.map((t, idx) => {
         const open = expandedTipoIdx === idx;
+        const sections = (form.secciones || [])
+          .map((section, secIdx) => ({ section, secIdx }))
+          .filter((item) => item.section.tipoIndex === idx);
+        const hasSection = sections.length > 0;
+        const seatCount = sections.reduce(
+          (sum, item) =>
+            sum + (parseInt(item.section.filas, 10) || 0) * (parseInt(item.section.asientosPorFila, 10) || 0),
+          0,
+        );
         return (
           <View
             key={t._id || `t-${idx}`}
@@ -1170,7 +1534,10 @@ export default function AdminEventosScreen({ navigation }) {
                 </Text>
                 {!open ? (
                   <Text style={[styles.foldSummary, { color: theme.textMuted }]}>
-                    ${t.precio || 0} · cupo {t.cupo || 0}
+                    ${t.precio || 0}
+                    {hasSection
+                      ? ` · ${sections[0].section.nombre?.trim() || 'con sector'} · ${seatCount} asientos`
+                      : ` · cupo ${t.cupo || 0}`}
                     {t.vendidas != null ? ` · ${t.vendidas} vendidas` : ''}
                   </Text>
                 ) : null}
@@ -1193,7 +1560,7 @@ export default function AdminEventosScreen({ navigation }) {
                   />
                 </Field>
                 <View style={styles.row}>
-                  <View style={{ flex: 1, marginRight: 8 }}>
+                  <View style={{ flex: 1, marginRight: hasSection ? 0 : 8 }}>
                     <Field label="Precio ($)" theme={theme}>
                       <TextInput
                         style={inputStyle}
@@ -1203,17 +1570,100 @@ export default function AdminEventosScreen({ navigation }) {
                       />
                     </Field>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Field label="Cupo" theme={theme}>
-                      <TextInput
-                        style={inputStyle}
-                        value={t.cupo}
-                        onChangeText={(cupo) => updateTipo(idx, { cupo })}
-                        keyboardType="number-pad"
-                      />
-                    </Field>
-                  </View>
+                  {hasSection ? null : (
+                    <View style={{ flex: 1 }}>
+                      <Field label="Cupo" theme={theme}>
+                        <TextInput
+                          style={inputStyle}
+                          value={t.cupo}
+                          onChangeText={(cupo) => updateTipo(idx, { cupo })}
+                          keyboardType="number-pad"
+                        />
+                      </Field>
+                    </View>
+                  )}
                 </View>
+                <TouchableOpacity
+                  onPress={() => toggleTipoSeccion(idx)}
+                  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 }}
+                >
+                  <Ionicons
+                    name={hasSection ? 'checkbox' : 'square-outline'}
+                    size={22}
+                    color={hasSection ? colorMarca : theme.textMuted}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: theme.text, fontWeight: '700' }}>Tiene sector</Text>
+                    <Text style={{ color: theme.textMuted, fontSize: 12 }}>
+                      El comprador elige el asiento en el plano.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+                {hasSection ? (
+                  <View>
+                    {sections.map(({ section, secIdx }) => (
+                      <View key={`sec-${secIdx}`}>
+                        <Field label="Sector" theme={theme}>
+                          <TextInput
+                            style={inputStyle}
+                            value={section.nombre}
+                            onChangeText={(nombre) => updateSeccion(secIdx, { nombre })}
+                            placeholder="Nombre del sector"
+                            placeholderTextColor={theme.textMuted}
+                          />
+                        </Field>
+                        <View style={styles.row}>
+                          <View style={{ flex: 1, marginRight: 8 }}>
+                            <Field label="Filas" theme={theme}>
+                              <TextInput
+                                style={inputStyle}
+                                value={String(section.filas)}
+                                onChangeText={(filas) => updateSeccion(secIdx, { filas: filas.replace(/\D/g, '') })}
+                                keyboardType="number-pad"
+                              />
+                            </Field>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Field label="Asientos por fila" theme={theme}>
+                              <TextInput
+                                style={inputStyle}
+                                value={String(section.asientosPorFila)}
+                                onChangeText={(asientosPorFila) =>
+                                  updateSeccion(secIdx, { asientosPorFila: asientosPorFila.replace(/\D/g, '') })
+                                }
+                                keyboardType="number-pad"
+                              />
+                            </Field>
+                          </View>
+                        </View>
+                        <View style={styles.imageActions}>
+                          <TouchableOpacity
+                            onPress={() => beginPlacing(secIdx)}
+                            disabled={!form.mapaEstadioUrl}
+                          >
+                            <Text style={{ color: form.mapaEstadioUrl ? colorMarca : theme.textMuted, fontWeight: '700' }}>
+                              {placingSection === secIdx ? 'Marcando el área…' : 'Ubicar en el plano'}
+                            </Text>
+                          </TouchableOpacity>
+                          {sections.length > 1 ? (
+                            <TouchableOpacity
+                              onPress={() => {
+                                setPlacingSection(null);
+                                setForm((current) => ({
+                                  ...current,
+                                  secciones: current.secciones.filter((_, index) => index !== secIdx),
+                                }));
+                              }}
+                            >
+                              <Text style={{ color: '#ef4444', fontWeight: '600' }}>Quitar sector</Text>
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
+                      </View>
+                    ))}
+                    {renderStadiumMap()}
+                  </View>
+                ) : null}
                 {t.vendidas != null ? (
                   <Text style={[styles.fieldHint, { color: theme.textMuted }]}>
                     Vendidas / en hold: {t.vendidas}
@@ -1573,6 +2023,21 @@ export default function AdminEventosScreen({ navigation }) {
               : 'Quién compró entradas'
         }
         onBack={() => navigation.goBack()}
+        rightAccessory={
+          canManageEvents ? (
+            <TouchableOpacity
+              onPress={() => {
+                setStadiumMode('manage');
+                setStadiumOpen(true);
+              }}
+              style={styles.headerStadiumBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Estadios"
+            >
+              <Ionicons name="business-outline" size={20} color="#ffffff" />
+            </TouchableOpacity>
+          ) : null
+        }
       />
       {canManageEvents ? (
         <TouchableOpacity
@@ -2237,11 +2702,31 @@ export default function AdminEventosScreen({ navigation }) {
                         on={String(tipo._id) === String(addTipoId)}
                         colorMarca={colorMarca}
                         theme={theme}
-                        onPress={() => setAddTipoId(String(tipo._id))}
+                        onPress={() => {
+                          setAddTipoId(String(tipo._id));
+                          setAddSeats([]);
+                        }}
                       />
                     ))}
                 </View>
 
+                {(addEvent?.secciones || []).some((section) => String(section.tipoEntrada) === String(addTipoId)) ? (
+                  <View style={{ marginBottom: 12 }}>
+                    <Text style={[styles.label, { color: theme.textMuted }]}>Asiento</Text>
+                    <StadiumSeatPicker
+                      imageUrl={addEvent.mapaEstadioUrl}
+                      sections={(addEvent.secciones || []).filter(
+                        (section) => String(section.tipoEntrada) === String(addTipoId),
+                      )}
+                      occupied={cashQuote?.ocupados || []}
+                      selected={addSeats}
+                      onChange={setAddSeats}
+                      color={colorMarca}
+                      theme={theme}
+                    />
+                  </View>
+                ) : (
+                <View>
                 <Text style={[styles.label, { color: theme.textMuted }]}>Cantidad</Text>
                 <View style={styles.qtyRow}>
                   <TouchableOpacity
@@ -2258,6 +2743,8 @@ export default function AdminEventosScreen({ navigation }) {
                     <Ionicons name="add" size={20} color={theme.text} />
                   </TouchableOpacity>
                 </View>
+                </View>
+                )}
 
                 <View style={styles.sectionHead}>
                   <View style={{ flex: 1, paddingRight: 8 }}>
@@ -2368,12 +2855,29 @@ export default function AdminEventosScreen({ navigation }) {
         onCancel={alertConfig.onCancel || closeAlert}
       />
 
+      <StadiumLibrary
+        visible={stadiumOpen}
+        mode={stadiumMode}
+        onClose={() => setStadiumOpen(false)}
+        stadiums={stadiums}
+        reload={load}
+        onUse={stadiumMode === 'manage' && !modalOpen ? null : applyStadium}
+        requestMapUpload={requestStadiumMap}
+        getHeaders={getHeaders}
+        theme={theme}
+        colorMarca={colorMarca}
+        uploading={uploadingImage}
+      />
+
       <WebImageCropModal
         visible={Boolean(cropUri)}
         imageUri={cropUri}
         aspect={[16, 9]}
         colorMarca={colorMarca}
-        onCancel={() => setCropUri(null)}
+        onCancel={() => {
+          setCropUri(null);
+          finishStadiumMap(null);
+        }}
         onConfirm={confirmCroppedImage}
       />
     </SafeAreaView>
@@ -2466,6 +2970,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
   },
+  headerStadiumBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 5,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   fab: {
     position: 'absolute',
     bottom: 20,
@@ -2521,6 +3033,15 @@ const styles = StyleSheet.create({
       ? { maxWidth: 280, width: '100%', alignSelf: 'flex-start' }
       : {}),
   },
+  mapStage: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    borderWidth: 1,
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginBottom: 12,
+    ...(Platform.OS === 'web' ? { maxWidth: 480, alignSelf: 'flex-start' } : {}),
+  },
   imagePreview: {
     width: '100%',
     aspectRatio: 16 / 9,
@@ -2529,6 +3050,20 @@ const styles = StyleSheet.create({
   },
   imagePlaceholder: {
     height: Platform.OS === 'web' ? 100 : 140,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mapControls: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  mapControl: {
+    minWidth: 72,
+    minHeight: 44,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },

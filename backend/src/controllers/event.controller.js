@@ -274,6 +274,7 @@ export const createEvent = asyncHandler(async (req, res) => {
         descripcion,
         imagenUrl,
         mapaEstadioUrl,
+        estadioId,
         lugar,
         fechaInicio,
         fechaFin,
@@ -296,6 +297,7 @@ export const createEvent = asyncHandler(async (req, res) => {
         descripcion: descripcion || '',
         imagenUrl: imagenUrl || '',
         mapaEstadioUrl: mapaEstadioUrl || '',
+        estadioId: mongoose.Types.ObjectId.isValid(String(estadioId || '')) ? estadioId : null,
         lugar: lugar || '',
         fechaInicio: new Date(fechaInicio),
         fechaFin: fechaFin ? new Date(fechaFin) : undefined,
@@ -325,6 +327,9 @@ export const updateEvent = asyncHandler(async (req, res) => {
     if (b.descripcion != null) event.descripcion = String(b.descripcion);
     if (b.imagenUrl != null) event.imagenUrl = String(b.imagenUrl);
     if (b.mapaEstadioUrl != null) event.mapaEstadioUrl = String(b.mapaEstadioUrl);
+    if (b.estadioId !== undefined) {
+        event.estadioId = mongoose.Types.ObjectId.isValid(String(b.estadioId || '')) ? b.estadioId : null;
+    }
     if (b.lugar != null) event.lugar = String(b.lugar);
     if (b.fechaInicio != null) event.fechaInicio = new Date(b.fechaInicio);
     if (b.fechaFin !== undefined) {

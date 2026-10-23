@@ -43,6 +43,7 @@ import {
     getEventTicketModel,
     getEventDoorLogModel,
 } from '../models/clubEvent.model.js';
+import { getClubStadiumModel } from '../models/clubStadium.model.js';
 
 export const getTenantModels = (tenantDB) => {
     // Al llamar a todas estas funciones acá, Mongoose registra TODOS los esquemas 
@@ -92,5 +93,6 @@ export const getTenantModels = (tenantDB) => {
         EventTicketOrder: getEventTicketOrderModel(tenantDB),
         EventTicket: getEventTicketModel(tenantDB),
         EventDoorLog: getEventDoorLogModel(tenantDB),
+        Stadium: getClubStadiumModel(tenantDB),
     };
 };
