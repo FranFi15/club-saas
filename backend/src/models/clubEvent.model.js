@@ -57,9 +57,11 @@ const clubEventSchema = new mongoose.Schema(
                 filas: { type: Number, required: true, min: 1, max: 40 },
                 asientosPorFila: { type: Number, required: true, min: 1, max: 80 },
                 tipoEntrada: { type: mongoose.Schema.Types.ObjectId, required: true },
-                /** Posición del cartel en el plano, en porcentaje. */
+                /** Rectángulo del sector en el plano, en porcentaje. */
                 x: { type: Number, default: 50, min: 0, max: 100 },
                 y: { type: Number, default: 50, min: 0, max: 100 },
+                w: { type: Number, default: 0, min: 0, max: 100 },
+                h: { type: Number, default: 0, min: 0, max: 100 },
             },
         ],
         reglasDescuento: [reglaDescuentoSchema],

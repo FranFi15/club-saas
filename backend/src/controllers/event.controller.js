@@ -63,6 +63,8 @@ function publicEventCard(ev) {
             tipoEntrada: section.tipoEntrada,
             x: section.x,
             y: section.y,
+            w: section.w || 0,
+            h: section.h || 0,
         })),
         lugar: ev.lugar,
         fechaInicio: ev.fechaInicio,
@@ -101,6 +103,8 @@ function normalizeSecciones(raw, tipos) {
             tipoEntrada: tipoId,
             x: Math.max(0, Math.min(100, Number(section.x) || 50)),
             y: Math.max(0, Math.min(100, Number(section.y) || 50)),
+            w: Math.max(0, Math.min(100, Number(section.w) || 0)),
+            h: Math.max(0, Math.min(100, Number(section.h) || 0)),
         });
     }
     return out;
