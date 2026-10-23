@@ -253,8 +253,8 @@ export default function UsuariosScreen({ navigation }) {
               : 'El usuario fue creado correctamente.'),
         );
       }
-      // Volvemos a traer todos de la DB para que los objetos populados (tutorPrincipal) vengan íntegros
-      fetchUsers(1); 
+      // fetchUsers(1) no recarga: la página 1 la maneja el cache de la pantalla.
+      refreshUsers();
       setIsFormVisible(false);
     } catch (error) {
       showAlert('Error', error.response?.data?.message || 'Hubo un error al guardar.');

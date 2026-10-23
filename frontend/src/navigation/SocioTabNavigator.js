@@ -16,6 +16,8 @@ import MemberAlquilerScreen from '../screens/member/MemberAlquilerScreen';
 import ChatInboxScreen from '../screens/chat/ChatInboxScreen';
 import ChatThreadScreen from '../screens/chat/ChatThreadScreen';
 import ChatNewScreen from '../screens/chat/ChatNewScreen';
+import MemberEventsScreen from '../screens/member/MemberEventsScreen';
+import MemberEventTicketsScreen from '../screens/member/MemberEventTicketsScreen';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
 import { tabBadgeText } from '../utils/tabBadgeLabel';
@@ -35,12 +37,11 @@ function SocioNewsStack() {
   );
 }
 
-function SocioChatStack() {
+function SocioEventsStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="ChatInbox" component={ChatInboxScreen} />
-      <Stack.Screen name="ChatThread" component={ChatThreadScreen} />
-      <Stack.Screen name="ChatNew" component={ChatNewScreen} />
+      <Stack.Screen name="MemberEvents" component={MemberEventsScreen} />
+      <Stack.Screen name="MemberEventTickets" component={MemberEventTicketsScreen} />
     </Stack.Navigator>
   );
 }
@@ -51,6 +52,9 @@ function SocioProfileStack() {
       <Stack.Screen name="ProfileMain" component={SocioProfileScreen} />
       <Stack.Screen name="SocioPayments" component={MemberPaymentsScreen} />
       <Stack.Screen name="MemberAlquiler" component={MemberAlquilerScreen} />
+      <Stack.Screen name="ChatInbox" component={ChatInboxScreen} />
+      <Stack.Screen name="ChatThread" component={ChatThreadScreen} />
+      <Stack.Screen name="ChatNew" component={ChatNewScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="ClubEntryQr" component={MemberClubEntryScreen} />
     </Stack.Navigator>
@@ -89,8 +93,8 @@ function SocioTabs() {
             SocioCuotas: focused ? 'wallet' : 'wallet-outline',
             SocioNoticias: focused ? 'newspaper' : 'newspaper-outline',
             SocioQr: focused ? 'qr-code' : 'qr-code-outline',
-            SocioEventos: focused ? 'ticket' : 'ticket-outline',
-            SocioChat: focused ? 'chatbubbles' : 'chatbubbles-outline',
+            SocioEventos: focused ? 'scan' : 'scan-outline',
+            SocioEntradas: focused ? 'ticket' : 'ticket-outline',
             SocioProfile: focused ? 'person' : 'person-outline',
           };
           return <Ionicons name={map[name] || 'ellipse-outline'} size={22} color={color} />;
@@ -99,15 +103,15 @@ function SocioTabs() {
           ({
             SocioCuotas: tabBadgeText(tab('cuotas')),
             SocioNoticias: tabBadgeText(tab('noticias')),
-            SocioChat: tabBadgeText(tab('chat')),
+            SocioProfile: tabBadgeText(tab('chat')),
           })[name],
         getLabel: (name) =>
           ({
             SocioCuotas: 'Cuota',
             SocioNoticias: 'Noticias',
             SocioQr: 'Mi QR',
-            SocioEventos: 'Eventos',
-            SocioChat: 'Chat',
+            SocioEventos: 'Puerta',
+            SocioEntradas: 'Eventos',
             SocioProfile: 'Perfil',
           })[name],
       })}
@@ -127,9 +131,9 @@ function SocioTabs() {
         />
       ) : null}
       <Tab.Screen
-        name="SocioChat"
-        component={SocioChatStack}
-        listeners={tabPressResetToRoot('SocioChat', 'ChatInbox')}
+        name="SocioEntradas"
+        component={SocioEventsStack}
+        listeners={tabPressResetToRoot('SocioEntradas', 'MemberEvents')}
       />
       <Tab.Screen
         name="SocioProfile"

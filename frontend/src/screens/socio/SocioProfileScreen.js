@@ -112,6 +112,14 @@ export default function SocioProfileScreen({ navigation }) {
 
         <View style={[profileCardStyles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <ProfileLinkRow
+            icon="chatbubbles-outline"
+            title="Chat"
+            subtitle="Mensajes del club"
+            onPress={() => navigation.navigate('ChatInbox')}
+            theme={theme}
+            badge={tabBadgeText(tab('chat'))}
+          />
+          <ProfileLinkRow
             icon="wallet-outline"
             title="Cuota social"
             subtitle="Ver y pagar tu cuota social"

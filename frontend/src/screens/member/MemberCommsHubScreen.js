@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { View, StyleSheet, StatusBar } from 'react-native';
+import { StyleSheet, StatusBar, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
@@ -36,7 +36,11 @@ export default function MemberCommsHubScreen({ navigation }) {
         }
       />
       {isTutor ? <MemberChildPicker theme={theme} colorMarca={colorMarca} /> : null}
-      <View style={styles.body}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <EventDoorCard navigation={navigation} />
         <HubMenuCard
           theme={theme}
@@ -88,12 +92,13 @@ export default function MemberCommsHubScreen({ navigation }) {
             onPress={() => navigation.navigate('MemberEvents')}
           />
         ) : null}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  body: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
+  body: { flex: 1 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 28 },
 });

@@ -68,7 +68,7 @@ function lowestPrice(tipos) {
 
 export default function MemberEventsScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
-  const { profile } = useMember();
+  const { profile, isTutor, hijos } = useMember();
   const { theme, isDarkMode } = useContext(ThemeContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const { height: windowHeight } = useWindowDimensions();
@@ -159,8 +159,21 @@ export default function MemberEventsScreen({ navigation }) {
     quoteSeq.current += 1;
   };
 
+  const asistentesForQuote = useCallback(() => {
+    const me = holderFromProfile(profile);
+    const source = holdersRef.current;
+    return Array.from({ length: cantidad }, (_, i) => {
+      const h = source[i] || {};
+      return {
+        nombre: String(h.nombre || '').trim() || (i === 0 ? me.nombre : ''),
+        apellido: String(h.apellido || '').trim() || (i === 0 ? me.apellido : ''),
+        dni: normalizeTicketDni(h.dni) || (i === 0 ? me.dni : ''),
+      };
+    });
+  }, [cantidad, profile]);
+
   const runQuote = useCallback(
-    async (eventId, nextTipoId, nextCantidad) => {
+    async (eventId, nextTipoId, nextAsistentes) => {
       if (!eventId || !nextTipoId) return;
       const seq = ++quoteSeq.current;
       setQuoting(true);
@@ -168,7 +181,7 @@ export default function MemberEventsScreen({ navigation }) {
         const h = await getHeaders();
         const { data } = await clubApi.post(
           `/events/${eventId}/quote`,
-          { tipoEntradaId: nextTipoId, cantidad: nextCantidad },
+          { tipoEntradaId: nextTipoId, cantidad: nextAsistentes.length, asistentes: nextAsistentes },
           { headers: h },
         );
         if (seq === quoteSeq.current) setQuote(data);
@@ -184,13 +197,18 @@ export default function MemberEventsScreen({ navigation }) {
     [getHeaders],
   );
 
+  const holderKey = holders
+    .slice(0, cantidad)
+    .map((h) => `${h.nombre}|${h.apellido}|${h.dni}`)
+    .join(';');
+
   useEffect(() => {
     if (!selected?._id || !tipoId) return undefined;
     const t = setTimeout(() => {
-      runQuote(selected._id, tipoId, cantidad);
+      runQuote(selected._id, tipoId, asistentesForQuote());
     }, 280);
     return () => clearTimeout(t);
-  }, [selected?._id, tipoId, cantidad, runQuote]);
+  }, [selected?._id, tipoId, cantidad, holderKey, asistentesForQuote, runQuote]);
 
   useEffect(() => {
     const seated = (selected?.secciones || []).some(
@@ -221,6 +239,23 @@ export default function MemberEventsScreen({ navigation }) {
     holderTouched.current = true;
     setBuyNotice('');
     setHolders((prev) => prev.map((h, i) => (i === index ? { ...h, [field]: value } : h)));
+  };
+
+  const useAthleteOnTicket = (index, hijo) => {
+    holderTouched.current = true;
+    setBuyNotice('');
+    setHolders((prev) =>
+      prev.map((h, i) =>
+        i === index
+          ? {
+              ...h,
+              nombre: hijo?.nombre || '',
+              apellido: hijo?.apellido || '',
+              dni: normalizeTicketDni(hijo?.dni),
+            }
+          : h,
+      ),
+    );
   };
 
   const buy = async () => {
@@ -354,7 +389,7 @@ export default function MemberEventsScreen({ navigation }) {
           kicker="Club"
           title="Eventos"
           subtitle="Entradas para socios y atletas del club"
-          onBack={() => navigation.goBack()}
+          onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
           showNotifications={false}
           rightAccessory={
             <TouchableOpacity
@@ -592,8 +627,26 @@ export default function MemberEventsScreen({ navigation }) {
                   keyboardType="number-pad"
                   style={[styles.holderInput, { color: theme.text, borderColor: theme.border }]}
                 />
+                {isTutor && (hijos || []).length ? (
+                  <View style={styles.athleteRow}>
+                    {(hijos || []).map((hijo) => (
+                      <TouchableOpacity
+                        key={`${index}-${hijo._id}`}
+                        onPress={() => useAthleteOnTicket(index, hijo)}
+                        style={[styles.athleteChip, { borderColor: colorMarca }]}
+                      >
+                        <Text style={{ color: colorMarca, fontWeight: '800', fontSize: 12 }}>
+                          {hijo.nombre || 'Atleta'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : null}
               </View>
             ))}
+            <Text style={{ color: theme.textMuted, fontSize: 12, lineHeight: 17 }}>
+              El descuento aplica solo en la entrada que lleva el nombre y el DNI de quien lo tiene.
+            </Text>
 
             <View
               style={[
@@ -617,15 +670,18 @@ export default function MemberEventsScreen({ navigation }) {
                           fontWeight: '600',
                         }}
                       >
-                        Tenés cuotas vencidas: se cobra precio lleno.
+                        Hay cuotas vencidas: esa entrada se cobra a precio lleno.
                       </Text>
                     </View>
                   ) : null}
-                  {quote.reglaAplicada ? (
+                  {quote.cantidadConDescuento > 0 ? (
                     <Text style={{ color: theme.textMuted, fontSize: 13, lineHeight: 18 }}>
-                      {quote.cantidadConDescuento} con descuento (${formatMoney(quote.precioConDescuento)})
+                      {(quote.lineas || [])
+                        .filter((line) => line.conDescuento)
+                        .map((line) => `${line.titular || 'Descuento'} $${formatMoney(line.precio)}`)
+                        .join(' · ')}
                       {quote.cantidadPrecioLleno
-                        ? ` + ${quote.cantidadPrecioLleno} a precio lleno ($${formatMoney(quote.precioLista)})`
+                        ? ` · ${quote.cantidadPrecioLleno} a precio lleno ($${formatMoney(quote.precioLista)})`
                         : ''}
                     </Text>
                   ) : (
@@ -804,6 +860,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 12,
     marginBottom: 8,
+  },
+  athleteRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  athleteChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
   holderInput: {
     borderWidth: 1,

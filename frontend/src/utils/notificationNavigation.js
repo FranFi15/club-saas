@@ -175,7 +175,7 @@ export function getNotificationTarget(item, { rol, cuotasEnApp, isTutor }) {
     }
     if (rol === 'socio') {
       return {
-        tab: 'SocioChat',
+        tab: 'SocioProfile',
         screen: item?.conversationId ? 'ChatThread' : 'ChatInbox',
         params,
       };

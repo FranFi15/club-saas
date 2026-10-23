@@ -863,6 +863,11 @@ export default function AdminEventosScreen({ navigation }) {
             userId: addMode === 'app' ? pickedUser?._id : undefined,
             tipoEntradaId: addTipoId,
             cantidad: addQty,
+            asistentes: addHolders.slice(0, addQty).map((h) => ({
+              nombre: h.nombre || '',
+              apellido: h.apellido || '',
+              dni: h.dni || '',
+            })),
           },
           { headers: h },
         );
@@ -883,7 +888,7 @@ export default function AdminEventosScreen({ navigation }) {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [addEvent, addMode, pickedUser, addTipoId, addQty, getHeaders]);
+  }, [addEvent, addMode, pickedUser, addTipoId, addQty, addHolders, getHeaders]);
 
   const copyBuyerToFirstTicket = () => {
     const person = addMode === 'app' ? pickedUser : guest;
@@ -2806,12 +2811,12 @@ export default function AdminEventosScreen({ navigation }) {
                         ${formatMoney(cashQuote.montoTotal)}
                       </Text>
                       <Text style={{ color: theme.textMuted, fontSize: 12 }}>
-                        {cashQuote.descuentoBloqueadoPorDeuda
+                        {cashQuote.descuentoBloqueadoPorDeuda && !cashQuote.cantidadConDescuento
                           ? 'Sin descuento: tiene cuotas vencidas'
-                          : cashQuote.reglaAplicada?.nombre
-                            ? `Descuento: ${cashQuote.reglaAplicada.nombre}`
+                          : cashQuote.cantidadConDescuento
+                            ? `Descuento en ${cashQuote.cantidadConDescuento} entrada${cashQuote.cantidadConDescuento === 1 ? '' : 's'}${cashQuote.reglaAplicada?.nombre ? ` (${cashQuote.reglaAplicada.nombre})` : ''}`
                             : Number(cashQuote.montoTotal) > 0
-                              ? 'Efectivo'
+                              ? 'Precio de lista'
                               : 'Sin cargo'}
                       </Text>
                     </>

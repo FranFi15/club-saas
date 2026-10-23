@@ -425,6 +425,15 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
     user.email = req.body.email || user.email;
     if (req.body.telefono !== undefined) user.telefono = String(req.body.telefono || '').trim();
     if (req.body.direccion !== undefined) user.direccion = String(req.body.direccion || '').trim();
+    if (req.body.dni !== undefined) user.dni = String(req.body.dni || '').trim();
+    if (req.body.obraSocial !== undefined) user.obraSocial = String(req.body.obraSocial || '').trim();
+    if (req.body.password) {
+        if (String(req.body.password).length < 6) {
+            res.status(400);
+            throw new Error('La contraseña debe tener al menos 6 caracteres.');
+        }
+        user.password = req.body.password;
+    }
     
     if (req.body.fechaNacimiento !== undefined) {
         user.fechaNacimiento = req.body.fechaNacimiento || undefined;
