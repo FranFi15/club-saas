@@ -22,8 +22,8 @@
     "concurrently": "^8.2.2"
   },
   "overrides": {
-    "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "dependencies": {
     "object-assign": "^4.1.1",

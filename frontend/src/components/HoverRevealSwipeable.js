@@ -6,7 +6,7 @@ import React, {
   Children,
 } from 'react';
 import { Platform, StyleSheet, View, TouchableOpacity, Pressable } from 'react-native';
-import { Swipeable } from 'react-native-gesture-handler';
+import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 const WEB_ACTION_PAD = 52;
 
