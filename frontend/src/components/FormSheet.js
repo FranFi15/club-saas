@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { AlertHost } from './CustomAlert';
 
 /**
  * Hoja de formulario: vuelve arriba, el contenido scrollea y no tapa el botón.
@@ -33,6 +34,7 @@ export default function FormSheet({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={{ flex: 1 }}>
       <KeyboardAvoidingView
         style={[styles.overlay, { height: windowHeight }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -78,6 +80,8 @@ export default function FormSheet({
           {footer}
         </SafeAreaView>
       </KeyboardAvoidingView>
+      <AlertHost active={visible} />
+      </View>
     </Modal>
   );
 }

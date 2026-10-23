@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../utils/api';
 import StadiumAreaStage from './StadiumAreaStage';
+import { AlertHost } from './CustomAlert';
 
 const emptySection = () => ({
   nombre: '',
@@ -56,6 +57,8 @@ export default function StadiumLibrary({
   theme,
   colorMarca,
   uploading,
+  embedded = false,
+  children = null,
 }) {
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -63,18 +66,25 @@ export default function StadiumLibrary({
   const [placing, setPlacing] = useState(null);
 
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      setDraft(null);
+      return;
+    }
     setError('');
     setPlacing(null);
     setDraft(mode === 'create' ? fromApi(null) : null);
   }, [visible, mode]);
+
+  if (visible && mode === 'create' && !draft) {
+    setDraft(fromApi(null));
+  }
 
   const inputStyle = [
     styles.input,
     { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface },
   ];
 
-  const save = async () => {
+  const save = async (useOnEvent) => {
     const nombre = draft?.nombre?.trim();
     if (!nombre) {
       setError('Poné un nombre al estadio.');
@@ -102,8 +112,12 @@ export default function StadiumLibrary({
         ? await clubApi.patch(`/events/admin/stadiums/${draft._id}`, payload, { headers })
         : await clubApi.post('/events/admin/stadiums', payload, { headers });
       await reload();
-      if (mode === 'create' && onUse) {
+      if (useOnEvent && onUse) {
         onUse(data);
+        onClose();
+        return;
+      }
+      if (mode === 'create') {
         onClose();
         return;
       }
@@ -175,9 +189,10 @@ export default function StadiumLibrary({
     setPlacing(idx);
   };
 
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
+  if (embedded && !visible) return null;
+
+  const sheet = (
+      <View style={embedded ? [StyleSheet.absoluteFill, styles.overlay, styles.embedded] : styles.overlay}>
         <Pressable style={styles.backdrop} onPress={onClose} />
         <View style={[styles.sheet, { backgroundColor: theme.background }]}>
           <View style={[styles.header, { borderBottomColor: theme.border }]}>
@@ -193,7 +208,7 @@ export default function StadiumLibrary({
           </View>
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
             {error ? <Text style={styles.error}>{error}</Text> : null}
-            {!draft ? (
+            {mode !== 'create' && !draft ? (
               <View>
                 <Text style={{ color: theme.textMuted, marginBottom: 12 }}>
                   Creá el plano y los sectores una vez. Después podés reutilizarlos en cada evento.
@@ -230,7 +245,7 @@ export default function StadiumLibrary({
                   <Text style={{ color: colorMarca, fontWeight: '800', marginLeft: 6 }}>Nuevo estadio</Text>
                 </TouchableOpacity>
               </View>
-            ) : (
+            ) : draft ? (
               <View>
                 <Text style={[styles.label, { color: theme.textMuted }]}>Nombre</Text>
                 <TextInput
@@ -367,23 +382,62 @@ export default function StadiumLibrary({
                 >
                   <Text style={{ color: colorMarca, fontWeight: '800', marginBottom: 16 }}>+ Sector</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={save}
-                  disabled={saving}
-                  style={[styles.save, { backgroundColor: colorMarca }]}
-                >
-                  {saving ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={{ color: '#fff', fontWeight: '800' }}>
-                      {mode === 'create' ? 'Guardar y usar' : 'Guardar estadio'}
-                    </Text>
-                  )}
-                </TouchableOpacity>
+                {mode === 'create' ? (
+                  <View style={styles.saveRow}>
+                    <TouchableOpacity
+                      onPress={() => save(false)}
+                      disabled={saving}
+                      style={[styles.save, styles.saveHalf, styles.saveGhost, { borderColor: colorMarca, opacity: saving ? 0.7 : 1 }]}
+                    >
+                      <Text style={{ color: colorMarca, fontWeight: '800' }}>Guardar estadio</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => save(true)}
+                      disabled={saving}
+                      style={[styles.save, styles.saveHalf, { backgroundColor: colorMarca, opacity: saving ? 0.7 : 1 }]}
+                    >
+                      {saving ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text style={{ color: '#fff', fontWeight: '800' }}>Guardar y usar</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => save(false)}
+                    disabled={saving}
+                    style={[styles.save, { backgroundColor: colorMarca, opacity: saving ? 0.7 : 1 }]}
+                  >
+                    {saving ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={{ color: '#fff', fontWeight: '800' }}>Guardar estadio</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
               </View>
-            )}
+            ) : null}
           </ScrollView>
         </View>
+      </View>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        {sheet}
+        {children}
+      </>
+    );
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={{ flex: 1 }}>
+        {sheet}
+        {children}
+        <AlertHost active={visible} />
       </View>
     </Modal>
   );
@@ -391,6 +445,7 @@ export default function StadiumLibrary({
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end' },
+  embedded: { zIndex: 50, elevation: 50 },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
   sheet: { maxHeight: '92%', borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden' },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderBottomWidth: 1 },
@@ -438,5 +493,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 10,
   },
+  saveRow: { flexDirection: 'row', gap: 8 },
   save: { borderRadius: 14, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  saveHalf: { flex: 1 },
+  saveGhost: { borderWidth: 1, backgroundColor: 'transparent' },
 });

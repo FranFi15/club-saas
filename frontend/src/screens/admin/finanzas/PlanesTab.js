@@ -18,6 +18,7 @@ import CuotaSocialSection from './CuotaSocialSection';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
 import { clubApi } from '../../../utils/api';
+import { AlertHost } from '../../../components/CustomAlert';
 
 export default function PlanesTab({
   clubData,
@@ -530,6 +531,7 @@ export default function PlanesTab({
 
             {isSavingAssignment ? <ActivityIndicator color={cc} style={{ marginTop: 12 }} /> : null}
           </View>
+          <AlertHost active={!!assignTarget} />
         </View>
       </Modal>
     </View>

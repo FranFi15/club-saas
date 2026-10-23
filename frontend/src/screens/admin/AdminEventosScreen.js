@@ -20,12 +20,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import QRCode from 'react-native-qrcode-svg';
 import { clubApi } from '../../utils/api';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
-import CustomAlert from '../../components/CustomAlert';
+import CustomAlert, { AlertHost } from '../../components/CustomAlert';
 import StadiumSeatPicker from '../../components/StadiumSeatPicker';
 import StadiumLibrary from '../../components/StadiumLibrary';
 import DiscountLibrary from '../../components/DiscountLibrary';
@@ -105,16 +106,6 @@ function formatOrderWhen(iso) {
 }
 
 const emptyTipo = () => ({ nombre: 'General', precio: '0', cupo: '100', activo: true });
-const emptyRegla = () => ({
-  nombre: 'Socio',
-  roles: ['socio'],
-  cuotasSociales: [],
-  planes: [],
-  modo: 'porcentaje',
-  valor: '0',
-  maxEntradasConDescuento: '1',
-  activo: true,
-});
 
 function toDisplayDate(iso) {
   if (!iso) return '';
@@ -217,6 +208,10 @@ export default function AdminEventosScreen({ navigation }) {
   const [stadiums, setStadiums] = useState([]);
   const [discounts, setDiscounts] = useState([]);
   const [discountOpen, setDiscountOpen] = useState(false);
+  const [discountPickerOpen, setDiscountPickerOpen] = useState(false);
+  const [stadiumPickerOpen, setStadiumPickerOpen] = useState(false);
+  const [stadiumPickId, setStadiumPickId] = useState('');
+  const [discountPickIds, setDiscountPickIds] = useState([]);
   const [stadiumOpen, setStadiumOpen] = useState(false);
   const [stadiumMode, setStadiumMode] = useState('manage');
   const [placingSection, setPlacingSection] = useState(null);
@@ -384,6 +379,12 @@ export default function AdminEventosScreen({ navigation }) {
     setExpandedReglaIdx(null);
     setDoorQuery('');
     setDoorHits([]);
+    setDiscountPickerOpen(false);
+    setDiscountPickIds([]);
+    setDiscountOpen(false);
+    setStadiumPickerOpen(false);
+    setStadiumPickId('');
+    setStadiumOpen(false);
   };
 
   const openCreate = () => {
@@ -1114,26 +1115,38 @@ export default function AdminEventosScreen({ navigation }) {
     });
   };
 
+  const reglaFromSaved = (discount) => ({
+    nombre: discount.nombre || 'Descuento',
+    roles: discount.roles || [],
+    cuotasSociales: (discount.cuotasSociales || []).map((id) => String(id?._id || id)),
+    planes: (discount.planes || []).map((id) => String(id?._id || id)),
+    modo: discount.modo || 'porcentaje',
+    valor: String(discount.valor ?? 0),
+    maxEntradasConDescuento: String(discount.maxEntradasConDescuento || 1),
+    activo: discount.activo !== false,
+  });
+
   const applySavedDiscount = (discount) => {
     if (!discount) return;
     const nextIdx = form.reglasDescuento.length;
     setForm((current) => ({
       ...current,
-      reglasDescuento: [
-        ...current.reglasDescuento,
-        {
-          nombre: discount.nombre || 'Descuento',
-          roles: discount.roles || [],
-          cuotasSociales: (discount.cuotasSociales || []).map((id) => String(id?._id || id)),
-          planes: (discount.planes || []).map((id) => String(id?._id || id)),
-          modo: discount.modo || 'porcentaje',
-          valor: String(discount.valor ?? 0),
-          maxEntradasConDescuento: String(discount.maxEntradasConDescuento || 1),
-          activo: discount.activo !== false,
-        },
-      ],
+      reglasDescuento: [...current.reglasDescuento, reglaFromSaved(discount)],
     }));
     setExpandedReglaIdx(nextIdx);
+  };
+
+  const addPickedDiscounts = () => {
+    const chosen = discounts.filter((discount) => discountPickIds.includes(String(discount._id)));
+    if (chosen.length) {
+      setForm((current) => ({
+        ...current,
+        reglasDescuento: [...current.reglasDescuento, ...chosen.map(reglaFromSaved)],
+      }));
+      setExpandedReglaIdx(null);
+    }
+    setDiscountPickerOpen(false);
+    setDiscountPickIds([]);
   };
 
   const saveRuleTemplate = async (rule) => {
@@ -1561,23 +1574,21 @@ export default function AdminEventosScreen({ navigation }) {
       <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8 }}>
         Reutilizá uno guardado o creá uno nuevo. Si hay un solo tipo de entrada, todos los sectores usan ese tipo. Cada sector tiene su propio precio.
       </Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 12 }}>
-        {stadiums.map((stadium) => {
-          const on = String(form.estadioId) === String(stadium._id);
-          return (
-            <TouchableOpacity
-              key={stadium._id}
-              onPress={() => applyStadium(stadium)}
-              style={[
-                styles.addPill,
-                { borderColor: on ? colorMarca : theme.border, backgroundColor: on ? colorMarca : theme.surface },
-              ]}
-            >
-              <Ionicons name="business-outline" size={16} color={on ? '#fff' : colorMarca} />
-              <Text style={{ color: on ? '#fff' : theme.text, fontWeight: '700', marginLeft: 6 }}>{stadium.nombre}</Text>
-            </TouchableOpacity>
-          );
-        })}
+      <View style={styles.reglaActions}>
+        <TouchableOpacity
+          onPress={() => {
+            setStadiumPickId(form.estadioId ? String(form.estadioId) : '');
+            setStadiumPickerOpen(true);
+          }}
+          style={[styles.addPill, { borderColor: colorMarca, flex: 1, minWidth: 0 }]}
+        >
+          <Ionicons name="business-outline" size={16} color={colorMarca} />
+          <Text style={{ color: colorMarca, fontWeight: '800', marginLeft: 6, flexShrink: 1 }} numberOfLines={1}>
+            {form.estadioId
+              ? stadiums.find((stadium) => String(stadium._id) === String(form.estadioId))?.nombre || 'Estadios guardados'
+              : 'Estadios guardados'}
+          </Text>
+        </TouchableOpacity>
         <TouchableOpacity
           onPress={() => {
             setStadiumMode('create');
@@ -1588,7 +1599,7 @@ export default function AdminEventosScreen({ navigation }) {
           <Ionicons name="add" size={16} color={colorMarca} />
           <Text style={{ color: colorMarca, fontWeight: '800', marginLeft: 4 }}>Nuevo</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </View>
       {form.tiposEntrada.map((t, idx) => {
         const open = expandedTipoIdx === idx;
         const sections = (form.secciones || [])
@@ -1632,6 +1643,24 @@ export default function AdminEventosScreen({ navigation }) {
                 color={theme.textMuted}
               />
             </TouchableOpacity>
+            {form.tiposEntrada.length > 1 ? (
+              <View style={styles.reglaActions}>
+                <TouchableOpacity
+                  onPress={() => {
+                    removeTipo(idx);
+                    setExpandedTipoIdx((cur) => {
+                      if (cur == null) return null;
+                      if (cur === idx) return Math.max(0, idx - 1);
+                      if (cur > idx) return cur - 1;
+                      return cur;
+                    });
+                  }}
+                  style={[styles.reglaAction, { borderColor: '#ef4444' }]}
+                >
+                  <Text style={{ color: '#ef4444', fontWeight: '700' }}>Quitar</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
             {open ? (
               <View style={styles.foldBody}>
                 <Field label="Nombre" theme={theme}>
@@ -1771,25 +1800,6 @@ export default function AdminEventosScreen({ navigation }) {
                     Vendidas / en hold: {t.vendidas}
                   </Text>
                 ) : null}
-                {form.tiposEntrada.length > 1 ? (
-                  <TouchableOpacity
-                    onPress={() => {
-                      removeTipo(idx);
-                      setExpandedTipoIdx((cur) => {
-                        if (cur == null) return null;
-                        if (cur === idx) return Math.max(0, idx - 1);
-                        if (cur > idx) return cur - 1;
-                        return cur;
-                      });
-                    }}
-                    style={styles.removeRow}
-                  >
-                    <Ionicons name="trash-outline" size={16} color="#ef4444" />
-                    <Text style={{ color: '#ef4444', marginLeft: 6, fontWeight: '600' }}>
-                      Quitar tipo
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
               </View>
             ) : null}
           </View>
@@ -1818,37 +1828,18 @@ export default function AdminEventosScreen({ navigation }) {
             Tocá una regla para editarla. Orden = prioridad. Con deuda no aplica descuento.
           </Text>
         </View>
-        <TouchableOpacity
-          style={[styles.addPill, { borderColor: colorMarca }]}
-          onPress={() => {
-            const nextIdx = form.reglasDescuento.length;
-            setForm((f) => ({
-              ...f,
-              reglasDescuento: [...f.reglasDescuento, emptyRegla()],
-            }));
-            setExpandedReglaIdx(nextIdx);
-          }}
-        >
-          <Ionicons name="add" size={18} color={colorMarca} />
-          <Text style={{ color: colorMarca, fontWeight: '700', marginLeft: 4 }}>Regla</Text>
-        </TouchableOpacity>
       </View>
-
-      <Text style={[styles.label, { color: theme.textMuted, marginTop: 8 }]}>Descuentos guardados</Text>
-      <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8 }}>
-        Creá uno y volvé a usarlo en otros eventos. Tocá uno para sumarlo a este.
-      </Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 12 }}>
-        {discounts.map((discount) => (
-          <TouchableOpacity
-            key={discount._id}
-            onPress={() => applySavedDiscount(discount)}
-            style={[styles.addPill, { borderColor: colorMarca }]}
-          >
-            <Ionicons name="pricetag-outline" size={16} color={colorMarca} />
-            <Text style={{ color: theme.text, fontWeight: '700', marginLeft: 6 }}>{discount.nombre}</Text>
-          </TouchableOpacity>
-        ))}
+      <View style={styles.reglaActions}>
+        <TouchableOpacity
+          onPress={() => {
+            setDiscountPickIds([]);
+            setDiscountPickerOpen(true);
+          }}
+          style={[styles.addPill, { borderColor: colorMarca }]}
+        >
+          <Ionicons name="pricetag-outline" size={16} color={colorMarca} />
+          <Text style={{ color: colorMarca, fontWeight: '800', marginLeft: 6 }}>Descuentos guardados</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           onPress={() => setDiscountOpen(true)}
           style={[styles.addPill, { borderColor: colorMarca }]}
@@ -1856,7 +1847,7 @@ export default function AdminEventosScreen({ navigation }) {
           <Ionicons name="add" size={16} color={colorMarca} />
           <Text style={{ color: colorMarca, fontWeight: '800', marginLeft: 4 }}>Nuevo</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </View>
 
       {form.reglasDescuento.length === 0 ? (
         <View
@@ -1864,7 +1855,7 @@ export default function AdminEventosScreen({ navigation }) {
         >
           <Ionicons name="pricetag-outline" size={28} color={theme.textMuted} />
           <Text style={{ color: theme.textMuted, marginTop: 8, textAlign: 'center' }}>
-            Sin reglas: todos pagan precio de lista. Agregá una para socios u otros roles.
+            Sin reglas: todos pagan precio de lista. Elegí descuentos guardados para este evento.
           </Text>
         </View>
       ) : null}
@@ -1897,6 +1888,33 @@ export default function AdminEventosScreen({ navigation }) {
                 color={theme.textMuted}
               />
             </TouchableOpacity>
+            <View style={styles.reglaActions}>
+              <TouchableOpacity
+                onPress={() => saveRuleTemplate(r)}
+                style={[styles.reglaAction, { borderColor: colorMarca, flex: 1 }]}
+              >
+                <Text style={{ color: colorMarca, fontWeight: '700' }} numberOfLines={1}>
+                  Guardar para reusar
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  setForm((f) => ({
+                    ...f,
+                    reglasDescuento: f.reglasDescuento.filter((_, i) => i !== idx),
+                  }));
+                  setExpandedReglaIdx((cur) => {
+                    if (cur == null) return null;
+                    if (cur === idx) return null;
+                    if (cur > idx) return cur - 1;
+                    return cur;
+                  });
+                }}
+                style={[styles.reglaAction, { borderColor: '#ef4444' }]}
+              >
+                <Text style={{ color: '#ef4444', fontWeight: '700' }}>Quitar</Text>
+              </TouchableOpacity>
+            </View>
 
             {open ? (
               <View style={styles.foldBody}>
@@ -2017,33 +2035,6 @@ export default function AdminEventosScreen({ navigation }) {
                     keyboardType="number-pad"
                   />
                 </Field>
-
-                <TouchableOpacity onPress={() => saveRuleTemplate(r)} style={styles.removeRow}>
-                  <Ionicons name="bookmark-outline" size={16} color={colorMarca} />
-                  <Text style={{ color: colorMarca, marginLeft: 6, fontWeight: '700' }}>
-                    Guardar para reusar
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => {
-                    setForm((f) => ({
-                      ...f,
-                      reglasDescuento: f.reglasDescuento.filter((_, i) => i !== idx),
-                    }));
-                    setExpandedReglaIdx((cur) => {
-                      if (cur == null) return null;
-                      if (cur === idx) return null;
-                      if (cur > idx) return cur - 1;
-                      return cur;
-                    });
-                  }}
-                  style={styles.removeRow}
-                >
-                  <Ionicons name="trash-outline" size={16} color="#ef4444" />
-                  <Text style={{ color: '#ef4444', marginLeft: 6, fontWeight: '600' }}>
-                    Quitar regla
-                  </Text>
-                </TouchableOpacity>
               </View>
             ) : null}
           </View>
@@ -2162,10 +2153,9 @@ export default function AdminEventosScreen({ navigation }) {
                 onPress={() => setDiscountOpen(true)}
                 style={styles.headerDiscountBtn}
                 accessibilityRole="button"
-                accessibilityLabel="Crear descuento"
+                accessibilityLabel="Descuentos"
               >
-                <Ionicons name="pricetag-outline" size={16} color="#ffffff" />
-                <Text style={styles.headerDiscountTxt}>Descuento</Text>
+                <MaterialCommunityIcons name="percent-outline" size={20} color="#ffffff" />
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => {
@@ -2225,6 +2215,7 @@ export default function AdminEventosScreen({ navigation }) {
       ) : null}
 
       <Modal visible={modalOpen} animationType="slide" transparent onRequestClose={closeFormModal}>
+        <View style={{ flex: 1, height: windowHeight }}>
         <KeyboardAvoidingView
           style={[styles.ordersOverlay, { height: windowHeight }]}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -2340,6 +2331,179 @@ export default function AdminEventosScreen({ navigation }) {
             </View>
           </SafeAreaView>
         </KeyboardAvoidingView>
+          {discountPickerOpen ? (
+            <View style={[StyleSheet.absoluteFill, styles.discountAlertOverlay]}>
+              <Pressable style={StyleSheet.absoluteFill} onPress={() => setDiscountPickerOpen(false)} />
+              <View style={[styles.discountAlertCard, { backgroundColor: theme.surface }]}>
+                <Text style={[styles.discountAlertTitle, { color: theme.text }]}>Descuentos guardados</Text>
+                <Text style={[styles.discountAlertMessage, { color: theme.textMuted }]}>
+                  {discounts.length
+                    ? 'Elegí los que querés sumar a este evento.'
+                    : 'Todavía no hay descuentos. Creálos con Nuevo.'}
+                </Text>
+                <ScrollView style={{ maxHeight: 280 }} keyboardShouldPersistTaps="handled">
+                  {discounts.map((discount) => {
+                    const id = String(discount._id);
+                    const on = discountPickIds.includes(id);
+                    return (
+                      <TouchableOpacity
+                        key={id}
+                        onPress={() =>
+                          setDiscountPickIds((current) =>
+                            current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+                          )
+                        }
+                        style={[styles.discountAlertRow, { borderColor: theme.border }]}
+                      >
+                        <Ionicons
+                          name={on ? 'checkbox' : 'square-outline'}
+                          size={22}
+                          color={on ? colorMarca : theme.textMuted}
+                        />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: theme.text, fontWeight: '800' }}>{discount.nombre}</Text>
+                          <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
+                            {discount.modo === 'gratis'
+                              ? 'Gratis'
+                              : discount.modo === 'precio_fijo'
+                                ? `$${discount.valor || 0}`
+                                : `${discount.valor || 0}%`}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                <View style={styles.discountAlertActions}>
+                  <TouchableOpacity
+                    onPress={() => setDiscountPickerOpen(false)}
+                    style={[styles.discountAlertBtn, { borderColor: theme.border, borderWidth: 1 }]}
+                  >
+                    <Text style={{ color: theme.text, fontWeight: '700' }}>Cancelar</Text>
+                  </TouchableOpacity>
+                  {discounts.length ? (
+                    <TouchableOpacity
+                      onPress={addPickedDiscounts}
+                      disabled={!discountPickIds.length}
+                      style={[
+                        styles.discountAlertBtn,
+                        { backgroundColor: colorMarca, opacity: discountPickIds.length ? 1 : 0.45 },
+                      ]}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: '800' }}>Agregar</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+          ) : null}
+          {stadiumPickerOpen ? (
+            <View style={[StyleSheet.absoluteFill, styles.discountAlertOverlay]}>
+              <Pressable style={StyleSheet.absoluteFill} onPress={() => setStadiumPickerOpen(false)} />
+              <View style={[styles.discountAlertCard, { backgroundColor: theme.surface }]}>
+                <Text style={[styles.discountAlertTitle, { color: theme.text }]}>Estadios guardados</Text>
+                <Text style={[styles.discountAlertMessage, { color: theme.textMuted }]}>
+                  {stadiums.length
+                    ? 'Elegí el estadio de este evento.'
+                    : 'Todavía no hay estadios. Creá uno con Nuevo.'}
+                </Text>
+                <ScrollView style={{ maxHeight: 280 }} keyboardShouldPersistTaps="handled">
+                  {stadiums.map((stadium) => {
+                    const id = String(stadium._id);
+                    const on = stadiumPickId === id;
+                    const sectorCount = (stadium.secciones || []).length;
+                    return (
+                      <TouchableOpacity
+                        key={id}
+                        onPress={() => setStadiumPickId(id)}
+                        style={[styles.discountAlertRow, { borderColor: theme.border }]}
+                      >
+                        <Ionicons
+                          name={on ? 'radio-button-on' : 'radio-button-off'}
+                          size={22}
+                          color={on ? colorMarca : theme.textMuted}
+                        />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: theme.text, fontWeight: '800' }}>{stadium.nombre}</Text>
+                          <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
+                            {sectorCount} sector{sectorCount === 1 ? '' : 'es'}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                <View style={styles.discountAlertActions}>
+                  <TouchableOpacity
+                    onPress={() => setStadiumPickerOpen(false)}
+                    style={[styles.discountAlertBtn, { borderColor: theme.border, borderWidth: 1 }]}
+                  >
+                    <Text style={{ color: theme.text, fontWeight: '700' }}>Cancelar</Text>
+                  </TouchableOpacity>
+                  {stadiums.length ? (
+                    <TouchableOpacity
+                      onPress={() => {
+                        const stadium = stadiums.find((item) => String(item._id) === stadiumPickId);
+                        if (stadium) applyStadium(stadium);
+                        setStadiumPickerOpen(false);
+                      }}
+                      disabled={!stadiumPickId}
+                      style={[
+                        styles.discountAlertBtn,
+                        { backgroundColor: colorMarca, opacity: stadiumPickId ? 1 : 0.45 },
+                      ]}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: '800' }}>Usar</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+          ) : null}
+          <DiscountLibrary
+            embedded
+            mode="create"
+            visible={discountOpen}
+            onClose={() => setDiscountOpen(false)}
+            onCreated={(discount) => {
+              setDiscounts((prev) => [...prev, discount]);
+              applySavedDiscount(discount);
+            }}
+            hint="Queda guardado para usarlo en este evento y en los próximos."
+            saveLabel="Guardar y usar"
+            getHeaders={getHeaders}
+            theme={theme}
+            colorMarca={colorMarca}
+            pickers={pickers}
+          />
+          <StadiumLibrary
+            embedded
+            visible={stadiumOpen}
+            mode={stadiumMode}
+            onClose={() => setStadiumOpen(false)}
+            stadiums={stadiums}
+            reload={load}
+            onUse={applyStadium}
+            requestMapUpload={requestStadiumMap}
+            getHeaders={getHeaders}
+            theme={theme}
+            colorMarca={colorMarca}
+            uploading={uploadingImage}
+          />
+          <AlertHost active={modalOpen} />
+          <WebImageCropModal
+            embedded
+            visible={Boolean(cropUri)}
+            imageUri={cropUri}
+            aspect={[16, 9]}
+            colorMarca={colorMarca}
+            onCancel={() => {
+              setCropUri(null);
+              finishStadiumMap(null);
+            }}
+            onConfirm={confirmCroppedImage}
+          />
+        </View>
       </Modal>
 
       <Modal visible={ordersOpen} animationType="slide" transparent onRequestClose={() => setOrdersOpen(false)}>
@@ -2588,6 +2752,7 @@ export default function AdminEventosScreen({ navigation }) {
             </TouchableOpacity>
           ) : null}
           </SafeAreaView>
+          <AlertHost active={ordersOpen} />
         </KeyboardAvoidingView>
       </Modal>
 
@@ -2984,6 +3149,7 @@ export default function AdminEventosScreen({ navigation }) {
             </>
           )}
           </SafeAreaView>
+          <AlertHost active={Boolean(addEvent)} />
         </KeyboardAvoidingView>
       </Modal>
 
@@ -2999,18 +3165,22 @@ export default function AdminEventosScreen({ navigation }) {
       />
 
       <DiscountLibrary
-        visible={discountOpen}
+        visible={discountOpen && !modalOpen}
+        mode="manage"
+        discounts={discounts}
         onClose={() => setDiscountOpen(false)}
-        onCreated={(discount) => {
-          setDiscounts((prev) => [...prev, discount]);
-          if (modalOpen) applySavedDiscount(discount);
+        onSaved={(discount) => {
+          setDiscounts((prev) => {
+            const id = String(discount?._id);
+            if (prev.some((item) => String(item._id) === id)) {
+              return prev.map((item) => (String(item._id) === id ? discount : item));
+            }
+            return [...prev, discount];
+          });
         }}
-        hint={
-          modalOpen
-            ? 'Queda guardado para usarlo en este evento y en los próximos.'
-            : 'Queda guardado para usarlo en cualquier evento.'
-        }
-        saveLabel={modalOpen ? 'Guardar y usar' : 'Guardar descuento'}
+        onDeleted={(id) => setDiscounts((prev) => prev.filter((item) => String(item._id) !== String(id)))}
+        hint="Queda guardado para usarlo en cualquier evento."
+        saveLabel="Guardar descuento"
         getHeaders={getHeaders}
         theme={theme}
         colorMarca={colorMarca}
@@ -3018,7 +3188,7 @@ export default function AdminEventosScreen({ navigation }) {
       />
 
       <StadiumLibrary
-        visible={stadiumOpen}
+        visible={stadiumOpen && !modalOpen}
         mode={stadiumMode}
         onClose={() => setStadiumOpen(false)}
         stadiums={stadiums}
@@ -3029,10 +3199,23 @@ export default function AdminEventosScreen({ navigation }) {
         theme={theme}
         colorMarca={colorMarca}
         uploading={uploadingImage}
-      />
+      >
+        <WebImageCropModal
+          embedded
+          visible={Boolean(cropUri) && stadiumOpen && !modalOpen}
+          imageUri={cropUri}
+          aspect={[16, 9]}
+          colorMarca={colorMarca}
+          onCancel={() => {
+            setCropUri(null);
+            finishStadiumMap(null);
+          }}
+          onConfirm={confirmCroppedImage}
+        />
+      </StadiumLibrary>
 
       <WebImageCropModal
-        visible={Boolean(cropUri)}
+        visible={Boolean(cropUri) && !modalOpen && !stadiumOpen}
         imageUri={cropUri}
         aspect={[16, 9]}
         colorMarca={colorMarca}
@@ -3132,17 +3315,48 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
   },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  headerDiscountBtn: {
-    height: 36,
-    paddingHorizontal: 10,
-    borderRadius: 5,
-    backgroundColor: 'rgba(255,255,255,0.22)',
+  discountAlertOverlay: {
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    zIndex: 30,
+    elevation: 30,
+  },
+  discountAlertCard: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 24,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 18,
+  },
+  discountAlertTitle: { fontSize: 20, fontWeight: '800', textAlign: 'center', marginBottom: 8 },
+  discountAlertMessage: { fontSize: 15, textAlign: 'center', lineHeight: 22, marginBottom: 14 },
+  discountAlertRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 10,
   },
-  headerDiscountTxt: { color: '#ffffff', fontWeight: '800', fontSize: 13 },
+  discountAlertActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  discountAlertBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headerDiscountBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 5,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerStadiumBtn: {
     width: 36,
     height: 36,
@@ -3181,6 +3395,21 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     marginBottom: 10,
     overflow: 'hidden',
+  },
+  reglaActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingBottom: 12,
+    paddingHorizontal: 2,
+  },
+  reglaAction: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
   },
   foldHeader: {
     flexDirection: 'row',

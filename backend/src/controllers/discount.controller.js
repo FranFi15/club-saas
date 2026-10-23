@@ -31,6 +31,17 @@ export const createDiscount = asyncHandler(async (req, res) => {
     res.status(201).json(discount);
 });
 
+export const updateDiscount = asyncHandler(async (req, res) => {
+    const discount = await req.models.Discount.findById(req.params.id);
+    if (!discount) {
+        res.status(404);
+        throw new Error('Descuento no encontrado.');
+    }
+    Object.assign(discount, normalizeDiscount(req.body));
+    await discount.save();
+    res.json(discount);
+});
+
 export const deleteDiscount = asyncHandler(async (req, res) => {
     const discount = await req.models.Discount.findByIdAndDelete(req.params.id);
     if (!discount) {

@@ -41,6 +41,7 @@ import {
 import {
     listDiscounts,
     createDiscount,
+    updateDiscount,
     deleteDiscount,
 } from '../controllers/discount.controller.js';
 
@@ -85,6 +86,7 @@ router.patch('/admin/stadiums/:id', protect, authorize(...EVENT_MANAGE), updateS
 router.delete('/admin/stadiums/:id', protect, authorize(...EVENT_MANAGE), deleteStadium);
 router.get('/admin/discounts', protect, authorize(...EVENT_MANAGE), listDiscounts);
 router.post('/admin/discounts', protect, authorize(...EVENT_MANAGE), createDiscount);
+router.patch('/admin/discounts/:id', protect, authorize(...EVENT_MANAGE), updateDiscount);
 router.delete('/admin/discounts/:id', protect, authorize(...EVENT_MANAGE), deleteDiscount);
 router.get('/admin/user-search', protect, authorize(...ADMIN_WRITE), searchEventBuyers);
 router.get('/admin', protect, authorize(...ADMIN_READ), listAdminEvents);

@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Platform, Image, Animated } from 'react-native';
 import { ThemeContext } from '../context/ThemeContext';
 import { ClubContext } from '../context/ClubContext';
@@ -26,6 +26,46 @@ const TITLE_MAP = {
 };
 
 const FADE_MS = 180;
+
+const AlertHostsContext = createContext(null);
+
+export function AlertHostsProvider({ children }) {
+  const [hosts, setHosts] = useState([]);
+  const [alert, setAlert] = useState(null);
+  const pushHost = useCallback((id) => {
+    setHosts((list) => (list.includes(id) ? list : [...list, id]));
+  }, []);
+  const popHost = useCallback((id) => {
+    setHosts((list) => list.filter((item) => item !== id));
+  }, []);
+  const value = useMemo(
+    () => ({
+      topHostId: hosts[hosts.length - 1] || null,
+      alert,
+      setAlert,
+      pushHost,
+      popHost,
+    }),
+    [hosts, alert, pushHost, popHost],
+  );
+  return <AlertHostsContext.Provider value={value}>{children}</AlertHostsContext.Provider>;
+}
+
+export function AlertHost({ active = true }) {
+  const id = useId();
+  const hosts = useContext(AlertHostsContext);
+  const pushHost = hosts?.pushHost;
+  const popHost = hosts?.popHost;
+
+  useEffect(() => {
+    if (!pushHost || !popHost || !active) return undefined;
+    pushHost(id);
+    return () => popHost(id);
+  }, [pushHost, popHost, active, id]);
+
+  if (!hosts || !active || hosts.topHostId !== id || !hosts.alert?.visible) return null;
+  return <AlertOverlay alert={hosts.alert} />;
+}
 
 function friendlyTitle(title) {
   if (!title) return 'Aviso';
@@ -102,6 +142,27 @@ function AlertBody({
   );
 }
 
+export function AlertOverlay({ alert }) {
+  if (!alert?.visible) return null;
+  return (
+    <View style={styles.overlayEmbedded} pointerEvents="auto">
+      <AlertBody
+        theme={alert.theme}
+        clubData={alert.clubData}
+        colorMarca={alert.colorMarca}
+        confirmColor={alert.confirmColor}
+        displayTitle={alert.displayTitle}
+        message={alert.message}
+        showCancel={alert.showCancel}
+        displayCancel={alert.displayCancel}
+        displayConfirm={alert.displayConfirm}
+        onCancel={alert.onCancel}
+        onConfirm={alert.onConfirm}
+      />
+    </View>
+  );
+}
+
 export default function CustomAlert({
   visible,
   title,
@@ -116,7 +177,13 @@ export default function CustomAlert({
 }) {
   const { theme } = useContext(ThemeContext);
   const { clubData } = useContext(ClubContext);
+  const hosts = useContext(AlertHostsContext);
+  const setAlert = hosts?.setAlert;
+  const topHostId = hosts?.topHostId;
+  const alertId = useId();
   const opacity = useRef(new Animated.Value(0)).current;
+  const handlers = useRef({ onConfirm, onCancel });
+  handlers.current = { onConfirm, onCancel };
   const [mounted, setMounted] = useState(visible);
 
   const colorMarca = clubData?.primaryColor || '#3b82f6';
@@ -124,6 +191,44 @@ export default function CustomAlert({
   const displayTitle = friendlyTitle(title);
   const displayConfirm = confirmText === 'Aceptar' ? 'Entendido' : confirmText;
   const displayCancel = cancelText === 'Cancelar' ? 'Volver' : cancelText;
+
+  useEffect(() => {
+    if (!setAlert || embedded) return undefined;
+    if (!visible) {
+      setAlert((current) => (current?.id === alertId ? null : current));
+      return undefined;
+    }
+    setAlert({
+      id: alertId,
+      visible: true,
+      theme,
+      clubData,
+      colorMarca,
+      confirmColor,
+      displayTitle,
+      message,
+      showCancel,
+      displayCancel,
+      displayConfirm,
+      onCancel: () => handlers.current.onCancel?.(),
+      onConfirm: () => handlers.current.onConfirm?.(),
+    });
+    return undefined;
+  }, [
+    setAlert,
+    embedded,
+    visible,
+    alertId,
+    theme,
+    clubData,
+    colorMarca,
+    confirmColor,
+    displayTitle,
+    message,
+    showCancel,
+    displayCancel,
+    displayConfirm,
+  ]);
 
   useEffect(() => {
     if (!embedded) return undefined;
@@ -176,6 +281,7 @@ export default function CustomAlert({
   }
 
   if (!visible) return null;
+  if (topHostId) return null;
 
   return (
     <Modal

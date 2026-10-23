@@ -9,6 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { AlertHost } from './CustomAlert';
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -198,6 +199,7 @@ export default function SelectPaymentsModal({
           )}
         </View>
       </View>
+      <AlertHost active={visible} />
     </Modal>
   );
 }

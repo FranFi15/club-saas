@@ -47,6 +47,7 @@ import { startPaymentGenerationCron } from './src/cron/paymentGeneration.cron.js
 import { startOverduePaymentsCron } from './src/cron/overduePayments.cron.js';
 import { startPaymentRemindersCron } from './src/cron/paymentReminders.cron.js';
 import { startTrialExpiryCron } from './src/cron/trialExpiry.cron.js';
+import { startEventHoldCron } from './src/cron/eventHolds.cron.js';
 import {
     backfillAllClubsMpSellers,
     runMpSellerBackfillOnStart,
@@ -257,6 +258,7 @@ const server = app.listen(PORT, HOST, () => {
         startOverduePaymentsCron();
         startPaymentRemindersCron();
         startTrialExpiryCron();
+        startEventHoldCron();
         runMpSellerBackfillOnStart();
     } catch (err) {
         captureException(err, { area: 'cron_start' });

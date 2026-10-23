@@ -24,7 +24,7 @@ import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
 import { clubApi } from '../../utils/api';
-import CustomAlert from '../../components/CustomAlert';
+import CustomAlert, { AlertHost } from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import DesignCard from '../../components/DesignCard';
 import UserAvatar from '../../components/UserAvatar';
@@ -1316,6 +1316,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
         onRequestClose={() => setSessionMetaOpen(false)}
       >
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <AlertHost active={sessionMetaOpen} />
         <View style={styles.metaModalRoot}>
           <Pressable style={styles.metaModalBackdrop} onPress={() => setSessionMetaOpen(false)} />
           <View style={[styles.metaModalSheet, { backgroundColor: theme.background, borderColor: theme.border }]}>

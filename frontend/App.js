@@ -10,6 +10,7 @@ import { ClubProvider } from './src/context/ClubContext';
 import { BadgeProvider } from './src/context/BadgeContext';
 import MemberRoot from './src/context/MemberRoot';
 import { ThemeProvider } from './src/context/ThemeContext';
+import { AlertHostsProvider } from './src/components/CustomAlert';
 import AppNavigator from './src/navigation/AppNavigator';
 import AndroidSystemChrome from './src/components/AndroidSystemChrome';
 
@@ -45,12 +46,14 @@ function App() {
       <SafeAreaProvider>
         <ThemeProvider>
           <ClubProvider>
+            <AlertHostsProvider>
             <BadgeProvider>
               <MemberRoot>
                 <AppNavigator />
                 <AndroidSystemChrome />
               </MemberRoot>
             </BadgeProvider>
+            </AlertHostsProvider>
           </ClubProvider>
         </ThemeProvider>
       </SafeAreaProvider>

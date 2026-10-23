@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 import {
     buildEventTicketToken,
     formatEventTicketQrValue,
@@ -283,18 +284,73 @@ export function ticketsWithQr(tickets, clubIdentifier, event) {
 /**
  * Release cupo held by an expired/cancelled pending order.
  */
+function tipoObjectId(id) {
+    const value = String(id || '');
+    return mongoose.Types.ObjectId.isValid(value) ? new mongoose.Types.ObjectId(value) : null;
+}
+
+/** Atomic cupo change. A positive delta succeeds only when the seats still exist. */
+export async function adjustTipoVendidas(ClubEvent, eventId, tipoEntradaId, delta) {
+    const qty = Math.floor(Number(delta) || 0);
+    const tipoId = tipoObjectId(tipoEntradaId);
+    if (!qty || !tipoId || !eventId) return false;
+
+    if (qty > 0) {
+        const res = await ClubEvent.updateOne(
+            {
+                _id: eventId,
+                $expr: {
+                    $let: {
+                        vars: {
+                            tipo: {
+                                $first: {
+                                    $filter: {
+                                        input: '$tiposEntrada',
+                                        as: 't',
+                                        cond: { $eq: ['$$t._id', tipoId] },
+                                    },
+                                },
+                            },
+                        },
+                        in: {
+                            $and: [
+                                { $ne: ['$$tipo.activo', false] },
+                                {
+                                    $lte: [
+                                        { $add: [{ $ifNull: ['$$tipo.vendidas', 0] }, qty] },
+                                        { $ifNull: ['$$tipo.cupo', 0] },
+                                    ],
+                                },
+                            ],
+                        },
+                    },
+                },
+            },
+            { $inc: { 'tiposEntrada.$[tipo].vendidas': qty } },
+            { arrayFilters: [{ 'tipo._id': tipoId }] },
+        );
+        return res.modifiedCount === 1;
+    }
+
+    await ClubEvent.updateOne(
+        { _id: eventId, 'tiposEntrada._id': tipoId },
+        { $inc: { 'tiposEntrada.$.vendidas': qty } },
+    );
+    await ClubEvent.updateOne(
+        {
+            _id: eventId,
+            tiposEntrada: { $elemMatch: { _id: tipoId, vendidas: { $lt: 0 } } },
+        },
+        { $set: { 'tiposEntrada.$.vendidas': 0 } },
+    );
+    return true;
+}
+
 export async function releaseOrderHold(models, order) {
     const { ClubEvent } = models;
     if (!order || order.estado !== 'pendiente_pago') return order;
 
-    const event = await ClubEvent.findById(order.evento);
-    if (!event) return order;
-
-    const tipo = event.tiposEntrada.id(order.tipoEntrada);
-    if (tipo) {
-        tipo.vendidas = Math.max(0, Number(tipo.vendidas || 0) - Number(order.cantidad || 0));
-        await event.save();
-    }
+    await adjustTipoVendidas(ClubEvent, order.evento, order.tipoEntrada, -Number(order.cantidad || 0));
     order.estado = 'expirada';
     await order.save();
     return order;
@@ -303,11 +359,15 @@ export async function releaseOrderHold(models, order) {
 export async function expireStaleHolds(models) {
     const { EventTicketOrder } = models;
     const now = new Date();
-    const stale = await EventTicketOrder.find({
-        estado: 'pendiente_pago',
-        holdUntil: { $lte: now },
-    }).limit(50);
-    for (const order of stale) {
-        await releaseOrderHold(models, order);
+    for (;;) {
+        const stale = await EventTicketOrder.find({
+            estado: 'pendiente_pago',
+            holdUntil: { $lte: now },
+        }).limit(50);
+        if (!stale.length) break;
+        for (const order of stale) {
+            await releaseOrderHold(models, order);
+        }
+        if (stale.length < 50) break;
     }
 }

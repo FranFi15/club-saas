@@ -13,6 +13,7 @@ import {
     normalizeAsistentes,
     bindHolderSeats,
     listOccupiedSeats,
+    adjustTipoVendidas,
 } from '../services/eventTicketIssue.service.js';
 import { parseEventTicketToken } from '../services/eventTicketToken.service.js';
 import { createEventOrderMpPreference } from '../services/eventMp.service.js';
@@ -164,14 +165,18 @@ function normalizeReglas(raw) {
 }
 
 async function reserveCupo(event, tipoEntradaId, cantidad) {
+    const qty = Math.max(1, Math.floor(Number(cantidad) || 0));
     const tipo = event.tiposEntrada.id(tipoEntradaId);
     if (!tipo || !tipo.activo) {
         const err = new Error('Tipo de entrada no disponible.');
         err.statusCode = 400;
         throw err;
     }
-    const disponibles = Math.max(0, Number(tipo.cupo) - Number(tipo.vendidas || 0));
-    if (cantidad > disponibles) {
+    const reserved = await adjustTipoVendidas(event.constructor, event._id, tipo._id, qty);
+    if (!reserved) {
+        const fresh = await event.constructor.findById(event._id).select('tiposEntrada').lean();
+        const current = (fresh?.tiposEntrada || []).find((item) => String(item._id) === String(tipo._id));
+        const disponibles = Math.max(0, Number(current?.cupo || 0) - Number(current?.vendidas || 0));
         const err = new Error(
             disponibles <= 0
                 ? 'No quedan entradas de este tipo.'
@@ -180,8 +185,7 @@ async function reserveCupo(event, tipoEntradaId, cantidad) {
         err.statusCode = 400;
         throw err;
     }
-    tipo.vendidas = Number(tipo.vendidas || 0) + cantidad;
-    await event.save();
+    tipo.vendidas = Number(tipo.vendidas || 0) + qty;
     return tipo;
 }
 
@@ -615,11 +619,7 @@ export const adminCashSale = asyncHandler(async (req, res) => {
             tickets: ticketsWithQr(tickets, req.clubIdentifier, event),
         });
     } catch (e) {
-        const tipo = event.tiposEntrada.id(quote.tipoEntradaId);
-        if (tipo) {
-            tipo.vendidas = Math.max(0, Number(tipo.vendidas || 0) - quote.cantidad);
-            await event.save();
-        }
+        await adjustTipoVendidas(event.constructor, event._id, quote.tipoEntradaId, -quote.cantidad);
         await EventTicketOrder.findByIdAndUpdate(order._id, { estado: 'cancelada' });
         throw e;
     }

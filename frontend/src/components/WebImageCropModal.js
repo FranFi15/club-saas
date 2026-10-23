@@ -26,6 +26,7 @@ export default function WebImageCropModal({
   colorMarca = '#3b82f6',
   onCancel,
   onConfirm,
+  embedded = false,
 }) {
   const [imgSize, setImgSize] = useState({ w: 0, h: 0 });
   const [scale, setScale] = useState(1);
@@ -158,10 +159,10 @@ export default function WebImageCropModal({
   if (Platform.OS !== 'web') return null;
 
   const ready = imgSize.w > 0;
+  if (embedded && !visible) return null;
 
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={styles.backdrop}>
+  const sheet = (
+      <View style={embedded ? [StyleSheet.absoluteFill, styles.backdrop, styles.embedded] : styles.backdrop}>
         <View style={styles.sheet}>
           <Text style={styles.title}>Ajustar imagen</Text>
           <Text style={styles.hint}>Arrastrá para encuadrar · usá el zoom</Text>
@@ -226,6 +227,13 @@ export default function WebImageCropModal({
           </View>
         </View>
       </View>
+  );
+
+  if (embedded) return sheet;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      {sheet}
     </Modal>
   );
 }
@@ -250,6 +258,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 16,
   },
+  embedded: { zIndex: 60, elevation: 60 },
   sheet: {
     width: '100%',
     maxWidth: 400,
