@@ -33,6 +33,9 @@ const TIPO_LABELS = {
   nutricion: 'Nutrición',
   estudio_medico: 'Estudio médico',
   tactico: 'Táctico',
+  stats: 'Stats',
+  highlights: 'Highlights',
+  playbook: 'Playbook',
   otro: 'Otro',
 };
 
@@ -164,12 +167,27 @@ export default function AthleteResourcesScreen({ navigation }) {
 
   const selectedStaffLabel = staffFilterOptions.find((o) => o.value === selectedStaffRol)?.label;
 
+  const markAccess = async (item, accion) => {
+    if (!item?._id || !clubData?.urlIdentifier) return;
+    try {
+      const h = await clubHeaders(clubData);
+      await clubApi.post(
+        `/resources/${item._id}/acceso`,
+        { accion },
+        { headers: h, params: memberScopeParams(isTutor, memberId) },
+      );
+    } catch {
+      /* el material se abre igual si el registro de vista falla */
+    }
+  };
+
   const openResource = async (item) => {
     if (!item.fileUrl) {
       showAlert('Archivo', 'Este recurso no tiene un archivo adjunto.');
       return;
     }
     if (detectMediaKind(item.fileUrl) === 'pdf') return;
+    markAccess(item, 'visto');
     try {
       await openMediaViewer(navigation, { url: item.fileUrl, title: item.titulo });
     } catch (e) {
@@ -183,6 +201,7 @@ export default function AthleteResourcesScreen({ navigation }) {
       return;
     }
     setDownloadingId(item._id);
+    markAccess(item, 'descarga');
     try {
       await downloadMediaFile(item.fileUrl, item.titulo);
     } catch (e) {

@@ -133,10 +133,57 @@ const getSentResources = asyncHandler(async (req, res) => {
         .populate('targetUsuario', 'nombre apellido')
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit);
+        .limit(limit)
+        .lean();
+
+    const { ResourceAccess, Enrollment } = req.models;
+    const ids = resources.map((r) => r._id);
+    const accessCounts = ids.length
+        ? await ResourceAccess.aggregate([
+              { $match: { recurso: { $in: ids } } },
+              {
+                  $group: {
+                      _id: '$recurso',
+                      vieron: { $sum: { $cond: [{ $ne: ['$vistoAt', null] }, 1, 0] } },
+                      descargaron: { $sum: { $cond: [{ $ne: ['$descargaAt', null] }, 1, 0] } },
+                  },
+              },
+          ])
+        : [];
+    const countByResource = new Map(accessCounts.map((row) => [String(row._id), row]));
+
+    const categoryIds = [
+        ...new Set(
+            resources
+                .filter((r) => r.alcance === 'categoria' && r.targetCategoria)
+                .map((r) => r.targetCategoria._id || r.targetCategoria),
+        ),
+    ];
+    const enrollmentCounts = categoryIds.length
+        ? await Enrollment.aggregate([
+              { $match: { categoria: { $in: categoryIds }, estado: 'activo' } },
+              { $group: { _id: '$categoria', total: { $sum: 1 } } },
+          ])
+        : [];
+    const audienceByCategory = new Map(enrollmentCounts.map((row) => [String(row._id), row.total]));
+
+    const withAudience = resources.map((resource) => {
+        const counts = countByResource.get(String(resource._id)) || { vieron: 0, descargaron: 0 };
+        const categoriaId = resource.targetCategoria?._id || resource.targetCategoria;
+        const audiencia =
+            resource.alcance === 'usuario'
+                ? 1
+                : audienceByCategory.get(String(categoriaId)) || 0;
+        return {
+            ...resource,
+            vieron: counts.vieron,
+            descargaron: counts.descargaron,
+            audiencia,
+        };
+    });
 
     res.json({
-        resources,
+        resources: withAudience,
         ...paginationMeta(page, limit, total),
     });
 });
@@ -251,4 +298,129 @@ const deleteResource = asyncHandler(async (req, res) => {
     res.json({ message: 'Recurso eliminado correctamente' });
 });
 
-export { uploadResource, getSentResources, getMyResources, updateResource, deleteResource };
+async function athleteCanSeeResource(models, atletaId, resource) {
+    if (!resource) return false;
+    if (resource.alcance === 'usuario') {
+        return String(resource.targetUsuario) === String(atletaId);
+    }
+    if (resource.alcance !== 'categoria' || !resource.targetCategoria) return false;
+    const { Enrollment } = models;
+    const enrollment = await Enrollment.findOne({
+        atleta: atletaId,
+        categoria: resource.targetCategoria,
+        estado: 'activo',
+    })
+        .select('_id')
+        .lean();
+    return !!enrollment;
+}
+
+// @desc    El atleta marca que vio o descargó un material
+// @route   POST /api/resources/:id/acceso
+const recordResourceAccess = asyncHandler(async (req, res) => {
+    const { Resource, ResourceAccess } = req.models;
+    const accion = req.body?.accion === 'descarga' ? 'descarga' : req.body?.accion === 'visto' ? 'visto' : null;
+    if (!accion) {
+        res.status(400);
+        throw new Error('Indicá si lo vio o lo descargó.');
+    }
+
+    const atletaId = await resolveAtletaIdForMember(req, res);
+    const resource = await Resource.findById(req.params.id)
+        .select('alcance targetCategoria targetUsuario')
+        .lean();
+    if (!resource) {
+        res.status(404);
+        throw new Error('Recurso no encontrado');
+    }
+    if (!(await athleteCanSeeResource(req.models, atletaId, resource))) {
+        res.status(403);
+        throw new Error('No tenés acceso a este material.');
+    }
+
+    const now = new Date();
+    const existing = await ResourceAccess.findOne({ recurso: resource._id, usuario: atletaId });
+    if (!existing) {
+        await ResourceAccess.create({
+            recurso: resource._id,
+            usuario: atletaId,
+            vistoAt: now,
+            descargaAt: accion === 'descarga' ? now : null,
+        });
+    } else {
+        if (!existing.vistoAt) existing.vistoAt = now;
+        if (accion === 'descarga') existing.descargaAt = now;
+        await existing.save();
+    }
+    res.json({ ok: true });
+});
+
+// @desc    Quién de la categoría vio o descargó el material
+// @route   GET /api/resources/:id/accesos
+const listResourceAudience = asyncHandler(async (req, res) => {
+    const { Resource, ResourceAccess, Enrollment, User } = req.models;
+    const resource = await Resource.findById(req.params.id).lean();
+    if (!resource) {
+        res.status(404);
+        throw new Error('Recurso no encontrado');
+    }
+    if (String(resource.autor) !== String(req.user._id) && req.user.rol !== 'admin_club') {
+        res.status(403);
+        throw new Error('Solo quien lo envió puede ver quién lo abrió.');
+    }
+
+    let people = [];
+    if (resource.alcance === 'categoria' && resource.targetCategoria) {
+        const enrollments = await Enrollment.find({
+            categoria: resource.targetCategoria,
+            estado: 'activo',
+        })
+            .populate('atleta', 'nombre apellido')
+            .lean();
+        people = enrollments.map((row) => row.atleta).filter(Boolean);
+    } else if (resource.targetUsuario) {
+        const user = await User.findById(resource.targetUsuario).select('nombre apellido').lean();
+        if (user) people = [user];
+    }
+
+    const accesses = people.length
+        ? await ResourceAccess.find({
+              recurso: resource._id,
+              usuario: { $in: people.map((person) => person._id) },
+          }).lean()
+        : [];
+    const byUser = new Map(accesses.map((row) => [String(row.usuario), row]));
+    const audiencia = people
+        .map((person) => {
+            const access = byUser.get(String(person._id));
+            return {
+                _id: person._id,
+                nombre: person.nombre,
+                apellido: person.apellido,
+                vistoAt: access?.vistoAt || null,
+                descargaAt: access?.descargaAt || null,
+            };
+        })
+        .sort((a, b) =>
+            `${a.apellido || ''} ${a.nombre || ''}`.localeCompare(`${b.apellido || ''} ${b.nombre || ''}`, 'es'),
+        );
+
+    res.json({
+        titulo: resource.titulo,
+        alcance: resource.alcance,
+        total: audiencia.length,
+        vieron: audiencia.filter((row) => row.vistoAt).length,
+        descargaron: audiencia.filter((row) => row.descargaAt).length,
+        audiencia,
+    });
+});
+
+export {
+    uploadResource,
+    getSentResources,
+    getMyResources,
+    updateResource,
+    deleteResource,
+    recordResourceAccess,
+    listResourceAudience,
+};

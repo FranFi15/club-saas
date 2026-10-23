@@ -8,7 +8,7 @@ const resourceSchema = new mongoose.Schema({
     // Clasificación para que el atleta encuentre todo rápido
     tipo: { 
         type: String, 
-        enum: ['rutina', 'nutricion', 'estudio_medico', 'tactico', 'otro'], 
+        enum: ['rutina', 'nutricion', 'estudio_medico', 'tactico', 'stats', 'highlights', 'playbook', 'otro'], 
         required: true 
     },
 
@@ -26,6 +26,22 @@ const resourceSchema = new mongoose.Schema({
     fechaExpiracion: { type: Date } // Opcional: para que una rutina se "vence" sola
 }, { timestamps: true });
 
+const resourceAccessSchema = new mongoose.Schema(
+    {
+        recurso: { type: mongoose.Schema.Types.ObjectId, ref: 'Resource', required: true },
+        usuario: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        vistoAt: { type: Date, default: null },
+        descargaAt: { type: Date, default: null },
+    },
+    { timestamps: true },
+);
+
+resourceAccessSchema.index({ recurso: 1, usuario: 1 }, { unique: true });
+
 export const getResourceModel = (tenantDB) => {
     return tenantDB.models.Resource || tenantDB.model('Resource', resourceSchema);
+};
+
+export const getResourceAccessModel = (tenantDB) => {
+    return tenantDB.models.ResourceAccess || tenantDB.model('ResourceAccess', resourceAccessSchema);
 };

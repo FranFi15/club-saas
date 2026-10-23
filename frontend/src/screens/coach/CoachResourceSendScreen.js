@@ -3,13 +3,10 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TextInput,
   TouchableOpacity,
   StatusBar,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Modal,
   FlatList,
   RefreshControl,
@@ -31,6 +28,7 @@ import { formatJsDateToDisplay } from '../../utils/dateDisplay';
 import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import DesignCard from '../../components/DesignCard';
+import FormSheet from '../../components/FormSheet';
 import { sortByNombre, formatUserName } from '../../utils/listSort';
 import {
   categoriesAsSectionedOptions,
@@ -52,13 +50,11 @@ function normalizeExternalLink(raw) {
   }
 }
 
-const TABS = [
-  { key: 'nuevo', label: 'Nuevo', icon: 'add-circle-outline' },
-  { key: 'historial', label: 'Historial', icon: 'list-outline' },
-];
-
 const TIPO_CHIPS_COACH = [
   { value: 'tactico', label: 'Táctico' },
+  { value: 'stats', label: 'Stats' },
+  { value: 'highlights', label: 'Highlights' },
+  { value: 'playbook', label: 'Playbook' },
   { value: 'rutina', label: 'Rutina' },
   { value: 'otro', label: 'Otro' },
 ];
@@ -78,6 +74,9 @@ const TIPO_LABELS = {
   nutricion: 'Nutrición',
   estudio_medico: 'Estudio médico',
   tactico: 'Táctico',
+  stats: 'Stats',
+  highlights: 'Highlights',
+  playbook: 'Playbook',
   otro: 'Otro',
 };
 
@@ -105,7 +104,7 @@ export default function CoachResourceSendScreen({ navigation }) {
   const { theme, isDarkMode } = useContext(ThemeContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
 
-  const [activeTab, setActiveTab] = useState('nuevo');
+  const [composerOpen, setComposerOpen] = useState(false);
   const [categories, setCategories] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [alcance, setAlcance] = useState('categoria');
@@ -131,6 +130,9 @@ export default function CoachResourceSendScreen({ navigation }) {
   const [loadingMoreHistory, setLoadingMoreHistory] = useState(false);
   const [refreshingHistory, setRefreshingHistory] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [audienceOpen, setAudienceOpen] = useState(false);
+  const [audienceLoading, setAudienceLoading] = useState(false);
+  const [audienceData, setAudienceData] = useState(null);
 
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
@@ -465,7 +467,7 @@ export default function CoachResourceSendScreen({ navigation }) {
       setPickedLabel('');
       setExternalUrl('');
     }
-    setActiveTab('nuevo');
+    setComposerOpen(true);
   };
 
   const cancelEdit = () => {
@@ -473,6 +475,36 @@ export default function CoachResourceSendScreen({ navigation }) {
     if (categories[0]?._id) {
       setTargetCategoria(categories[0]._id);
       refreshEnrollments(categories[0]._id);
+    }
+  };
+
+  const openNew = () => {
+    resetForm();
+    if (categories[0]?._id) {
+      setTargetCategoria(categories[0]._id);
+      refreshEnrollments(categories[0]._id);
+    }
+    setComposerOpen(true);
+  };
+
+  const closeComposer = () => {
+    setComposerOpen(false);
+    cancelEdit();
+  };
+
+  const openAudience = async (item) => {
+    setAudienceOpen(true);
+    setAudienceLoading(true);
+    setAudienceData({ titulo: item.titulo, audiencia: [], vieron: 0, descargaron: 0, total: item.audiencia || 0 });
+    try {
+      const h = await headers();
+      const { data } = await clubApi.get(`/resources/${item._id}/accesos`, { headers: h });
+      setAudienceData(data);
+    } catch (e) {
+      setAudienceOpen(false);
+      showAlert('Error', e.response?.data?.message || 'No se pudo ver quién lo abrió.');
+    } finally {
+      setAudienceLoading(false);
     }
   };
 
@@ -536,7 +568,7 @@ export default function CoachResourceSendScreen({ navigation }) {
         refreshEnrollments(categories[0]._id);
       }
       await loadHistory({ page: 1 });
-      setActiveTab('historial');
+      setComposerOpen(false);
     } catch (e) {
       showAlert(
         'Error',
@@ -616,6 +648,16 @@ export default function CoachResourceSendScreen({ navigation }) {
             </View>
           </View>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.audienceBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}
+          onPress={() => openAudience(item)}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="eye-outline" size={16} color={colorMarca} />
+          <Text style={[styles.histBtnTxt, { color: theme.text }]}>
+            {item.vieron || 0}/{item.audiencia || 0} vieron · {item.descargaron || 0} descargaron
+          </Text>
+        </TouchableOpacity>
         <View style={styles.histActions}>
           <TouchableOpacity
             style={[styles.histBtn, { borderColor: '#6b7280' }]}
@@ -668,147 +710,56 @@ export default function CoachResourceSendScreen({ navigation }) {
         onBack={() => navigation.goBack()}
       />
 
-      <View style={[styles.tabBar, { backgroundColor: theme.background }]}>
-        {TABS.map((t) => {
-          const active = activeTab === t.key;
-          return (
-            <TouchableOpacity
-              key={t.key}
-              style={[
-                styles.tabPill,
-                {
-                  borderColor: active ? colorMarca : theme.border,
-                  backgroundColor: active ? colorMarca + '22' : theme.surface,
-                },
-              ]}
-              onPress={() => setActiveTab(t.key)}
-              activeOpacity={0.85}
-            >
-              <Ionicons name={t.icon} size={18} color={active ? colorMarca : theme.textMuted} />
-              <Text style={[styles.tabPillText, { color: active ? colorMarca : theme.text }]}>
-                {t.label}
+      <View style={styles.tabBody}>
+        <FlatList
+          data={history}
+          keyExtractor={(item) => String(item._id)}
+          contentContainerStyle={styles.histList}
+          renderItem={renderHistoryItem}
+          refreshControl={
+            <RefreshControl refreshing={refreshingHistory} onRefresh={onRefreshHistory} tintColor={colorMarca} />
+          }
+          onEndReached={loadMoreHistory}
+          onEndReachedThreshold={0.4}
+          ListHeaderComponent={
+            <Text style={[styles.histCount, { color: theme.textMuted }]}>
+              {history.length} material{history.length === 1 ? '' : 'es'} enviado
+              {history.length === 1 ? '' : 's'}
+            </Text>
+          }
+          ListEmptyComponent={
+            loadingHistory ? (
+              <ActivityIndicator color={colorMarca} style={{ marginTop: 28 }} />
+            ) : (
+              <Text style={[styles.emptyHist, { color: theme.textMuted }]}>
+                Todavía no enviaste material.
               </Text>
-            </TouchableOpacity>
-          );
-        })}
+            )
+          }
+          ListFooterComponent={
+            loadingMoreHistory ? (
+              <ActivityIndicator color={colorMarca} style={{ marginVertical: 16 }} />
+            ) : null
+          }
+        />
       </View>
 
-      <Modal
-        visible={!!openFilter}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setOpenFilter(null)}
+      <TouchableOpacity
+        style={[styles.fab, { backgroundColor: colorMarca }]}
+        onPress={openNew}
+        activeOpacity={0.9}
+        accessibilityLabel="Nuevo material"
       >
-        <View style={styles.filterModalOverlay}>
-          <View style={[styles.filterModalContent, { backgroundColor: theme.surface }]}>
-            <View style={styles.filterModalHeader}>
-              <TouchableOpacity onPress={() => setOpenFilter(null)} hitSlop={8}>
-                <Ionicons name="close" size={26} color={theme.icon} />
-              </TouchableOpacity>
-              <Text style={[styles.filterModalTitle, { color: theme.text }]}>
-                {activeFilterDef?.placeholder || 'Elegir'}
-              </Text>
-              {activeFilterDef?.multi ? (
-                <TouchableOpacity onPress={() => setOpenFilter(null)} hitSlop={8}>
-                  <Text style={{ color: colorMarca, fontWeight: '700', fontSize: 15 }}>Listo</Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={{ width: 26 }} />
-              )}
-            </View>
-            {activeFilterDef?.multi && athleteOptions.length > 0 ? (
-              <View style={styles.multiActions}>
-                <TouchableOpacity
-                  onPress={() => setTargetUsuarioIds(athleteOptions.map((o) => String(o.value)))}
-                >
-                  <Text style={{ color: colorMarca, fontWeight: '700', fontSize: 13 }}>Seleccionar todos</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setTargetUsuarioIds([])}>
-                  <Text style={{ color: theme.textMuted, fontWeight: '600', fontSize: 13 }}>Limpiar</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-            <FlatList
-              data={activeFilterDef?.options || []}
-              keyExtractor={(item, index) =>
-                item.value !== undefined && item.value !== '' ? String(item.value) : `opt-${index}`
-              }
-              keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={
-                <Text style={[styles.emptyOpts, { color: theme.textMuted }]}>
-                  No hay opciones disponibles.
-                </Text>
-              }
-              renderItem={({ item }) => {
-                if (item.type === 'header') {
-                  return (
-                    <View style={[styles.sectionHeader, { backgroundColor: theme.background }]}>
-                      <Text style={[styles.sectionHeaderTxt, { color: theme.textMuted }]}>
-                        {item.label}
-                      </Text>
-                    </View>
-                  );
-                }
-                const isMulti = !!activeFilterDef?.multi;
-                const selected = isMulti
-                  ? (activeFilterDef.selectedIds || []).some((id) => String(id) === String(item.value))
-                  : String(item.value) === String(activeFilterDef?.value);
-                return (
-                  <TouchableOpacity
-                    style={[styles.filterOptionRow, { borderBottomColor: theme.border }]}
-                    onPress={() => {
-                      activeFilterDef?.onChange(item.value);
-                      if (!isMulti) setOpenFilter(null);
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: selected ? colorMarca : theme.text,
-                        fontWeight: selected ? '700' : '500',
-                        fontSize: 15,
-                        flex: 1,
-                      }}
-                    >
-                      {item.label}
-                    </Text>
-                    {selected ? (
-                      <Ionicons
-                        name={isMulti ? 'checkbox' : 'checkmark'}
-                        size={22}
-                        color={colorMarca}
-                      />
-                    ) : isMulti ? (
-                      <Ionicons name="square-outline" size={22} color={theme.textMuted} />
-                    ) : null}
-                  </TouchableOpacity>
-                );
-              }}
-            />
-          </View>
-        </View>
-      </Modal>
+        <Ionicons name="add" size={32} color="#fff" />
+      </TouchableOpacity>
 
-      <View style={styles.tabBody}>
-        {activeTab === 'nuevo' ? (
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={{ flex: 1 }}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
-          >
-            <ScrollView
-              contentContainerStyle={styles.scroll}
-              keyboardShouldPersistTaps="handled"
-              automaticallyAdjustKeyboardInsets
-            >
-              {editingId ? (
-                <View style={[styles.editBanner, { borderColor: colorMarca, backgroundColor: colorMarca + '14' }]}>
-                  <Text style={[styles.editBannerTxt, { color: theme.text }]}>Editando material enviado</Text>
-                  <TouchableOpacity onPress={cancelEdit} hitSlop={8}>
-                    <Text style={{ color: colorMarca, fontWeight: '700', fontSize: 13 }}>Cancelar</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-
+      <FormSheet
+        visible={composerOpen}
+        onClose={closeComposer}
+        title={editingId ? 'Editar material' : 'Nuevo material'}
+        theme={theme}
+        isDarkMode={isDarkMode}
+      >
               <Text style={[styles.label, { color: theme.text }]}>Título</Text>
               <TextInput
                 style={inputStyle}
@@ -979,42 +930,140 @@ export default function CoachResourceSendScreen({ navigation }) {
                   </Text>
                 )}
               </TouchableOpacity>
-            </ScrollView>
-          </KeyboardAvoidingView>
+      </FormSheet>
+
+      <FormSheet
+        visible={audienceOpen}
+        onClose={() => setAudienceOpen(false)}
+        title="Quién lo vio"
+        subtitle={audienceData?.titulo || ''}
+        theme={theme}
+        isDarkMode={isDarkMode}
+      >
+        {audienceLoading ? (
+          <ActivityIndicator color={colorMarca} style={{ marginVertical: 24 }} />
         ) : (
-          <FlatList
-            data={history}
-            keyExtractor={(item) => String(item._id)}
-            contentContainerStyle={styles.histList}
-            renderItem={renderHistoryItem}
-            refreshControl={
-              <RefreshControl refreshing={refreshingHistory} onRefresh={onRefreshHistory} tintColor={colorMarca} />
-            }
-            onEndReached={loadMoreHistory}
-            onEndReachedThreshold={0.4}
-            ListHeaderComponent={
-              <Text style={[styles.histCount, { color: theme.textMuted }]}>
-                {history.length} material{history.length === 1 ? '' : 'es'} enviado
-                {history.length === 1 ? '' : 's'}
+          <>
+            <Text style={[styles.histMeta, { color: theme.textMuted, marginBottom: 12 }]}>
+              {audienceData?.vieron || 0}/{audienceData?.total || 0} vieron · {audienceData?.descargaron || 0} descargaron
+            </Text>
+            {(audienceData?.audiencia || []).length === 0 ? (
+              <Text style={[styles.emptyHist, { color: theme.textMuted }]}>
+                No hay atletas activos en este destino.
               </Text>
-            }
-            ListEmptyComponent={
-              loadingHistory ? (
-                <ActivityIndicator color={colorMarca} style={{ marginTop: 28 }} />
-              ) : (
-                <Text style={[styles.emptyHist, { color: theme.textMuted }]}>
-                  Todavía no enviaste material. Creá uno en la pestaña Nuevo.
-                </Text>
-              )
-            }
-            ListFooterComponent={
-              loadingMoreHistory ? (
-                <ActivityIndicator color={colorMarca} style={{ marginVertical: 16 }} />
-              ) : null
-            }
-          />
+            ) : (
+              (audienceData?.audiencia || []).map((person) => (
+                <View key={String(person._id)} style={[styles.audienceRow, { borderColor: theme.border }]}>
+                  <Text style={[styles.histTitle, { color: theme.text, fontSize: 15 }]}>
+                    {formatUserName(person) || 'Atleta'}
+                  </Text>
+                  <Text style={[styles.histMeta, { color: person.vistoAt ? colorMarca : theme.textMuted }]}>
+                    {person.vistoAt ? `Vio · ${formatJsDateToDisplay(new Date(person.vistoAt))}` : 'No lo vio'}
+                  </Text>
+                  <Text style={[styles.histMeta, { color: person.descargaAt ? colorMarca : theme.textMuted }]}>
+                    {person.descargaAt ? `Descargó · ${formatJsDateToDisplay(new Date(person.descargaAt))}` : 'No descargó'}
+                  </Text>
+                </View>
+              ))
+            )}
+          </>
         )}
-      </View>
+      </FormSheet>
+
+      <Modal
+        visible={!!openFilter}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setOpenFilter(null)}
+      >
+        <View style={styles.filterModalOverlay}>
+          <View style={[styles.filterModalContent, { backgroundColor: theme.surface }]}>
+            <View style={styles.filterModalHeader}>
+              <TouchableOpacity onPress={() => setOpenFilter(null)} hitSlop={8}>
+                <Ionicons name="close" size={26} color={theme.icon} />
+              </TouchableOpacity>
+              <Text style={[styles.filterModalTitle, { color: theme.text }]}>
+                {activeFilterDef?.placeholder || 'Elegir'}
+              </Text>
+              {activeFilterDef?.multi ? (
+                <TouchableOpacity onPress={() => setOpenFilter(null)} hitSlop={8}>
+                  <Text style={{ color: colorMarca, fontWeight: '700', fontSize: 15 }}>Listo</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={{ width: 26 }} />
+              )}
+            </View>
+            {activeFilterDef?.multi && athleteOptions.length > 0 ? (
+              <View style={styles.multiActions}>
+                <TouchableOpacity
+                  onPress={() => setTargetUsuarioIds(athleteOptions.map((o) => String(o.value)))}
+                >
+                  <Text style={{ color: colorMarca, fontWeight: '700', fontSize: 13 }}>Seleccionar todos</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setTargetUsuarioIds([])}>
+                  <Text style={{ color: theme.textMuted, fontWeight: '600', fontSize: 13 }}>Limpiar</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+            <FlatList
+              data={activeFilterDef?.options || []}
+              keyExtractor={(item, index) =>
+                item.value !== undefined && item.value !== '' ? String(item.value) : `opt-${index}`
+              }
+              keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={
+                <Text style={[styles.emptyOpts, { color: theme.textMuted }]}>
+                  No hay opciones disponibles.
+                </Text>
+              }
+              renderItem={({ item }) => {
+                if (item.type === 'header') {
+                  return (
+                    <View style={[styles.sectionHeader, { backgroundColor: theme.background }]}>
+                      <Text style={[styles.sectionHeaderTxt, { color: theme.textMuted }]}>
+                        {item.label}
+                      </Text>
+                    </View>
+                  );
+                }
+                const isMulti = !!activeFilterDef?.multi;
+                const selected = isMulti
+                  ? (activeFilterDef.selectedIds || []).some((id) => String(id) === String(item.value))
+                  : String(item.value) === String(activeFilterDef?.value);
+                return (
+                  <TouchableOpacity
+                    style={[styles.filterOptionRow, { borderBottomColor: theme.border }]}
+                    onPress={() => {
+                      activeFilterDef?.onChange(item.value);
+                      if (!isMulti) setOpenFilter(null);
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: selected ? colorMarca : theme.text,
+                        fontWeight: selected ? '700' : '500',
+                        fontSize: 15,
+                        flex: 1,
+                      }}
+                    >
+                      {item.label}
+                    </Text>
+                    {selected ? (
+                      <Ionicons
+                        name={isMulti ? 'checkbox' : 'checkmark'}
+                        size={22}
+                        color={colorMarca}
+                      />
+                    ) : isMulti ? (
+                      <Ionicons name="square-outline" size={22} color={theme.textMuted} />
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1041,6 +1090,36 @@ const styles = StyleSheet.create({
   },
   tabPillText: { fontSize: 12, fontWeight: '700' },
   tabBody: { flex: 1 },
+  fab: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  audienceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  audienceRow: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 12,
+    gap: 2,
+  },
   scroll: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40 },
   label: { fontSize: 14, fontWeight: '700', marginBottom: 8, marginTop: 4 },
   hint: { fontSize: 12, marginBottom: 10, lineHeight: 16 },
@@ -1143,7 +1222,7 @@ const styles = StyleSheet.create({
   uploadBtnWide: { flex: undefined, width: '100%', minHeight: 88, marginBottom: 8 },
   primaryBtn: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   primaryBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
-  histList: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
+  histList: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 96 },
   histCount: { fontSize: 12, fontWeight: '600', marginBottom: 10 },
   emptyHist: { textAlign: 'center', marginTop: 40, fontSize: 14, lineHeight: 20, paddingHorizontal: 12 },
   histInner: { paddingVertical: 4 },

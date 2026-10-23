@@ -5,6 +5,8 @@ import {
     getMyResources,
     updateResource,
     deleteResource,
+    recordResourceAccess,
+    listResourceAudience,
 } from '../controllers/resource.controller.js';
 import { protect, authorize } from '../middlewares/auth.middleware.js';
 
@@ -15,6 +17,8 @@ const STAFF_ROLES = ['admin_club', 'profe', 'nutricionista', 'psicologo', 'prepa
 router.get('/me', protect, authorize('atleta', 'tutor'), getMyResources);
 router.get('/', protect, authorize(...STAFF_ROLES), getSentResources);
 router.post('/', protect, authorize(...STAFF_ROLES), uploadResource);
+router.post('/:id/acceso', protect, authorize('atleta', 'tutor'), recordResourceAccess);
+router.get('/:id/accesos', protect, authorize(...STAFF_ROLES), listResourceAudience);
 router.put('/:id', protect, authorize(...STAFF_ROLES), updateResource);
 router.delete('/:id', protect, authorize(...STAFF_ROLES), deleteResource);
 
