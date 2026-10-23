@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   StatusBar,
   ActivityIndicator,
-  Modal,
   FlatList,
   RefreshControl,
 } from 'react-native';
@@ -488,8 +487,17 @@ export default function CoachResourceSendScreen({ navigation }) {
   };
 
   const closeComposer = () => {
+    setOpenFilter(null);
     setComposerOpen(false);
     cancelEdit();
+  };
+
+  const closeComposerOrFilter = () => {
+    if (openFilter) {
+      setOpenFilter(null);
+      return;
+    }
+    closeComposer();
   };
 
   const openAudience = async (item) => {
@@ -755,11 +763,93 @@ export default function CoachResourceSendScreen({ navigation }) {
 
       <FormSheet
         visible={composerOpen}
-        onClose={closeComposer}
-        title={editingId ? 'Editar material' : 'Nuevo material'}
+        onClose={closeComposerOrFilter}
+        title={
+          openFilter
+            ? activeFilterDef?.placeholder || 'Elegir'
+            : editingId
+              ? 'Editar material'
+              : 'Nuevo material'
+        }
         theme={theme}
         isDarkMode={isDarkMode}
       >
+        {openFilter && activeFilterDef ? (
+          <>
+            {activeFilterDef.multi ? (
+              <TouchableOpacity onPress={() => setOpenFilter(null)} style={{ alignSelf: 'flex-end', marginBottom: 8 }}>
+                <Text style={{ color: colorMarca, fontWeight: '700', fontSize: 15 }}>Listo</Text>
+              </TouchableOpacity>
+            ) : null}
+            {activeFilterDef.multi && athleteOptions.length > 0 ? (
+              <View style={styles.multiActions}>
+                <TouchableOpacity
+                  onPress={() => setTargetUsuarioIds(athleteOptions.map((o) => String(o.value)))}
+                >
+                  <Text style={{ color: colorMarca, fontWeight: '700', fontSize: 13 }}>Seleccionar todos</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setTargetUsuarioIds([])}>
+                  <Text style={{ color: theme.textMuted, fontWeight: '600', fontSize: 13 }}>Limpiar</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+            {(activeFilterDef.options || []).length === 0 ? (
+              <Text style={[styles.emptyOpts, { color: theme.textMuted }]}>
+                No hay opciones disponibles.
+              </Text>
+            ) : (
+              (activeFilterDef.options || []).map((item, index) => {
+                if (item.type === 'header') {
+                  return (
+                    <View
+                      key={`hdr-${index}`}
+                      style={[styles.sectionHeader, { backgroundColor: theme.background }]}
+                    >
+                      <Text style={[styles.sectionHeaderTxt, { color: theme.textMuted }]}>
+                        {item.label}
+                      </Text>
+                    </View>
+                  );
+                }
+                const isMulti = !!activeFilterDef.multi;
+                const selected = isMulti
+                  ? (activeFilterDef.selectedIds || []).some((id) => String(id) === String(item.value))
+                  : String(item.value) === String(activeFilterDef.value);
+                return (
+                  <TouchableOpacity
+                    key={item.value !== undefined && item.value !== '' ? String(item.value) : `opt-${index}`}
+                    style={[styles.filterOptionRow, { borderBottomColor: theme.border }]}
+                    onPress={() => {
+                      activeFilterDef.onChange(item.value);
+                      if (!isMulti) setOpenFilter(null);
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: selected ? colorMarca : theme.text,
+                        fontWeight: selected ? '700' : '500',
+                        fontSize: 15,
+                        flex: 1,
+                      }}
+                    >
+                      {item.label}
+                    </Text>
+                    {selected ? (
+                      <Ionicons
+                        name={isMulti ? 'checkbox' : 'checkmark'}
+                        size={22}
+                        color={colorMarca}
+                      />
+                    ) : isMulti ? (
+                      <Ionicons name="square-outline" size={22} color={theme.textMuted} />
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </>
+        ) : (
+          <>
               <Text style={[styles.label, { color: theme.text }]}>Título</Text>
               <TextInput
                 style={inputStyle}
@@ -930,6 +1020,8 @@ export default function CoachResourceSendScreen({ navigation }) {
                   </Text>
                 )}
               </TouchableOpacity>
+          </>
+        )}
       </FormSheet>
 
       <FormSheet
@@ -969,101 +1061,6 @@ export default function CoachResourceSendScreen({ navigation }) {
           </>
         )}
       </FormSheet>
-
-      <Modal
-        visible={!!openFilter}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setOpenFilter(null)}
-      >
-        <View style={styles.filterModalOverlay}>
-          <View style={[styles.filterModalContent, { backgroundColor: theme.surface }]}>
-            <View style={styles.filterModalHeader}>
-              <TouchableOpacity onPress={() => setOpenFilter(null)} hitSlop={8}>
-                <Ionicons name="close" size={26} color={theme.icon} />
-              </TouchableOpacity>
-              <Text style={[styles.filterModalTitle, { color: theme.text }]}>
-                {activeFilterDef?.placeholder || 'Elegir'}
-              </Text>
-              {activeFilterDef?.multi ? (
-                <TouchableOpacity onPress={() => setOpenFilter(null)} hitSlop={8}>
-                  <Text style={{ color: colorMarca, fontWeight: '700', fontSize: 15 }}>Listo</Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={{ width: 26 }} />
-              )}
-            </View>
-            {activeFilterDef?.multi && athleteOptions.length > 0 ? (
-              <View style={styles.multiActions}>
-                <TouchableOpacity
-                  onPress={() => setTargetUsuarioIds(athleteOptions.map((o) => String(o.value)))}
-                >
-                  <Text style={{ color: colorMarca, fontWeight: '700', fontSize: 13 }}>Seleccionar todos</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setTargetUsuarioIds([])}>
-                  <Text style={{ color: theme.textMuted, fontWeight: '600', fontSize: 13 }}>Limpiar</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-            <FlatList
-              data={activeFilterDef?.options || []}
-              keyExtractor={(item, index) =>
-                item.value !== undefined && item.value !== '' ? String(item.value) : `opt-${index}`
-              }
-              keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={
-                <Text style={[styles.emptyOpts, { color: theme.textMuted }]}>
-                  No hay opciones disponibles.
-                </Text>
-              }
-              renderItem={({ item }) => {
-                if (item.type === 'header') {
-                  return (
-                    <View style={[styles.sectionHeader, { backgroundColor: theme.background }]}>
-                      <Text style={[styles.sectionHeaderTxt, { color: theme.textMuted }]}>
-                        {item.label}
-                      </Text>
-                    </View>
-                  );
-                }
-                const isMulti = !!activeFilterDef?.multi;
-                const selected = isMulti
-                  ? (activeFilterDef.selectedIds || []).some((id) => String(id) === String(item.value))
-                  : String(item.value) === String(activeFilterDef?.value);
-                return (
-                  <TouchableOpacity
-                    style={[styles.filterOptionRow, { borderBottomColor: theme.border }]}
-                    onPress={() => {
-                      activeFilterDef?.onChange(item.value);
-                      if (!isMulti) setOpenFilter(null);
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: selected ? colorMarca : theme.text,
-                        fontWeight: selected ? '700' : '500',
-                        fontSize: 15,
-                        flex: 1,
-                      }}
-                    >
-                      {item.label}
-                    </Text>
-                    {selected ? (
-                      <Ionicons
-                        name={isMulti ? 'checkbox' : 'checkmark'}
-                        size={22}
-                        color={colorMarca}
-                      />
-                    ) : isMulti ? (
-                      <Ionicons name="square-outline" size={22} color={theme.textMuted} />
-                    ) : null}
-                  </TouchableOpacity>
-                );
-              }}
-            />
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }

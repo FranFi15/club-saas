@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { isRunningInExpoGo } from 'expo';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { clubApi } from '../utils/api';
@@ -10,9 +11,9 @@ export const PUSH_ENABLED_KEY = 'pushNotificationsEnabled';
 export const PUSH_PROMPT_SHOWN_KEY = 'pushPermissionPromptShown';
 export const PUSH_DEVICE_TOKEN_KEY = 'pushDeviceToken';
 
-/** Expo Go: remote push is unsupported on Android (SDK 53+). Never load the native module there. */
+/** Expo Go has no remote-push native module. Do not import expo-notifications there. */
 export function isExpoGo() {
-  return Constants.appOwnership === 'expo';
+  return isRunningInExpoGo();
 }
 
 export function isPushSupportedOnDevice() {
@@ -28,7 +29,6 @@ async function getNotifications() {
   if (!notificationsModulePromise) {
     notificationsModulePromise = import('expo-notifications').catch((e) => {
       if (__DEV__) console.warn('[push] expo-notifications unavailable:', e?.message || e);
-      notificationsModulePromise = null;
       return null;
     });
   }
