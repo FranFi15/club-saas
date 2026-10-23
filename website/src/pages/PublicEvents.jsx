@@ -257,6 +257,22 @@ function formatMoney(n) {
   return Number(n || 0).toLocaleString('es-AR');
 }
 
+function sectionUnitPrice(section, fallback) {
+  if (section?.precio == null || section.precio === '') return Number(fallback) || 0;
+  return Number(section.precio) || 0;
+}
+
+function tipoPriceText(tipo, sections) {
+  const prices = (sections || [])
+    .filter((section) => String(section.tipoEntrada) === String(tipo._id) && section.precio != null && section.precio !== '')
+    .map((section) => Number(section.precio) || 0);
+  if (!prices.length) return Number(tipo.precio) === 0 ? 'Gratis' : `$${formatMoney(tipo.precio)}`;
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  if (min === max) return min === 0 ? 'Gratis' : `$${formatMoney(min)}`;
+  return `$${formatMoney(min)} a $${formatMoney(max)}`;
+}
+
 export default function PublicEvents() {
   const params = useMemo(() => queryParams(), []);
   const [clubMeta, setClubMeta] = useState(null);
@@ -273,6 +289,7 @@ export default function PublicEvents() {
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(null);
+  const [quote, setQuote] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -400,6 +417,44 @@ export default function PublicEvents() {
     setStep(2);
   };
 
+  useEffect(() => {
+    if (step !== 2 || !selected?.slug || !tipoId) {
+      setQuote(null);
+      return undefined;
+    }
+    const qty = Number(cantidad) || 1;
+    const asistentes = holders.slice(0, qty).map((h, index) => ({
+      nombre: String(h.nombre || '').trim(),
+      apellido: String(h.apellido || '').trim(),
+      dni: String(h.dni || '').replace(/\D/g, ''),
+      asiento: seats[index]
+        ? {
+            seccionId: seats[index].seccionId,
+            seccionNombre: seats[index].seccionNombre,
+            fila: seats[index].fila,
+            numero: seats[index].numero,
+          }
+        : undefined,
+    }));
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const data = await clubFetch(`/events/public/${encodeURIComponent(selected.slug)}/quote`, {
+          club: params.club,
+          method: 'POST',
+          body: { tipoEntradaId: tipoId, cantidad: qty, asistentes },
+        });
+        if (!cancelled) setQuote(data);
+      } catch {
+        if (!cancelled) setQuote(null);
+      }
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [step, selected?.slug, tipoId, cantidad, holders, seats, params.club]);
+
   const copyBuyerToFirst = () => {
     setHolders((prev) => {
       const next = [...prev];
@@ -494,7 +549,16 @@ export default function PublicEvents() {
   const openSeatSection =
     sectionsForTipo.find((section) => String(section._id) === String(openSection)) || sectionsForTipo[0];
   const ticketTotal = selectedTipo
-    ? (sectionsForTipo.length ? seats.length || 0 : Number(cantidad) || 1) * (Number(selectedTipo.precio) || 0)
+    ? sectionsForTipo.length
+      ? seats.reduce(
+          (sum, seat) =>
+            sum + sectionUnitPrice(
+              sectionsForTipo.find((section) => String(section._id) === String(seat.seccionId)),
+              selectedTipo.precio,
+            ),
+          0,
+        )
+      : (Number(cantidad) || 1) * (Number(selectedTipo.precio) || 0)
     : null;
 
   useEffect(() => {
@@ -624,7 +688,7 @@ export default function PublicEvents() {
                 >
                   {(selected.tiposEntrada || []).map((t) => (
                     <option key={t._id} value={t._id}>
-                      {t.nombre} — {Number(t.precio) === 0 ? 'Gratis' : `$${formatMoney(t.precio)}`} ({t.disponibles} disp.)
+                      {t.nombre} — {tipoPriceText(t, selected?.secciones)} ({t.disponibles} disp.)
                     </option>
                   ))}
                 </select>
@@ -657,6 +721,7 @@ export default function PublicEvents() {
                             onClick={() => setOpenSection(String(section._id))}
                           >
                             {section.nombre}
+                            {section.precio != null && section.precio !== '' ? ` · $${formatMoney(section.precio)}` : ''}
                           </button>
                         );
                       })}
@@ -672,6 +737,7 @@ export default function PublicEvents() {
                           onClick={() => setOpenSection(String(section._id))}
                         >
                           {section.nombre}
+                          {section.precio != null && section.precio !== '' ? ` · $${formatMoney(section.precio)}` : ''}
                         </button>
                       ))}
                     </div>
@@ -890,6 +956,31 @@ export default function PublicEvents() {
                   </fieldset>
                 ))}
               </div>
+              <p className="pe-muted pe-small">
+                El descuento aplica solo en la entrada que lleva el nombre y el DNI de quien lo tiene.
+              </p>
+              {quote?.descuentoBloqueadoPorDeuda && !quote.cantidadConDescuento ? (
+                <p className="pe-muted pe-small">Hay cuotas vencidas: esa entrada se cobra a precio lleno.</p>
+              ) : null}
+              {quote?.cantidadConDescuento > 0 ? (
+                <p className="pe-muted pe-small">
+                  {(quote.lineas || [])
+                    .filter((line) => line.conDescuento)
+                    .map((line) => `${line.titular || 'Descuento'} $${formatMoney(line.precio)}`)
+                    .join(' · ')}
+                  {quote.cantidadPrecioLleno
+                    ? ` · ${quote.cantidadPrecioLleno} a precio lleno ($${formatMoney(quote.precioLista)})`
+                    : ''}
+                </p>
+              ) : null}
+              <p className="pe-total">
+                <span>Total</span>
+                <strong>
+                  {(quote?.montoTotal ?? ticketTotal) === 0
+                    ? 'Gratis'
+                    : `$${formatMoney(quote?.montoTotal ?? ticketTotal)}`}
+                </strong>
+              </p>
               <div className="pe-actions">
                 <button type="button" className="pe-back" onClick={() => { setError(''); setStep(1); }}>
                   Atrás

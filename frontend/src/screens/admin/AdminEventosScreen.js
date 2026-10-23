@@ -28,6 +28,7 @@ import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
 import StadiumSeatPicker from '../../components/StadiumSeatPicker';
 import StadiumLibrary from '../../components/StadiumLibrary';
+import DiscountLibrary from '../../components/DiscountLibrary';
 import StadiumAreaStage from '../../components/StadiumAreaStage';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { canMutateAsAdmin, isClubOwnerRole } from '../../constants/appRoles';
@@ -214,6 +215,8 @@ export default function AdminEventosScreen({ navigation }) {
   const imageTarget = useRef('evento');
   const stadiumMapWait = useRef(null);
   const [stadiums, setStadiums] = useState([]);
+  const [discounts, setDiscounts] = useState([]);
+  const [discountOpen, setDiscountOpen] = useState(false);
   const [stadiumOpen, setStadiumOpen] = useState(false);
   const [stadiumMode, setStadiumMode] = useState('manage');
   const [placingSection, setPlacingSection] = useState(null);
@@ -299,13 +302,15 @@ export default function AdminEventosScreen({ navigation }) {
   const load = useCallback(async () => {
     if (!clubData?.urlIdentifier) return;
     const h = await getHeaders();
-    const [evRes, pickRes, stadiumRes] = await Promise.all([
+    const [evRes, pickRes, stadiumRes, discountRes] = await Promise.all([
       clubApi.get('/events/admin', { headers: h }),
       clubApi.get('/events/admin/pricing-pickers', { headers: h }).catch(() => ({ data: {} })),
       clubApi.get('/events/admin/stadiums', { headers: h }).catch(() => ({ data: [] })),
+      clubApi.get('/events/admin/discounts', { headers: h }).catch(() => ({ data: [] })),
     ]);
     setEvents(evRes.data || []);
     setStadiums(stadiumRes.data || []);
+    setDiscounts(discountRes.data || []);
     setPickers({
       cuotasSociales: pickRes.data?.cuotasSociales || [],
       planes: pickRes.data?.planes || [],
@@ -430,6 +435,12 @@ export default function AdminEventosScreen({ navigation }) {
         y: Number(section.y) || 50,
         w: Number(section.w) || 0,
         h: Number(section.h) || 0,
+        precio:
+          section.precio != null && section.precio !== ''
+            ? String(section.precio)
+            : String(
+                (ev.tiposEntrada || []).find((tipo) => String(tipo._id) === String(section.tipoEntrada))?.precio ?? 0,
+              ),
       })),
       fechaInicioDisplay: toDisplayDate(ev.fechaInicio),
       horaInicio: toDisplayTime(ev.fechaInicio) || '18:00',
@@ -509,6 +520,7 @@ export default function AdminEventosScreen({ navigation }) {
           filas: String(section.filas || 1),
           asientosPorFila: String(section.asientosPorFila || 1),
           tipoIndex,
+          precio: String(tipos[tipoIndex]?.precio ?? '0'),
           x: Number(section.x) || 0,
           y: Number(section.y) || 0,
           w: Number(section.w) || 0,
@@ -608,16 +620,22 @@ export default function AdminEventosScreen({ navigation }) {
           y: Number(section.y) || 50,
           w: Number(section.w) || 0,
           h: Number(section.h) || 0,
+          precio: Math.max(0, Number(section.precio) || 0),
         })),
       fechaInicio,
       fechaFin: null,
-      tiposEntrada: form.tiposEntrada.map((t) => ({
+      tiposEntrada: form.tiposEntrada.map((t, index) => {
+        const sectionPrices = (form.secciones || [])
+          .filter((section) => section.tipoIndex === index)
+          .map((section) => Math.max(0, Number(section.precio) || 0));
+        return {
         ...(t._id ? { _id: t._id } : {}),
         nombre: t.nombre.trim() || 'General',
-        precio: Number(t.precio) || 0,
+        precio: sectionPrices.length ? Math.min(...sectionPrices) : Number(t.precio) || 0,
         cupo: Math.max(0, parseInt(t.cupo, 10) || 0),
         activo: t.activo !== false,
-      })),
+        };
+      }),
       reglasDescuento: form.reglasDescuento.map((r) => ({
         ...(r._id ? { _id: r._id } : {}),
         nombre: r.nombre.trim() || 'Descuento',
@@ -863,10 +881,18 @@ export default function AdminEventosScreen({ navigation }) {
             userId: addMode === 'app' ? pickedUser?._id : undefined,
             tipoEntradaId: addTipoId,
             cantidad: addQty,
-            asistentes: addHolders.slice(0, addQty).map((h) => ({
+            asistentes: addHolders.slice(0, addQty).map((h, index) => ({
               nombre: h.nombre || '',
               apellido: h.apellido || '',
               dni: h.dni || '',
+              asiento: addSeats[index]
+                ? {
+                    seccionId: addSeats[index].seccionId,
+                    seccionNombre: addSeats[index].seccionNombre,
+                    fila: addSeats[index].fila,
+                    numero: addSeats[index].numero,
+                  }
+                : undefined,
             })),
           },
           { headers: h },
@@ -888,7 +914,7 @@ export default function AdminEventosScreen({ navigation }) {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [addEvent, addMode, pickedUser, addTipoId, addQty, addHolders, getHeaders]);
+  }, [addEvent, addMode, pickedUser, addTipoId, addQty, addHolders, addSeats, getHeaders]);
 
   const copyBuyerToFirstTicket = () => {
     const person = addMode === 'app' ? pickedUser : guest;
@@ -1088,6 +1114,56 @@ export default function AdminEventosScreen({ navigation }) {
     });
   };
 
+  const applySavedDiscount = (discount) => {
+    if (!discount) return;
+    const nextIdx = form.reglasDescuento.length;
+    setForm((current) => ({
+      ...current,
+      reglasDescuento: [
+        ...current.reglasDescuento,
+        {
+          nombre: discount.nombre || 'Descuento',
+          roles: discount.roles || [],
+          cuotasSociales: (discount.cuotasSociales || []).map((id) => String(id?._id || id)),
+          planes: (discount.planes || []).map((id) => String(id?._id || id)),
+          modo: discount.modo || 'porcentaje',
+          valor: String(discount.valor ?? 0),
+          maxEntradasConDescuento: String(discount.maxEntradasConDescuento || 1),
+          activo: discount.activo !== false,
+        },
+      ],
+    }));
+    setExpandedReglaIdx(nextIdx);
+  };
+
+  const saveRuleTemplate = async (rule) => {
+    const nombre = String(rule?.nombre || '').trim();
+    if (!nombre) {
+      showAlert('Descuento', 'Poné un nombre para poder reutilizarlo.');
+      return;
+    }
+    try {
+      const headers = await getHeaders();
+      const { data } = await clubApi.post(
+        '/events/admin/discounts',
+        {
+          nombre,
+          roles: rule.roles || [],
+          cuotasSociales: rule.cuotasSociales || [],
+          planes: rule.planes || [],
+          modo: rule.modo,
+          valor: Number(rule.valor) || 0,
+          maxEntradasConDescuento: Math.max(1, parseInt(rule.maxEntradasConDescuento, 10) || 1),
+        },
+        { headers },
+      );
+      setDiscounts((prev) => [...prev.filter((item) => String(item._id) !== String(data?._id)), data]);
+      showAlert('Listo', 'El descuento quedó guardado para usarlo en otros eventos.');
+    } catch (e) {
+      showAlert('Descuento', e.response?.data?.message || 'No se pudo guardar el descuento.');
+    }
+  };
+
   const updateRegla = (idx, patch) => {
     setForm((f) => {
       const reglasDescuento = [...f.reglasDescuento];
@@ -1131,6 +1207,7 @@ export default function AdminEventosScreen({ navigation }) {
             filas: '5',
             asientosPorFila: '10',
             tipoIndex: idx,
+            precio: current.tiposEntrada[idx]?.precio || '0',
             x: 50,
             y: 40,
             w: 0,
@@ -1482,7 +1559,7 @@ export default function AdminEventosScreen({ navigation }) {
       </View>
       <Text style={[styles.label, { color: theme.textMuted, marginTop: 4 }]}>Estadio</Text>
       <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8 }}>
-        Reutilizá uno guardado o creá uno nuevo. Si hay un solo tipo de entrada, todos los sectores usan ese tipo.
+        Reutilizá uno guardado o creá uno nuevo. Si hay un solo tipo de entrada, todos los sectores usan ese tipo. Cada sector tiene su propio precio.
       </Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 12 }}>
         {stadiums.map((stadium) => {
@@ -1539,10 +1616,12 @@ export default function AdminEventosScreen({ navigation }) {
                 </Text>
                 {!open ? (
                   <Text style={[styles.foldSummary, { color: theme.textMuted }]}>
-                    ${t.precio || 0}
                     {hasSection
-                      ? ` · ${sections[0].section.nombre?.trim() || 'con sector'} · ${seatCount} asientos`
-                      : ` · cupo ${t.cupo || 0}`}
+                      ? `${sections
+                          .map((item) => `$${item.section.precio || 0}`)
+                          .filter((price, priceIdx, list) => list.indexOf(price) === priceIdx)
+                          .join(' / ')} · ${sections.length} sector${sections.length === 1 ? '' : 'es'} · ${seatCount} asientos`
+                      : `$${t.precio || 0} · cupo ${t.cupo || 0}`}
                     {t.vendidas != null ? ` · ${t.vendidas} vendidas` : ''}
                   </Text>
                 ) : null}
@@ -1564,8 +1643,13 @@ export default function AdminEventosScreen({ navigation }) {
                     placeholderTextColor={theme.textMuted}
                   />
                 </Field>
+                {hasSection ? (
+                  <Text style={[styles.fieldHint, { color: theme.textMuted, marginBottom: 10 }]}>
+                    El precio se define en cada sector.
+                  </Text>
+                ) : (
                 <View style={styles.row}>
-                  <View style={{ flex: 1, marginRight: hasSection ? 0 : 8 }}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
                     <Field label="Precio ($)" theme={theme}>
                       <TextInput
                         style={inputStyle}
@@ -1575,19 +1659,18 @@ export default function AdminEventosScreen({ navigation }) {
                       />
                     </Field>
                   </View>
-                  {hasSection ? null : (
-                    <View style={{ flex: 1 }}>
-                      <Field label="Cupo" theme={theme}>
-                        <TextInput
-                          style={inputStyle}
-                          value={t.cupo}
-                          onChangeText={(cupo) => updateTipo(idx, { cupo })}
-                          keyboardType="number-pad"
-                        />
-                      </Field>
-                    </View>
-                  )}
+                  <View style={{ flex: 1 }}>
+                    <Field label="Cupo" theme={theme}>
+                      <TextInput
+                        style={inputStyle}
+                        value={t.cupo}
+                        onChangeText={(cupo) => updateTipo(idx, { cupo })}
+                        keyboardType="number-pad"
+                      />
+                    </Field>
+                  </View>
                 </View>
+                )}
                 <TouchableOpacity
                   onPress={() => toggleTipoSeccion(idx)}
                   style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 }}
@@ -1608,15 +1691,29 @@ export default function AdminEventosScreen({ navigation }) {
                   <View>
                     {sections.map(({ section, secIdx }) => (
                       <View key={`sec-${secIdx}`}>
-                        <Field label="Sector" theme={theme}>
-                          <TextInput
-                            style={inputStyle}
-                            value={section.nombre}
-                            onChangeText={(nombre) => updateSeccion(secIdx, { nombre })}
-                            placeholder="Nombre del sector"
-                            placeholderTextColor={theme.textMuted}
-                          />
-                        </Field>
+                        <View style={styles.row}>
+                          <View style={{ flex: 1, marginRight: 8 }}>
+                            <Field label="Sector" theme={theme}>
+                              <TextInput
+                                style={inputStyle}
+                                value={section.nombre}
+                                onChangeText={(nombre) => updateSeccion(secIdx, { nombre })}
+                                placeholder="Nombre del sector"
+                                placeholderTextColor={theme.textMuted}
+                              />
+                            </Field>
+                          </View>
+                          <View style={{ width: 110 }}>
+                            <Field label="Precio ($)" theme={theme}>
+                              <TextInput
+                                style={inputStyle}
+                                value={String(section.precio ?? '')}
+                                onChangeText={(precio) => updateSeccion(secIdx, { precio })}
+                                keyboardType="decimal-pad"
+                              />
+                            </Field>
+                          </View>
+                        </View>
                         <View style={styles.row}>
                           <View style={{ flex: 1, marginRight: 8 }}>
                             <Field label="Filas" theme={theme}>
@@ -1736,6 +1833,30 @@ export default function AdminEventosScreen({ navigation }) {
           <Text style={{ color: colorMarca, fontWeight: '700', marginLeft: 4 }}>Regla</Text>
         </TouchableOpacity>
       </View>
+
+      <Text style={[styles.label, { color: theme.textMuted, marginTop: 8 }]}>Descuentos guardados</Text>
+      <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8 }}>
+        Creá uno y volvé a usarlo en otros eventos. Tocá uno para sumarlo a este.
+      </Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 12 }}>
+        {discounts.map((discount) => (
+          <TouchableOpacity
+            key={discount._id}
+            onPress={() => applySavedDiscount(discount)}
+            style={[styles.addPill, { borderColor: colorMarca }]}
+          >
+            <Ionicons name="pricetag-outline" size={16} color={colorMarca} />
+            <Text style={{ color: theme.text, fontWeight: '700', marginLeft: 6 }}>{discount.nombre}</Text>
+          </TouchableOpacity>
+        ))}
+        <TouchableOpacity
+          onPress={() => setDiscountOpen(true)}
+          style={[styles.addPill, { borderColor: colorMarca }]}
+        >
+          <Ionicons name="add" size={16} color={colorMarca} />
+          <Text style={{ color: colorMarca, fontWeight: '800', marginLeft: 4 }}>Nuevo</Text>
+        </TouchableOpacity>
+      </ScrollView>
 
       {form.reglasDescuento.length === 0 ? (
         <View
@@ -1897,6 +2018,12 @@ export default function AdminEventosScreen({ navigation }) {
                   />
                 </Field>
 
+                <TouchableOpacity onPress={() => saveRuleTemplate(r)} style={styles.removeRow}>
+                  <Ionicons name="bookmark-outline" size={16} color={colorMarca} />
+                  <Text style={{ color: colorMarca, marginLeft: 6, fontWeight: '700' }}>
+                    Guardar para reusar
+                  </Text>
+                </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => {
                     setForm((f) => ({
@@ -2030,17 +2157,28 @@ export default function AdminEventosScreen({ navigation }) {
         onBack={() => navigation.goBack()}
         rightAccessory={
           canManageEvents ? (
-            <TouchableOpacity
-              onPress={() => {
-                setStadiumMode('manage');
-                setStadiumOpen(true);
-              }}
-              style={styles.headerStadiumBtn}
-              accessibilityRole="button"
-              accessibilityLabel="Estadios"
-            >
-              <Ionicons name="business-outline" size={20} color="#ffffff" />
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                onPress={() => setDiscountOpen(true)}
+                style={styles.headerDiscountBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Crear descuento"
+              >
+                <Ionicons name="pricetag-outline" size={16} color="#ffffff" />
+                <Text style={styles.headerDiscountTxt}>Descuento</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  setStadiumMode('manage');
+                  setStadiumOpen(true);
+                }}
+                style={styles.headerStadiumBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Estadios"
+              >
+                <Ionicons name="business-outline" size={20} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
           ) : null
         }
       />
@@ -2860,6 +2998,25 @@ export default function AdminEventosScreen({ navigation }) {
         onCancel={alertConfig.onCancel || closeAlert}
       />
 
+      <DiscountLibrary
+        visible={discountOpen}
+        onClose={() => setDiscountOpen(false)}
+        onCreated={(discount) => {
+          setDiscounts((prev) => [...prev, discount]);
+          if (modalOpen) applySavedDiscount(discount);
+        }}
+        hint={
+          modalOpen
+            ? 'Queda guardado para usarlo en este evento y en los próximos.'
+            : 'Queda guardado para usarlo en cualquier evento.'
+        }
+        saveLabel={modalOpen ? 'Guardar y usar' : 'Guardar descuento'}
+        getHeaders={getHeaders}
+        theme={theme}
+        colorMarca={colorMarca}
+        pickers={pickers}
+      />
+
       <StadiumLibrary
         visible={stadiumOpen}
         mode={stadiumMode}
@@ -2975,6 +3132,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
   },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headerDiscountBtn: {
+    height: 36,
+    paddingHorizontal: 10,
+    borderRadius: 5,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  headerDiscountTxt: { color: '#ffffff', fontWeight: '800', fontSize: 13 },
   headerStadiumBtn: {
     width: 36,
     height: 36,

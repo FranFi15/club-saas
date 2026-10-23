@@ -2,6 +2,7 @@ import asyncHandler from 'express-async-handler';
 import mongoose from 'mongoose';
 import {
     resolveDiscountPeople,
+    resolveDiscountPeopleFromHolders,
     quoteEventTickets,
 } from '../services/eventPricing.service.js';
 import {
@@ -73,6 +74,7 @@ function publicEventCard(ev) {
             y: section.y,
             w: section.w || 0,
             h: section.h || 0,
+            ...(section.precio != null && section.precio !== '' ? { precio: section.precio } : {}),
         })),
         lugar: ev.lugar,
         fechaInicio: ev.fechaInicio,
@@ -113,6 +115,9 @@ function normalizeSecciones(raw, tipos) {
             y: Math.max(0, Math.min(100, Number(section.y) || 50)),
             w: Math.max(0, Math.min(100, Number(section.w) || 0)),
             h: Math.max(0, Math.min(100, Number(section.h) || 0)),
+            ...(section.precio != null && section.precio !== ''
+                ? { precio: Math.max(0, Number(section.precio) || 0) }
+                : {}),
         });
     }
     return out;
@@ -654,6 +659,29 @@ export const getPublicEvent = asyncHandler(async (req, res) => {
     res.json({ ...publicEventCard(event), ocupados });
 });
 
+export const publicQuote = asyncHandler(async (req, res) => {
+    const { ClubEvent } = req.models;
+    await expireStaleHolds(req.models);
+    const event = await ClubEvent.findOne({
+        slug: String(req.params.slug || '').toLowerCase(),
+        estado: 'publicado',
+    });
+    if (!event) {
+        res.status(404);
+        throw new Error('Evento no encontrado.');
+    }
+    const holders = Array.isArray(req.body?.asistentes) ? req.body.asistentes : [];
+    const eligible = await resolveDiscountPeopleFromHolders(req.models, holders);
+    const quote = quoteEventTickets({
+        event,
+        tipoEntradaId: req.body?.tipoEntradaId,
+        cantidad: req.body?.cantidad || holders.length || 1,
+        holders,
+        eligible,
+    });
+    res.json(quote);
+});
+
 export const publicCheckout = asyncHandler(async (req, res) => {
     const { ClubEvent, EventTicketOrder } = req.models;
     await expireStaleHolds(req.models);
@@ -673,12 +701,14 @@ export const publicCheckout = asyncHandler(async (req, res) => {
         throw new Error('Nombre, apellido y email son obligatorios.');
     }
 
+    const normalized = normalizeAsistentes(asistentes, cantidad);
+    const eligible = await resolveDiscountPeopleFromHolders(req.models, normalized);
     const quote = quoteEventTickets({
         event,
         tipoEntradaId,
-        cantidad,
-        holders: asistentes,
-        eligible: [],
+        cantidad: normalized.length,
+        holders: normalized,
+        eligible,
     });
     const holders = await bindHolderSeats(
         req.models,
@@ -709,7 +739,7 @@ export const publicCheckout = asyncHandler(async (req, res) => {
         reglaAplicada: quote.reglaAplicada
             ? { id: quote.reglaAplicada.id, nombre: quote.reglaAplicada.nombre }
             : { id: null, nombre: null },
-        descuentoBloqueadoPorDeuda: false,
+        descuentoBloqueadoPorDeuda: quote.descuentoBloqueadoPorDeuda,
         montoTotal: quote.montoTotal,
         estado: quote.montoTotal > 0 ? 'pendiente_pago' : 'gratis',
         holdUntil: quote.montoTotal > 0 ? new Date(Date.now() + HOLD_MS) : undefined,

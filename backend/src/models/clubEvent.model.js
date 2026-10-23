@@ -63,6 +63,8 @@ const clubEventSchema = new mongoose.Schema(
                 y: { type: Number, default: 50, min: 0, max: 100 },
                 w: { type: Number, default: 0, min: 0, max: 100 },
                 h: { type: Number, default: 0, min: 0, max: 100 },
+                /** Precio de este sector. Si no está, se usa el precio del tipo. */
+                precio: { type: Number, min: 0 },
             },
         ],
         reglasDescuento: [reglaDescuentoSchema],

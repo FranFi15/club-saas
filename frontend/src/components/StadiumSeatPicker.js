@@ -248,8 +248,9 @@ export default function StadiumSeatPicker({
                       },
                 ]}
               >
-                <Text style={{ color: on && !hasArea ? '#fff' : color, fontWeight: '800', fontSize: 11 }} numberOfLines={1}>
+                <Text style={{ color: on && !hasArea ? '#fff' : color, fontWeight: '800', fontSize: 11 }} numberOfLines={2}>
                   {section.nombre}
+                  {section.precio != null && section.precio !== '' ? `\n$${Number(section.precio).toLocaleString('es-AR')}` : ''}
                 </Text>
               </Pressable>
             );
@@ -270,7 +271,10 @@ export default function StadiumSeatPicker({
                   { borderColor: on ? color : theme.border, backgroundColor: on ? color : theme.surface },
                 ]}
               >
-                <Text style={{ color: on ? '#fff' : theme.text, fontWeight: '800' }}>{section.nombre}</Text>
+                <Text style={{ color: on ? '#fff' : theme.text, fontWeight: '800' }}>
+                  {section.nombre}
+                  {section.precio != null && section.precio !== '' ? ` · $${Number(section.precio).toLocaleString('es-AR')}` : ''}
+                </Text>
               </Pressable>
             );
           })}
@@ -298,7 +302,8 @@ export default function StadiumSeatPicker({
             <Text style={styles.pitchText}>Cancha</Text>
           </View>
           <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8 }}>
-            {open.nombre}. La fila 1 es la más cercana a la cancha. Se ven todos los asientos: pellizcá para acercar y elegir.
+            {open.nombre}
+            {open.precio != null && open.precio !== '' ? ` · $${Number(open.precio).toLocaleString('es-AR')}` : ''}. La fila 1 es la más cercana a la cancha. Se ven todos los asientos: pellizcá para acercar y elegir.
           </Text>
           <SeatZoom
             key={String(open._id)}

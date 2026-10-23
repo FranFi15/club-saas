@@ -60,6 +60,17 @@ function formatMoney(n) {
   return v.toLocaleString('es-AR', { maximumFractionDigits: 0 });
 }
 
+function tipoPriceText(tipo, sections) {
+  const prices = (sections || [])
+    .filter((section) => String(section.tipoEntrada) === String(tipo?._id) && section.precio != null && section.precio !== '')
+    .map((section) => Number(section.precio) || 0);
+  if (!prices.length) return Number(tipo?.precio) === 0 ? 'Gratis' : `$${formatMoney(tipo?.precio)}`;
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  if (min === max) return min === 0 ? 'Gratis' : `$${formatMoney(min)}`;
+  return `$${formatMoney(min)} a $${formatMoney(max)}`;
+}
+
 function lowestPrice(tipos) {
   const prices = (tipos || []).map((t) => Number(t.precio) || 0);
   if (!prices.length) return null;
@@ -84,6 +95,8 @@ export default function MemberEventsScreen({ navigation }) {
   const holderTouched = useRef(false);
   const [buyNotice, setBuyNotice] = useState('');
   const [seats, setSeats] = useState([]);
+  const seatsRef = useRef(seats);
+  seatsRef.current = seats;
   const [quote, setQuote] = useState(null);
   const [quoting, setQuoting] = useState(false);
   const [buying, setBuying] = useState(false);
@@ -164,10 +177,19 @@ export default function MemberEventsScreen({ navigation }) {
     const source = holdersRef.current;
     return Array.from({ length: cantidad }, (_, i) => {
       const h = source[i] || {};
+      const seat = seatsRef.current[i];
       return {
         nombre: String(h.nombre || '').trim() || (i === 0 ? me.nombre : ''),
         apellido: String(h.apellido || '').trim() || (i === 0 ? me.apellido : ''),
         dni: normalizeTicketDni(h.dni) || (i === 0 ? me.dni : ''),
+        asiento: seat
+          ? {
+              seccionId: seat.seccionId,
+              seccionNombre: seat.seccionNombre,
+              fila: seat.fila,
+              numero: seat.numero,
+            }
+          : undefined,
       };
     });
   }, [cantidad, profile]);
@@ -201,6 +223,7 @@ export default function MemberEventsScreen({ navigation }) {
     .slice(0, cantidad)
     .map((h) => `${h.nombre}|${h.apellido}|${h.dni}`)
     .join(';');
+  const seatKey = seats.map((seat) => `${seat.seccionId}:${seat.fila}:${seat.numero}`).join(';');
 
   useEffect(() => {
     if (!selected?._id || !tipoId) return undefined;
@@ -208,7 +231,7 @@ export default function MemberEventsScreen({ navigation }) {
       runQuote(selected._id, tipoId, asistentesForQuote());
     }, 280);
     return () => clearTimeout(t);
-  }, [selected?._id, tipoId, cantidad, holderKey, asistentesForQuote, runQuote]);
+  }, [selected?._id, tipoId, cantidad, holderKey, seatKey, asistentesForQuote, runQuote]);
 
   useEffect(() => {
     const seated = (selected?.secciones || []).some(
@@ -516,7 +539,7 @@ export default function MemberEventsScreen({ navigation }) {
                     </Text>
                   </View>
                   <Text style={{ color: theme.text, fontWeight: '800', fontSize: 16 }}>
-                    {Number(t.precio) === 0 ? 'Gratis' : `$${formatMoney(t.precio)}`}
+                    {tipoPriceText(t, selected?.secciones)}
                   </Text>
                   {on ? (
                     <Ionicons name="checkmark-circle" size={22} color={colorMarca} style={{ marginLeft: 8 }} />

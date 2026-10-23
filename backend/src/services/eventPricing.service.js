@@ -123,6 +123,60 @@ export async function resolveDiscountPeople(models, buyer) {
     return eligible;
 }
 
+function dniLookupClauses(dni) {
+    const spaced = dni.split('').join('\\D*');
+    const clauses = [
+        { dni },
+        { dni: new RegExp(`^\\D*${spaced}\\D*$`) },
+    ];
+    if (dni.length === 7 || dni.length === 8) {
+        const core = dni.padStart(8, '0').split('').join('\\D*');
+        clauses.push({ dni: new RegExp(`^\\D*\\d{2}\\D*${core}\\D*\\d\\D*$`) });
+    }
+    return clauses;
+}
+
+/**
+ * Public checkout has no logged-in buyer. A ticket gets a member discount only
+ * when its name and DNI match a club member who qualifies for a rule.
+ */
+export async function resolveDiscountPeopleFromHolders(models, holders) {
+    if (!models?.User) return [];
+    const list = Array.isArray(holders) ? holders : [];
+    const dnis = [...new Set(
+        list.map((holder) => normalizeTicketDni(holder?.dni)).filter((dni) => dni.length >= 6),
+    )];
+    if (!dnis.length) return [];
+
+    const users = await models.User.find({
+        estado: { $ne: 'inactivo' },
+        $or: dnis.flatMap(dniLookupClauses),
+    })
+        .select('nombre apellido dni rol cuotaSocialAsignada')
+        .limit(30)
+        .lean();
+
+    const eligible = [];
+    const seen = new Set();
+    for (const user of users) {
+        if (!EVENT_MEMBER_ROLES.includes(user?.rol)) continue;
+        const person = {
+            userId: String(user._id),
+            nombre: user.nombre || '',
+            apellido: user.apellido || '',
+            dni: normalizeTicketDni(user.dni),
+        };
+        if (!person.dni || seen.has(person.userId)) continue;
+        if (!list.some((holder) => sameHolder(holder, person))) continue;
+        seen.add(person.userId);
+        eligible.push({
+            ...person,
+            context: await resolveBuyerContext(models, user),
+        });
+    }
+    return eligible;
+}
+
 function discountedUnitPrice(precioLista, rule) {
     if (!rule) return precioLista;
     if (rule.modo === 'gratis') return 0;
@@ -161,6 +215,15 @@ export function quoteEventTickets({ event, tipoEntradaId, cantidad, holders, eli
     }
 
     const precioLista = roundMoney(Number(tipo.precio) || 0);
+    const listPriceFor = (holder) => {
+        const sectionId = holder?.asiento?.seccionId;
+        if (!sectionId) return precioLista;
+        const section = (event.secciones || []).find(
+            (item) => idsEqual(item._id, sectionId) && idsEqual(item.tipoEntrada, tipo._id),
+        );
+        if (!section || section.precio == null || section.precio === '') return precioLista;
+        return roundMoney(Math.max(0, Number(section.precio) || 0));
+    };
     const people = Array.isArray(eligible) ? eligible : [];
     const rawHolders = Array.isArray(holders) ? holders : [];
     const usedByPerson = new Map();
@@ -168,23 +231,25 @@ export function quoteEventTickets({ event, tipoEntradaId, cantidad, holders, eli
 
     const lineas = Array.from({ length: qty }, (_, index) => {
         const holder = rawHolders[index] || {};
+        const listPrice = listPriceFor(holder);
         const person = people.find((item) => sameHolder(holder, item));
         const titular = [holder.nombre, holder.apellido].filter(Boolean).join(' ').trim();
         if (!person) {
-            return { precio: precioLista, conDescuento: false, titular };
+            return { precio: listPrice, precioLista: listPrice, conDescuento: false, titular };
         }
         if (person.context?.tieneVencidos && person.context?.rol) {
             descuentoBloqueadoPorDeuda = true;
-            return { precio: precioLista, conDescuento: false, titular, bloqueadoPorDeuda: true };
+            return { precio: listPrice, precioLista: listPrice, conDescuento: false, titular, bloqueadoPorDeuda: true };
         }
         const rule = matchRule(event, person.context || {});
-        if (!rule) return { precio: precioLista, conDescuento: false, titular };
+        if (!rule) return { precio: listPrice, precioLista: listPrice, conDescuento: false, titular };
         const maxDesc = Math.max(1, Math.floor(Number(rule.maxEntradasConDescuento) || 1));
         const used = usedByPerson.get(person.userId) || 0;
-        if (used >= maxDesc) return { precio: precioLista, conDescuento: false, titular };
+        if (used >= maxDesc) return { precio: listPrice, precioLista: listPrice, conDescuento: false, titular };
         usedByPerson.set(person.userId, used + 1);
         return {
-            precio: discountedUnitPrice(precioLista, rule),
+            precio: discountedUnitPrice(listPrice, rule),
+            precioLista: listPrice,
             conDescuento: true,
             titular: titular || [person.nombre, person.apellido].filter(Boolean).join(' ').trim(),
             regla: {
@@ -228,6 +293,7 @@ export function quoteEventTickets({ event, tipoEntradaId, cantidad, holders, eli
         descuentoBloqueadoPorDeuda,
         lineas: lineas.map((line) => ({
             precio: line.precio,
+            precioLista: line.precioLista ?? line.precio,
             conDescuento: line.conDescuento,
             titular: line.titular || '',
             reglaNombre: line.regla?.nombre || '',

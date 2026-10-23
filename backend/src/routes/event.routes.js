@@ -16,6 +16,7 @@ import {
     adminCashSale,
     listPublicEvents,
     getPublicEvent,
+    publicQuote,
     publicCheckout,
     listMemberEvents,
     quoteMemberEvent,
@@ -37,6 +38,11 @@ import {
     updateStadium,
     deleteStadium,
 } from '../controllers/stadium.controller.js';
+import {
+    listDiscounts,
+    createDiscount,
+    deleteDiscount,
+} from '../controllers/discount.controller.js';
 
 const router = express.Router();
 
@@ -55,6 +61,7 @@ router.use(async (req, res, next) => {
 router.get('/public', listPublicEvents);
 router.get('/public/orders/:orderId', getPublicOrderTickets);
 router.get('/public/:slug', getPublicEvent);
+router.post('/public/:slug/quote', publicQuote);
 router.post('/public/:slug/checkout', publicCheckout);
 
 // Scan
@@ -76,6 +83,9 @@ router.get('/admin/stadiums', protect, authorize(...EVENT_MANAGE), listStadiums)
 router.post('/admin/stadiums', protect, authorize(...EVENT_MANAGE), createStadium);
 router.patch('/admin/stadiums/:id', protect, authorize(...EVENT_MANAGE), updateStadium);
 router.delete('/admin/stadiums/:id', protect, authorize(...EVENT_MANAGE), deleteStadium);
+router.get('/admin/discounts', protect, authorize(...EVENT_MANAGE), listDiscounts);
+router.post('/admin/discounts', protect, authorize(...EVENT_MANAGE), createDiscount);
+router.delete('/admin/discounts/:id', protect, authorize(...EVENT_MANAGE), deleteDiscount);
 router.get('/admin/user-search', protect, authorize(...ADMIN_WRITE), searchEventBuyers);
 router.get('/admin', protect, authorize(...ADMIN_READ), listAdminEvents);
 router.post('/admin/:id/cash-quote', protect, authorize(...ADMIN_WRITE), adminCashQuote);
