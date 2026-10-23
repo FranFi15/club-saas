@@ -140,6 +140,14 @@ export async function issueTicketsForOrder(models, order, { clubIdentifier, even
                 dni: order.comprador?.dni || '',
             },
             titular,
+            asiento: holder?.asiento?.seccionId
+                ? {
+                    seccionId: holder.asiento.seccionId,
+                    seccionNombre: holder.asiento.seccionNombre || '',
+                    fila: holder.asiento.fila,
+                    numero: holder.asiento.numero,
+                }
+                : undefined,
             _exp: exp,
         });
     }
@@ -155,6 +163,99 @@ export async function issueTicketsForOrder(models, order, { clubIdentifier, even
     }
 
     return [...existing, ...created.map((d) => d.toObject?.() || d)];
+}
+
+function seatKey(seat) {
+    return `${seat.seccionId}:${seat.fila}:${seat.numero}`;
+}
+
+export async function listOccupiedSeats(models, eventId) {
+    const { EventTicket, EventTicketOrder } = models;
+    const tickets = await EventTicket.find({
+        evento: eventId,
+        estado: { $ne: 'anulada' },
+        'asiento.seccionId': { $ne: null },
+    })
+        .select('asiento')
+        .lean();
+    const holds = await EventTicketOrder.find({
+        evento: eventId,
+        estado: 'pendiente_pago',
+        holdUntil: { $gt: new Date() },
+    })
+        .select('asistentes.asiento')
+        .lean();
+    const seats = [];
+    for (const ticket of tickets) {
+        if (ticket.asiento?.seccionId) seats.push(ticket.asiento);
+    }
+    for (const order of holds) {
+        for (const person of order.asistentes || []) {
+            if (person.asiento?.seccionId) seats.push(person.asiento);
+        }
+    }
+    return seats.map((seat) => ({
+        seccionId: String(seat.seccionId),
+        fila: seat.fila,
+        numero: seat.numero,
+    }));
+}
+
+/**
+ * When the event has sections for this ticket type, each holder must pick a free seat.
+ * Events without a stadium map keep the previous quantity-only purchase.
+ */
+export async function bindHolderSeats(models, event, tipoEntradaId, holders, rawList) {
+    const sections = (event.secciones || []).filter(
+        (section) => String(section.tipoEntrada) === String(tipoEntradaId),
+    );
+    if (!sections.length) {
+        return holders.map((holder) => {
+            const next = { ...holder };
+            delete next.asiento;
+            return next;
+        });
+    }
+    const occupied = await listOccupiedSeats(models, event._id);
+    const taken = new Set(occupied.map(seatKey));
+    const byId = Object.fromEntries(sections.map((section) => [String(section._id), section]));
+    const used = new Set();
+    return holders.map((holder, index) => {
+        const raw = rawList?.[index]?.asiento || {};
+        const seccionId = String(raw.seccionId || '');
+        const section = byId[seccionId];
+        const fila = Math.floor(Number(raw.fila));
+        const numero = Math.floor(Number(raw.numero));
+        if (
+            !section
+            || fila < 1
+            || fila > section.filas
+            || numero < 1
+            || numero > section.asientosPorFila
+        ) {
+            const err = new Error(`Entrada ${index + 1}: elegí un asiento tocando el plano.`);
+            err.statusCode = 400;
+            throw err;
+        }
+        const key = seatKey({ seccionId, fila, numero });
+        if (taken.has(key) || used.has(key)) {
+            const err = new Error(
+                `Fila ${fila}, asiento ${numero} de ${section.nombre} ya está ocupado.`,
+            );
+            err.statusCode = 400;
+            throw err;
+        }
+        used.add(key);
+        return {
+            ...holder,
+            asiento: {
+                seccionId: section._id,
+                seccionNombre: section.nombre,
+                fila,
+                numero,
+            },
+        };
+    });
 }
 
 /**

@@ -10,6 +10,8 @@ import {
     expireStaleHolds,
     releaseOrderHold,
     normalizeAsistentes,
+    bindHolderSeats,
+    listOccupiedSeats,
 } from '../services/eventTicketIssue.service.js';
 import { parseEventTicketToken } from '../services/eventTicketToken.service.js';
 import { createEventOrderMpPreference } from '../services/eventMp.service.js';
@@ -52,6 +54,16 @@ function publicEventCard(ev) {
         titulo: ev.titulo,
         descripcion: ev.descripcion,
         imagenUrl: ev.imagenUrl,
+        mapaEstadioUrl: ev.mapaEstadioUrl || '',
+        secciones: (ev.secciones || []).map((section) => ({
+            _id: section._id,
+            nombre: section.nombre,
+            filas: section.filas,
+            asientosPorFila: section.asientosPorFila,
+            tipoEntrada: section.tipoEntrada,
+            x: section.x,
+            y: section.y,
+        })),
         lugar: ev.lugar,
         fechaInicio: ev.fechaInicio,
         fechaFin: ev.fechaFin,
@@ -66,6 +78,45 @@ function publicEventCard(ev) {
                 disponibles: Math.max(0, Number(t.cupo) - Number(t.vendidas || 0)),
             })),
     };
+}
+
+function normalizeSecciones(raw, tipos) {
+    const list = Array.isArray(raw) ? raw : [];
+    const tipoIds = new Set((tipos || []).map((tipo) => String(tipo._id)));
+    const out = [];
+    for (const section of list) {
+        let tipoId = section?.tipoEntrada ? String(section.tipoEntrada) : '';
+        const tipoIndex = Number(section?.tipoIndex);
+        if (!tipoIds.has(tipoId) && Number.isInteger(tipoIndex) && tipos[tipoIndex]) {
+            tipoId = String(tipos[tipoIndex]._id);
+        }
+        if (!tipoIds.has(tipoId)) continue;
+        out.push({
+            ...(section._id && mongoose.Types.ObjectId.isValid(String(section._id))
+                ? { _id: section._id }
+                : {}),
+            nombre: String(section.nombre || '').trim() || 'Sección',
+            filas: Math.max(1, Math.min(40, Math.floor(Number(section.filas) || 1))),
+            asientosPorFila: Math.max(1, Math.min(80, Math.floor(Number(section.asientosPorFila) || 1))),
+            tipoEntrada: tipoId,
+            x: Math.max(0, Math.min(100, Number(section.x) || 50)),
+            y: Math.max(0, Math.min(100, Number(section.y) || 50)),
+        });
+    }
+    return out;
+}
+
+function applySectionCupos(tipos, secciones) {
+    const sums = {};
+    for (const section of secciones || []) {
+        const id = String(section.tipoEntrada);
+        sums[id] = (sums[id] || 0) + section.filas * section.asientosPorFila;
+    }
+    for (const tipo of tipos || []) {
+        const seats = sums[String(tipo._id)];
+        if (!seats) continue;
+        tipo.cupo = Math.max(Number(tipo.vendidas) || 0, seats);
+    }
 }
 
 function normalizeTipos(raw) {
@@ -218,10 +269,12 @@ export const createEvent = asyncHandler(async (req, res) => {
         titulo,
         descripcion,
         imagenUrl,
+        mapaEstadioUrl,
         lugar,
         fechaInicio,
         fechaFin,
         tiposEntrada,
+        secciones,
         reglasDescuento,
         controlIngreso,
         estado,
@@ -234,10 +287,11 @@ export const createEvent = asyncHandler(async (req, res) => {
     }
 
     const slug = await uniqueSlug(ClubEvent, slugIn || titulo);
-    const event = await ClubEvent.create({
+    const event = new ClubEvent({
         titulo: titulo.trim(),
         descripcion: descripcion || '',
         imagenUrl: imagenUrl || '',
+        mapaEstadioUrl: mapaEstadioUrl || '',
         lugar: lugar || '',
         fechaInicio: new Date(fechaInicio),
         fechaFin: fechaFin ? new Date(fechaFin) : undefined,
@@ -248,6 +302,9 @@ export const createEvent = asyncHandler(async (req, res) => {
         estado: ['borrador', 'publicado'].includes(estado) ? estado : 'borrador',
         creadoPor: req.user._id,
     });
+    event.secciones = normalizeSecciones(secciones, event.tiposEntrada);
+    applySectionCupos(event.tiposEntrada, event.secciones);
+    await event.save();
     res.status(201).json(event);
 });
 
@@ -263,6 +320,7 @@ export const updateEvent = asyncHandler(async (req, res) => {
     if (b.titulo != null) event.titulo = String(b.titulo).trim();
     if (b.descripcion != null) event.descripcion = String(b.descripcion);
     if (b.imagenUrl != null) event.imagenUrl = String(b.imagenUrl);
+    if (b.mapaEstadioUrl != null) event.mapaEstadioUrl = String(b.mapaEstadioUrl);
     if (b.lugar != null) event.lugar = String(b.lugar);
     if (b.fechaInicio != null) event.fechaInicio = new Date(b.fechaInicio);
     if (b.fechaFin !== undefined) {
@@ -280,6 +338,10 @@ export const updateEvent = asyncHandler(async (req, res) => {
             if (prev) t.vendidas = prev.vendidas;
         }
         event.tiposEntrada = next;
+    }
+    if (b.secciones != null) {
+        event.secciones = normalizeSecciones(b.secciones, event.tiposEntrada);
+        applySectionCupos(event.tiposEntrada, event.secciones);
     }
     if (b.reglasDescuento != null) {
         event.reglasDescuento = normalizeReglas(b.reglasDescuento);
@@ -481,15 +543,22 @@ async function quoteCashSale(req) {
 }
 
 export const adminCashQuote = asyncHandler(async (req, res) => {
-    const { quote } = await quoteCashSale(req);
-    res.json(quote);
+    const { event, quote } = await quoteCashSale(req);
+    const ocupados = await listOccupiedSeats(req.models, event._id);
+    res.json({ ...quote, ocupados });
 });
 
 export const adminCashSale = asyncHandler(async (req, res) => {
     const { EventTicketOrder } = req.models;
     const { event, quote } = await quoteCashSale(req);
     const { comprador } = await buyerForCashSale(req);
-    const holders = normalizeAsistentes(req.body?.asistentes, quote.cantidad);
+    const holders = await bindHolderSeats(
+        req.models,
+        event,
+        quote.tipoEntradaId,
+        normalizeAsistentes(req.body?.asistentes, quote.cantidad),
+        req.body?.asistentes,
+    );
 
     await reserveCupo(event, quote.tipoEntradaId, quote.cantidad);
     const order = await EventTicketOrder.create({
@@ -565,7 +634,8 @@ export const getPublicEvent = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Evento no encontrado.');
     }
-    res.json(publicEventCard(event));
+    const ocupados = await listOccupiedSeats(req.models, event._id);
+    res.json({ ...publicEventCard(event), ocupados });
 });
 
 export const publicCheckout = asyncHandler(async (req, res) => {
@@ -594,7 +664,13 @@ export const publicCheckout = asyncHandler(async (req, res) => {
         cantidad,
         context,
     });
-    const holders = normalizeAsistentes(asistentes, quote.cantidad);
+    const holders = await bindHolderSeats(
+        req.models,
+        event,
+        quote.tipoEntradaId,
+        normalizeAsistentes(asistentes, quote.cantidad),
+        asistentes,
+    );
 
     await reserveCupo(event, quote.tipoEntradaId, quote.cantidad);
 
@@ -663,7 +739,8 @@ export const quoteMemberEvent = asyncHandler(async (req, res) => {
         cantidad: req.body?.cantidad,
         context,
     });
-    res.json(quote);
+    const ocupados = await listOccupiedSeats(req.models, event._id);
+    res.json({ ...quote, ocupados });
 });
 
 export const memberCheckout = asyncHandler(async (req, res) => {
@@ -684,7 +761,13 @@ export const memberCheckout = asyncHandler(async (req, res) => {
         cantidad,
         context,
     });
-    const holders = normalizeAsistentes(asistentes, quote.cantidad);
+    const holders = await bindHolderSeats(
+        req.models,
+        event,
+        quote.tipoEntradaId,
+        normalizeAsistentes(asistentes, quote.cantidad),
+        asistentes,
+    );
 
     await reserveCupo(event, quote.tipoEntradaId, quote.cantidad);
 

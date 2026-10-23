@@ -39,6 +39,8 @@ const clubEventSchema = new mongoose.Schema(
         titulo: { type: String, required: true, trim: true },
         descripcion: { type: String, trim: true, default: '' },
         imagenUrl: { type: String, trim: true, default: '' },
+        /** Plano del estadio. Las secciones se marcan encima y el comprador solo elige un asiento. */
+        mapaEstadioUrl: { type: String, trim: true, default: '' },
         lugar: { type: String, trim: true, default: '' },
         fechaInicio: { type: Date, required: true },
         fechaFin: { type: Date },
@@ -49,6 +51,17 @@ const clubEventSchema = new mongoose.Schema(
         },
         slug: { type: String, required: true, trim: true, lowercase: true },
         tiposEntrada: [tipoEntradaSchema],
+        secciones: [
+            {
+                nombre: { type: String, required: true, trim: true },
+                filas: { type: Number, required: true, min: 1, max: 40 },
+                asientosPorFila: { type: Number, required: true, min: 1, max: 80 },
+                tipoEntrada: { type: mongoose.Schema.Types.ObjectId, required: true },
+                /** Posición del cartel en el plano, en porcentaje. */
+                x: { type: Number, default: 50, min: 0, max: 100 },
+                y: { type: Number, default: 50, min: 0, max: 100 },
+            },
+        ],
         reglasDescuento: [reglaDescuentoSchema],
         /** Usuarios que ven el escáner de este evento. El ingreso de socios no usa esta lista. */
         controlIngreso: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
@@ -96,6 +109,12 @@ const eventTicketOrderSchema = new mongoose.Schema(
                 nombre: { type: String, required: true, trim: true },
                 apellido: { type: String, required: true, trim: true },
                 dni: { type: String, required: true, trim: true },
+                asiento: {
+                    seccionId: { type: mongoose.Schema.Types.ObjectId },
+                    seccionNombre: { type: String, trim: true, default: '' },
+                    fila: { type: Number, min: 1 },
+                    numero: { type: Number, min: 1 },
+                },
             },
         ],
         estado: {
@@ -152,6 +171,12 @@ const eventTicketSchema = new mongoose.Schema(
             nombre: { type: String, trim: true, default: '' },
             apellido: { type: String, trim: true, default: '' },
             dni: { type: String, trim: true, default: '' },
+        },
+        asiento: {
+            seccionId: { type: mongoose.Schema.Types.ObjectId },
+            seccionNombre: { type: String, trim: true, default: '' },
+            fila: { type: Number, min: 1 },
+            numero: { type: Number, min: 1 },
         },
     },
     { timestamps: true },
