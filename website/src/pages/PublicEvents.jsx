@@ -41,6 +41,24 @@ function formatWhen(iso) {
   });
 }
 
+function formatDay(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('es-AR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
+function formatClock(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatMoney(n) {
+  return Number(n || 0).toLocaleString('es-AR');
+}
+
 export default function PublicEvents() {
   const params = useMemo(() => queryParams(), []);
   const [clubMeta, setClubMeta] = useState(null);
@@ -250,25 +268,36 @@ export default function PublicEvents() {
   const viewingTickets = Boolean(params.order && success);
   const heroUrl = selected?.imagenUrl || (viewingTickets ? success?.evento?.imagenUrl : '');
   const showEvent = Boolean(selected || viewingTickets);
+  const selectedTipo = (selected?.tiposEntrada || []).find((t) => String(t._id) === String(tipoId));
+  const ticketTotal = selectedTipo ? (Number(cantidad) || 1) * (Number(selectedTipo.precio) || 0) : null;
 
   return (
     <div className={`pe-page${showEvent ? ' pe-page--event' : ''}`} style={{ '--pe-brand': brand }}>
       {heroUrl ? <img className="pe-hero" src={heroUrl} alt="" /> : null}
-      <header className="pe-header">
-        <div className="pe-brand">
+      <div className={showEvent ? 'pe-event-wrap' : undefined}>
+      {showEvent ? (
+        <header className="pe-header">
+          <div className="pe-brand">
+            {clubMeta?.logoUrl ? (
+              <img className="pe-logo" src={clubMeta.logoUrl} alt={clubMeta.nombre || 'Club'} />
+            ) : (
+              <p className="pe-kicker">{clubMeta?.nombre || 'Club'}</p>
+            )}
+          </div>
+          <button type="button" className="pe-back" onClick={viewingTickets ? leaveTickets : backToList}>
+            ← Todos los eventos
+          </button>
+        </header>
+      ) : (
+        <header className="pe-header pe-header--catalog">
           {clubMeta?.logoUrl ? (
             <img className="pe-logo" src={clubMeta.logoUrl} alt={clubMeta.nombre || 'Club'} />
           ) : (
             <p className="pe-kicker">{clubMeta?.nombre || 'Club'}</p>
           )}
-          {!showEvent ? <h1>Eventos</h1> : null}
-        </div>
-        {showEvent ? (
-          <button type="button" className="pe-back" onClick={viewingTickets ? leaveTickets : backToList}>
-            ← Todos los eventos
-          </button>
-        ) : null}
-      </header>
+          <h1>Adquirí tus tickets de los próximos eventos</h1>
+        </header>
+      )}
 
       {loading ? <p className="pe-muted">Cargando…</p> : null}
       {error ? <p className="pe-error">{error}</p> : null}
@@ -302,14 +331,43 @@ export default function PublicEvents() {
       ) : null}
 
       {selected && !success ? (
-        <div className="pe-detail">
-          <h2>{selected.titulo}</h2>
-          <p className="pe-muted">
-            {formatWhen(selected.fechaInicio)}
-            {selected.lugar ? ` · ${selected.lugar}` : ''}
-          </p>
-          {selected.descripcion ? <p className="pe-desc">{selected.descripcion}</p> : null}
+        <div className="pe-event-layout">
+          <section className="pe-event-info">
+            <h2>{selected.titulo}</h2>
+            <div className="pe-facts">
+              {selected.fechaInicio ? (
+                <div className="pe-fact">
+                  <span className="pe-fact-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="5" width="18" height="16" rx="2" />
+                      <path d="M3 10h18M8 3v4M16 3v4" />
+                    </svg>
+                  </span>
+                  <span>
+                    <strong>{formatDay(selected.fechaInicio)}</strong>
+                    <small>{formatClock(selected.fechaInicio)}</small>
+                  </span>
+                </div>
+              ) : null}
+              {selected.lugar ? (
+                <div className="pe-fact">
+                  <span className="pe-fact-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z" />
+                      <circle cx="12" cy="10" r="2.5" />
+                    </svg>
+                  </span>
+                  <span>
+                    <strong>Lugar</strong>
+                    <small>{selected.lugar}</small>
+                  </span>
+                </div>
+              ) : null}
+            </div>
+            {selected.descripcion ? <p className="pe-desc">{selected.descripcion}</p> : null}
+          </section>
 
+          <section className="pe-buy">
           <ol className="pe-steps">
             <li className={step === 1 ? 'is-on' : 'is-done'}>1. Compra</li>
             <li className={step === 2 ? 'is-on' : ''}>2. Entradas</li>
@@ -322,22 +380,39 @@ export default function PublicEvents() {
                 <select value={tipoId} onChange={(e) => setTipoId(e.target.value)} required>
                   {(selected.tiposEntrada || []).map((t) => (
                     <option key={t._id} value={t._id}>
-                      {t.nombre} — ${t.precio} ({t.disponibles} disp.)
+                      {t.nombre} — {Number(t.precio) === 0 ? 'Gratis' : `$${formatMoney(t.precio)}`} ({t.disponibles} disp.)
                     </option>
                   ))}
                 </select>
               </label>
-              <label>
-                Cantidad
-                <input
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={cantidad}
-                  onChange={(e) => setQty(e.target.value)}
-                  required
-                />
-              </label>
+              <div className="pe-qty">
+                <span>Cantidad</span>
+                <div className="pe-qty-controls">
+                  <button
+                    type="button"
+                    onClick={() => setQty(cantidad - 1)}
+                    disabled={cantidad <= 1}
+                    aria-label="Menos tickets"
+                  >
+                    −
+                  </button>
+                  <span className="pe-qty-value">{cantidad}</span>
+                  <button
+                    type="button"
+                    onClick={() => setQty(cantidad + 1)}
+                    disabled={cantidad >= 20}
+                    aria-label="Más tickets"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+              {ticketTotal != null ? (
+                <p className="pe-total">
+                  <span>Total</span>
+                  <strong>{ticketTotal === 0 ? 'Gratis' : `$${formatMoney(ticketTotal)}`}</strong>
+                </p>
+              ) : null}
 
               <p className="pe-section">Quién compra</p>
               <label>
@@ -429,6 +504,7 @@ export default function PublicEvents() {
               </div>
             </form>
           )}
+          </section>
         </div>
       ) : null}
 
@@ -473,6 +549,7 @@ export default function PublicEvents() {
           </button>
         </div>
       ) : null}
+      </div>
     </div>
   );
 }
