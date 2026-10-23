@@ -1,4 +1,6 @@
 import { EVENT_MEMBER_ROLES } from '../models/clubEvent.model.js';
+import { hijosDelTutorFilter } from '../utils/userQuery.js';
+import { normalizeTicketDni } from './eventTicketIssue.service.js';
 
 function roundMoney(n) {
     return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
@@ -78,6 +80,49 @@ export function matchRule(event, context) {
     return null;
 }
 
+function foldName(value) {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function sameHolder(holder, person) {
+    const dni = normalizeTicketDni(holder?.dni);
+    if (!dni || !person?.dni || dni !== person.dni) return false;
+    return foldName(holder?.nombre) === foldName(person.nombre)
+        && foldName(holder?.apellido) === foldName(person.apellido);
+}
+
+/**
+ * People whose member discount this buyer may use: themselves, and a tutor's athletes.
+ * The discount still applies only when the ticket name and DNI match that person.
+ */
+export async function resolveDiscountPeople(models, buyer) {
+    if (!buyer?._id && !buyer?.id) return [];
+    const people = [buyer];
+    if (buyer.rol === 'tutor' && models?.User) {
+        const hijos = await models.User.find(hijosDelTutorFilter(buyer._id || buyer.id))
+            .select('nombre apellido dni rol cuotaSocialAsignada')
+            .lean();
+        people.push(...hijos);
+    }
+    const eligible = [];
+    for (const user of people) {
+        if (!user?._id && !user?.id) continue;
+        eligible.push({
+            userId: String(user._id || user.id),
+            nombre: user.nombre || '',
+            apellido: user.apellido || '',
+            dni: normalizeTicketDni(user.dni),
+            context: await resolveBuyerContext(models, user),
+        });
+    }
+    return eligible;
+}
+
 function discountedUnitPrice(precioLista, rule) {
     if (!rule) return precioLista;
     if (rule.modo === 'gratis') return 0;
@@ -89,7 +134,7 @@ function discountedUnitPrice(precioLista, rule) {
 /**
  * @returns quote breakdown
  */
-export function quoteEventTickets({ event, tipoEntradaId, cantidad, context }) {
+export function quoteEventTickets({ event, tipoEntradaId, cantidad, holders, eligible }) {
     const qty = Math.max(1, Math.floor(Number(cantidad) || 0));
     if (!qty) {
         const err = new Error('Indicá una cantidad válida.');
@@ -116,31 +161,58 @@ export function quoteEventTickets({ event, tipoEntradaId, cantidad, context }) {
     }
 
     const precioLista = roundMoney(Number(tipo.precio) || 0);
-    const rule = matchRule(event, context || {});
-    const descuentoBloqueadoPorDeuda = !!(context?.tieneVencidos && context?.rol);
+    const people = Array.isArray(eligible) ? eligible : [];
+    const rawHolders = Array.isArray(holders) ? holders : [];
+    const usedByPerson = new Map();
+    let descuentoBloqueadoPorDeuda = false;
 
-    let precioConDescuento = precioLista;
-    let cantidadConDescuento = 0;
-    let cantidadPrecioLleno = qty;
-    let reglaAplicada = null;
-
-    if (rule) {
-        precioConDescuento = discountedUnitPrice(precioLista, rule);
+    const lineas = Array.from({ length: qty }, (_, index) => {
+        const holder = rawHolders[index] || {};
+        const person = people.find((item) => sameHolder(holder, item));
+        const titular = [holder.nombre, holder.apellido].filter(Boolean).join(' ').trim();
+        if (!person) {
+            return { precio: precioLista, conDescuento: false, titular };
+        }
+        if (person.context?.tieneVencidos && person.context?.rol) {
+            descuentoBloqueadoPorDeuda = true;
+            return { precio: precioLista, conDescuento: false, titular, bloqueadoPorDeuda: true };
+        }
+        const rule = matchRule(event, person.context || {});
+        if (!rule) return { precio: precioLista, conDescuento: false, titular };
         const maxDesc = Math.max(1, Math.floor(Number(rule.maxEntradasConDescuento) || 1));
-        cantidadConDescuento = Math.min(qty, maxDesc);
-        cantidadPrecioLleno = qty - cantidadConDescuento;
-        reglaAplicada = {
-            id: rule._id || null,
-            nombre: rule.nombre || null,
-            modo: rule.modo,
-            valor: rule.valor,
-            maxEntradasConDescuento: maxDesc,
+        const used = usedByPerson.get(person.userId) || 0;
+        if (used >= maxDesc) return { precio: precioLista, conDescuento: false, titular };
+        usedByPerson.set(person.userId, used + 1);
+        return {
+            precio: discountedUnitPrice(precioLista, rule),
+            conDescuento: true,
+            titular: titular || [person.nombre, person.apellido].filter(Boolean).join(' ').trim(),
+            regla: {
+                id: rule._id || null,
+                nombre: rule.nombre || null,
+                modo: rule.modo,
+                valor: rule.valor,
+                maxEntradasConDescuento: maxDesc,
+            },
         };
-    }
+    });
 
-    const montoTotal = roundMoney(
-        cantidadConDescuento * precioConDescuento + cantidadPrecioLleno * precioLista,
-    );
+    const discounted = lineas.filter((line) => line.conDescuento);
+    const cantidadConDescuento = discounted.length;
+    const cantidadPrecioLleno = qty - cantidadConDescuento;
+    const precioConDescuento = cantidadConDescuento ? discounted[0].precio : precioLista;
+    const ruleNames = [...new Set(discounted.map((line) => line.regla?.nombre).filter(Boolean))];
+    const reglaAplicada = discounted.length
+        ? {
+            id: discounted[0].regla?.id || null,
+            nombre: ruleNames.join(' · ') || null,
+            modo: discounted[0].regla?.modo,
+            valor: discounted[0].regla?.valor,
+            maxEntradasConDescuento: discounted[0].regla?.maxEntradasConDescuento,
+        }
+        : null;
+
+    const montoTotal = roundMoney(lineas.reduce((sum, line) => sum + line.precio, 0));
 
     return {
         tipoEntradaId: String(tipo._id),
@@ -154,5 +226,12 @@ export function quoteEventTickets({ event, tipoEntradaId, cantidad, context }) {
         montoTotal,
         reglaAplicada,
         descuentoBloqueadoPorDeuda,
+        lineas: lineas.map((line) => ({
+            precio: line.precio,
+            conDescuento: line.conDescuento,
+            titular: line.titular || '',
+            reglaNombre: line.regla?.nombre || '',
+            bloqueadoPorDeuda: !!line.bloqueadoPorDeuda,
+        })),
     };
 }

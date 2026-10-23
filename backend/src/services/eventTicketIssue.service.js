@@ -105,8 +105,10 @@ export async function issueTicketsForOrder(models, order, { clubIdentifier, even
     const docs = [];
     for (let i = 0; i < toCreate; i += 1) {
         const nonce = crypto.randomBytes(16).toString('hex');
-        const precioCobrado = prices[existing.length + i] ?? (Number(order.precioLista) || 0);
         const holder = (order.asistentes || [])[existing.length + i];
+        const precioCobrado = holder?.precio != null
+            ? Number(holder.precio) || 0
+            : (prices[existing.length + i] ?? (Number(order.precioLista) || 0));
         const titular = holder?.dni
             ? {
                 nombre: holder.nombre || '',

@@ -1,7 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import mongoose from 'mongoose';
 import {
-    resolveBuyerContext,
+    resolveDiscountPeople,
     quoteEventTickets,
 } from '../services/eventPricing.service.js';
 import {
@@ -23,6 +23,14 @@ const EVENT_MANAGE = ['admin_club'];
 const ADMIN_READ = ['admin_club', 'dirigente', 'administrativo'];
 const SCAN_ROLES = ['admin_club', 'administrativo', 'control_ingreso'];
 const MEMBER_ROLES = ['atleta', 'tutor', 'socio'];
+
+function priceHolders(holders, quote) {
+    return (holders || []).map((holder, index) => ({
+        ...holder,
+        precio: quote.lineas?.[index]?.precio ?? quote.precioLista,
+        conDescuento: !!quote.lineas?.[index]?.conDescuento,
+    }));
+}
 
 function slugify(text) {
     return String(text || '')
@@ -539,14 +547,13 @@ async function quoteCashSale(req) {
         const loaded = await buyerForCashSale(req);
         user = loaded.user;
     }
-    const context = user
-        ? await resolveBuyerContext(req.models, user)
-        : { rol: null, cuotaSocialId: null, planIds: [], tieneVencidos: false };
+    const eligible = user ? await resolveDiscountPeople(req.models, user) : [];
     const quote = quoteEventTickets({
         event,
         tipoEntradaId: req.body?.tipoEntradaId,
         cantidad: req.body?.cantidad,
-        context,
+        holders: req.body?.asistentes,
+        eligible,
     });
     return { event, quote };
 }
@@ -575,7 +582,7 @@ export const adminCashSale = asyncHandler(async (req, res) => {
         tipoEntrada: quote.tipoEntradaId,
         cantidad: quote.cantidad,
         comprador,
-        asistentes: holders,
+        asistentes: priceHolders(holders, quote),
         precioLista: quote.precioLista,
         precioConDescuento: quote.precioConDescuento,
         cantidadConDescuento: quote.cantidadConDescuento,
@@ -666,12 +673,12 @@ export const publicCheckout = asyncHandler(async (req, res) => {
         throw new Error('Nombre, apellido y email son obligatorios.');
     }
 
-    const context = { rol: null, cuotaSocialId: null, planIds: [], tieneVencidos: false };
     const quote = quoteEventTickets({
         event,
         tipoEntradaId,
         cantidad,
-        context,
+        holders: asistentes,
+        eligible: [],
     });
     const holders = await bindHolderSeats(
         req.models,
@@ -694,7 +701,7 @@ export const publicCheckout = asyncHandler(async (req, res) => {
             dni: dni ? String(dni).trim() : '',
             user: null,
         },
-        asistentes: holders,
+        asistentes: priceHolders(holders, quote),
         precioLista: quote.precioLista,
         precioConDescuento: quote.precioConDescuento,
         cantidadConDescuento: quote.cantidadConDescuento,
@@ -741,12 +748,13 @@ export const quoteMemberEvent = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Evento no encontrado.');
     }
-    const context = await resolveBuyerContext(req.models, req.user);
+    const eligible = await resolveDiscountPeople(req.models, req.user);
     const quote = quoteEventTickets({
         event,
         tipoEntradaId: req.body?.tipoEntradaId,
         cantidad: req.body?.cantidad,
-        context,
+        holders: req.body?.asistentes,
+        eligible,
     });
     const ocupados = await listOccupiedSeats(req.models, event._id);
     res.json({ ...quote, ocupados });
@@ -763,19 +771,24 @@ export const memberCheckout = asyncHandler(async (req, res) => {
     }
 
     const { tipoEntradaId, cantidad, asistentes } = req.body || {};
-    const context = await resolveBuyerContext(req.models, req.user);
+    const normalized = normalizeAsistentes(asistentes, cantidad);
+    const eligible = await resolveDiscountPeople(req.models, req.user);
     const quote = quoteEventTickets({
         event,
         tipoEntradaId,
-        cantidad,
-        context,
+        cantidad: normalized.length,
+        holders: normalized,
+        eligible,
     });
-    const holders = await bindHolderSeats(
-        req.models,
-        event,
-        quote.tipoEntradaId,
-        normalizeAsistentes(asistentes, quote.cantidad),
-        asistentes,
+    const holders = priceHolders(
+        await bindHolderSeats(
+            req.models,
+            event,
+            quote.tipoEntradaId,
+            normalized,
+            asistentes,
+        ),
+        quote,
     );
 
     await reserveCupo(event, quote.tipoEntradaId, quote.cantidad);

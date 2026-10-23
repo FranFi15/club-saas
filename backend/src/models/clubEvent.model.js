@@ -112,6 +112,8 @@ const eventTicketOrderSchema = new mongoose.Schema(
                 nombre: { type: String, required: true, trim: true },
                 apellido: { type: String, required: true, trim: true },
                 dni: { type: String, required: true, trim: true },
+                precio: { type: Number, min: 0 },
+                conDescuento: { type: Boolean, default: false },
                 asiento: {
                     seccionId: { type: mongoose.Schema.Types.ObjectId },
                     seccionNombre: { type: String, trim: true, default: '' },
