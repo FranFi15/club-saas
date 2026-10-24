@@ -947,7 +947,8 @@ const getSessionById = asyncHandler(async (req, res) => {
         .populate('planEntrenamiento')
         .populate('creadoPor', 'nombre apellido rol')
         .populate('atletaIndividual', 'nombre apellido fotoPerfil')
-        .populate('asistencia.atleta', 'nombre apellido fotoPerfil');
+        .populate('asistencia.atleta', 'nombre apellido fotoPerfil')
+        .populate('listaBuenaFe.usuario', 'nombre apellido fotoPerfil');
 
     if (!session) {
         res.status(404);

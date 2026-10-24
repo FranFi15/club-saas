@@ -20,6 +20,7 @@ const notificationSchema = new mongoose.Schema({
             'consulta_confirmada',
             'consulta_rechazada',
             'prueba_expirada',
+            'partido_informe',
         ],
         default: 'general',
     },
@@ -37,7 +38,7 @@ export const getNotificationModel = (tenantDB) => {
     if (existing) {
         const tipoPath = existing.schema.path('tipo');
         const enums = tipoPath?.enumValues || tipoPath?.options?.enum || [];
-        if (Array.isArray(enums) && enums.includes('noticia')) return existing;
+        if (Array.isArray(enums) && enums.includes('partido_informe')) return existing;
         delete tenantDB.models.Notification;
         if (tenantDB.modelSchemas) delete tenantDB.modelSchemas.Notification;
     }

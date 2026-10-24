@@ -29,8 +29,33 @@ import {
     getLastTrainingPlanForCategory,
 } from '../controllers/session.controller.js';
 import { protect, authorize } from '../middlewares/auth.middleware.js';
+import {
+    addJugada,
+    addPosesion,
+    addRelojEvento,
+    applyPlanilla,
+    createMatchSheet,
+    deleteJugada,
+    deleteMatchSheet,
+    deletePosesion,
+    enviarInforme,
+    getInforme,
+    listMatchSheets,
+    saveLista,
+    savePlanillaValores,
+    updateJugada,
+    updateMatchSheet,
+    updatePosesion,
+} from '../controllers/match.controller.js';
 
 const router = express.Router();
+
+const coachPartido = authorize('admin_club', 'profe');
+
+router.get('/match-sheets', protect, coachPartido, listMatchSheets);
+router.post('/match-sheets', protect, coachPartido, createMatchSheet);
+router.patch('/match-sheets/:sheetId', protect, coachPartido, updateMatchSheet);
+router.delete('/match-sheets/:sheetId', protect, coachPartido, deleteMatchSheet);
 
 // Creación y generación
 router.post('/', protect, authorize('admin_club', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'), createSession);
@@ -79,6 +104,18 @@ router.get(
     authorize('admin_club', 'dirigente', 'administrativo', 'profe', 'preparador_fisico', 'nutricionista', 'psicologo'),
     getSessionStatsById
 );
+router.get('/:id/informe', protect, getInforme);
+router.put('/:id/lista', protect, coachPartido, saveLista);
+router.put('/:id/planilla', protect, coachPartido, applyPlanilla);
+router.put('/:id/planilla-valores', protect, coachPartido, savePlanillaValores);
+router.post('/:id/reloj', protect, coachPartido, addRelojEvento);
+router.post('/:id/jugadas', protect, coachPartido, addJugada);
+router.patch('/:id/jugadas/:jugadaId', protect, coachPartido, updateJugada);
+router.delete('/:id/jugadas/:jugadaId', protect, coachPartido, deleteJugada);
+router.post('/:id/posesiones', protect, coachPartido, addPosesion);
+router.patch('/:id/posesiones/:posesionId', protect, coachPartido, updatePosesion);
+router.delete('/:id/posesiones/:posesionId', protect, coachPartido, deletePosesion);
+router.post('/:id/informe', protect, coachPartido, enviarInforme);
 router.get('/:id', protect, getSessionById);
 
 // Modificaciones y Operativa

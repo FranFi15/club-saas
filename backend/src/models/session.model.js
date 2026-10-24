@@ -131,7 +131,64 @@ const sessionSchema = new mongoose.Schema({
     }],
     
     // 3. (Opcional a futuro) RPE x Minutos Reales
-    cargaTotalSesion: { type: Number } 
+    cargaTotalSesion: { type: Number },
+
+    /** Lista de buena fe del partido: jugadores convocados y staff que viaja. */
+    listaBuenaFe: [{
+        usuario: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        tipoPersona: { type: String, enum: ['jugador', 'staff'], default: 'jugador' },
+        dorsal: { type: String, trim: true, default: '' },
+    }],
+
+    /** Copia de la planilla elegida. Editar la biblioteca no cambia este partido. */
+    planilla: {
+        sheetId: { type: mongoose.Schema.Types.ObjectId },
+        nombre: { type: String, default: '' },
+        cancha: {
+            deporte: { type: String, default: '' },
+            imagenUrl: { type: String, default: '' },
+        },
+        reloj: {
+            activo: { type: Boolean, default: false },
+            periodos: { type: Number, default: 4 },
+            minutosPorPeriodo: { type: Number, default: 10 },
+            jugadoresEnCancha: { type: Number, default: 5 },
+        },
+        campos: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    },
+
+    /** Valores que no salen de la cancha (resultado, rival, notas). */
+    planillaValores: {
+        partido: { type: mongoose.Schema.Types.Mixed, default: {} },
+        personas: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    },
+
+    jugadas: [{
+        x: { type: Number, min: 0, max: 1 },
+        y: { type: Number, min: 0, max: 1 },
+        campoId: { type: String },
+        resultado: { type: String, enum: ['anoto', 'erro'] },
+        usuario: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        periodo: { type: Number, default: 1 },
+        relojMs: { type: Number, default: 0 },
+    }],
+
+    posesiones: [{
+        equipo: { type: String, enum: ['nosotros', 'rival'] },
+        periodo: { type: Number, default: 1 },
+        relojMs: { type: Number, default: 0 },
+    }],
+
+    relojEventos: [{
+        tipo: { type: String, enum: ['inicio', 'pausa', 'fin_periodo', 'quinteto', 'cambio'] },
+        periodo: { type: Number, default: 1 },
+        relojMs: { type: Number, default: 0 },
+        enCancha: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+        sale: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        entra: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    }],
+
+    informeEnviadoEn: { type: Date },
 
 }, { timestamps: true });
 
