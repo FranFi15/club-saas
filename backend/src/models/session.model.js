@@ -183,6 +183,7 @@ const sessionSchema = new mongoose.Schema({
         tipo: { type: String, enum: ['inicio', 'pausa', 'fin_periodo', 'quinteto', 'cambio'] },
         periodo: { type: Number, default: 1 },
         relojMs: { type: Number, default: 0 },
+        marcaEn: { type: Date },
         enCancha: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
         sale: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         entra: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

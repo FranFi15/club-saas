@@ -246,6 +246,7 @@ export const addRelojEvento = asyncHandler(async (req, res) => {
         tipo,
         periodo: clampInt(req.body?.periodo, 1, 12, 1),
         relojMs: Math.max(0, Math.floor(Number(req.body?.relojMs) || 0)),
+        marcaEn: new Date(),
     };
     if (tipo === 'quinteto') {
         const enCancha = [...new Set((req.body?.enCancha || []).map(idOf))].filter((id) => jugadores.has(id));
