@@ -15,6 +15,7 @@ import {
     attachFreeSpacesToSessions,
 } from '../services/spaceSessionRelocation.service.js';
 import { parsePageLimit, paginationMeta } from '../utils/pagination.js';
+import { normalizeLista } from './match.controller.js';
 
 const CONSULT_SESSION_TYPES = ['consulta_nutricion', 'consulta_psicologia'];
 
@@ -205,6 +206,16 @@ const createSession = asyncHandler(async (req, res) => {
         typeof nombreSesion === 'string' ? nombreSesion.trim().slice(0, 120) : '';
     const opcionalFlag = esOpcional === true || esOpcional === 'true';
 
+    let listaBuenaFe;
+    if (tipoNorm === 'partido') {
+        listaBuenaFe = normalizeLista(req.body?.lista);
+        const jugadores = listaBuenaFe.filter((row) => row.tipoPersona === 'jugador');
+        if (!jugadores.length) {
+            res.status(400);
+            throw new Error('Elegí al menos un jugador para la lista de buena fe.');
+        }
+    }
+
     const session = await Session.create({
         tipo: tipoNorm,
         categoria,
@@ -216,6 +227,7 @@ const createSession = asyncHandler(async (req, res) => {
         nombreSesion: nombreTxt,
         esOpcional: opcionalFlag,
         creadoPor: req.user._id,
+        ...(listaBuenaFe ? { listaBuenaFe } : {}),
     });
 
     await session.populate('espacio', 'nombre tipo estado admiteSubdivision');

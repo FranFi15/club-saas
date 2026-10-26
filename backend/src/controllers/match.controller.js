@@ -148,13 +148,10 @@ export const deleteMatchSheet = asyncHandler(async (req, res) => {
     res.json({ ok: true });
 });
 
-export const saveLista = asyncHandler(async (req, res) => {
-    const session = await loadPartido(req, res);
-    assertEditable(session, res);
-    const rows = Array.isArray(req.body?.lista) ? req.body.lista : [];
+export function normalizeLista(rows) {
     const seen = new Set();
     const lista = [];
-    for (const row of rows) {
+    for (const row of Array.isArray(rows) ? rows : []) {
         const usuario = idOf(row?.usuario);
         if (!mongoose.isValidObjectId(usuario) || seen.has(usuario)) continue;
         seen.add(usuario);
@@ -163,6 +160,16 @@ export const saveLista = asyncHandler(async (req, res) => {
             tipoPersona: row?.tipoPersona === 'staff' ? 'staff' : 'jugador',
             dorsal: String(row?.dorsal || '').trim().slice(0, 4),
         });
+    }
+    return lista;
+}
+
+export const saveLista = asyncHandler(async (req, res) => {
+    const session = await loadPartido(req, res);
+    assertEditable(session, res);
+    const lista = normalizeLista(req.body?.lista);
+    if (!lista.some((row) => row.tipoPersona === 'jugador')) {
+        fail(res, 400, 'La lista necesita al menos un jugador.');
     }
     session.listaBuenaFe = lista;
     const allowed = new Set(listaJugadores(session));
