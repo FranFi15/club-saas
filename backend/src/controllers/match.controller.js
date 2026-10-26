@@ -121,6 +121,10 @@ function assertEditable(session, res) {
     }
 }
 
+function isCounterTotal(campo) {
+    return campo?.tipo === 'total' && !(campo.camposTotal || []).length;
+}
+
 function listaJugadores(session) {
     return (session.listaBuenaFe || [])
         .filter((row) => row.tipoPersona !== 'staff')
@@ -316,8 +320,15 @@ export const addJugada = asyncHandler(async (req, res) => {
     const session = await loadPartido(req, res);
     assertEditable(session, res);
     const campo = (session.planilla?.campos || []).find((item) => String(item._id) === String(req.body?.campoId));
-    if (!campo || campo.tipo !== 'porcentaje') fail(res, 400, 'Elegí una estadística de la planilla.');
-    const resultado = req.body?.resultado === 'anoto' ? 'anoto' : req.body?.resultado === 'erro' ? 'erro' : '';
+    const counter = isCounterTotal(campo);
+    if (!campo || (campo.tipo !== 'porcentaje' && !counter)) fail(res, 400, 'Elegí una estadística de la planilla.');
+    const resultado = counter
+        ? 'anoto'
+        : req.body?.resultado === 'anoto'
+            ? 'anoto'
+            : req.body?.resultado === 'erro'
+                ? 'erro'
+                : '';
     if (!resultado) fail(res, 400, 'Marcá si anotó o erró.');
     const usuario = idOf(req.body?.usuario);
     assertPlayerOnLista(session, usuario, res);
@@ -348,12 +359,20 @@ export const updateJugada = asyncHandler(async (req, res) => {
     if (!play) fail(res, 404, 'Jugada no encontrada.');
     if (req.body?.campoId) {
         const campo = (session.planilla?.campos || []).find((item) => String(item._id) === String(req.body.campoId));
-        if (!campo || campo.tipo !== 'porcentaje') fail(res, 400, 'Elegí una estadística de la planilla.');
+        if (!campo || (campo.tipo !== 'porcentaje' && !isCounterTotal(campo))) {
+            fail(res, 400, 'Elegí una estadística de la planilla.');
+        }
         play.campoId = String(campo._id);
+        if (isCounterTotal(campo)) play.resultado = 'anoto';
     }
     if (req.body?.resultado) {
-        if (!['anoto', 'erro'].includes(req.body.resultado)) fail(res, 400, 'Marcá si anotó o erró.');
-        play.resultado = req.body.resultado;
+        const campo = (session.planilla?.campos || []).find((item) => String(item._id) === String(play.campoId));
+        if (isCounterTotal(campo)) {
+            play.resultado = 'anoto';
+        } else {
+            if (!['anoto', 'erro'].includes(req.body.resultado)) fail(res, 400, 'Marcá si anotó o erró.');
+            play.resultado = req.body.resultado;
+        }
     }
     if (req.body?.usuario) {
         const usuario = idOf(req.body.usuario);

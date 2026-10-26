@@ -152,6 +152,11 @@ export function possessionSummary(posesiones, eventos, live = null) {
     return summary;
 }
 
+/** A total with nothing to add is tapped on the court. Each tap counts as one. */
+export function isCounterTotal(campo) {
+    return campo?.tipo === 'total' && !(campo.camposTotal || []).length;
+}
+
 export function countsFor(jugadas, usuarioId, campoIds) {
     const ids = new Set((campoIds || []).map(String));
     let anoto = 0;
@@ -170,7 +175,7 @@ export function porcentajeIdsOf(campo, list, seen = new Set(), out = new Set()) 
     const id = String(campo?._id || '');
     if (!id || seen.has(id)) return out;
     seen.add(id);
-    if (campo.tipo === 'porcentaje') {
+    if (campo.tipo === 'porcentaje' || isCounterTotal(campo)) {
         out.add(id);
         return out;
     }
@@ -193,7 +198,8 @@ export function statRows(campos, jugadas, usuarioId) {
             }
             if (campo.tipo === 'total') {
                 const usuario = campo.alcance === 'partido' ? null : usuarioId;
-                const counts = countsFor(jugadas, usuario, [...porcentajeIdsOf(campo, list)]);
+                const ids = isCounterTotal(campo) ? [campo._id] : [...porcentajeIdsOf(campo, list)];
+                const counts = countsFor(jugadas, usuario, ids);
                 const partes = (campo.camposTotal || [])
                     .map((ref) => (list || []).find((item) => String(item._id) === String(ref)))
                     .filter(Boolean)
