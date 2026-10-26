@@ -59,16 +59,43 @@ function normalizeSheet(body) {
             camposTotal: Array.isArray(campo?.camposTotal) ? campo.camposTotal.map(String) : [],
         };
     });
-    const porcentajeIds = new Set(campos.filter((campo) => campo.tipo === 'porcentaje').map((campo) => String(campo._id)));
+    const summableIds = new Set(
+        campos
+            .filter((campo) => campo.tipo === 'porcentaje' || campo.tipo === 'total')
+            .map((campo) => String(campo._id)),
+    );
     for (const campo of campos) {
         if (campo.tipo !== 'total') {
             campo.camposTotal = [];
             continue;
         }
-        campo.camposTotal = campo.camposTotal
-            .map((id) => idMap.get(id) || id)
-            .filter((id) => porcentajeIds.has(String(id)) && String(id) !== String(campo._id));
+        campo.camposTotal = [...new Set(
+            campo.camposTotal
+                .map((id) => idMap.get(id) || id)
+                .map(String)
+                .filter((id) => summableIds.has(id) && id !== String(campo._id)),
+        )];
     }
+    const byId = new Map(campos.map((campo) => [String(campo._id), campo]));
+    const visitState = new Map();
+    const visit = (id) => {
+        const mark = visitState.get(id) || 0;
+        if (mark === 1) return true;
+        if (mark === 2) return false;
+        visitState.set(id, 1);
+        const campo = byId.get(id);
+        if (campo?.tipo === 'total') {
+            const kept = [];
+            for (const child of campo.camposTotal) {
+                if (visit(child)) continue;
+                kept.push(child);
+            }
+            campo.camposTotal = kept;
+        }
+        visitState.set(id, 2);
+        return false;
+    };
+    for (const campo of campos) visit(String(campo._id));
     return { nombre, cancha: { deporte, imagenUrl }, reloj, campos };
 }
 
@@ -138,6 +165,18 @@ export const updateMatchSheet = asyncHandler(async (req, res) => {
     }
     Object.assign(sheet, data);
     await sheet.save();
+    const saved = sheet.toObject();
+    await req.models.Session.updateMany(
+        { tipo: 'partido', 'planilla.sheetId': sheet._id, informeEnviadoEn: null },
+        {
+            $set: {
+                'planilla.nombre': saved.nombre,
+                'planilla.cancha': saved.cancha,
+                'planilla.reloj': saved.reloj,
+                'planilla.campos': saved.campos,
+            },
+        },
+    );
     res.json(sheet);
 });
 

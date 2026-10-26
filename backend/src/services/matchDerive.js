@@ -165,6 +165,23 @@ export function countsFor(jugadas, usuarioId, campoIds) {
     return { anoto, erro, porcentaje: pct(anoto, erro) };
 }
 
+/** Made/missed fields reached by a total, including totals that sum other totals. */
+export function porcentajeIdsOf(campo, list, seen = new Set(), out = new Set()) {
+    const id = String(campo?._id || '');
+    if (!id || seen.has(id)) return out;
+    seen.add(id);
+    if (campo.tipo === 'porcentaje') {
+        out.add(id);
+        return out;
+    }
+    if (campo.tipo !== 'total') return out;
+    for (const ref of campo.camposTotal || []) {
+        const child = (list || []).find((item) => String(item._id) === String(ref));
+        if (child) porcentajeIdsOf(child, list, seen, out);
+    }
+    return out;
+}
+
 export function statRows(campos, jugadas, usuarioId) {
     const list = campos || [];
     return list
@@ -175,15 +192,16 @@ export function statRows(campos, jugadas, usuarioId) {
                 return { campo, ...counts };
             }
             if (campo.tipo === 'total') {
-                const source = list.filter(
-                    (item) => item.tipo === 'porcentaje' && (campo.camposTotal || []).map(String).includes(String(item._id)),
-                );
-                const counts = countsFor(
-                    jugadas,
-                    campo.alcance === 'partido' ? null : usuarioId,
-                    source.map((item) => item._id),
-                );
-                return { campo, ...counts, partes: source.map((item) => ({ etiqueta: item.etiqueta, ...countsFor(jugadas, campo.alcance === 'partido' ? null : usuarioId, [item._id]) })) };
+                const usuario = campo.alcance === 'partido' ? null : usuarioId;
+                const counts = countsFor(jugadas, usuario, [...porcentajeIdsOf(campo, list)]);
+                const partes = (campo.camposTotal || [])
+                    .map((ref) => (list || []).find((item) => String(item._id) === String(ref)))
+                    .filter(Boolean)
+                    .map((item) => ({
+                        etiqueta: item.etiqueta,
+                        ...countsFor(jugadas, usuario, [...porcentajeIdsOf(item, list)]),
+                    }));
+                return { campo, ...counts, partes };
             }
             return null;
         })
