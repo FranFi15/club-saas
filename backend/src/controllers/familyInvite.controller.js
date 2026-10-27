@@ -12,7 +12,9 @@ import { matchesCategoryAgeLimits } from '../utils/ageHelper.js';
 import { resolveAthleteEmail, isAthleteInternalEmail } from '../utils/athleteLoginEmail.js';
 
 const CURRENT_TERMS_VERSION = '2026-08-15';
-const INVITE_TTL_MS = 72 * 60 * 60 * 1000;
+const INVITE_TTL_DAYS = 10;
+const INVITE_TTL_HOURS = INVITE_TTL_DAYS * 24;
+const INVITE_TTL_MS = INVITE_TTL_HOURS * 60 * 60 * 1000;
 const MARKETING_SITE = (process.env.MARKETING_SITE_URL || 'https://hermesclubapp.com').replace(/\/$/, '');
 
 function assertAgeFitsCategory(category, fechaNacimiento, label) {
@@ -155,7 +157,7 @@ const createFamilyInvite = asyncHandler(async (req, res) => {
         });
     }
 
-    const hours = Math.min(Math.max(Number(expiresInHours) || 72, 1), 168);
+    const hours = Math.min(Math.max(Number(expiresInHours) || INVITE_TTL_HOURS, 1), INVITE_TTL_HOURS);
     const token = crypto.randomBytes(24).toString('hex');
     const invite = await FamilyInvite.create({
         token,
