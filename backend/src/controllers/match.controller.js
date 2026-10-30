@@ -1,7 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import mongoose from 'mongoose';
 import { COURT_DEPORTES } from '../models/courtMetric.model.js';
-import { courtNow, idOf } from '../services/matchDerive.js';
+import { courtNow, idOf, suspendedNow } from '../services/matchDerive.js';
 import { buildInforme, manualValue, notifyMatchReport } from '../services/matchReport.service.js';
 
 const ICONOS = ['circulo', 'x', 'cuadrado', 'triangulo', 'diamante'];
@@ -279,11 +279,13 @@ export const savePlanillaValores = asyncHandler(async (req, res) => {
 export const addRelojEvento = asyncHandler(async (req, res) => {
     const session = await loadPartido(req, res);
     assertEditable(session, res);
-    if (!session.planilla?.reloj?.activo) fail(res, 400, 'Esta planilla no usa reloj.');
     const tipo = String(req.body?.tipo || '');
-    const allowed = ['inicio', 'pausa', 'fin_periodo', 'quinteto', 'cambio'];
+    const allowed = ['inicio', 'pausa', 'fin_periodo', 'quinteto', 'cambio', 'sancion', 'habilitar'];
     if (!allowed.includes(tipo)) fail(res, 400, 'Acción de reloj inválida.');
-    const max = session.planilla.reloj.jugadoresEnCancha || 5;
+    if (!['sancion', 'habilitar'].includes(tipo) && !session.planilla?.reloj?.activo) {
+        fail(res, 400, 'Esta planilla no usa reloj.');
+    }
+    const max = session.planilla?.reloj?.jugadoresEnCancha || 5;
     const jugadores = new Set(listaJugadores(session));
     const evento = {
         tipo,
@@ -296,6 +298,11 @@ export const addRelojEvento = asyncHandler(async (req, res) => {
         if (!enCancha.length || enCancha.length > max) {
             fail(res, 400, `Elegí hasta ${max} jugadores de la lista.`);
         }
+        const already = new Set(courtNow(session.relojEventos));
+        const suspended = suspendedNow(session.relojEventos, evento.periodo);
+        if (enCancha.some((id) => suspended.has(id) && !already.has(id))) {
+            fail(res, 400, 'Ese jugador está afuera.');
+        }
         evento.enCancha = enCancha;
     }
     if (tipo === 'cambio') {
@@ -304,8 +311,20 @@ export const addRelojEvento = asyncHandler(async (req, res) => {
         const entra = idOf(req.body?.entra);
         if (!on.includes(sale)) fail(res, 400, 'El jugador que sale no está en cancha.');
         if (!jugadores.has(entra) || on.includes(entra)) fail(res, 400, 'Elegí un suplente de la lista.');
+        if (suspendedNow(session.relojEventos, evento.periodo).has(entra)) {
+            fail(res, 400, 'Ese jugador está afuera.');
+        }
         evento.sale = sale;
         evento.entra = entra;
+    }
+    if (tipo === 'sancion' || tipo === 'habilitar') {
+        const sancionado = idOf(req.body?.sancionado);
+        if (!jugadores.has(sancionado)) fail(res, 400, 'Elegí un jugador de la lista.');
+        evento.sancionado = sancionado;
+        const fuera = suspendedNow(session.relojEventos, evento.periodo).get(sancionado);
+        if (fuera === 'expulsado') fail(res, 400, 'Ese jugador ya está expulsado.');
+        if (tipo === 'habilitar' && fuera !== 'temporal') fail(res, 400, 'Solo un jugador temporal puede volver.');
+        if (tipo === 'sancion') evento.alcance = req.body?.alcance === 'temporal' ? 'temporal' : 'expulsado';
     }
     if (tipo === 'inicio' && !courtNow(session.relojEventos).length && tipo !== 'quinteto') {
         const hasLineup = (session.relojEventos || []).some((ev) => ev.tipo === 'quinteto');
@@ -332,6 +351,10 @@ export const addJugada = asyncHandler(async (req, res) => {
     if (!resultado) fail(res, 400, 'Marcá si anotó o erró.');
     const usuario = idOf(req.body?.usuario);
     assertPlayerOnLista(session, usuario, res);
+    const playPeriodo = clampInt(req.body?.periodo, 1, 12, 1);
+    if (suspendedNow(session.relojEventos, playPeriodo).has(usuario)) {
+        fail(res, 400, 'Ese jugador está afuera.');
+    }
     const on = courtNow(session.relojEventos);
     if (on.length && !on.includes(usuario)) fail(res, 400, 'Ese jugador no está en cancha.');
     const x = Number(req.body?.x);
@@ -345,7 +368,7 @@ export const addJugada = asyncHandler(async (req, res) => {
         campoId: String(campo._id),
         resultado,
         usuario,
-        periodo: clampInt(req.body?.periodo, 1, 12, 1),
+        periodo: playPeriodo,
         relojMs: Math.max(0, Math.floor(Number(req.body?.relojMs) || 0)),
     });
     await session.save();
@@ -377,6 +400,9 @@ export const updateJugada = asyncHandler(async (req, res) => {
     if (req.body?.usuario) {
         const usuario = idOf(req.body.usuario);
         assertPlayerOnLista(session, usuario, res);
+        if (suspendedNow(session.relojEventos, play.periodo).has(usuario)) {
+            fail(res, 400, 'Ese jugador está afuera.');
+        }
         play.usuario = usuario;
     }
     await session.save();

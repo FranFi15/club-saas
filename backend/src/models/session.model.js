@@ -180,13 +180,15 @@ const sessionSchema = new mongoose.Schema({
     }],
 
     relojEventos: [{
-        tipo: { type: String, enum: ['inicio', 'pausa', 'fin_periodo', 'quinteto', 'cambio'] },
+        tipo: { type: String, enum: ['inicio', 'pausa', 'fin_periodo', 'quinteto', 'cambio', 'sancion', 'habilitar'] },
         periodo: { type: Number, default: 1 },
         relojMs: { type: Number, default: 0 },
         marcaEn: { type: Date },
         enCancha: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
         sale: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         entra: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        sancionado: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        alcance: { type: String, enum: ['temporal', 'expulsado'] },
     }],
 
     informeEnviadoEn: { type: Date },

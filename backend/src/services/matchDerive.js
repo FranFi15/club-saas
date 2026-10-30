@@ -30,6 +30,25 @@ export function courtNow(eventos) {
     return on;
 }
 
+/** Players who cannot take a stat at `periodoActual`. Map of user id -> 'temporal' | 'expulsado'. */
+export function suspendedNow(eventos, periodoActual) {
+    const now = Number(periodoActual) || 1;
+    const active = new Map();
+    for (const ev of eventos || []) {
+        const evPeriod = Number(ev.periodo) || 1;
+        if (evPeriod > now) continue;
+        const id = idOf(ev.sancionado);
+        if (!id) continue;
+        if (ev.tipo === 'habilitar') {
+            if (active.get(id) === 'temporal') active.delete(id);
+        } else if (ev.tipo === 'sancion') {
+            if (active.get(id) === 'expulsado') continue;
+            active.set(id, ev.alcance === 'expulsado' ? 'expulsado' : 'temporal');
+        }
+    }
+    return active;
+}
+
 function credit(times, ids, fromMs, toMs) {
     const delta = Math.max(0, Number(fromMs) - Number(toMs));
     if (!delta) return;
