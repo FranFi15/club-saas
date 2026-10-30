@@ -289,10 +289,14 @@ export const addRelojEvento = asyncHandler(async (req, res) => {
     const jugadores = new Set(listaJugadores(session));
     const evento = {
         tipo,
-        periodo: clampInt(req.body?.periodo, 1, 12, 1),
+        periodo: clampInt(req.body?.periodo, 1, 24, 1),
         relojMs: Math.max(0, Math.floor(Number(req.body?.relojMs) || 0)),
         marcaEn: new Date(),
     };
+    if (tipo === 'fin_periodo') {
+        const siguienteMs = Math.floor(Number(req.body?.siguienteMs) || 0);
+        if (siguienteMs > 0) evento.siguienteMs = Math.min(siguienteMs, 60 * 60000);
+    }
     if (tipo === 'quinteto') {
         const enCancha = [...new Set((req.body?.enCancha || []).map(idOf))].filter((id) => jugadores.has(id));
         if (!enCancha.length || enCancha.length > max) {
@@ -351,7 +355,7 @@ export const addJugada = asyncHandler(async (req, res) => {
     if (!resultado) fail(res, 400, 'Marcá si anotó o erró.');
     const usuario = idOf(req.body?.usuario);
     assertPlayerOnLista(session, usuario, res);
-    const playPeriodo = clampInt(req.body?.periodo, 1, 12, 1);
+    const playPeriodo = clampInt(req.body?.periodo, 1, 24, 1);
     if (suspendedNow(session.relojEventos, playPeriodo).has(usuario)) {
         fail(res, 400, 'Ese jugador está afuera.');
     }
@@ -426,7 +430,7 @@ export const addPosesion = asyncHandler(async (req, res) => {
     if (!equipo) fail(res, 400, 'Elegí qué equipo tiene la pelota.');
     session.posesiones.push({
         equipo,
-        periodo: clampInt(req.body?.periodo, 1, 12, 1),
+        periodo: clampInt(req.body?.periodo, 1, 24, 1),
         relojMs: Math.max(0, Math.floor(Number(req.body?.relojMs) || 0)),
     });
     await session.save();
@@ -495,7 +499,7 @@ export const enviarInforme = asyncHandler(async (req, res) => {
     if (live?.corriendo) {
         session.relojEventos.push({
             tipo: 'pausa',
-            periodo: clampInt(live.periodo, 1, 12, 1),
+            periodo: clampInt(live.periodo, 1, 24, 1),
             relojMs: Math.max(0, Math.floor(Number(live.relojMs) || 0)),
         });
     }
