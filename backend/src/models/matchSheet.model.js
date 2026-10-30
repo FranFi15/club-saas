@@ -13,6 +13,7 @@ const campoSchema = new mongoose.Schema(
         iconoErro: { type: String, default: 'x' },
         camposTotal: [{ type: String }],
         limite: { type: Number, min: 1, max: 99, default: 5 },
+        puntos: { type: Number, min: 0, max: 99, default: 0 },
     },
     { _id: true },
 );
@@ -29,6 +30,11 @@ const matchSheetSchema = new mongoose.Schema(
             periodos: { type: Number, default: 4 },
             minutosPorPeriodo: { type: Number, default: 10 },
             jugadoresEnCancha: { type: Number, default: 5 },
+            posesion: { type: Boolean, default: true },
+        },
+        rival: {
+            activo: { type: Boolean, default: false },
+            modo: { type: String, enum: ['general', 'alineacion'], default: 'general' },
         },
         campos: { type: [campoSchema], default: [] },
         creadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

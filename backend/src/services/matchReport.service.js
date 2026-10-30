@@ -1,5 +1,5 @@
 import { createAppNotificationsMany } from './appNotification.service.js';
-import { countsFor, idOf, playingTimeMs, possessionSummary, statRows } from './matchDerive.js';
+import { countsFor, idOf, playingTimeMs, possessionSummary, scorePoints, statRows } from './matchDerive.js';
 
 function personName(user) {
     if (!user) return 'Jugador';
@@ -29,7 +29,7 @@ export function buildInforme(session, { full, userId }) {
         nombre: lista.find((row) => row.usuario === uid)?.nombre || '',
         segundos: Math.round((tiempos[uid] || 0) / 1000),
         filas: statRows(campos.filter((campo) => campo.alcance !== 'partido'), jugadas, uid),
-        jugadas: jugadas.filter((play) => idOf(play.usuario) === uid),
+        jugadas: jugadas.filter((play) => play.equipo !== 'rival' && idOf(play.usuario) === uid),
     }));
 
     const partidoFilas = statRows(
@@ -47,7 +47,13 @@ export function buildInforme(session, { full, userId }) {
         cancha: session.planilla?.cancha || null,
         campos,
         valores: session.planillaValores || { partido: {}, personas: [] },
-        posesion: {
+        marcador: {
+            nosotros: scorePoints(jugadas, campos, 'nosotros'),
+            rival: scorePoints(jugadas, campos, 'rival'),
+        },
+        contarPosesion: session.planilla?.reloj?.posesion !== false,
+        rival: session.planilla?.rival?.activo === true,
+        posesion: session.planilla?.reloj?.posesion === false ? null : {
             nosotros: {
                 cantidad: posesion.nosotros.cantidad,
                 segundos: Math.round(posesion.nosotros.ms / 1000),

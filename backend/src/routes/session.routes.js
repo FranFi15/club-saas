@@ -43,6 +43,7 @@ import {
     listMatchSheets,
     saveLista,
     savePlanillaValores,
+    saveRival,
     updateJugada,
     updateMatchSheet,
     updatePosesion,
@@ -108,6 +109,7 @@ router.get('/:id/informe', protect, getInforme);
 router.put('/:id/lista', protect, coachPartido, saveLista);
 router.put('/:id/planilla', protect, coachPartido, applyPlanilla);
 router.put('/:id/planilla-valores', protect, coachPartido, savePlanillaValores);
+router.put('/:id/rival', protect, coachPartido, saveRival);
 router.post('/:id/reloj', protect, coachPartido, addRelojEvento);
 router.post('/:id/jugadas', protect, coachPartido, addJugada);
 router.patch('/:id/jugadas/:jugadaId', protect, coachPartido, updateJugada);

@@ -34,6 +34,12 @@ function normalizeSheet(body) {
         periodos: clampInt(relojIn.periodos, 1, 12, 4),
         minutosPorPeriodo: clampInt(relojIn.minutosPorPeriodo, 1, 60, 10),
         jugadoresEnCancha: clampInt(relojIn.jugadoresEnCancha, 1, 30, 5),
+        posesion: relojIn.posesion !== false,
+    };
+    const rivalIn = body?.rival || {};
+    const rival = {
+        activo: rivalIn.activo === true,
+        modo: rivalIn.modo === 'alineacion' ? 'alineacion' : 'general',
     };
 
     const rawCampos = Array.isArray(body?.campos) ? body.campos : [];
@@ -58,6 +64,7 @@ function normalizeSheet(body) {
             iconoErro: ICONOS.includes(campo?.iconoErro) ? campo.iconoErro : 'x',
             camposTotal: Array.isArray(campo?.camposTotal) ? campo.camposTotal.map(String) : [],
             limite: clampInt(campo?.limite, 1, 99, 5),
+            puntos: tipo === 'porcentaje' ? clampInt(campo?.puntos, 0, 99, 0) : 0,
         };
     });
     const summableIds = new Set(
@@ -97,7 +104,7 @@ function normalizeSheet(body) {
         return false;
     };
     for (const campo of campos) visit(String(campo._id));
-    return { nombre, cancha: { deporte, imagenUrl }, reloj, campos };
+    return { nombre, cancha: { deporte, imagenUrl }, reloj, rival, campos };
 }
 
 async function loadPartido(req, res) {
@@ -209,6 +216,7 @@ export const updateMatchSheet = asyncHandler(async (req, res) => {
                 'planilla.nombre': saved.nombre,
                 'planilla.cancha': saved.cancha,
                 'planilla.reloj': saved.reloj,
+                'planilla.rival': saved.rival,
                 'planilla.campos': saved.campos,
             },
         },
@@ -248,7 +256,7 @@ export const saveLista = asyncHandler(async (req, res) => {
     }
     session.listaBuenaFe = lista;
     const allowed = new Set(listaJugadores(session));
-    session.jugadas = (session.jugadas || []).filter((play) => allowed.has(idOf(play.usuario)));
+    session.jugadas = (session.jugadas || []).filter((play) => play.equipo === 'rival' || allowed.has(idOf(play.usuario)));
     await session.save();
     res.json(await present(session));
 });
@@ -264,12 +272,15 @@ export const applyPlanilla = asyncHandler(async (req, res) => {
         nombre: sheet.nombre,
         cancha: sheet.cancha,
         reloj: sheet.reloj,
+        rival: sheet.rival || { activo: false, modo: 'general' },
         campos: sheet.campos.map((campo) => (campo.toObject ? campo.toObject() : campo)),
     };
     if (!same) {
         session.jugadas = [];
         session.posesiones = [];
         session.relojEventos = [];
+        session.rivalAlineacion = [];
+        session.rivalEnCancha = [];
         session.planillaValores = { partido: {}, personas: [] };
     }
     await session.save();
@@ -385,14 +396,27 @@ export const addJugada = asyncHandler(async (req, res) => {
                 ? 'erro'
                 : '';
     if (!resultado) fail(res, 400, 'Marcá si anotó o erró.');
-    const usuario = idOf(req.body?.usuario);
-    assertPlayerOnLista(session, usuario, res);
+    const equipo = req.body?.equipo === 'rival' ? 'rival' : 'nosotros';
     const playPeriodo = clampInt(req.body?.periodo, 1, 24, 1);
-    if (suspendedNow(session.relojEventos, playPeriodo).has(usuario)) {
-        fail(res, 400, 'Ese jugador está afuera.');
+    let usuario = '';
+    let rivalJugador = '';
+    if (equipo === 'rival') {
+        if (session.planilla?.rival?.activo !== true) fail(res, 400, 'Esta planilla no anota al rival.');
+        const modo = session.planilla?.rival?.modo === 'alineacion' ? 'alineacion' : 'general';
+        if (modo === 'alineacion') {
+            rivalJugador = String(req.body?.rivalJugador || '');
+            const onRival = new Set((session.rivalEnCancha || []).map(String));
+            if (!onRival.has(rivalJugador)) fail(res, 400, 'Ese jugador no está en la cancha del rival.');
+        }
+    } else {
+        usuario = idOf(req.body?.usuario);
+        assertPlayerOnLista(session, usuario, res);
+        if (suspendedNow(session.relojEventos, playPeriodo).has(usuario)) {
+            fail(res, 400, 'Ese jugador está afuera.');
+        }
+        const on = courtNow(session.relojEventos);
+        if (on.length && !on.includes(usuario)) fail(res, 400, 'Ese jugador no está en cancha.');
     }
-    const on = courtNow(session.relojEventos);
-    if (on.length && !on.includes(usuario)) fail(res, 400, 'Ese jugador no está en cancha.');
     const x = Number(req.body?.x);
     const y = Number(req.body?.y);
     if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < 0 || y > 1) {
@@ -403,11 +427,13 @@ export const addJugada = asyncHandler(async (req, res) => {
         y,
         campoId: String(campo._id),
         resultado,
-        usuario,
+        equipo,
+        ...(usuario ? { usuario } : {}),
+        ...(rivalJugador ? { rivalJugador } : {}),
         periodo: playPeriodo,
         relojMs: Math.max(0, Math.floor(Number(req.body?.relojMs) || 0)),
     });
-    syncFoulLimit(session, usuario, campo, playPeriodo);
+    if (usuario) syncFoulLimit(session, usuario, campo, playPeriodo);
     await session.save();
     res.status(201).json(await present(session));
 });
@@ -436,13 +462,32 @@ export const updateJugada = asyncHandler(async (req, res) => {
             play.resultado = req.body.resultado;
         }
     }
-    if (req.body?.usuario) {
-        const usuario = idOf(req.body.usuario);
+    if (req.body?.equipo === 'nosotros' || req.body?.equipo === 'rival') {
+        play.equipo = req.body.equipo;
+    }
+    const side = play.equipo === 'rival' ? 'rival' : 'nosotros';
+    if (side === 'rival') {
+        if (session.planilla?.rival?.activo !== true) fail(res, 400, 'Esta planilla no anota al rival.');
+        const modo = session.planilla?.rival?.modo === 'alineacion' ? 'alineacion' : 'general';
+        play.set('usuario', undefined);
+        if (modo === 'general') {
+            play.rivalJugador = '';
+        } else if (req.body?.rivalJugador) {
+            const rivalJugador = String(req.body.rivalJugador);
+            const known = (session.rivalAlineacion || []).some((row) => String(row._id) === rivalJugador);
+            if (!known) fail(res, 400, 'Elegí un jugador del rival.');
+            play.rivalJugador = rivalJugador;
+        } else if (!play.rivalJugador) {
+            fail(res, 400, 'Elegí un jugador del rival.');
+        }
+    } else if (req.body?.usuario || req.body?.equipo === 'nosotros') {
+        const usuario = idOf(req.body?.usuario || play.usuario);
         assertPlayerOnLista(session, usuario, res);
         if (suspendedNow(session.relojEventos, play.periodo).has(usuario)) {
             fail(res, 400, 'Ese jugador está afuera.');
         }
         play.usuario = usuario;
+        play.rivalJugador = '';
     }
     const campoOf = (campoId) => (session.planilla?.campos || []).find((item) => String(item._id) === String(campoId));
     syncFoulLimit(session, beforeUser, campoOf(beforeCampo), play.periodo);
@@ -472,6 +517,7 @@ export const deleteJugada = asyncHandler(async (req, res) => {
 export const addPosesion = asyncHandler(async (req, res) => {
     const session = await loadPartido(req, res);
     assertEditable(session, res);
+    if (session.planilla?.reloj?.posesion === false) fail(res, 400, 'Esta planilla no cuenta las posesiones.');
     const equipo = req.body?.equipo === 'rival' ? 'rival' : req.body?.equipo === 'nosotros' ? 'nosotros' : '';
     if (!equipo) fail(res, 400, 'Elegí qué equipo tiene la pelota.');
     session.posesiones.push({
@@ -502,6 +548,44 @@ export const deletePosesion = asyncHandler(async (req, res) => {
     const row = session.posesiones.id(req.params.posesionId);
     if (!row) fail(res, 404, 'Posesión no encontrada.');
     row.deleteOne();
+    await session.save();
+    res.json(await present(session));
+});
+
+export const saveRival = asyncHandler(async (req, res) => {
+    const session = await loadPartido(req, res);
+    assertEditable(session, res);
+    if (session.planilla?.rival?.activo !== true || session.planilla?.rival?.modo !== 'alineacion') {
+        fail(res, 400, 'Esta planilla no arma la alineación del rival.');
+    }
+    const max = session.planilla?.reloj?.jugadoresEnCancha || 5;
+    const prev = new Set((session.rivalAlineacion || []).map((row) => String(row._id)));
+    const next = [];
+    const idOfRow = new Map();
+    const dorsales = new Set();
+    for (const row of Array.isArray(req.body?.alineacion) ? req.body.alineacion : []) {
+        const dorsal = String(row?.dorsal || '').trim().slice(0, 4);
+        if (!dorsal) continue;
+        if (dorsales.has(dorsal)) fail(res, 400, 'Cada jugador del rival necesita un número distinto.');
+        dorsales.add(dorsal);
+        const nombre = String(row?.nombre || '').trim().slice(0, 40);
+        const raw = String(row?.id || row?._id || '');
+        const id = mongoose.isValidObjectId(raw) && prev.has(raw) ? raw : String(new mongoose.Types.ObjectId());
+        idOfRow.set(raw || id, id);
+        idOfRow.set(id, id);
+        next.push({ _id: id, dorsal, nombre });
+    }
+    if (!next.length) fail(res, 400, 'Agregá al menos un jugador del rival.');
+    const enCancha = [];
+    for (const raw of Array.isArray(req.body?.enCancha) ? req.body.enCancha : []) {
+        const id = idOfRow.get(String(raw));
+        if (id && !enCancha.includes(id)) enCancha.push(id);
+    }
+    if (enCancha.length > max) fail(res, 400, `Elegí hasta ${max} jugadores en cancha.`);
+    session.rivalAlineacion = next;
+    session.rivalEnCancha = enCancha;
+    session.markModified('rivalAlineacion');
+    session.markModified('rivalEnCancha');
     await session.save();
     res.json(await present(session));
 });

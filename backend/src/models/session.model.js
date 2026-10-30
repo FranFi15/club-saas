@@ -153,9 +153,21 @@ const sessionSchema = new mongoose.Schema({
             periodos: { type: Number, default: 4 },
             minutosPorPeriodo: { type: Number, default: 10 },
             jugadoresEnCancha: { type: Number, default: 5 },
+            posesion: { type: Boolean, default: true },
+        },
+        rival: {
+            activo: { type: Boolean, default: false },
+            modo: { type: String, enum: ['general', 'alineacion'], default: 'general' },
         },
         campos: { type: [mongoose.Schema.Types.Mixed], default: [] },
     },
+
+    /** Alineación del rival cuando la planilla la pide por jugador. */
+    rivalAlineacion: [{
+        dorsal: { type: String, trim: true, default: '' },
+        nombre: { type: String, trim: true, default: '' },
+    }],
+    rivalEnCancha: [{ type: String }],
 
     /** Valores que no salen de la cancha (resultado, rival, notas). */
     planillaValores: {
@@ -168,7 +180,9 @@ const sessionSchema = new mongoose.Schema({
         y: { type: Number, min: 0, max: 1 },
         campoId: { type: String },
         resultado: { type: String, enum: ['anoto', 'erro'] },
+        equipo: { type: String, enum: ['nosotros', 'rival'], default: 'nosotros' },
         usuario: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        rivalJugador: { type: String, default: '' },
         periodo: { type: Number, default: 1 },
         relojMs: { type: Number, default: 0 },
     }],

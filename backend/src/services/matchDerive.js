@@ -181,17 +181,33 @@ export function isLimitStat(campo) {
     return campo?.tipo === 'limite';
 }
 
-export function countsFor(jugadas, usuarioId, campoIds) {
+export function countsFor(jugadas, usuarioId, campoIds, equipo = 'nosotros') {
     const ids = new Set((campoIds || []).map(String));
     let anoto = 0;
     let erro = 0;
     for (const play of jugadas || []) {
+        const side = play.equipo === 'rival' ? 'rival' : 'nosotros';
+        if (equipo && side !== equipo) continue;
         if (usuarioId && idOf(play.usuario) !== String(usuarioId)) continue;
         if (ids.size && !ids.has(String(play.campoId))) continue;
         if (play.resultado === 'anoto') anoto += 1;
         else if (play.resultado === 'erro') erro += 1;
     }
     return { anoto, erro, porcentaje: pct(anoto, erro) };
+}
+
+/** Points a team has from made shots whose stat defines a score value. */
+export function scorePoints(jugadas, campos, equipo) {
+    const byId = new Map((campos || []).map((campo) => [String(campo._id), campo]));
+    let points = 0;
+    for (const play of jugadas || []) {
+        const side = play.equipo === 'rival' ? 'rival' : 'nosotros';
+        if (side !== equipo || play.resultado !== 'anoto') continue;
+        const campo = byId.get(String(play.campoId));
+        if (campo?.tipo !== 'porcentaje') continue;
+        points += Math.max(0, Math.floor(Number(campo.puntos) || 0));
+    }
+    return points;
 }
 
 /** Made/missed fields reached by a total, including totals that sum other totals. */
