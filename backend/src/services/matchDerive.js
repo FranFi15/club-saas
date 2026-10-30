@@ -176,6 +176,11 @@ export function isCounterTotal(campo) {
     return campo?.tipo === 'total' && !(campo.camposTotal || []).length;
 }
 
+/** A counted stat with a send-off limit, such as fouls or cards. */
+export function isLimitStat(campo) {
+    return campo?.tipo === 'limite';
+}
+
 export function countsFor(jugadas, usuarioId, campoIds) {
     const ids = new Set((campoIds || []).map(String));
     let anoto = 0;
@@ -213,6 +218,10 @@ export function statRows(campos, jugadas, usuarioId) {
         .map((campo) => {
             if (campo.tipo === 'porcentaje') {
                 const counts = countsFor(jugadas, campo.alcance === 'partido' ? null : usuarioId, [campo._id]);
+                return { campo, ...counts };
+            }
+            if (campo.tipo === 'limite') {
+                const counts = countsFor(jugadas, usuarioId, [campo._id]);
                 return { campo, ...counts };
             }
             if (campo.tipo === 'total') {

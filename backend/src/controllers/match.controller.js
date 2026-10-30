@@ -5,7 +5,7 @@ import { courtNow, idOf, suspendedNow } from '../services/matchDerive.js';
 import { buildInforme, manualValue, notifyMatchReport } from '../services/matchReport.service.js';
 
 const ICONOS = ['circulo', 'x', 'cuadrado', 'triangulo', 'diamante'];
-const TIPOS = ['numero', 'texto', 'si_no', 'porcentaje', 'total'];
+const TIPOS = ['numero', 'texto', 'si_no', 'porcentaje', 'total', 'limite'];
 
 function fail(res, status, message) {
     res.status(status);
@@ -48,7 +48,7 @@ function normalizeSheet(body) {
         const _id = mongoose.isValidObjectId(prev) ? new mongoose.Types.ObjectId(prev) : new mongoose.Types.ObjectId();
         if (prev) idMap.set(prev, String(_id));
         const tipo = TIPOS.includes(campo?.tipo) ? campo.tipo : 'numero';
-        const alcance = campo?.alcance === 'partido' ? 'partido' : 'persona';
+        const alcance = tipo === 'limite' || campo?.alcance !== 'partido' ? 'persona' : 'partido';
         return {
             _id,
             etiqueta: String(campo?.etiqueta || '').trim().slice(0, 80) || 'Dato',
@@ -57,6 +57,7 @@ function normalizeSheet(body) {
             iconoAnoto: ICONOS.includes(campo?.iconoAnoto) ? campo.iconoAnoto : 'circulo',
             iconoErro: ICONOS.includes(campo?.iconoErro) ? campo.iconoErro : 'x',
             camposTotal: Array.isArray(campo?.camposTotal) ? campo.camposTotal.map(String) : [],
+            limite: clampInt(campo?.limite, 1, 99, 5),
         };
     });
     const summableIds = new Set(
@@ -123,6 +124,37 @@ function assertEditable(session, res) {
 
 function isCounterTotal(campo) {
     return campo?.tipo === 'total' && !(campo.camposTotal || []).length;
+}
+
+function isTapStat(campo) {
+    return isCounterTotal(campo) || campo?.tipo === 'limite';
+}
+
+function syncFoulLimit(session, usuario, campo, periodo) {
+    if (!campo || campo.tipo !== 'limite' || !usuario) return;
+    const campoId = String(campo._id);
+    const userId = String(usuario);
+    const limite = clampInt(campo.limite, 1, 99, 5);
+    const count = (session.jugadas || []).filter((play) => idOf(play.usuario) === userId && String(play.campoId) === campoId).length;
+    if (count >= limite) {
+        const out = suspendedNow(session.relojEventos, clampInt(periodo, 1, 24, 1)).get(userId);
+        if (out === 'expulsado') return;
+        session.relojEventos.push({
+            tipo: 'sancion',
+            periodo: clampInt(periodo, 1, 24, 1),
+            relojMs: 0,
+            marcaEn: new Date(),
+            sancionado: userId,
+            alcance: 'expulsado',
+            motivoCampoId: campoId,
+        });
+        return;
+    }
+    for (const ev of session.relojEventos || []) {
+        if (ev.tipo === 'sancion' && String(ev.motivoCampoId || '') === campoId && idOf(ev.sancionado) === userId) {
+            ev.deleteOne();
+        }
+    }
 }
 
 function listaJugadores(session) {
@@ -343,7 +375,7 @@ export const addJugada = asyncHandler(async (req, res) => {
     const session = await loadPartido(req, res);
     assertEditable(session, res);
     const campo = (session.planilla?.campos || []).find((item) => String(item._id) === String(req.body?.campoId));
-    const counter = isCounterTotal(campo);
+    const counter = isTapStat(campo);
     if (!campo || (campo.tipo !== 'porcentaje' && !counter)) fail(res, 400, 'Elegí una estadística de la planilla.');
     const resultado = counter
         ? 'anoto'
@@ -375,6 +407,7 @@ export const addJugada = asyncHandler(async (req, res) => {
         periodo: playPeriodo,
         relojMs: Math.max(0, Math.floor(Number(req.body?.relojMs) || 0)),
     });
+    syncFoulLimit(session, usuario, campo, playPeriodo);
     await session.save();
     res.status(201).json(await present(session));
 });
@@ -384,17 +417,19 @@ export const updateJugada = asyncHandler(async (req, res) => {
     assertEditable(session, res);
     const play = session.jugadas.id(req.params.jugadaId);
     if (!play) fail(res, 404, 'Jugada no encontrada.');
+    const beforeUser = idOf(play.usuario);
+    const beforeCampo = String(play.campoId);
     if (req.body?.campoId) {
         const campo = (session.planilla?.campos || []).find((item) => String(item._id) === String(req.body.campoId));
-        if (!campo || (campo.tipo !== 'porcentaje' && !isCounterTotal(campo))) {
+        if (!campo || (campo.tipo !== 'porcentaje' && !isTapStat(campo))) {
             fail(res, 400, 'Elegí una estadística de la planilla.');
         }
         play.campoId = String(campo._id);
-        if (isCounterTotal(campo)) play.resultado = 'anoto';
+        if (isTapStat(campo)) play.resultado = 'anoto';
     }
     if (req.body?.resultado) {
         const campo = (session.planilla?.campos || []).find((item) => String(item._id) === String(play.campoId));
-        if (isCounterTotal(campo)) {
+        if (isTapStat(campo)) {
             play.resultado = 'anoto';
         } else {
             if (!['anoto', 'erro'].includes(req.body.resultado)) fail(res, 400, 'Marcá si anotó o erró.');
@@ -409,6 +444,13 @@ export const updateJugada = asyncHandler(async (req, res) => {
         }
         play.usuario = usuario;
     }
+    const campoOf = (campoId) => (session.planilla?.campos || []).find((item) => String(item._id) === String(campoId));
+    syncFoulLimit(session, beforeUser, campoOf(beforeCampo), play.periodo);
+    const afterUser = idOf(play.usuario);
+    const afterCampo = String(play.campoId);
+    if (afterUser !== beforeUser || afterCampo !== beforeCampo) {
+        syncFoulLimit(session, afterUser, campoOf(afterCampo), play.periodo);
+    }
     await session.save();
     res.json(await present(session));
 });
@@ -418,7 +460,11 @@ export const deleteJugada = asyncHandler(async (req, res) => {
     assertEditable(session, res);
     const play = session.jugadas.id(req.params.jugadaId);
     if (!play) fail(res, 404, 'Jugada no encontrada.');
+    const usuario = idOf(play.usuario);
+    const campo = (session.planilla?.campos || []).find((item) => String(item._id) === String(play.campoId));
+    const periodo = play.periodo;
     play.deleteOne();
+    syncFoulLimit(session, usuario, campo, periodo);
     await session.save();
     res.json(await present(session));
 });

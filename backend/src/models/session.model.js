@@ -189,6 +189,7 @@ const sessionSchema = new mongoose.Schema({
         entra: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         sancionado: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         alcance: { type: String, enum: ['temporal', 'expulsado'] },
+        motivoCampoId: { type: String, default: '' },
         siguienteMs: { type: Number, min: 0, default: 0 },
     }],
 

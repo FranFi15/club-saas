@@ -6,12 +6,13 @@ const campoSchema = new mongoose.Schema(
         alcance: { type: String, enum: ['partido', 'persona'], default: 'persona' },
         tipo: {
             type: String,
-            enum: ['numero', 'texto', 'si_no', 'porcentaje', 'total'],
+            enum: ['numero', 'texto', 'si_no', 'porcentaje', 'total', 'limite'],
             required: true,
         },
         iconoAnoto: { type: String, default: 'circulo' },
         iconoErro: { type: String, default: 'x' },
         camposTotal: [{ type: String }],
+        limite: { type: Number, min: 1, max: 99, default: 5 },
     },
     { _id: true },
 );
