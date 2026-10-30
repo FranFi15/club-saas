@@ -154,7 +154,8 @@ export default function AthleteWellnessHubScreen({ navigation }) {
             pendingItems.map((item) => {
               const isPre = item.kind === 'pre';
               const sesion = item.sesion;
-              const accent = isPre ? colorMarca : '#f59e0b';
+              const visual = isPre ? null : sessionTipoVisual(sesion, { colorMarca });
+              const accent = isPre ? colorMarca : visual.accent;
               return (
                 <DesignCard
                   key={item.key}
@@ -165,13 +166,6 @@ export default function AthleteWellnessHubScreen({ navigation }) {
                   contentStyle={styles.cardRow}
                 >
                   <View style={[styles.cardIcon, { backgroundColor: `${accent}22` }]}>
-                    <Ionicons name="fitness-outline" size={24} color={accent} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.cardTitle, { color: theme.text }]}>
-                      {isPre ? 'Wellness del día' : 'RPE post entreno'}
-                    </Text>
-                    <Text style={[styles.cardSub, { color: theme.textMuted }]}>
                     <Ionicons name={isPre ? 'fitness-outline' : visual.icon} size={24} color={accent} />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -182,6 +176,13 @@ export default function AthleteWellnessHubScreen({ navigation }) {
                       {isPre
                         ? 'Contanos cómo te sentís antes de entrenar (1–10).'
                         : rpeSessionDetail(sesion)}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={22} color={accent} />
+                </DesignCard>
+              );
+            })
+          )}
         </ScrollView>
       )}
     </SafeAreaView>
