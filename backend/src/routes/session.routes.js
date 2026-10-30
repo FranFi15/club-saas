@@ -40,6 +40,8 @@ import {
     deletePosesion,
     enviarInforme,
     getInforme,
+    getPartidoVista,
+    listMyPartidos,
     listMatchSheets,
     saveLista,
     savePlanillaValores,
@@ -78,6 +80,7 @@ router.get(
     getCoachSessionStats,
 );
 router.get('/asistencia/mi-resumen', protect, authorize('atleta'), getMyAttendanceResumen);
+router.get('/mis-partidos', protect, authorize('atleta', 'tutor'), listMyPartidos);
 router.get(
     '/categoria/:categoryId/asistencia-resumen',
     protect,
@@ -106,6 +109,7 @@ router.get(
     getSessionStatsById
 );
 router.get('/:id/informe', protect, getInforme);
+router.get('/:id/partido-vista', protect, authorize('atleta', 'tutor'), getPartidoVista);
 router.put('/:id/lista', protect, coachPartido, saveLista);
 router.put('/:id/planilla', protect, coachPartido, applyPlanilla);
 router.put('/:id/planilla-valores', protect, coachPartido, savePlanillaValores);

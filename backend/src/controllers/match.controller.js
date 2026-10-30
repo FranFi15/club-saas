@@ -607,6 +607,62 @@ async function readSessionForInforme(req, res) {
     return { session, full: false, userId: uid };
 }
 
+async function viewerAthleteId(req, res) {
+    if (req.user.rol === 'atleta') return req.user._id;
+    if (req.user.rol !== 'tutor') fail(res, 403, 'No autorizado');
+    const atletaId = String(req.query.atletaId || '');
+    if (!mongoose.isValidObjectId(atletaId)) fail(res, 400, 'Elegí un jugador.');
+    const hijo = await req.models.User.findById(atletaId).select('tutorPrincipal rol');
+    if (!hijo || hijo.rol !== 'atleta' || String(hijo.tutorPrincipal) !== String(req.user._id)) {
+        fail(res, 403, 'No autorizado');
+    }
+    return hijo._id;
+}
+
+function partidoVista(session) {
+    return {
+        _id: session._id,
+        tipo: 'partido',
+        nombreSesion: session.nombreSesion || '',
+        fecha: session.fecha,
+        horaInicio: session.horaInicio,
+        horaFin: session.horaFin,
+        lugarExterno: session.lugarExterno || '',
+        espacio: session.espacio || null,
+        informeEnviadoEn: session.informeEnviadoEn || null,
+        planilla: session.planilla,
+        jugadas: session.jugadas || [],
+        listaBuenaFe: session.listaBuenaFe || [],
+        rivalAlineacion: session.rivalAlineacion || [],
+        rivalEnCancha: session.rivalEnCancha || [],
+    };
+}
+
+export const listMyPartidos = asyncHandler(async (req, res) => {
+    const atletaId = await viewerAthleteId(req, res);
+    const rows = await req.models.Session.find({
+        tipo: 'partido',
+        informeEnviadoEn: { $ne: null },
+        listaBuenaFe: { $elemMatch: { usuario: atletaId, tipoPersona: { $ne: 'staff' } } },
+    })
+        .select('nombreSesion fecha horaInicio horaFin lugarExterno')
+        .sort({ fecha: -1, horaInicio: -1 })
+        .limit(80)
+        .lean();
+    res.json(rows);
+});
+
+export const getPartidoVista = asyncHandler(async (req, res) => {
+    const session = await req.models.Session.findById(req.params.id)
+        .populate('listaBuenaFe.usuario', 'nombre apellido');
+    if (!session || session.tipo !== 'partido') fail(res, 404, 'Partido no encontrado.');
+    const atletaId = String(await viewerAthleteId(req, res));
+    const listed = (session.listaBuenaFe || []).some((row) => idOf(row.usuario) === atletaId && row.tipoPersona !== 'staff');
+    if (!listed) fail(res, 403, 'Este partido no está en tu lista.');
+    if (!session.informeEnviadoEn) fail(res, 403, 'El informe todavía no se envió.');
+    res.json(partidoVista(session));
+});
+
 export const getInforme = asyncHandler(async (req, res) => {
     const access = await readSessionForInforme(req, res);
     res.json(buildInforme(access.session, { full: access.full, userId: access.userId || req.user._id }));
