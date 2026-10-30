@@ -73,11 +73,23 @@ const createMetricDefinition = asyncHandler(async (req, res) => {
 
     assertAreaAllowedForRole(res, req.user.rol, area);
 
+    const GRAPH_TYPES = ['barras', 'lineas'];
+    let tipoGrafico = 'barras';
+    if (area === 'fisico') {
+        const requested = String(req.body.tipoGrafico || 'barras');
+        if (!GRAPH_TYPES.includes(requested)) {
+            res.status(400);
+            throw new Error('Elegí barras o líneas para el gráfico.');
+        }
+        tipoGrafico = requested;
+    }
+
     const definition = await MetricDefinition.create({
         nombre,
         unidad,
         mejorDireccion,
         area,
+        tipoGrafico,
         creador: req.user._id
     });
 

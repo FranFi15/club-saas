@@ -7,7 +7,6 @@ import {
     countSuccessfulDeliveries,
 } from '../services/deliveryToChat.service.js';
 import { assertDeliveryTargets } from '../services/staffCategoryAccess.service.js';
-import { sortPaymentsByAtleta, sortUsersByName } from '../utils/listSort.js';
 import { parsePageLimit, paginationMeta } from '../utils/pagination.js';
 
 const STAFF_DOC_ROLES = ['profe', 'preparador_fisico', 'nutricionista', 'psicologo'];
@@ -349,7 +348,7 @@ async function resolveRequirementRecipient(req, res, atletaIdOverride) {
 
 const getMyRequirements = asyncHandler(async (req, res) => {
     const { Requirement, Submission } = req.models;
-    const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 30, maxLimit: 100 });
+    const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 10, maxLimit: 100 });
     const { recipientId, catIds, includeGlobal } = await resolveRequirementRecipient(req, res);
 
     const orConditions = [{ alcance: 'usuario', targetUsuario: recipientId }];
@@ -718,7 +717,7 @@ const deleteRequirement = asyncHandler(async (req, res) => {
 const getStaffSubmissions = asyncHandler(async (req, res) => {
     const { Requirement, Enrollment, Submission, Category } = req.models;
     const { categoriaId, estado, disciplinaId, requerimientoId, carpetaId, sinCarpeta, atletaId } = req.query;
-    const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 30, maxLimit: 100 });
+    const { page, limit, skip } = parsePageLimit(req, { defaultLimit: 10, maxLimit: 100 });
 
     const isAdmin = ['admin_club', 'administrativo'].includes(req.user.rol);
     const reqIdFilter =
@@ -739,13 +738,13 @@ const getStaffSubmissions = asyncHandler(async (req, res) => {
                 'requerimiento',
                 'titulo descripcion alcance targetCategoria fechaVencimiento obligatorio creadoPor archivoAdjuntoUrl archivoAdjuntoNombre carpeta',
             )
-            .sort({ updatedAt: -1 })
+            .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
             .lean();
 
         return res.json({
-            submissions: sortPaymentsByAtleta(submissions),
+            submissions,
             ...paginationMeta(page, limit, total),
         });
     };

@@ -1,6 +1,7 @@
 import { createAppNotification } from './appNotification.service.js';
 import { getOrCreateClubSettings } from './familyDiscount.service.js';
 import { atletaCuotasEnApp } from '../utils/ageHelper.js';
+import { tutorIdsOf } from '../utils/userQuery.js';
 import {
     DEFAULT_CLUB_TIMEZONE,
     todayYmdClub,
@@ -35,12 +36,20 @@ function formatMoney(n) {
     return `$${Number(n || 0).toLocaleString('es-AR')}`;
 }
 
-function resolveDestinatario(atleta) {
-    if (!atleta?._id) return null;
-    if (atleta.rol === 'atleta' && !atletaCuotasEnApp(atleta) && atleta.tutorPrincipal) {
-        return atleta.tutorPrincipal;
+function resolveDestinatarios(atleta) {
+    if (!atleta?._id) return [];
+    const tutors = tutorIdsOf(atleta);
+    if (atleta.rol === 'atleta' && tutors.length && !atletaCuotasEnApp(atleta)) {
+        return tutors;
     }
-    return atleta._id;
+    if (atleta.rol === 'atleta' && tutors.length) {
+        const ids = [String(atleta._id)];
+        for (const id of tutors) {
+            if (!ids.includes(id)) ids.push(id);
+        }
+        return ids;
+    }
+    return [String(atleta._id)];
 }
 
 function conceptoCuota(cuota) {
@@ -101,14 +110,14 @@ export async function sendCuotaReminders(models, options = {}) {
         })
             .populate('plan', 'nombre')
             .populate('cuotaSocial', 'nombre')
-            .populate('atleta', 'nombre apellido tutorPrincipal rol cuotasEnApp')
+            .populate('atleta', 'nombre apellido tutorPrincipal tutores rol cuotasEnApp')
             .lean();
     }
 
     const vencidas = await Payment.find({ estado: 'vencido', ...periodFilter })
         .populate('plan', 'nombre')
         .populate('cuotaSocial', 'nombre')
-        .populate('atleta', 'nombre apellido tutorPrincipal rol cuotasEnApp')
+            .populate('atleta', 'nombre apellido tutorPrincipal tutores rol cuotasEnApp')
         .lean();
 
     let enviados = 0;
@@ -118,17 +127,17 @@ export async function sendCuotaReminders(models, options = {}) {
         if (!force && (await alreadyNotified(Notification, { tipo: 'cuota_proxima', referencia: cuota._id }))) {
             continue;
         }
-        const destinatario = resolveDestinatario(cuota.atleta);
-        if (!destinatario) continue;
-
-        await createAppNotification(models, {
-            usuario: destinatario,
-            tipo: 'cuota_proxima',
-            titulo: 'Cuota próxima a vencer',
-            mensaje: `La cuota de ${conceptoCuota(cuota)}${sufijoTitular(cuota, destinatario)} vence pronto. Monto: ${formatMoney(cuota.montoFinal)}.`,
-            referencia: cuota._id,
-        });
-        enviados += 1;
+        const destinatarios = resolveDestinatarios(cuota.atleta);
+        for (const destinatario of destinatarios) {
+            await createAppNotification(models, {
+                usuario: destinatario,
+                tipo: 'cuota_proxima',
+                titulo: 'Cuota próxima a vencer',
+                mensaje: `La cuota de ${conceptoCuota(cuota)}${sufijoTitular(cuota, destinatario)} vence pronto. Monto: ${formatMoney(cuota.montoFinal)}.`,
+                referencia: cuota._id,
+            });
+            enviados += 1;
+        }
     }
 
     for (const cuota of vencidas) {
@@ -136,17 +145,17 @@ export async function sendCuotaReminders(models, options = {}) {
         if (!force && (await alreadyNotified(Notification, { tipo: 'cuota_vencida', referencia: cuota._id }))) {
             continue;
         }
-        const destinatario = resolveDestinatario(cuota.atleta);
-        if (!destinatario) continue;
-
-        await createAppNotification(models, {
-            usuario: destinatario,
-            tipo: 'cuota_vencida',
-            titulo: 'Cuota vencida',
-            mensaje: `La cuota de ${conceptoCuota(cuota)}${sufijoTitular(cuota, destinatario)} está vencida. Monto: ${formatMoney(cuota.montoFinal)}.`,
-            referencia: cuota._id,
-        });
-        enviados += 1;
+        const destinatarios = resolveDestinatarios(cuota.atleta);
+        for (const destinatario of destinatarios) {
+            await createAppNotification(models, {
+                usuario: destinatario,
+                tipo: 'cuota_vencida',
+                titulo: 'Cuota vencida',
+                mensaje: `La cuota de ${conceptoCuota(cuota)}${sufijoTitular(cuota, destinatario)} está vencida. Monto: ${formatMoney(cuota.montoFinal)}.`,
+                referencia: cuota._id,
+            });
+            enviados += 1;
+        }
     }
 
     return { enviados, daysBefore, force, onlyVencidas };

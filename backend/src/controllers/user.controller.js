@@ -1,4 +1,5 @@
 import asyncHandler from 'express-async-handler';
+import mongoose from 'mongoose';
 import { calcEdad, puedePagarComoAtleta, atletaCuotasEnApp } from '../utils/ageHelper.js';
 import { atletasDeTutoresFilter, hijosDelTutorFilter, hijosVinculadosFilter, tutorIdsOf } from '../utils/userQuery.js';
 import { syncFamilyDiscountForAthlete } from '../services/familyDiscount.service.js';
@@ -13,6 +14,7 @@ import {
     resolveRolesWrite,
     normalizeUserRoles,
     roleQuery,
+    userHasRole,
 } from '../constants/userRoles.js';
 import { ensureCurrentMonthSocialFeeForUser, resolveUserSocialFeeAssignment } from '../services/generateSocialFees.service.js';
 import { syncAthleteCountToSuper } from '../services/athleteQuota.service.js';
@@ -33,6 +35,48 @@ import { resolveAthleteEmail, isAthleteInternalEmail } from '../utils/athleteLog
 import { getOpenPaymentsSummary, forgiveOpenPayments } from '../services/userPaymentsStatus.service.js';
 import { syncAthleteBecaFlag } from '../services/becaPlan.service.js';
 import { ensureCurrentMonthPaymentForEnrollment } from '../services/generateMonthlyPayments.service.js';
+
+const MAX_ATHLETE_TUTORS = 2;
+
+async function resolveAthleteTutorLinks(User, { tutorPrincipal, tutores, athleteId }) {
+    const ordered = [];
+    const push = (value) => {
+        const id = value && typeof value === 'object' ? value._id || value : value;
+        const str = id ? String(id) : '';
+        if (!str || ordered.includes(str)) return;
+        if (athleteId && str === String(athleteId)) return;
+        ordered.push(str);
+    };
+    push(tutorPrincipal);
+    for (const id of Array.isArray(tutores) ? tutores : []) push(id);
+
+    if (ordered.length > MAX_ATHLETE_TUTORS) {
+        const err = new Error('Un atleta puede tener hasta 2 tutores.');
+        err.statusCode = 400;
+        throw err;
+    }
+    if (!ordered.length) return { tutorPrincipal: undefined, tutores: [] };
+
+    const invalid = ordered.find((id) => !mongoose.Types.ObjectId.isValid(id));
+    if (invalid) {
+        const err = new Error('Elegí tutores válidos.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const found = await User.find({ _id: { $in: ordered } }).select('rol roles').lean();
+    const byId = new Map(found.map((u) => [String(u._id), u]));
+    for (const id of ordered) {
+        const tutor = byId.get(id);
+        if (!tutor || !userHasRole(tutor, 'tutor')) {
+            const err = new Error('Cada vínculo tiene que ser una cuenta de tutor.');
+            err.statusCode = 400;
+            throw err;
+        }
+    }
+
+    return { tutorPrincipal: ordered[0], tutores: ordered.slice(1) };
+}
 
 function parseSueldoNomina(value) {
     if (value === undefined || value === null || value === '') return undefined;
@@ -102,6 +146,7 @@ const registerUser = asyncHandler(async (req, res) => {
         enNomina,
         sueldoNomina,
         esBecado,
+        tutores,
     } = req.body;
 
     const { User } = req.models;
@@ -195,6 +240,16 @@ const registerUser = asyncHandler(async (req, res) => {
         throw e;
     }
 
+    let tutorLinks = { tutorPrincipal: undefined, tutores: [] };
+    if (hasAtleta && (tutorPrincipal || (Array.isArray(tutores) && tutores.length))) {
+        try {
+            tutorLinks = await resolveAthleteTutorLinks(User, { tutorPrincipal, tutores });
+        } catch (e) {
+            res.status(e.statusCode || 400);
+            throw e;
+        }
+    }
+
     const user = await User.create({
         nombre,
         apellido,
@@ -203,7 +258,8 @@ const registerUser = asyncHandler(async (req, res) => {
         password,
         rol: primaryRol,
         roles,
-        tutorPrincipal: tutorPrincipal || undefined,
+        tutorPrincipal: tutorLinks.tutorPrincipal,
+        tutores: tutorLinks.tutores,
         fotoPerfil: fotoPerfil || '',
         fechaNacimiento: fechaNacimiento || undefined,
         telefono: telefono != null ? String(telefono).trim() : undefined,
@@ -444,10 +500,6 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
     }
     
     const tutorAnterior = user.tutorPrincipal ? String(user.tutorPrincipal) : null;
-    if (req.body.tutorPrincipal !== undefined) {
-        user.tutorPrincipal = req.body.tutorPrincipal ? req.body.tutorPrincipal : undefined;
-    }
-
     if (req.body.fotoPerfil !== undefined) {
         user.fotoPerfil = String(req.body.fotoPerfil).trim();
     }
@@ -487,6 +539,23 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
 
     const nextRoles = normalizeUserRoles(user);
     const hasAtleta = nextRoles.includes('atleta');
+    if (!hasAtleta) {
+        user.tutorPrincipal = undefined;
+        user.tutores = [];
+    } else if (req.body.tutorPrincipal !== undefined || req.body.tutores !== undefined) {
+        try {
+            const links = await resolveAthleteTutorLinks(req.models.User, {
+                tutorPrincipal: req.body.tutorPrincipal !== undefined ? req.body.tutorPrincipal : user.tutorPrincipal,
+                tutores: req.body.tutores !== undefined ? req.body.tutores : user.tutores,
+                athleteId: user._id,
+            });
+            user.tutorPrincipal = links.tutorPrincipal;
+            user.tutores = links.tutores;
+        } catch (e) {
+            res.status(e.statusCode || 400);
+            throw e;
+        }
+    }
     const becameInactive = user.estado === 'inactivo' && user.isModified('estado');
     if (becameInactive && hasAtleta && req.models.Enrollment) {
         await req.models.Enrollment.updateMany(
@@ -995,6 +1064,7 @@ const getUsers = asyncHandler(async (req, res) => {
     const users = await User.find(filter)
         .select('-password')
         .populate('tutorPrincipal', 'nombre apellido email rol fotoPerfil')
+        .populate('tutores', 'nombre apellido email rol fotoPerfil')
         .collation(userNameCollation)
         .sort(userNameMongoSort)
         .skip(skip)

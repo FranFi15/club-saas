@@ -19,7 +19,7 @@ import {
     syncAllFamilyDiscounts,
 } from '../services/familyDiscount.service.js';
 import { compareUserByName, sortPaymentsByPriority, sortUsersByName, userNameCollation, userNameMongoSort } from '../utils/listSort.js';
-import { createAppNotification } from '../services/appNotification.service.js';
+import { createAppNotification, createAppNotificationsMany } from '../services/appNotification.service.js';
 import { isClubMercadoPagoLinked } from '../services/mercadoPagoClub.service.js';
 import { getTransferBankData, setTransferBankData } from '../services/transferBank.service.js';
 import {
@@ -34,7 +34,7 @@ import {
     roleQuery,
     userHasRole,
 } from '../constants/userRoles.js';
-import { hijosDelTutorFilter, hijosVinculadosFilter, isTutorOf } from '../utils/userQuery.js';
+import { hijosDelTutorFilter, hijosVinculadosFilter, isTutorOf, tutorIdsOf } from '../utils/userQuery.js';
 import {
     ensureBecaPlan,
     getBecaPlanIds,
@@ -1173,21 +1173,24 @@ function groupPendingTransfers(payments) {
     );
 }
 
+function paymentNoticeUserIds(atleta, fallbackId) {
+    if (atleta && userHasRole(atleta, 'atleta')) {
+        const tutors = tutorIdsOf(atleta);
+        if (tutors.length) return tutors;
+    }
+    const self = atleta?._id || fallbackId;
+    return self ? [String(self)] : [];
+}
+
 async function notifyPaymentRegistered(req, payment) {
     const { User } = req.models;
     try {
-        const atleta = await User.findById(payment.atleta);
-        // Los menores cobran a través del tutor; socios y tutores son sus propios titulares.
-        const destinatario =
-            userHasRole(atleta, 'atleta') && atleta?.tutorPrincipal
-                ? atleta.tutorPrincipal
-                : payment.atleta;
+        const atleta = await User.findById(payment.atleta).select('tutorPrincipal tutores rol roles');
         const concepto =
             payment.tipo === 'social'
                 ? payment.cuotaSocial?.nombre || 'cuota social'
                 : payment.plan?.nombre || 'cuota';
-        await createAppNotification(req.models, {
-            usuario: destinatario,
+        await createAppNotificationsMany(req.models, paymentNoticeUserIds(atleta, payment.atleta), {
             tipo: 'pago_registrado',
             titulo: 'Pago registrado',
             mensaje: `Se registró el pago de ${concepto} por $${payment.montoFinal}.`,
@@ -1374,10 +1377,11 @@ const rejectTransferReviewBatch = asyncHandler(async (req, res) => {
         await payment.save();
         updated.push(payment);
 
-        const atleta = await User.findById(payment.atleta);
-        const destinatario = String(atleta?.tutorPrincipal || payment.atleta);
-        if (!notifyByDest.has(destinatario)) notifyByDest.set(destinatario, []);
-        notifyByDest.get(destinatario).push(payment);
+        const atleta = await User.findById(payment.atleta).select('tutorPrincipal tutores rol roles');
+        for (const destinatario of paymentNoticeUserIds(atleta, payment.atleta)) {
+            if (!notifyByDest.has(destinatario)) notifyByDest.set(destinatario, []);
+            notifyByDest.get(destinatario).push(payment);
+        }
     }
 
     for (const [destinatario, plist] of notifyByDest) {
@@ -1520,14 +1524,12 @@ const registerBulkManualPayment = asyncHandler(async (req, res) => {
         total += payment.montoFinal || 0;
         queuePaymentReceipt(req.models, payment._id, req.clubIdentifier);
 
-    try {
-        const atleta = await User.findById(payment.atleta);
-        const destinatario = atleta?.tutorPrincipal || payment.atleta;
-            await createAppNotification(req.models, {
-            usuario: destinatario,
-            tipo: 'pago_registrado',
-            titulo: 'Pago Registrado',
-            mensaje: `Se registró el pago de ${payment.plan?.nombre || 'cuota'} por $${payment.montoFinal}.`,
+        try {
+            const atleta = await User.findById(payment.atleta).select('tutorPrincipal tutores rol roles');
+            await createAppNotificationsMany(req.models, paymentNoticeUserIds(atleta, payment.atleta), {
+                tipo: 'pago_registrado',
+                titulo: 'Pago Registrado',
+                mensaje: `Se registró el pago de ${payment.plan?.nombre || 'cuota'} por $${payment.montoFinal}.`,
                 referencia: payment._id,
             });
         } catch (e) {

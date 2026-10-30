@@ -11,6 +11,12 @@ const metricDefinitionSchema = new mongoose.Schema({
         enum: ['mayor_es_mejor', 'menor_es_mejor'], 
         required: true 
     },
+
+    tipoGrafico: {
+        type: String,
+        enum: ['barras', 'lineas'],
+        default: 'barras',
+    },
     
     area: {
         type: String,
