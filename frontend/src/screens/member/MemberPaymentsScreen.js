@@ -13,6 +13,7 @@ import {
   AppState,
   ScrollView,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { runAfterIosModalDismiss } from '../../utils/iosModalChain';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -371,7 +372,7 @@ export default function MemberPaymentsScreen({ navigation }) {
                 disabled={busyRecibo}
               >
                 {busyRecibo ? (
-                  <ActivityIndicator color={colorMarca} size="small" />
+                  <ClubSpinLoader size={26} />
                 ) : (
                   <>
                     <Ionicons name="download-outline" size={16} color={colorMarca} />
@@ -629,7 +630,7 @@ export default function MemberPaymentsScreen({ navigation }) {
 
       {showInitialLoader && showCuotas ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={colorMarca} />
+          <ClubSpinLoader size={64} />
         </View>
       ) : isTutor && !familyData?.hijos?.length ? (
         <Text style={[styles.empty, { color: theme.textMuted }]}>No hay atletas vinculados a tu cuenta.</Text>

@@ -13,6 +13,7 @@ import {
   Modal,
   useWindowDimensions,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -749,7 +750,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
       {gate === 'event' && !eventTargets.length ? null : !cameraReady ? (
         <View style={[styles.permissionBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           {permission == null ? (
-            <ActivityIndicator color={colorMarca} />
+            <ClubSpinLoader size={40} />
           ) : (
             <>
               <Ionicons name="camera-outline" size={48} color={theme.icon} />
@@ -954,7 +955,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
       </View>
 
       {loadingHistory && !historyEntries.length ? (
-        <ActivityIndicator color={colorMarca} style={{ marginTop: 40 }} />
+        <ClubSpinLoader size={56} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={filteredEntries}

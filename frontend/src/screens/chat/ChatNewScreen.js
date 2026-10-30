@@ -5,10 +5,11 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  ActivityIndicator,
   TextInput,
   StatusBar,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ListTopFade from '../../components/ListTopFade';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -107,10 +108,12 @@ export default function ChatNewScreen({ navigation }) {
           onChangeText={setQuery}
         />
       </View>
+      <View style={{ flex: 1 }}>
       {loading ? (
-        <ActivityIndicator style={{ marginTop: 24 }} color={colorMarca} />
+        <ClubSpinLoader size={40} style={{ marginTop: 24 }} />
       ) : (
         <FlatList
+          style={{ flex: 1 }}
           data={visibleItems}
           keyExtractor={(item) => String(item._id)}
           contentContainerStyle={styles.list}
@@ -139,7 +142,7 @@ export default function ChatNewScreen({ navigation }) {
                   ) : null}
                 </View>
                 {busy ? (
-                  <ActivityIndicator color={colorMarca} />
+                  <ClubSpinLoader size={40} />
                 ) : (
                   <Ionicons name="chatbubble-ellipses-outline" size={20} color={colorMarca} />
                 )}
@@ -148,6 +151,8 @@ export default function ChatNewScreen({ navigation }) {
           }}
         />
       )}
+      <ListTopFade color={theme.background} />
+      </View>
     </SafeAreaView>
   );
 }

@@ -2,6 +2,7 @@ import React, { useContext, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Platform } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { fadeStackScreenOptions } from './screenFade';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
@@ -30,7 +31,7 @@ const Stack = createNativeStackNavigator();
 
 function SocioNewsStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={fadeStackScreenOptions}>
       <Stack.Screen name="SocioNewsMain" component={AthleteNewsScreen} />
       <Stack.Screen name="MemberMediaViewer" component={MemberMediaViewerScreen} />
     </Stack.Navigator>
@@ -39,7 +40,7 @@ function SocioNewsStack() {
 
 function SocioEventsStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={fadeStackScreenOptions}>
       <Stack.Screen name="MemberEvents" component={MemberEventsScreen} />
       <Stack.Screen name="MemberEventTickets" component={MemberEventTicketsScreen} />
     </Stack.Navigator>
@@ -48,7 +49,7 @@ function SocioEventsStack() {
 
 function SocioProfileStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={fadeStackScreenOptions}>
       <Stack.Screen name="ProfileMain" component={SocioProfileScreen} />
       <Stack.Screen name="SocioPayments" component={MemberPaymentsScreen} />
       <Stack.Screen name="MemberAlquiler" component={MemberAlquilerScreen} />

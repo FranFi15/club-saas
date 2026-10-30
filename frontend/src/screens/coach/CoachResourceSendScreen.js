@@ -10,6 +10,7 @@ import {
   FlatList,
   RefreshControl,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -820,7 +821,7 @@ export default function CoachResourceSendScreen({ navigation }) {
           }
           ListEmptyComponent={
             loadingHistory ? (
-              <ActivityIndicator color={colorMarca} style={{ marginTop: 28 }} />
+              <ClubSpinLoader size={40} style={{ marginTop: 28 }} />
             ) : (
               <Text style={[styles.emptyHist, { color: theme.textMuted }]}>
                 {historyTipo || historyCategoria || historySearch
@@ -831,7 +832,7 @@ export default function CoachResourceSendScreen({ navigation }) {
           }
           ListFooterComponent={
             loadingMoreHistory ? (
-              <ActivityIndicator color={colorMarca} style={{ marginVertical: 16 }} />
+              <ClubSpinLoader size={40} style={{ marginVertical: 16 }} />
             ) : null
           }
         />
@@ -1020,7 +1021,7 @@ export default function CoachResourceSendScreen({ navigation }) {
               </Text>
               {uploading ? (
                 <View style={styles.uploadingBox}>
-                  <ActivityIndicator color={colorMarca} />
+                  <ClubSpinLoader size={40} />
                   <Text style={[styles.uploadingText, { color: theme.textMuted }]}>Subiendo archivo…</Text>
                 </View>
               ) : (
@@ -1118,7 +1119,7 @@ export default function CoachResourceSendScreen({ navigation }) {
         isDarkMode={isDarkMode}
       >
         {audienceLoading ? (
-          <ActivityIndicator color={colorMarca} style={{ marginVertical: 24 }} />
+          <ClubSpinLoader size={40} style={{ marginVertical: 24 }} />
         ) : (
           <>
             <Text style={[styles.histMeta, { color: theme.textMuted, marginBottom: 12 }]}>

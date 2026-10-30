@@ -6,9 +6,9 @@ import {
   TouchableOpacity,
   StatusBar,
   ScrollView,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -113,7 +113,7 @@ export default function StaffProfileScreen({ navigation }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
       >
         {showInitialLoader ? (
-          <ActivityIndicator color={colorMarca} style={{ marginVertical: 24 }} />
+          <ClubSpinLoader size={40} style={{ marginVertical: 24 }} />
         ) : (
           <View style={[profileCardStyles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <ProfileInfoRow

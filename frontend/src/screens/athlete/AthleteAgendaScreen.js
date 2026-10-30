@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   TextInput,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -351,7 +352,7 @@ export default function AthleteAgendaScreen({ navigation }) {
 
       {memberLoading || !showBody ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={colorMarca} />
+          <ClubSpinLoader size={64} />
         </View>
       ) : (
         <ScrollView
@@ -383,7 +384,7 @@ export default function AthleteAgendaScreen({ navigation }) {
           </View>
 
           {calendarLoading ? (
-            <ActivityIndicator color={colorMarca} style={{ marginVertical: 16 }} />
+            <ClubSpinLoader size={40} style={{ marginVertical: 16 }} />
           ) : sessionsForSelectedDay.length === 0 ? (
             <DesignCard theme={theme} isDarkMode={isDarkMode} accent={colorMarca} contentStyle={styles.emptyInner}>
               <Ionicons name="calendar-clear-outline" size={32} color={theme.textMuted} />

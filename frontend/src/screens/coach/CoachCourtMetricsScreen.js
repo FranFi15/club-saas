@@ -5,10 +5,10 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  ActivityIndicator,
   StatusBar,
   RefreshControl,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -122,7 +122,7 @@ export default function CoachCourtMetricsScreen({ navigation }) {
       />
 
       {loading && !metrics.length ? (
-        <ActivityIndicator color={cc} style={{ marginTop: 40 }} />
+        <ClubSpinLoader size={56} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={visibleMetrics}

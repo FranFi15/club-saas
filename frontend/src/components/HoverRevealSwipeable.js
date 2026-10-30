@@ -1,4 +1,5 @@
 import React, {
+  useContext,
   useRef,
   useImperativeHandle,
   forwardRef,
@@ -7,6 +8,7 @@ import React, {
 } from 'react';
 import { Platform, StyleSheet, View, TouchableOpacity, Pressable } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import { ThemeContext } from '../context/ThemeContext';
 
 const WEB_ACTION_PAD = 52;
 
@@ -123,12 +125,17 @@ const HoverRevealSwipeable = forwardRef(function HoverRevealSwipeable(
     enabled = true,
     renderRightActions,
     renderLeftActions,
+    containerStyle,
+    childrenContainerStyle,
+    overshootRight = false,
+    overshootLeft = false,
     ...swipeableProps
   },
   ref,
 ) {
   const swipeRef = useRef(null);
   const isWeb = Platform.OS === 'web';
+  const { theme } = useContext(ThemeContext);
 
   useImperativeHandle(ref, () => ({
     close: () => swipeRef.current?.close?.(),
@@ -168,8 +175,17 @@ const HoverRevealSwipeable = forwardRef(function HoverRevealSwipeable(
     <Swipeable
       ref={swipeRef}
       enabled={enabled}
+      overshootRight={overshootRight}
+      overshootLeft={overshootLeft}
       renderRightActions={renderRightActions}
       renderLeftActions={renderLeftActions}
+      dragOffsetFromLeft={48}
+      dragOffsetFromRight={-48}
+      containerStyle={containerStyle}
+      childrenContainerStyle={[
+        { backgroundColor: theme?.background || '#f3f4f6' },
+        childrenContainerStyle,
+      ]}
       {...swipeableProps}
     >
       {children}

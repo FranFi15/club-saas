@@ -10,6 +10,7 @@ import {
   StatusBar,
   RefreshControl,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -444,7 +445,7 @@ export default function CoachRelocateSessionsScreen({ navigation }) {
       />
 
       {loading && !sessions.length && !restorableSessions.length ? (
-        <ActivityIndicator color={colorMarca} style={{ marginTop: 40 }} size="large" />
+        <ClubSpinLoader size={64} style={{ marginTop: 40 }} />
       ) : (
         <ScrollView
           contentContainerStyle={styles.scroll}

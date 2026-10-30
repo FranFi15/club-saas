@@ -12,6 +12,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import ClubSpinLoader from '../../../components/ClubSpinLoader';
+import ListTopFade from '../../../components/ListTopFade';
 import { Ionicons } from '@expo/vector-icons';
 import FormSheet from '../../../components/FormSheet';
 import { clubApi } from '../../../utils/api';
@@ -397,10 +399,12 @@ export default function NominaTab({
         </View>
       </View>
 
+      <View style={{ flex: 1 }}>
       {loading && entries.length === 0 ? (
-        <ActivityIndicator color={cc} style={{ marginTop: 40 }} />
+        <ClubSpinLoader size={56} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
+          style={{ flex: 1 }}
           data={visibleEntries}
           keyExtractor={(item) => String(item._id)}
           renderItem={renderItem}
@@ -424,6 +428,8 @@ export default function NominaTab({
           }
         />
       )}
+      <ListTopFade color={theme.background} />
+      </View>
 
       {canMutate ? (
         <TouchableOpacity style={[s.fab, { backgroundColor: cc }]} onPress={openCreate}>

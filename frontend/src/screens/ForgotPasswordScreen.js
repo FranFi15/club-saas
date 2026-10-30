@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
+import ClubSpinLoader from '../components/ClubSpinLoader';
 import { ClubContext } from '../context/ClubContext';
 import { ThemeContext } from '../context/ThemeContext';
 import { clubApi } from '../utils/api';
@@ -82,7 +83,7 @@ export default function ForgotPasswordScreen({ navigation }) {
   if (!clubHydrated || !clubData?.urlIdentifier) {
     return (
       <View style={[styles.center, { backgroundColor: theme.background }]}>
-        <ActivityIndicator color={theme.text} />
+        <ClubSpinLoader size={40} />
       </View>
     );
   }

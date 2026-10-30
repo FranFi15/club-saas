@@ -8,8 +8,8 @@ import {
   ScrollView,
   RefreshControl,
   Switch,
-  ActivityIndicator,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -20,6 +20,7 @@ import { clubApi } from '../../utils/api';
 import { clubHeaders } from '../athlete/athleteApi';
 import { MIN_AGE_SELF_PAY } from '../../utils/ageHelper';
 import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScreenHeader';
+import Foldable, { FoldableChevron } from '../../components/Foldable';
 import ProfileEditDataButton from '../../components/ProfileEditDataButton';
 import ProfileClubEntryButton from '../../components/ProfileClubEntryButton';
 import ProfileLogoutButton from '../../components/ProfileLogoutButton';
@@ -207,14 +208,10 @@ export default function TutorProfileScreen({ navigation }) {
                     {cuotasEnabledCount} de {hijos.length} con acceso a Cuotas en su perfil
                   </Text>
                 </View>
-                <Ionicons
-                  name={paymentsOpen ? 'chevron-up' : 'chevron-down'}
-                  size={22}
-                  color={theme.icon}
-                />
+                <FoldableChevron open={paymentsOpen} color={theme.icon} size={22} />
               </TouchableOpacity>
 
-              {paymentsOpen ? (
+              <Foldable open={paymentsOpen}>
                 <View style={[styles.paymentsBody, { borderTopColor: theme.border }]}>
                   <Text style={[styles.sectionHint, { color: theme.textMuted }]}>
                     Activá Cuotas en el perfil de cada atleta. Vos siempre podés pagar por ellos desde el botón Cuotas.
@@ -247,7 +244,7 @@ export default function TutorProfileScreen({ navigation }) {
                           </Text>
                         </View>
                         {busy ? (
-                          <ActivityIndicator color={colorMarca} />
+                          <ClubSpinLoader size={40} />
                         ) : (
                           <Switch
                             value={enabled}
@@ -260,7 +257,7 @@ export default function TutorProfileScreen({ navigation }) {
                     );
                   })}
                 </View>
-              ) : null}
+              </Foldable>
             </View>
           ) : null}
 

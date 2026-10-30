@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Platform,
 } from 'react-native';
+import ClubSpinLoader from '../../../components/ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
 import { downloadPaymentReceipt } from '../../../utils/paymentReceipt';
@@ -251,7 +252,7 @@ export default function PaymentHistoryModal({
                 accessibilityLabel="Descargar comprobante"
               >
                 {busyRecibo ? (
-                  <ActivityIndicator color={theme.text} size="small" />
+                  <ClubSpinLoader size={26} />
                 ) : (
                   <>
                     <Ionicons name="download-outline" size={16} color={theme.text} />
@@ -348,7 +349,7 @@ export default function PaymentHistoryModal({
           {nombre ? <Text style={[styles.sub, { color: theme.textMuted }]}>{nombre}</Text> : null}
 
           {loading && payments.length === 0 ? (
-            <ActivityIndicator color={primaryColor} style={{ marginVertical: 24 }} />
+            <ClubSpinLoader size={40} style={{ marginVertical: 24 }} />
           ) : (
             <>
               <View style={styles.statsRow}>
@@ -385,7 +386,7 @@ export default function PaymentHistoryModal({
                   <Text style={[styles.empty, { color: theme.textMuted }]}>Sin movimientos registrados.</Text>
                 }
                 ListFooterComponent={
-                  loadingMore ? <ActivityIndicator color={primaryColor} style={{ marginVertical: 16 }} /> : null
+                  loadingMore ? <ClubSpinLoader size={40} style={{ marginVertical: 16 }} /> : null
                 }
               />
             </>

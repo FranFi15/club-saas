@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
+import ClubSpinLoader from '../components/ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
 import { ThemeContext } from '../context/ThemeContext';
@@ -216,7 +217,7 @@ export default function LoginScreen({ navigation }) {
   if (!clubHydrated || !clubData?.urlIdentifier) {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <ActivityIndicator color={theme.text} />
+        <ClubSpinLoader size={40} />
       </View>
     );
   }

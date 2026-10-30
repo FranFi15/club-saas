@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
@@ -276,7 +277,7 @@ export default function EditProfileScreen({ navigation }) {
       />
 
       {showInitialLoader ? (
-        <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />
+        <ClubSpinLoader size={56} style={{ marginTop: 32 }} />
       ) : (
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

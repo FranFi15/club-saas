@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useRef, useState } from 'react';
+import React, { useCallback, useContext, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -37,6 +38,24 @@ import {
 import { openOrDownloadMedia } from '../../utils/mediaUtils';
 import CustomAlert from '../../components/CustomAlert';
 
+const MESSAGE_PAGE = 15;
+
+function mergeNewer(prev, latest) {
+  if (!prev.length) return latest;
+  const ids = new Set(prev.map((m) => String(m._id)));
+  const fresh = latest.filter((m) => !ids.has(String(m._id)));
+  if (!fresh.length) return prev;
+  return [...prev, ...fresh];
+}
+
+function prependOlder(prev, older) {
+  if (!older.length) return prev;
+  const ids = new Set(prev.map((m) => String(m._id)));
+  const fresh = older.filter((m) => !ids.has(String(m._id)));
+  if (!fresh.length) return prev;
+  return [...fresh, ...prev];
+}
+
 export default function ChatThreadScreen({ navigation, route }) {
   const conversationId = route.params?.conversationId;
   const initialOther = route.params?.otherUser;
@@ -55,6 +74,7 @@ export default function ChatThreadScreen({ navigation, route }) {
   const [otherUser, setOtherUser] = useState(initialOther || null);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const [sending, setSending] = useState(false);
   const [text, setText] = useState('');
   const [myId, setMyId] = useState(null);
@@ -68,6 +88,11 @@ export default function ChatThreadScreen({ navigation, route }) {
   const listRef = useRef(null);
   const pollRef = useRef(null);
   const lastMsgIdRef = useRef(null);
+  const messagesRef = useRef(messages);
+  const hasMoreRef = useRef(true);
+  const loadingOlderRef = useRef(false);
+  const scrolledRef = useRef(false);
+  messagesRef.current = messages;
 
   const isGroup = isGroupChatKind(kind);
   const canCompose = !isGroup || groupActive;
@@ -104,29 +129,68 @@ export default function ChatThreadScreen({ navigation, route }) {
     }
   }, [isGroup, otherUser, clubData?.urlIdentifier, conversationId]);
 
-  const loadMessages = useCallback(
-    async ({ markAsRead = false } = {}) => {
+  const noteNewest = useCallback(
+    async (rows, { force = false } = {}) => {
+      const lastId = rows.length ? String(rows[rows.length - 1]._id) : null;
+      const changed = Boolean(lastId) && lastId !== lastMsgIdRef.current;
+      if (lastId) lastMsgIdRef.current = lastId;
+      if (force || changed) await markRead();
+    },
+    [markRead],
+  );
+
+  const fetchPage = useCallback(
+    async (params) => {
+      const h = await chatHeaders(clubData.urlIdentifier);
+      const { data } = await clubApi.get(`/chat/conversations/${conversationId}/messages`, {
+        headers: h,
+        params: { limit: MESSAGE_PAGE, ...params },
+      });
+      return Array.isArray(data) ? data : [];
+    },
+    [clubData?.urlIdentifier, conversationId],
+  );
+
+  const loadLatest = useCallback(
+    async ({ markAsRead = false, replace = false } = {}) => {
       if (!clubData?.urlIdentifier || !conversationId) return;
       try {
-        const h = await chatHeaders(clubData.urlIdentifier);
-        const { data } = await clubApi.get(`/chat/conversations/${conversationId}/messages`, {
-          headers: h,
-          params: { limit: 80 },
-        });
-        const rows = Array.isArray(data) ? data : [];
-        setMessages(rows);
-        const lastId = rows.length ? String(rows[rows.length - 1]._id) : null;
-        const changed = lastId !== lastMsgIdRef.current;
-        lastMsgIdRef.current = lastId;
-        if (markAsRead || changed) await markRead();
+        const rows = await fetchPage();
+        if (replace) {
+          setMessages(rows);
+          hasMoreRef.current = rows.length >= MESSAGE_PAGE;
+          scrolledRef.current = false;
+        } else {
+          setMessages((prev) => mergeNewer(prev, rows));
+        }
+        await noteNewest(rows, { force: markAsRead });
       } catch {
         /* keep previous */
       } finally {
         setLoading(false);
       }
     },
-    [clubData?.urlIdentifier, conversationId, markRead],
+    [clubData?.urlIdentifier, conversationId, fetchPage, noteNewest],
   );
+
+  const loadOlder = useCallback(async () => {
+    if (!clubData?.urlIdentifier || !conversationId) return;
+    if (!hasMoreRef.current || loadingOlderRef.current) return;
+    const oldest = messagesRef.current[0];
+    if (!oldest?.createdAt) return;
+    loadingOlderRef.current = true;
+    setLoadingOlder(true);
+    try {
+      const rows = await fetchPage({ before: oldest.createdAt });
+      hasMoreRef.current = rows.length >= MESSAGE_PAGE;
+      setMessages((prev) => prependOlder(prev, rows));
+    } catch {
+      /* keep previous */
+    } finally {
+      loadingOlderRef.current = false;
+      setLoadingOlder(false);
+    }
+  }, [clubData?.urlIdentifier, conversationId, fetchPage]);
 
   useFocusEffect(
     useCallback(() => {
@@ -135,17 +199,20 @@ export default function ChatThreadScreen({ navigation, route }) {
         const id = await getToken('userId');
         if (active) setMyId(id);
         await ensureMeta();
-        await loadMessages({ markAsRead: true });
+        await loadLatest({ markAsRead: true, replace: true });
+        if (!active) return;
+        pollRef.current = setInterval(() => {
+          if (active) loadLatest({ markAsRead: false });
+        }, CHAT_POLL_MS);
       })();
-      pollRef.current = setInterval(() => {
-        if (active) loadMessages({ markAsRead: false });
-      }, CHAT_POLL_MS);
       return () => {
         active = false;
         if (pollRef.current) clearInterval(pollRef.current);
       };
-    }, [loadMessages, ensureMeta]),
+    }, [loadLatest, ensureMeta]),
   );
+
+  const listData = useMemo(() => [...messages].reverse(), [messages]);
 
   const send = async () => {
     const body = text.trim();
@@ -162,7 +229,7 @@ export default function ChatThreadScreen({ navigation, route }) {
       );
       setMessages((prev) => [...prev, data]);
       if (data?._id) lastMsgIdRef.current = String(data._id);
-      requestAnimationFrame(() => listRef.current?.scrollToEnd?.({ animated: true }));
+      requestAnimationFrame(() => listRef.current?.scrollToOffset?.({ offset: 0, animated: true }));
     } catch (e) {
       setText(body);
       setSendError(e.response?.data?.message || 'No se pudo enviar.');
@@ -316,15 +383,29 @@ export default function ChatThreadScreen({ navigation, route }) {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
       >
         {loading ? (
-          <ActivityIndicator style={{ marginTop: 32 }} color={colorMarca} />
+          <ClubSpinLoader size={56} style={{ marginTop: 32 }} />
         ) : (
           <FlatList
             ref={listRef}
-            data={messages}
+            inverted={messages.length > 0}
+            data={listData}
             keyExtractor={(item) => String(item._id)}
             renderItem={renderItem}
-            contentContainerStyle={styles.list}
-            onContentSizeChange={() => listRef.current?.scrollToEnd?.({ animated: false })}
+            contentContainerStyle={[styles.list, messages.length === 0 && styles.listEmpty]}
+            maintainVisibleContentPosition={
+              messages.length > 0 ? { minIndexForVisible: 0, autoscrollToTopThreshold: 80 } : undefined
+            }
+            onScroll={(event) => {
+              if (event.nativeEvent.contentOffset.y > 48) scrolledRef.current = true;
+            }}
+            scrollEventThrottle={64}
+            onEndReached={() => {
+              if (scrolledRef.current) loadOlder();
+            }}
+            onEndReachedThreshold={0.4}
+            ListFooterComponent={
+              loadingOlder ? <ClubSpinLoader size={26} style={{ marginVertical: 12 }} /> : null
+            }
             ListEmptyComponent={
               <Text style={[styles.empty, { color: theme.textMuted }]}>Escribí el primer mensaje.</Text>
             }
@@ -379,7 +460,8 @@ export default function ChatThreadScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  list: { padding: 16, paddingBottom: 12, flexGrow: 1 },
+  list: { padding: 16, paddingBottom: 12 },
+  listEmpty: { flexGrow: 1 },
   bubbleWrap: { marginBottom: 8, maxWidth: '82%' },
   mineWrap: { alignSelf: 'flex-end' },
   theirsWrap: { alignSelf: 'flex-start' },

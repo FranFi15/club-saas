@@ -7,8 +7,9 @@ import {
   TouchableOpacity,
   RefreshControl,
   StatusBar,
-  ActivityIndicator,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ListTopFade from '../../components/ListTopFade';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -21,9 +22,10 @@ import CoachScreenHeader, {
   CoachScreenHeaderWithFabs,
 } from '../../components/CoachScreenHeader';
 import FilterPillSheet from '../../components/FilterPillSheet';
+import CalendarDateField from '../../components/CalendarDateField';
 import DesignCard from '../../components/DesignCard';
-import { compareIsoCalendarDates, isoCalendarDateToDisplay, isoCalendarWeekday } from '../../utils/dateDisplay';
-import { sessionDisplayName, sessionEsOpcional, isSessionPast, isSessionReadOnly, sessionTipoVisual } from '../../utils/sessionDisplay';
+import { compareIsoCalendarDates, displayDateToIsoCalendar, isoCalendarDateToDisplay, isoCalendarWeekday, isoCalendarYmd } from '../../utils/dateDisplay';
+import { sessionDisplayName, sessionEsOpcional, isSessionPast, isSessionReadOnly, sessionSinEstadisticas, sessionTipoVisual } from '../../utils/sessionDisplay';
 import { sortByNombre } from '../../utils/listSort';
 import {
   categoriesGroupedByDisciplina,
@@ -38,6 +40,13 @@ const ESTADO_OPTIONS = [
   { label: 'Completadas', value: 'completada' },
   { label: 'Canceladas', value: 'cancelada' },
 ];
+
+function shiftYmd(ymd, days) {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
 
 function sessionLabel(s) {
   const weekday = isoCalendarWeekday(s.fecha, { style: 'long' });
@@ -67,11 +76,15 @@ export default function CoachAgendaScreen({ navigation }) {
 
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [selectedEstado, setSelectedEstado] = useState('');
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
   const [openFilter, setOpenFilter] = useState(null);
   const [reactivatingId, setReactivatingId] = useState(null);
 
+  const desdeYmd = displayDateToIsoCalendar(desde);
+  const hastaYmd = displayDateToIsoCalendar(hasta);
   const agendaCacheKey = clubData?.urlIdentifier
-    ? `coach-agenda:v2:${clubData.urlIdentifier}:${selectedCategoryId || 'all'}:${selectedEstado || 'all'}`
+    ? `coach-agenda:v2:${clubData.urlIdentifier}:${selectedCategoryId || 'all'}:${selectedEstado || 'all'}:${desdeYmd || 'none'}:${hastaYmd || 'none'}`
     : '';
 
   const [categories, setCategories] = useState(() => readScreenCache(agendaCacheKey)?.categories ?? []);
@@ -122,6 +135,9 @@ export default function CoachAgendaScreen({ navigation }) {
     const params = new URLSearchParams();
     if (selectedCategoryId) params.set('categoriaId', selectedCategoryId);
     if (selectedEstado) params.set('estado', selectedEstado);
+    if (desdeYmd) params.set('desde', desdeYmd);
+    if (hastaYmd) params.set('hasta', hastaYmd);
+    if (hastaYmd && !desdeYmd) params.set('desde', shiftYmd(hastaYmd, -120));
     const qs = params.toString() ? `?${params.toString()}` : '';
     const [res, pendingRes, restoreRes] = await Promise.all([
       clubApi.get(`/sessions/profe/agenda${qs}`, { headers: h }),
@@ -140,7 +156,7 @@ export default function CoachAgendaScreen({ navigation }) {
       pendingRelocations: (pendingRes.data?.sesiones || []).length,
       restorableCount: (restoreRes.data?.sesiones || []).length,
     };
-  }, [clubData?.urlIdentifier, selectedCategoryId, selectedEstado]);
+  }, [clubData?.urlIdentifier, selectedCategoryId, selectedEstado, desdeYmd, hastaYmd]);
 
   const { loading, refreshing, onRefresh, reload } = useCachedFocusLoad({
     cacheKey: agendaCacheKey,
@@ -159,9 +175,19 @@ export default function CoachAgendaScreen({ navigation }) {
     onEndReached,
     onEndReachedThreshold,
     ListFooterComponent,
-  } = useClientInfiniteScroll(list, {
+  } = useClientInfiniteScroll(
+    useMemo(() => {
+      if (!desdeYmd && !hastaYmd) return list;
+      return list.filter((item) => {
+        const ymd = isoCalendarYmd(item.fecha);
+        if (desdeYmd && ymd < desdeYmd) return false;
+        if (hastaYmd && ymd > hastaYmd) return false;
+        return true;
+      });
+    }, [list, desdeYmd, hastaYmd]),
+    {
     pageSize: 20,
-    resetKey: `${selectedCategoryId}:${selectedEstado}`,
+    resetKey: `${selectedCategoryId}:${selectedEstado}:${desdeYmd}:${hastaYmd}`,
     colorMarca,
     theme,
   });
@@ -232,6 +258,7 @@ export default function CoachAgendaScreen({ navigation }) {
     const isProgramada = item.estado === 'programada';
     const past = isSessionPast(item);
     const readOnly = isSessionReadOnly(item);
+    const sinEstadisticas = sessionSinEstadisticas(item);
     const asistPct = isCompletada ? sessionAttendancePct(item) : null;
     const muted = isCancelada || past;
     const visual = sessionTipoVisual(item, { colorMarca });
@@ -247,7 +274,7 @@ export default function CoachAgendaScreen({ navigation }) {
 
     const actions = (
       <View style={styles.rowActions}>
-        {(isCompletada || past) && !isCancelada ? (
+        {isCompletada && !sinEstadisticas ? (
           <TouchableOpacity
             style={styles.statsBtn}
             onPress={() => navigation.navigate('CoachSessionStats', { sessionId: item._id })}
@@ -275,7 +302,7 @@ export default function CoachAgendaScreen({ navigation }) {
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             {reactivatingId === item._id ? (
-              <ActivityIndicator size="small" color="#22c55e" />
+              <ClubSpinLoader size={26} />
             ) : (
               <Ionicons name="checkmark-circle-outline" size={26} color="#22c55e" />
             )}
@@ -284,29 +311,34 @@ export default function CoachAgendaScreen({ navigation }) {
       </View>
     );
 
-    const hasActions =
-      ((isCompletada || past) && !isCancelada) ||
-      (isProgramada && !past) ||
-      (isCancelada && !past);
+    const hasActions = !sinEstadisticas && (isCompletada || (isProgramada && !past) || (isCancelada && !past));
 
     return (
       <DesignCard
         theme={theme}
         isDarkMode={isDarkMode}
         accent={accent}
-        muted={muted}
-        onPress={() => navigation.navigate('CoachSessionDetail', { sessionId: item._id })}
+        muted={muted || sinEstadisticas}
+        onPress={
+          sinEstadisticas
+            ? undefined
+            : () =>
+                navigation.navigate(isCompletada ? 'CoachSessionStats' : 'CoachSessionDetail', {
+                  sessionId: item._id,
+                })
+        }
         contentStyle={styles.rowMain}
         footer={
           <View style={styles.footerRow}>
             <Text style={[styles.rowMeta, { color: theme.textMuted, marginTop: 0, flex: 1 }]} numberOfLines={2}>
               {(item.lugarExterno || '').trim() || item.espacio?.nombre || 'Sin lugar'} ·{' '}
               {sessionDisplayName(item)}
-              {sessionEsOpcional(item) ? ' · Opcional' : ''} · {estadoLabel(item)}
-              {past && isProgramada ? ' · Finalizada' : ''}
+              {sessionEsOpcional(item) ? ' · Opcional' : ''} ·{' '}
+              {sinEstadisticas ? 'Sin estadísticas' : estadoLabel(item)}
+              {past && isProgramada && !sinEstadisticas ? ' · Finalizada' : ''}
               {asistPct != null ? ` · Asist. ${asistPct}%` : ''}
             </Text>
-            {hasActions ? actions : <Ionicons name="chevron-forward" size={18} color={theme.icon} />}
+            {hasActions ? actions : sinEstadisticas ? null : <Ionicons name="chevron-forward" size={18} color={theme.icon} />}
           </View>
         }
       >
@@ -380,7 +412,7 @@ export default function CoachAgendaScreen({ navigation }) {
   );
 
   const emptyMessage =
-    selectedCategoryId || selectedEstado
+    selectedCategoryId || selectedEstado || desdeYmd || hastaYmd
       ? 'No hay sesiones para este filtro en el rango visible.'
       : 'No hay sesiones en el rango visible. Creá una nueva con el botón +.';
 
@@ -404,6 +436,12 @@ export default function CoachAgendaScreen({ navigation }) {
           <>
             <CoachHeaderOverlayFab
               colorMarca={colorMarca}
+              icon="trophy-outline"
+              accessibilityLabel="Partidos"
+              onPress={() => navigation.navigate('CoachPartidos')}
+            />
+            <CoachHeaderOverlayFab
+              colorMarca={colorMarca}
               icon="stats-chart"
               accessibilityLabel="Estadísticas de sesiones"
               onPress={() =>
@@ -411,12 +449,6 @@ export default function CoachAgendaScreen({ navigation }) {
                   categoriaId: selectedCategoryId || undefined,
                 })
               }
-            />
-            <CoachHeaderOverlayFab
-              colorMarca={colorMarca}
-              icon="add"
-              accessibilityLabel="Nueva sesión"
-              onPress={() => navigation.navigate('CoachNewSession')}
             />
           </>
         }
@@ -427,12 +459,11 @@ export default function CoachAgendaScreen({ navigation }) {
           kicker="Sesiones"
           title="Mis sesiones"
           subtitle={clubData?.nombre || 'Tu club'}
-          reserveOverlaySpace
         />
       </CoachScreenHeaderWithFabs>
 
       {showInitialLoader ? (
-        <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />
+        <ClubSpinLoader size={56} style={{ marginTop: 32 }} />
       ) : (
         <>
           <View style={styles.filtersWrap}>
@@ -444,8 +475,33 @@ export default function CoachAgendaScreen({ navigation }) {
               colorMarca={colorMarca}
               theme={theme}
             />
+            <View style={styles.dates}>
+              <View style={{ flex: 1 }}>
+                <CalendarDateField
+                  theme={theme}
+                  colorMarca={colorMarca}
+                  value={desde}
+                  onChange={setDesde}
+                  placeholder="Desde"
+                  allowClear
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <CalendarDateField
+                  theme={theme}
+                  colorMarca={colorMarca}
+                  value={hasta}
+                  onChange={setHasta}
+                  placeholder="Hasta"
+                  allowClear
+                  minYmd={desdeYmd || undefined}
+                />
+              </View>
+            </View>
           </View>
+          <View style={{ flex: 1 }}>
           <FlatList
+            style={{ flex: 1 }}
             data={visibleItems}
             keyExtractor={(item) => item._id}
             renderItem={renderItem}
@@ -461,16 +517,44 @@ export default function CoachAgendaScreen({ navigation }) {
               <Text style={[styles.empty, { color: theme.textMuted }]}>{emptyMessage}</Text>
             }
           />
+          <ListTopFade color={theme.background} />
+          </View>
         </>
       )}
+
+      <TouchableOpacity
+        style={[styles.fab, { backgroundColor: colorMarca }]}
+        onPress={() => navigation.navigate('CoachNewSession')}
+        activeOpacity={0.9}
+        accessibilityRole="button"
+        accessibilityLabel="Nueva sesión"
+      >
+        <Ionicons name="add" size={32} color="#fff" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  filtersWrap: { paddingHorizontal: 16, paddingTop: 12 },
-  listPad: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 40 },
+  filtersWrap: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
+  dates: { flexDirection: 'row', gap: 10 },
+  listPad: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 96 },
+  fab: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+  },
   relocBanner: {
     flexDirection: 'row',
     alignItems: 'center',

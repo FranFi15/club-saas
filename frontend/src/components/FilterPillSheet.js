@@ -31,6 +31,7 @@ export default function FilterPillSheet({
   colorMarca,
   theme,
   appearance = 'default',
+  hidePills = false,
 }) {
   const active = pills.find((f) => f.key === openKey);
   const [query, setQuery] = useState('');
@@ -103,6 +104,19 @@ export default function FilterPillSheet({
         >
           {item.label}
         </Text>
+        {item.onEdit ? (
+          <TouchableOpacity
+            onPress={() => {
+              const action = item.onEdit;
+              onClose();
+              action?.();
+            }}
+            hitSlop={8}
+            style={{ marginLeft: 12 }}
+          >
+            <Text style={{ color: colorMarca, fontWeight: '800', fontSize: 14 }}>Editar</Text>
+          </TouchableOpacity>
+        ) : null}
         {selected ? (
           <Ionicons name={isMulti ? 'checkbox' : 'checkmark'} size={22} color={colorMarca} />
         ) : isMulti ? (
@@ -114,6 +128,7 @@ export default function FilterPillSheet({
 
   return (
     <>
+      {hidePills ? null : (
       <View style={[styles.filterPillsRow, onHeader && styles.filterPillsRowHeader]}>
         {pills.map((f) => {
           const flatOpts = f.options || [];
@@ -166,6 +181,7 @@ export default function FilterPillSheet({
           );
         })}
       </View>
+      )}
 
       <Modal visible={!!openKey} animationType="slide" transparent onRequestClose={onClose}>
         <View style={styles.filterModalOverlay}>
@@ -211,6 +227,22 @@ export default function FilterPillSheet({
                 ) : null}
               </View>
             ) : null}
+
+            {(active?.footerActions || (active?.footerAction ? [active.footerAction] : [])).map((action) => (
+              <TouchableOpacity
+                key={action.label}
+                onPress={() => {
+                  onClose();
+                  action.onPress?.();
+                }}
+                style={[styles.footerAction, { borderBottomColor: theme.border }]}
+              >
+                <Ionicons name={action.icon || 'add-circle-outline'} size={20} color={colorMarca} />
+                <Text style={{ color: colorMarca, fontWeight: '800', fontSize: 15 }}>
+                  {action.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
 
             {filteredSections ? (
               <SectionList
@@ -334,4 +366,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   emptyOpts: { textAlign: 'center', padding: 24, fontSize: 14 },
+  footerAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
 });

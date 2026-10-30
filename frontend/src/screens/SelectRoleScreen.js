@@ -4,10 +4,10 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   StatusBar,
   Image,
 } from 'react-native';
+import ClubSpinLoader from '../components/ClubSpinLoader';
 import { CommonActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
@@ -130,7 +130,7 @@ export default function SelectRoleScreen({ navigation, route }) {
   if (!clubData?.urlIdentifier) {
     return (
       <View style={[styles.flex, { backgroundColor: theme.background }]}>
-        <ActivityIndicator color={theme.text} />
+        <ClubSpinLoader size={40} />
       </View>
     );
   }
@@ -171,7 +171,7 @@ export default function SelectRoleScreen({ navigation, route }) {
           </Text>
 
           {booting ? (
-            <ActivityIndicator color={colorMarca} style={{ marginVertical: 24 }} />
+            <ClubSpinLoader size={40} style={{ marginVertical: 24 }} />
           ) : (
             <View style={styles.list}>
               {sortedRoles.map((rol) => (
@@ -197,7 +197,7 @@ export default function SelectRoleScreen({ navigation, route }) {
             </View>
           )}
 
-          {loading ? <ActivityIndicator color={colorMarca} style={{ marginTop: 12 }} /> : null}
+          {loading ? <ClubSpinLoader size={40} style={{ marginTop: 12 }} /> : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </DesignCard>
       </AuthFormLayout>

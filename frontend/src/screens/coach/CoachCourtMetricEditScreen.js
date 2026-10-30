@@ -10,6 +10,7 @@ import {
   StatusBar,
   Modal,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -278,7 +279,7 @@ export default function CoachCourtMetricEditScreen({ navigation, route }) {
   if (loading) {
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
-        <ActivityIndicator color={cc} style={{ marginTop: 40 }} />
+        <ClubSpinLoader size={56} style={{ marginTop: 40 }} />
       </SafeAreaView>
     );
   }
@@ -348,7 +349,7 @@ export default function CoachCourtMetricEditScreen({ navigation, route }) {
           colorMarca={cc}
           theme={theme}
         />
-        {uploading ? <ActivityIndicator color={cc} style={{ marginVertical: 8 }} /> : null}
+        {uploading ? <ClubSpinLoader size={40} style={{ marginVertical: 8 }} /> : null}
 
         <Text style={[styles.label, { color: theme.textMuted, marginTop: 8 }]}>
           Tocá la imagen para colocar un punto ({deporteLabel(deporte)})

@@ -7,9 +7,10 @@ import {
   TouchableOpacity,
   RefreshControl,
   StatusBar,
-  ActivityIndicator,
   TextInput,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ListTopFade from '../../components/ListTopFade';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -293,10 +294,12 @@ export default function StaffAthleteRosterScreen({ navigation, route }) {
         ) : null}
       </View>
 
+      <View style={{ flex: 1 }}>
       {showInitialLoader ? (
-        <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />
+        <ClubSpinLoader size={56} style={{ marginTop: 32 }} />
       ) : (
         <FlatList
+          style={{ flex: 1 }}
           data={visibleItems}
           keyExtractor={(item) => String(item.atleta._id)}
           renderItem={renderAthlete}
@@ -321,6 +324,8 @@ export default function StaffAthleteRosterScreen({ navigation, route }) {
           }
         />
       )}
+      <ListTopFade color={theme.background} />
+      </View>
     </SafeAreaView>
   );
 }

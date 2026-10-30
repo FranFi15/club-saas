@@ -10,6 +10,7 @@ import {
   ScrollView,
   Platform,
 } from 'react-native';
+import ClubSpinLoader from './ClubSpinLoader';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../utils/api';
@@ -199,7 +200,7 @@ export default function TransferProofModal({
                 disabled={busy}
               >
                 {uploading ? (
-                  <ActivityIndicator color={primaryColor} />
+                  <ClubSpinLoader size={40} />
                 ) : (
                   <>
                     <Ionicons name="camera-outline" size={28} color={primaryColor} />

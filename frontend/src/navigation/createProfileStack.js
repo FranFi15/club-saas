@@ -1,5 +1,6 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { fadeStackScreenOptions } from './screenFade';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import MemberClubEntryScreen from '../screens/member/MemberClubEntryScreen';
 
@@ -9,7 +10,7 @@ const Stack = createNativeStackNavigator();
 export function createProfileStack(MainScreen, mainRouteName = 'ProfileMain') {
   function ProfileStackNav() {
     return (
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator screenOptions={fadeStackScreenOptions}>
         <Stack.Screen name={mainRouteName} component={MainScreen} />
         <Stack.Screen name="EditProfile" component={EditProfileScreen} />
         <Stack.Screen name="ClubEntryQr" component={MemberClubEntryScreen} />

@@ -5,8 +5,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  ActivityIndicator,
 } from 'react-native';
+import ClubSpinLoader from './ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import CoachSessionCalendar from './CoachSessionCalendar';
 import { generateTimeSlots, getSlotStatus, getDayName, todayYmd } from '../utils/timeSlots';
@@ -233,7 +233,7 @@ export default function CoachSpaceAvailabilityPicker({
       </View>
 
       {loading ? (
-        <ActivityIndicator color={colorMarca} style={{ marginVertical: 20 }} />
+        <ClubSpinLoader size={40} style={{ marginVertical: 20 }} />
       ) : (
         <FlatList
           data={slotRows}

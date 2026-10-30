@@ -12,6 +12,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import ClubSpinLoader from './ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../utils/api';
 import UserAvatar from './UserAvatar';
@@ -395,7 +396,7 @@ export default function CategoryRosterModal({
             <Ionicons name="close-circle" size={20} color={theme.icon} />
           </TouchableOpacity>
         ) : isSearchPending || (loading && atletas.length > 0) ? (
-          <ActivityIndicator size="small" color={colorMarca} />
+          <ClubSpinLoader size={26} />
         ) : null}
       </View>
 
@@ -409,7 +410,7 @@ export default function CategoryRosterModal({
 
   const listEmpty = () => {
     if (loading && atletas.length === 0) {
-      return <ActivityIndicator color={colorMarca} style={{ marginTop: 24 }} />;
+      return <ClubSpinLoader size={40} style={{ marginTop: 24 }} />;
     }
     return (
       <Text style={[styles.hint, { color: theme.textMuted, textAlign: 'center' }]}>
@@ -436,7 +437,7 @@ export default function CategoryRosterModal({
 
           {loading && atletas.length === 0 && !categoria ? (
             <View style={styles.loadingWrap}>
-              <ActivityIndicator color={colorMarca} />
+              <ClubSpinLoader size={40} />
             </View>
           ) : (
             <View style={styles.sheetBody}>
@@ -451,7 +452,7 @@ export default function CategoryRosterModal({
                 onEndReached={loadMore}
                 onEndReachedThreshold={0.35}
                 ListFooterComponent={
-                  loadingMore ? <ActivityIndicator color={colorMarca} style={{ marginVertical: 12 }} /> : null
+                  loadingMore ? <ClubSpinLoader size={40} style={{ marginVertical: 12 }} /> : null
                 }
               />
 
@@ -480,7 +481,7 @@ export default function CategoryRosterModal({
                     disabled={delegating || !profesores.length || estado === 'delegado_coach'}
                   >
                     {delegating ? (
-                      <ActivityIndicator color={colorMarca} />
+                      <ClubSpinLoader size={40} />
                     ) : (
                       <>
                         <Ionicons name="person-outline" size={18} color={colorMarca} />

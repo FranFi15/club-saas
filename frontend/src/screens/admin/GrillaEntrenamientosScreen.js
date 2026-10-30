@@ -4,6 +4,8 @@ import {
   ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, RefreshControl,
   KeyboardAvoidingView, Platform, Switch,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ListTopFade from '../../components/ListTopFade';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -600,10 +602,12 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
           </View>
         </Modal>
 
+        <View style={{ flex: 1 }}>
         {showInitialLoader ? (
-          <ActivityIndicator size="large" color={colorMarca} style={{ marginTop: 50 }} />
+          <ClubSpinLoader size={64} style={{ marginTop: 50 }} />
         ) : (
           <FlatList
+             style={{ flex: 1 }}
              data={filteredSchedules}
              keyExtractor={(item) => item._id}
              renderItem={renderListItem}
@@ -618,6 +622,8 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
              }
           />
         )}
+        <ListTopFade color={theme.background} />
+        </View>
       </View>
 
       {canModifyGrid && (

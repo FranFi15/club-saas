@@ -646,7 +646,8 @@ export const listMyPartidos = asyncHandler(async (req, res) => {
         informeEnviadoEn: { $ne: null },
         listaBuenaFe: { $elemMatch: { usuario: atletaId, tipoPersona: { $ne: 'staff' } } },
     })
-        .select('nombreSesion fecha horaInicio horaFin lugarExterno')
+        .select('nombreSesion fecha horaInicio horaFin lugarExterno categoria')
+        .populate('categoria', 'nombre')
         .sort({ fecha: -1, horaInicio: -1 })
         .limit(80)
         .lean();

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import ClubSpinLoader from '../ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import BusyOverlay from '../BusyOverlay';
 import { formatUserName } from '../../utils/listSort';
@@ -47,7 +48,7 @@ export default function MorosidadTab({ theme, cc, getHeaders, clubApi, showAlert
 
   const fmt = (n) => `$${(n||0).toLocaleString('es-AR')}`;
 
-  if (loading) return <ActivityIndicator color={cc} style={{marginTop:50}}/>;
+  if (loading) return <ClubSpinLoader size={56} style={{marginTop:50}} />;
   if (!data) return null;
 
   const { mesActual, mesAnterior, ranking, evolucion } = data;

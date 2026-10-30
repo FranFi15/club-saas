@@ -5,6 +5,7 @@ import {
   ActivityIndicator, StatusBar, TextInput, Modal,
   KeyboardAvoidingView, Platform, RefreshControl
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import HoverRevealSwipeable from '../../components/HoverRevealSwipeable';
@@ -17,6 +18,7 @@ import { getToken } from '../../utils/storage';
 // 1. IMPORTAMOS EL CUSTOM ALERT
 import CustomAlert from '../../components/CustomAlert';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
+import ListTopFade from '../../components/ListTopFade';
 import DesignCard from '../../components/DesignCard';
 import FormSheet from '../../components/FormSheet';
 import { sortByNombre } from '../../utils/listSort';
@@ -284,7 +286,7 @@ export default function EstructuraScreen({ navigation }) {
 
       <View style={styles.body}>
         {showInitialLoader ? (
-          <ActivityIndicator size="large" color={colorMarca} style={{ marginTop: 50 }} />
+          <ClubSpinLoader size={64} style={{ marginTop: 50 }} />
         ) : (
           <FlatList
             data={filteredDisciplines}
@@ -309,6 +311,7 @@ export default function EstructuraScreen({ navigation }) {
             }
           />
         )}
+        <ListTopFade color={theme.background} />
       </View>
 
       {canEditStructure ? (
@@ -327,7 +330,7 @@ export default function EstructuraScreen({ navigation }) {
               {planPickerVisible ? (
                 <>
                   {isLoadingPlans ? (
-                    <ActivityIndicator size="large" color={colorMarca} style={{ marginTop: 20 }} />
+                    <ClubSpinLoader size={64} style={{ marginTop: 20 }} />
                   ) : (
                     <FlatList
                       data={[{ _id: null, nombre: 'Sin plan', monto: 0 }, ...plans.filter((p) => p.activo !== false)]}

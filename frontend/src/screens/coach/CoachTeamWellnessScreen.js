@@ -6,12 +6,12 @@ import {
   ScrollView,
   RefreshControl,
   StatusBar,
-  ActivityIndicator,
   Dimensions,
   Modal,
   TouchableOpacity,
   FlatList,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -253,7 +253,7 @@ export default function CoachTeamWellnessScreen({ navigation, route }) {
 
       {showInitialLoader ? (
         <View style={styles.loadingBox}>
-          <ActivityIndicator color={colorMarca} size="large" />
+          <ClubSpinLoader size={64} />
           <Text style={[styles.loadingTxt, { color: theme.textMuted }]}>Cargando reportes…</Text>
         </View>
       ) : (

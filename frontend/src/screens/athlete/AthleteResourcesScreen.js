@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   RefreshControl,
   StatusBar,
-  ActivityIndicator,
   Modal,
   TextInput,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -290,7 +290,7 @@ export default function AthleteResourcesScreen({ navigation }) {
             disabled={busy}
           >
             {busy ? (
-              <ActivityIndicator size="small" color={colorMarca} />
+              <ClubSpinLoader size={26} />
             ) : (
               <>
                 <Ionicons name="download-outline" size={18} color={colorMarca} />
@@ -462,7 +462,7 @@ export default function AthleteResourcesScreen({ navigation }) {
 
       {showInitialLoader ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={colorMarca} />
+          <ClubSpinLoader size={64} />
         </View>
       ) : (
         <FlatList
@@ -476,7 +476,7 @@ export default function AthleteResourcesScreen({ navigation }) {
           }}
           onEndReachedThreshold={0.35}
           ListFooterComponent={
-            loadingMoreResources ? <ActivityIndicator color={colorMarca} style={{ marginVertical: 16 }} /> : null
+            loadingMoreResources ? <ClubSpinLoader size={40} style={{ marginVertical: 16 }} /> : null
           }
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />

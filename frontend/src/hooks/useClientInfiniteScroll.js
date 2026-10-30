@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import ClubSpinLoader from '../components/ClubSpinLoader';
 
 export const DEFAULT_PAGE_SIZE = 20;
 
@@ -48,7 +49,7 @@ export function useClientInfiniteScroll(items, {
     if (hasMore) {
       return (
         <View style={{ paddingVertical: 12, alignItems: 'center' }}>
-          <ActivityIndicator color={colorMarca || '#3b82f6'} />
+          <ClubSpinLoader size={40} />
         </View>
       );
     }

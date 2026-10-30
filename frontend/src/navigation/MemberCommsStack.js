@@ -1,5 +1,6 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { fadeStackScreenOptions } from './screenFade';
 import MemberCommsHubScreen from '../screens/member/MemberCommsHubScreen';
 import AthleteNewsScreen from '../screens/athlete/AthleteNewsScreen';
 import AthleteDocumentsScreen from '../screens/athlete/AthleteDocumentsScreen';
@@ -15,7 +16,7 @@ const Stack = createNativeStackNavigator();
 
 export default function MemberCommsStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={fadeStackScreenOptions}>
       <Stack.Screen name="MemberCommsHub" component={MemberCommsHubScreen} />
       <Stack.Screen name="MemberNews" component={AthleteNewsScreen} />
       <Stack.Screen name="MemberDocuments" component={AthleteDocumentsScreen} />

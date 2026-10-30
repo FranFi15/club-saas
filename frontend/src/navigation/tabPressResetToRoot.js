@@ -25,13 +25,22 @@ function findNavigatorWithTabRoute(navigation, tabRouteName) {
 export function tabPressResetToRoot(tabRouteName, stackRootScreenName) {
   return ({ navigation }) => ({
     tabPress: (e) => {
-      e.preventDefault();
       const tabNav = findNavigatorWithTabRoute(navigation, tabRouteName);
-      if (tabNav != null && typeof tabNav.navigate === 'function') {
-        tabNav.navigate(tabRouteName, { screen: stackRootScreenName });
-      } else if (typeof navigation.navigate === 'function') {
-        navigation.navigate(stackRootScreenName);
-      }
+      const state = tabNav?.getState?.();
+      const current = state?.routes?.[state.index];
+      const alreadyHere = current?.name === tabRouteName;
+
+      // Cambiar de pestaña lo hace el pager. Si además llamamos navigate,
+      // iOS cierra la app al volver a la primera pestaña.
+      if (!alreadyHere || !stackRootScreenName) return;
+
+      const nested = current?.state;
+      const nestedIndex = nested?.index ?? 0;
+      const nestedName = nested?.routes?.[nestedIndex]?.name;
+      if (!nested || nestedIndex === 0 || nestedName === stackRootScreenName) return;
+
+      e.preventDefault();
+      tabNav.navigate(tabRouteName, { screen: stackRootScreenName });
     },
   });
 }

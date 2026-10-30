@@ -13,6 +13,8 @@ import {
   FlatList,
   StyleSheet,
 } from 'react-native';
+import ClubSpinLoader from '../../../components/ClubSpinLoader';
+import ListTopFade from '../../../components/ListTopFade';
 import { Ionicons } from '@expo/vector-icons';
 import FormSheet from '../../../components/FormSheet';
 import { clubApi } from '../../../utils/api';
@@ -297,7 +299,7 @@ export default function CuotaSocialSection({
       </View>
 
       {loading && fees.length === 0 ? (
-        <ActivityIndicator color={theme.text} style={{ marginTop: 16, marginBottom: 16 }} />
+        <ClubSpinLoader size={40} style={{ marginTop: 16, marginBottom: 16 }} />
       ) : fees.length === 0 ? (
         <Text style={{ color: theme.textMuted, marginBottom: 16 }}>
           Todavía no hay cuotas sociales. Creá la primera.
@@ -369,7 +371,7 @@ export default function CuotaSocialSection({
                       Facturar este tipo
                     </Text>
                     {togglingId === fee._id ? (
-                      <ActivityIndicator color={theme.text} />
+                      <ClubSpinLoader size={40} />
                     ) : (
                       <Switch
                         value={activo}
@@ -585,7 +587,7 @@ export default function CuotaSocialSection({
                 value={assignSearch}
                 onChangeText={setAssignSearch}
               />
-              {assignLoading ? <ActivityIndicator color={theme.text} style={{ marginRight: 10 }} /> : null}
+              {assignLoading ? <ClubSpinLoader size={40} style={{ marginRight: 10 }} /> : null}
             </View>
 
             <View style={styles.assignActions}>
@@ -595,6 +597,7 @@ export default function CuotaSocialSection({
               <Text style={{ color: theme.textMuted }}>{assignSelected.size} seleccionados</Text>
             </View>
 
+            <View>
             <FlatList
               data={assignUsers}
               keyExtractor={(u) => String(u._id)}
@@ -623,6 +626,8 @@ export default function CuotaSocialSection({
                 );
               }}
             />
+            <ListTopFade color={theme.background} />
+            </View>
 
             <TouchableOpacity
               style={[

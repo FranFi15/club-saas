@@ -4,13 +4,14 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
 } from 'react-native';
+import ClubSpinLoader from './ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { useMember } from '../context/MemberContext';
 import { clubApi } from '../utils/api';
 import { clubHeaders } from '../screens/athlete/athleteApi';
 import { readScreenCache, useCachedFocusLoad } from '../hooks/useCachedFocusLoad';
+import { rpeSessionDetail, rpeSessionTitle, sessionTipoVisual } from '../utils/sessionDisplay';
 
 export default function MemberWellnessSection({
   clubData,
@@ -71,7 +72,13 @@ export default function MemberWellnessSection({
   const openWellness = (item) => {
     const isPre = item.kind === 'pre';
     navigation.navigate(wellnessFormScreen, {
-      ...(isPre ? {} : { sesion: item.sesion._id, defaultTipo: 'post' }),
+      ...(isPre
+        ? {}
+        : {
+            sesion: item.sesion._id,
+            defaultTipo: 'post',
+            sesionMeta: item.sesion,
+          }),
       tutorAtletaId: isTutor ? memberId : undefined,
     });
   };
@@ -85,7 +92,7 @@ export default function MemberWellnessSection({
       <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Wellness · pendiente hoy</Text>
 
       {showInitialLoader ? (
-        <ActivityIndicator color={colorMarca} style={{ marginVertical: 16 }} />
+        <ClubSpinLoader size={40} style={{ marginVertical: 16 }} />
       ) : pendingItems.length === 0 ? (
         <View style={[styles.empty, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Ionicons name="checkmark-circle-outline" size={28} color="#22c55e" />
@@ -98,6 +105,7 @@ export default function MemberWellnessSection({
         pendingItems.map((item) => {
           const isPre = item.kind === 'pre';
           const sesion = item.sesion;
+          const visual = isPre ? null : sessionTipoVisual(sesion, { colorMarca });
           return (
             <TouchableOpacity
               key={item.key}
@@ -113,23 +121,23 @@ export default function MemberWellnessSection({
               <View
                 style={[
                   styles.cardIcon,
-                  { backgroundColor: isPre ? colorMarca + '22' : '#f59e0b22' },
+                  { backgroundColor: isPre ? colorMarca + '22' : `${visual.accent}22` },
                 ]}
               >
                 <Ionicons
-                  name="fitness-outline"
+                  name={isPre ? 'fitness-outline' : visual.icon}
                   size={22}
-                  color={isPre ? colorMarca : '#f59e0b'}
+                  color={isPre ? colorMarca : visual.accent}
                 />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.cardTitle, { color: theme.text }]}>
-                  {isPre ? 'Wellness del día' : 'RPE post entreno'}
+                  {isPre ? 'Wellness del día' : rpeSessionTitle(sesion)}
                 </Text>
                 <Text style={[styles.cardSub, { color: theme.textMuted }]}>
                   {isPre
                     ? 'Contanos cómo te sentís antes de entrenar (1–10).'
-                    : `${sesion.categoria?.nombre || 'Sesión'} · ${sesion.horaInicio}–${sesion.horaFin}`}
+                    : rpeSessionDetail(sesion)}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={isPre ? colorMarca : theme.icon} />

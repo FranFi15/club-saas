@@ -5,12 +5,12 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   RefreshControl,
   StatusBar,
   LayoutAnimation,
   Animated,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -327,7 +327,7 @@ export default function AdminStatsScreen({ navigation }) {
       />
 
       {loading && !stats ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={colorMarca} />
+        <ClubSpinLoader size={56} style={{ marginTop: 40 }} />
       ) : (
         <ScrollView
           contentContainerStyle={styles.scroll}

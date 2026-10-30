@@ -2,6 +2,7 @@ import React, { useContext, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Platform } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { fadeStackScreenOptions } from './screenFade';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
@@ -10,11 +11,13 @@ import StaffProfileScreen from '../screens/staff/StaffProfileScreen';
 import { createProfileStack } from './createProfileStack';
 import PreparadorDashboardScreen from '../screens/staff/PreparadorDashboardScreen';
 import CoachAgendaScreen from '../screens/coach/CoachAgendaScreen';
+import CoachPartidosScreen from '../screens/coach/CoachPartidosScreen';
 import CoachRelocateSessionsScreen from '../screens/coach/CoachRelocateSessionsScreen';
 import CoachSessionDetailScreen from '../screens/coach/CoachSessionDetailScreen';
 import CoachNewSessionScreen from '../screens/coach/CoachNewSessionScreen';
 import CoachCancelSessionScreen from '../screens/coach/CoachCancelSessionScreen';
 import CoachSessionStatsScreen from '../screens/coach/CoachSessionStatsScreen';
+import MatchReportScreen from '../screens/MatchReportScreen';
 import CoachCategoriesScreen from '../screens/coach/CoachCategoriesScreen';
 import CoachCategoryDetailScreen from '../screens/coach/CoachCategoryDetailScreen';
 import CoachWellnessScreen from '../screens/coach/CoachWellnessScreen';
@@ -47,7 +50,7 @@ const PrepProfileStackNav = createProfileStack(StaffProfileScreen);
 
 function PrepHomeStackNav() {
   return (
-    <PrepHomeStack.Navigator screenOptions={{ headerShown: false }}>
+    <PrepHomeStack.Navigator screenOptions={fadeStackScreenOptions}>
       <PrepHomeStack.Screen name="PrepDashboardMain" component={PreparadorDashboardScreen} />
     </PrepHomeStack.Navigator>
   );
@@ -55,13 +58,15 @@ function PrepHomeStackNav() {
 
 function PrepSessionsStackNav() {
   return (
-    <PrepSessionsStack.Navigator screenOptions={{ headerShown: false }}>
+    <PrepSessionsStack.Navigator screenOptions={fadeStackScreenOptions}>
       <PrepSessionsStack.Screen name="CoachAgenda" component={CoachAgendaScreen} />
+      <PrepSessionsStack.Screen name="CoachPartidos" component={CoachPartidosScreen} />
       <PrepSessionsStack.Screen name="CoachRelocateSessions" component={CoachRelocateSessionsScreen} />
       <PrepSessionsStack.Screen name="CoachSessionDetail" component={CoachSessionDetailScreen} />
       <PrepSessionsStack.Screen name="CoachNewSession" component={CoachNewSessionScreen} />
       <PrepSessionsStack.Screen name="CoachCancelSession" component={CoachCancelSessionScreen} />
       <PrepSessionsStack.Screen name="CoachSessionStats" component={CoachSessionStatsScreen} />
+      <PrepSessionsStack.Screen name="MatchReport" component={MatchReportScreen} />
       <PrepSessionsStack.Screen name="CoachWellness" component={CoachWellnessScreen} />
     </PrepSessionsStack.Navigator>
   );
@@ -69,7 +74,7 @@ function PrepSessionsStackNav() {
 
 function PrepTeamStackNav() {
   return (
-    <PrepTeamStack.Navigator screenOptions={{ headerShown: false }}>
+    <PrepTeamStack.Navigator screenOptions={fadeStackScreenOptions}>
       <PrepTeamStack.Screen
         name="PrepRoster"
         component={StaffAthleteRosterScreen}
@@ -91,7 +96,7 @@ function PrepTeamStackNav() {
 
 function PrepCommsStackNav() {
   return (
-    <PrepCommsStack.Navigator screenOptions={{ headerShown: false }}>
+    <PrepCommsStack.Navigator screenOptions={fadeStackScreenOptions}>
       <PrepCommsStack.Screen name="CoachCommsHub" component={CoachCommsHubScreen} />
       <PrepCommsStack.Screen
         name="NoticiasStaff"

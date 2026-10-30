@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, Image, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import HoverRevealSwipeable from '../../components/HoverRevealSwipeable';
@@ -560,7 +561,7 @@ export default function NoticiasScreen({ navigation, route }) {
       )}
 
       <View style={styles.body}>
-        {showInitialLoader ? <ActivityIndicator size="large" color={cc} style={{marginTop:50}} /> : (
+        {showInitialLoader ? <ClubSpinLoader size={64} style={{marginTop:50}} /> : (
           <FlatList data={visibleNews} keyExtractor={i=>i._id} renderItem={renderItem}
             contentContainerStyle={{paddingBottom:80,flexGrow:1}}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cc} />}
@@ -624,7 +625,7 @@ export default function NoticiasScreen({ navigation, route }) {
                 </View>
               ) : (
                 <TouchableOpacity style={[styles.uploadBtn,{borderColor:theme.border}]} onPress={pickImage} disabled={isUploading}>
-                  {isUploading ? <ActivityIndicator color={cc} /> : (
+                  {isUploading ? <ClubSpinLoader size={40} /> : (
                     <>
                       <Ionicons name="image-outline" size={28} color={theme.textMuted} />
                       <Text style={{color:theme.textMuted,marginTop:5,fontSize:13}}>Elegir foto de galería</Text>

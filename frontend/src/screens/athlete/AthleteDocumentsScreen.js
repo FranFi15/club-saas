@@ -7,8 +7,8 @@ import {
   TouchableOpacity,
   RefreshControl,
   StatusBar,
-  ActivityIndicator,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -73,7 +73,7 @@ export default function AthleteDocumentsScreen({ navigation }) {
     const h = await clubHeaders(clubData);
     const res = await clubApi.get('/requirements/me', {
       headers: h,
-      params: { ...memberScopeParams(isTutor, memberId), page: 1, limit: 30 },
+      params: { ...memberScopeParams(isTutor, memberId), page: 1, limit: 10 },
     });
     const rows = pickPaginatedRows(res.data, 'requirements');
     setDocsPage(res.data?.page ?? 1);
@@ -89,7 +89,7 @@ export default function AthleteDocumentsScreen({ navigation }) {
       const nextPage = docsPage + 1;
       const res = await clubApi.get('/requirements/me', {
         headers: h,
-        params: { ...memberScopeParams(isTutor, memberId), page: nextPage, limit: 30 },
+        params: { ...memberScopeParams(isTutor, memberId), page: nextPage, limit: 10 },
       });
       const rows = pickPaginatedRows(res.data, 'requirements');
       setList((prev) => [...prev, ...rows]);
@@ -262,7 +262,7 @@ export default function AthleteDocumentsScreen({ navigation }) {
                 disabled={adjuntoBusy}
               >
                 {adjuntoBusy ? (
-                  <ActivityIndicator size="small" color={colorMarca} />
+                  <ClubSpinLoader size={26} />
                 ) : (
                   <>
                     <Ionicons name="download-outline" size={18} color={colorMarca} />
@@ -314,7 +314,7 @@ export default function AthleteDocumentsScreen({ navigation }) {
                 disabled={viewBusy}
               >
                 {viewBusy ? (
-                  <ActivityIndicator size="small" color={colorMarca} />
+                  <ClubSpinLoader size={26} />
                 ) : (
                   <>
                     <Ionicons name="download-outline" size={18} color={colorMarca} />
@@ -335,7 +335,7 @@ export default function AthleteDocumentsScreen({ navigation }) {
               disabled={busy}
             >
               {busy ? (
-                <ActivityIndicator color={colorMarca} />
+                <ClubSpinLoader size={40} />
               ) : (
                 <>
                   <Ionicons name="document-text-outline" size={18} color={colorMarca} />
@@ -384,7 +384,7 @@ export default function AthleteDocumentsScreen({ navigation }) {
 
       {showInitialLoader ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={colorMarca} />
+          <ClubSpinLoader size={64} />
         </View>
       ) : (
         <FlatList
@@ -395,7 +395,7 @@ export default function AthleteDocumentsScreen({ navigation }) {
           onEndReached={loadMoreDocuments}
           onEndReachedThreshold={0.35}
           ListFooterComponent={
-            loadingMoreDocs ? <ActivityIndicator color={colorMarca} style={{ marginVertical: 16 }} /> : null
+            loadingMoreDocs ? <ClubSpinLoader size={40} style={{ marginVertical: 16 }} /> : null
           }
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
           ListEmptyComponent={

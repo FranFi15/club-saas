@@ -4,6 +4,7 @@ import {
   View, Text, StyleSheet, Modal, TouchableOpacity, 
   TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Switch
 } from 'react-native';
+import ClubSpinLoader from './ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../context/ThemeContext';
 import { ClubContext } from '../context/ClubContext';
@@ -14,6 +15,7 @@ import { sortUsersByName, formatUserName } from '../utils/listSort';
 import { displayDateToIsoCalendar, isoCalendarDateToDisplay, maskDateDDMMAAAA } from '../utils/dateDisplay';
 import ProfilePhotoField from './ProfilePhotoField';
 import FormSheet from './FormSheet';
+import Foldable, { FoldableChevron } from './Foldable';
 
 /** Roles de personal que ya entran en nómina por su cargo. */
 const PAYROLL_STAFF_ROLES = [
@@ -51,6 +53,35 @@ const ROLE_GROUPS = [
   { title: 'Dirección', values: ['dirigente', 'admin_club'] },
 ];
 
+const MAX_LINKED_TUTORS = 2;
+
+function tutorRecord(value) {
+  if (!value) return null;
+  const id = typeof value === 'object' ? value._id : value;
+  if (!id) return null;
+  if (typeof value === 'object' && (value.nombre || value.apellido || value.email)) {
+    return {
+      _id: String(id),
+      nombre: value.nombre || '',
+      apellido: value.apellido || '',
+      email: value.email || '',
+    };
+  }
+  return { _id: String(id), nombre: '', apellido: '', email: '' };
+}
+
+function tutorsFromUser(user) {
+  const rows = [];
+  const push = (value) => {
+    const row = tutorRecord(value);
+    if (!row || rows.some((item) => item._id === row._id)) return;
+    rows.push(row);
+  };
+  push(user?.tutorPrincipal);
+  for (const tutor of user?.tutores || []) push(tutor);
+  return rows.slice(0, MAX_LINKED_TUTORS);
+}
+
 export default function UserFormModal({
   visible,
   onClose,
@@ -73,6 +104,7 @@ export default function UserFormModal({
   });
 
   const [tutors, setTutors] = useState([]);
+  const [linkedTutors, setLinkedTutors] = useState([]);
   const [isLoadingTutors, setIsLoadingTutors] = useState(false);
   const [tutorSearchQuery, setTutorSearchQuery] = useState('');
   const [debouncedTutorSearch, setDebouncedTutorSearch] = useState('');
@@ -126,13 +158,12 @@ export default function UserFormModal({
         obraSocial: initialData.obraSocial || '',
         rol: primary,
         roles: initialRoles,
-        tutorPrincipal: initialData.tutorPrincipal?._id || initialData.tutorPrincipal || null,
+        fotoPerfil: initialData.fotoPerfil || '',
         fechaNacimiento: (() => {
           if (!initialData.fechaNacimiento) return '';
           const ymd = String(initialData.fechaNacimiento).split('T')[0];
           return /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? isoCalendarDateToDisplay(ymd) : '';
         })(),
-        fotoPerfil: initialData.fotoPerfil || '',
         cuotasEnApp: initialData.cuotasEnApp !== false,
         sexo: initialData.sexo === 'M' || initialData.sexo === 'F' ? initialData.sexo : '',
         exentoCuotaSocial: initialData.exentoCuotaSocial === true,
@@ -156,12 +187,14 @@ export default function UserFormModal({
             ? String(initialData.sueldoNomina)
             : '',
       });
+      setLinkedTutors(tutorsFromUser(initialData));
     } else {
       setFormData({
-        nombre: '', apellido: '', email: '', password: '', dni: '', telefono: '', direccion: '', obraSocial: '', rol: 'atleta', roles: ['atleta'], tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
+        nombre: '', apellido: '', email: '', password: '', dni: '', telefono: '', direccion: '', obraSocial: '', rol: 'atleta', roles: ['atleta'], fechaNacimiento: '', fotoPerfil: '',
         cuotasEnApp: true, sexo: '', exentoCuotaSocial: false, cuotaSocialAsignada: null,
         esPrueba: false, diasPrueba: '15', enNomina: false, sueldoNomina: '', esBecado: false,
       });
+      setLinkedTutors([]);
     }
   }, [initialData, visible]);
 
@@ -239,10 +272,10 @@ export default function UserFormModal({
   // Incluye tutorPrincipal: si el modal abre con tutor asignado no cargamos lista;
   // al quitar el tutor (X) hay que volver a fetchear — antes el efecto no se disparaba.
   useEffect(() => {
-    if (hasAtleta && visible && !formData.tutorPrincipal) {
+    if (hasAtleta && visible && linkedTutors.length < MAX_LINKED_TUTORS) {
       fetchTutors(debouncedTutorSearch);
     }
-  }, [hasAtleta, visible, debouncedTutorSearch, formData.tutorPrincipal, fetchTutors]);
+  }, [hasAtleta, visible, debouncedTutorSearch, linkedTutors.length, fetchTutors]);
 
   const toggleRole = (value) => {
     setFormData((prev) => {
@@ -257,13 +290,13 @@ export default function UserFormModal({
       }
       const rol = next.includes(prev.rol) ? prev.rol : next[0];
       const clearedAthlete = !next.includes('atleta');
+      if (clearedAthlete) setLinkedTutors([]);
       return {
         ...prev,
         roles: next,
         rol,
         ...(clearedAthlete
           ? {
-              tutorPrincipal: null,
               cuotasEnApp: true,
               sexo: '',
               esPrueba: false,
@@ -301,16 +334,29 @@ export default function UserFormModal({
     setFormData((prev) => ({ ...prev, fechaNacimiento: maskDateDDMMAAAA(text) }));
   };
 
-  const getTutorName = (id) => {
-    if (!id) return 'Ninguno asignado';
-    const t = tutors.find(x => x._id === id);
-    if (t) return formatUserName(t);
-    
-    // Si viene la data inicial del populate
-    if (initialData?.tutorPrincipal && initialData.tutorPrincipal._id === id) {
-      return formatUserName(initialData.tutorPrincipal);
-    }
-    return 'Ninguno asignado';
+  const addLinkedTutor = (tutor) => {
+    const row = tutorRecord(tutor);
+    if (!row) return;
+    setLinkedTutors((prev) => {
+      if (prev.some((item) => item._id === row._id) || prev.length >= MAX_LINKED_TUTORS) return prev;
+      return [...prev, row];
+    });
+    setTutorSearchQuery('');
+  };
+
+  const removeLinkedTutor = (id) => {
+    setLinkedTutors((prev) => prev.filter((item) => item._id !== String(id)));
+  };
+
+  const makeBillingTutor = (id) => {
+    setLinkedTutors((prev) => {
+      const index = prev.findIndex((item) => item._id === String(id));
+      if (index <= 0) return prev;
+      const next = [...prev];
+      const [chosen] = next.splice(index, 1);
+      next.unshift(chosen);
+      return next;
+    });
   };
 
   const handleSave = () => {
@@ -333,11 +379,14 @@ export default function UserFormModal({
       delete payload.diasPrueba;
       delete payload.enNomina;
       delete payload.tutorPrincipal;
+      delete payload.tutores;
       delete payload.esBecado;
     } else if (payload.sexo !== 'M' && payload.sexo !== 'F') {
       payload.sexo = '';
     }
     if (hasAtleta) {
+      payload.tutorPrincipal = linkedTutors[0]?._id || null;
+      payload.tutores = linkedTutors.slice(1).map((tutor) => tutor._id);
       if (initialData) {
         // Trial flags are set at create; edit uses Convertir ahora.
         delete payload.esPrueba;
@@ -564,19 +613,48 @@ export default function UserFormModal({
               {/* BÚSQUEDA DE TUTOR INTEELIGENTE */}
               {hasAtleta && (
                 <View style={{ marginTop: 5, marginBottom: 15 }}>
-                  <Text style={[styles.label, { color: theme.textMuted }]}>Vincular Tutor </Text>
-                  
-                  {formData.tutorPrincipal ? (
-                    <View style={[styles.tutorSelectedBox, { backgroundColor: colorMarca + '15', borderColor: colorMarca }]}>
+                  <Text style={[styles.label, { color: theme.textMuted }]}>Tutores</Text>
+                  <Text style={[styles.switchHint, { color: theme.textMuted, marginBottom: 8 }]}>
+                    Hasta 2. El primero factura y aplica el descuento familiar. El otro ve al mismo atleta.
+                  </Text>
+
+                  {linkedTutors.map((tutor, index) => (
+                    <View
+                      key={tutor._id}
+                      style={[
+                        styles.tutorSelectedBox,
+                        { backgroundColor: colorMarca + '15', borderColor: colorMarca, marginBottom: 8 },
+                      ]}
+                    >
                       <Ionicons name="person-circle" size={24} color={colorMarca} />
-                      <Text style={[styles.tutorSelectText, { color: theme.text }]}>
-                        {getTutorName(formData.tutorPrincipal)}
-                      </Text>
-                      <TouchableOpacity onPress={() => handleChange('tutorPrincipal', null)} style={{ padding: 5 }}>
+                      <View style={{ flex: 1, marginLeft: 10, minWidth: 0 }}>
+                        <Text style={[styles.tutorSelectText, { color: theme.text }]} numberOfLines={1}>
+                          {formatUserName(tutor) || 'Tutor'}
+                        </Text>
+                        <Text style={{ color: theme.textMuted, fontSize: 12 }} numberOfLines={1}>
+                          {index === 0 ? 'Facturación' : 'También ve al atleta'}
+                        </Text>
+                      </View>
+                      {index > 0 ? (
+                        <TouchableOpacity
+                          onPress={() => makeBillingTutor(tutor._id)}
+                          style={{ padding: 5 }}
+                          accessibilityLabel="Pasar a facturación"
+                        >
+                          <Ionicons name="star-outline" size={22} color={theme.textMuted} />
+                        </TouchableOpacity>
+                      ) : (
+                        <View style={{ padding: 5 }}>
+                          <Ionicons name="star" size={22} color={colorMarca} />
+                        </View>
+                      )}
+                      <TouchableOpacity onPress={() => removeLinkedTutor(tutor._id)} style={{ padding: 5 }}>
                         <Ionicons name="close-circle" size={24} color={theme.textMuted} />
                       </TouchableOpacity>
                     </View>
-                  ) : (
+                  ))}
+
+                  {linkedTutors.length < MAX_LINKED_TUTORS ? (
                     <>
                       <View style={[styles.searchBox, { backgroundColor: theme.background, borderColor: theme.border }]}>
                         <Ionicons name="search" size={20} color={theme.icon} style={{ marginLeft: 15, marginRight: 10 }} />
@@ -587,28 +665,35 @@ export default function UserFormModal({
                           value={tutorSearchQuery}
                           onChangeText={setTutorSearchQuery}
                         />
-                        {isLoadingTutors && <ActivityIndicator size="small" color={colorMarca} style={{ marginRight: 15 }} />}
+                        {isLoadingTutors && <ClubSpinLoader size={26} style={{ marginRight: 15 }} />}
                       </View>
 
-                      {tutors.length > 0 && (
+                      {tutors.filter((tutor) => !linkedTutors.some((item) => item._id === String(tutor._id))).length > 0 && (
                         <View style={[styles.dropdown, { backgroundColor: theme.background, borderColor: theme.border }]}>
                           <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={{ maxHeight: 150 }}>
-                            {tutors.map(t => (
-                              <TouchableOpacity key={t._id} style={[styles.dropdownItem, { borderBottomColor: theme.border }]}
-                                onPress={() => handleChange('tutorPrincipal', t._id)}>
-                                <Text style={{ color: theme.text, fontWeight: '500' }}>{formatUserName(t)}</Text>
-                                <Text style={{ color: theme.textMuted, fontSize: 12 }}>{t.email}</Text>
-                              </TouchableOpacity>
-                            ))}
+                            {tutors
+                              .filter((tutor) => !linkedTutors.some((item) => item._id === String(tutor._id)))
+                              .map((tutor) => (
+                                <TouchableOpacity
+                                  key={tutor._id}
+                                  style={[styles.dropdownItem, { borderBottomColor: theme.border }]}
+                                  onPress={() => addLinkedTutor(tutor)}
+                                >
+                                  <Text style={{ color: theme.text, fontWeight: '500' }}>{formatUserName(tutor)}</Text>
+                                  <Text style={{ color: theme.textMuted, fontSize: 12 }}>{tutor.email}</Text>
+                                </TouchableOpacity>
+                              ))}
                           </ScrollView>
                         </View>
                       )}
 
                       {tutors.length === 0 && !isLoadingTutors && tutorSearchQuery.length > 0 && (
-                         <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 8, paddingHorizontal: 5 }}>No se encontraron tutores con ese nombre.</Text>
+                        <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 8, paddingHorizontal: 5 }}>
+                          No se encontraron tutores con ese nombre.
+                        </Text>
                       )}
                     </>
-                  )}
+                  ) : null}
                 </View>
               )}
 
@@ -797,13 +882,9 @@ export default function UserFormModal({
                             : socialFees.find((f) => String(f._id) === String(formData.cuotaSocialAsignada))
                                 ?.nombre || 'Automático según rol / sin tipo'}
                         </Text>
-                        <Ionicons
-                          name={showFeeSelect ? 'chevron-up' : 'chevron-down'}
-                          size={18}
-                          color={theme.icon}
-                        />
+                        <FoldableChevron open={showFeeSelect} color={theme.icon} size={18} />
                       </TouchableOpacity>
-                      {showFeeSelect ? (
+                      <Foldable open={showFeeSelect}>
                         <View style={[styles.dropdown, { borderColor: theme.border, backgroundColor: theme.surface }]}>
                           <TouchableOpacity
                             style={[styles.dropdownItem, { borderBottomColor: theme.border }]}
@@ -835,7 +916,7 @@ export default function UserFormModal({
                             </Text>
                           ) : null}
                         </View>
-                      ) : null}
+                      </Foldable>
                     </View>
                   ) : null}
                 </>
@@ -897,8 +978,16 @@ const styles = StyleSheet.create({
   roleSelectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 15 },
   roleSelectText: { fontSize: 15 },
   
-  tutorSelectedBox: { flexDirection: 'row', alignItems: 'center', height: 50, borderWidth: 1, borderRadius: 12, paddingHorizontal: 15 },
-  tutorSelectText: { flex: 1, marginLeft: 10, fontSize: 15, fontWeight: '600' },
+  tutorSelectedBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 56,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  tutorSelectText: { fontSize: 15, fontWeight: '600' },
   searchBox: { flexDirection: 'row', alignItems: 'center', height: 48, borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   tutorSearchInput: { flex: 1, fontSize: 15, height: '100%', color: '#000' },
   dropdown: { borderWidth: 1, borderRadius: 12, marginTop: 5, overflow: 'hidden' },

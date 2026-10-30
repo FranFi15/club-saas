@@ -11,6 +11,7 @@ import {
   Linking,
   ScrollView,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -317,7 +318,7 @@ export default function MemberAlquilerScreen() {
       </View>
 
       {showInitial ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={colorMarca} />
+        <ClubSpinLoader size={56} style={{ marginTop: 40 }} />
       ) : tab === 'reservar' ? (
         <FlatList
           data={slots}
@@ -453,7 +454,7 @@ export default function MemberAlquilerScreen() {
                   <Text style={{ color: theme.text, fontWeight: '800' }}>{fmtMoney(item.precio)}</Text>
                   {item.disponible ? (
                     busy ? (
-                      <ActivityIndicator color={colorMarca} style={{ marginTop: 6 }} />
+                      <ClubSpinLoader size={40} style={{ marginTop: 6 }} />
                     ) : (
                       <Text style={{ color: colorMarca, fontWeight: '700', marginTop: 4, fontSize: 12 }}>
                         Reservar

@@ -6,9 +6,9 @@ import {
   ScrollView,
   RefreshControl,
   StatusBar,
-  ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -22,6 +22,7 @@ import DesignCard from '../../components/DesignCard';
 import { clubHeaders } from './athleteApi';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { formatUserName } from '../../utils/listSort';
+import { rpeSessionDetail, rpeSessionTitle, sessionTipoVisual } from '../../utils/sessionDisplay';
 
 export default function AthleteWellnessHubScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
@@ -129,7 +130,7 @@ export default function AthleteWellnessHubScreen({ navigation }) {
 
       {memberLoading || !showBody ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={colorMarca} />
+          <ClubSpinLoader size={64} />
         </View>
       ) : (
         <ScrollView
@@ -140,7 +141,7 @@ export default function AthleteWellnessHubScreen({ navigation }) {
           <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Pendiente hoy</Text>
 
           {showInitialLoader ? (
-            <ActivityIndicator color={colorMarca} style={{ marginVertical: 24 }} />
+            <ClubSpinLoader size={40} style={{ marginVertical: 24 }} />
           ) : pendingItems.length === 0 ? (
             <DesignCard theme={theme} isDarkMode={isDarkMode} accent="#22c55e" contentStyle={styles.emptyInner}>
               <Ionicons name="checkmark-circle-outline" size={36} color="#22c55e" />
@@ -171,16 +172,16 @@ export default function AthleteWellnessHubScreen({ navigation }) {
                       {isPre ? 'Wellness del día' : 'RPE post entreno'}
                     </Text>
                     <Text style={[styles.cardSub, { color: theme.textMuted }]}>
+                    <Ionicons name={isPre ? 'fitness-outline' : visual.icon} size={24} color={accent} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.cardTitle, { color: theme.text }]}>
+                      {isPre ? 'Wellness del día' : rpeSessionTitle(sesion)}
+                    </Text>
+                    <Text style={[styles.cardSub, { color: theme.textMuted }]}>
                       {isPre
                         ? 'Contanos cómo te sentís antes de entrenar (1–10).'
-                        : `${sesion.categoria?.nombre || 'Sesión'} · ${sesion.horaInicio}–${sesion.horaFin}`}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={22} color={accent} />
-                </DesignCard>
-              );
-            })
-          )}
+                        : rpeSessionDetail(sesion)}
         </ScrollView>
       )}
     </SafeAreaView>

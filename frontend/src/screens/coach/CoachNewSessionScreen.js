@@ -1,4 +1,4 @@
-import React, { useContext, useState, useCallback, useMemo } from 'react';
+import React, { useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,10 @@ import {
   TextInput,
   TouchableOpacity,
   StatusBar,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
@@ -25,7 +25,7 @@ import { todayYmd } from '../../utils/timeSlots';
 import { isoCalendarDateToDisplay } from '../../utils/dateDisplay';
 import { maskTimeHHMM, isValidTimeHHMM } from '../../utils/timeDisplay';
 import { sessionTipoLabel } from '../../utils/sessionDisplay';
-import { sortByNombre } from '../../utils/listSort';
+import { formatUserName, sortByNombre, sortUsersByName } from '../../utils/listSort';
 import {
   categoriesGroupedByDisciplina,
   categoryPillLabel,
@@ -59,6 +59,10 @@ export default function CoachNewSessionScreen({ navigation }) {
   const [nombreSesion, setNombreSesion] = useState('');
   const [esOpcional, setEsOpcional] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
+  const [roster, setRoster] = useState([]);
+  const [staff, setStaff] = useState([]);
+  const [picked, setPicked] = useState([]);
+  const [listaLoading, setListaLoading] = useState(false);
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
     title: '',
@@ -159,6 +163,85 @@ export default function CoachNewSessionScreen({ navigation }) {
 
   const showInitialLoader = loading && categories.length === 0 && spaces.length === 0;
 
+  useEffect(() => {
+    if (tipoSesion !== 'partido' || !categoria || !clubData?.urlIdentifier) {
+      setRoster([]);
+      setStaff([]);
+      setListaLoading(false);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      setListaLoading(true);
+      try {
+        const token = await getToken('userToken');
+        const me = await getToken('userId');
+        const h = {
+          'x-club-identifier': clubData.urlIdentifier,
+          Authorization: `Bearer ${token}`,
+        };
+        const [enrRes, catsRes] = await Promise.all([
+          clubApi.get(`/enrollments/categoria/${categoria}`, { headers: h }),
+          clubApi.get('/categories', { headers: h }),
+        ]);
+        if (cancelled) return;
+        const athletes = sortUsersByName(
+          (enrRes.data || []).map((row) => row.atleta).filter((person) => person?._id),
+        );
+        const cat = (catsRes.data || []).find((item) => String(item._id) === String(categoria)) || {};
+        const seen = new Set();
+        const staffList = sortUsersByName(
+          [...(cat.profesores || []), ...(cat.preparadoresFisicos || [])].filter(
+            (person) => person?._id && !seen.has(String(person._id)) && seen.add(String(person._id)),
+          ),
+        );
+        const valid = new Set([
+          ...athletes.map((person) => String(person._id)),
+          ...staffList.map((person) => String(person._id)),
+        ]);
+        setRoster(athletes);
+        setStaff(staffList);
+        setPicked((rows) => {
+          const kept = rows.filter((row) => valid.has(String(row.usuario)));
+          if (kept.length) return kept;
+          const mine = staffList.find((person) => String(person._id) === String(me));
+          return mine ? [{ usuario: mine._id, tipoPersona: 'staff' }] : [];
+        });
+      } catch (e) {
+        if (!cancelled) {
+          setRoster([]);
+          setStaff([]);
+          showAlert('Plantel', e.response?.data?.message || 'No se pudo cargar la lista de buena fe.');
+        }
+      } finally {
+        if (!cancelled) setListaLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tipoSesion, categoria, clubData?.urlIdentifier]);
+
+  const togglePick = (usuario, tipoPersona) => {
+    setPicked((rows) => {
+      const exists = rows.some((row) => String(row.usuario) === String(usuario));
+      if (exists) return rows.filter((row) => String(row.usuario) !== String(usuario));
+      return [...rows, { usuario, tipoPersona }];
+    });
+  };
+
+  const selectAllPlayers = () => {
+    setPicked((rows) => {
+      const staffRows = rows.filter((row) => row.tipoPersona === 'staff');
+      const players = roster.map((athlete) => ({ usuario: athlete._id, tipoPersona: 'jugador' }));
+      return [...players, ...staffRows];
+    });
+  };
+
+  const clearPlayers = () => {
+    setPicked((rows) => rows.filter((row) => row.tipoPersona === 'staff'));
+  };
+
   const onSelectSlot = ({ espacioId, horaInicio: hi, horaFin: hf, ymd }) => {
     if (ymd) setSelectedYmd(ymd);
 
@@ -255,6 +338,17 @@ export default function CoachNewSessionScreen({ navigation }) {
         return;
       }
     }
+    const jugadores = picked.filter((row) => row.tipoPersona === 'jugador');
+    if (tipoSesion === 'partido') {
+      if (listaLoading) {
+        showAlert('Lista de buena fe', 'Esperá a que cargue el plantel.');
+        return;
+      }
+      if (!jugadores.length) {
+        showAlert('Lista de buena fe', 'Elegí al menos un jugador que va al partido.');
+        return;
+      }
+    }
 
     setSaving(true);
     try {
@@ -276,6 +370,13 @@ export default function CoachNewSessionScreen({ navigation }) {
         body.lugarExterno = lugarExternoText.trim();
       } else {
         body.espacio = espacio;
+      }
+      if (tipoSesion === 'partido') {
+        body.lista = picked.map((row) => ({
+          usuario: row.usuario,
+          tipoPersona: row.tipoPersona,
+          dorsal: '',
+        }));
       }
       const { data } = await clubApi.post('/sessions', body, { headers: h });
       navigation.replace('CoachSessionDetail', { sessionId: data._id });
@@ -317,7 +418,7 @@ export default function CoachNewSessionScreen({ navigation }) {
       />
 
       {showInitialLoader ? (
-        <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />
+        <ClubSpinLoader size={56} style={{ marginTop: 32 }} />
       ) : (
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -452,6 +553,108 @@ export default function CoachNewSessionScreen({ navigation }) {
             theme={theme}
           />
 
+          {tipoSesion === 'partido' ? (
+            <>
+              <Text style={[styles.label, { color: theme.textMuted }]}>Lista de buena fe</Text>
+              <Text style={[styles.hint, { color: theme.textMuted }]}>
+                Marcá los jugadores que van al partido y el cuerpo técnico que viaja. Esta lista queda armada al crear el partido.
+              </Text>
+              {listaLoading ? (
+                <ClubSpinLoader size={40} style={{ marginBottom: 16 }} />
+              ) : (
+                <>
+                  <View style={styles.row2}>
+                    <TouchableOpacity
+                      style={[styles.chip, { borderColor: theme.border, backgroundColor: theme.surface, marginBottom: 10 }]}
+                      onPress={selectAllPlayers}
+                    >
+                      <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>Todos los jugadores</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.chip, { borderColor: theme.border, backgroundColor: theme.surface, marginBottom: 10 }]}
+                      onPress={clearPlayers}
+                    >
+                      <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>Ningún jugador</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {roster.map((athlete) => {
+                    const selected = picked.some((row) => String(row.usuario) === String(athlete._id));
+                    return (
+                      <TouchableOpacity
+                        key={athlete._id}
+                        onPress={() => togglePick(athlete._id, 'jugador')}
+                        style={[
+                          styles.personRow,
+                          {
+                            borderColor: selected ? colorMarca : theme.border,
+                            backgroundColor: selected ? colorMarca + '18' : theme.surface,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.check,
+                            {
+                              borderColor: selected ? colorMarca : theme.border,
+                              backgroundColor: selected ? colorMarca : 'transparent',
+                            },
+                          ]}
+                        >
+                          {selected ? <Text style={styles.checkMark}>✓</Text> : null}
+                        </View>
+                        <Text style={{ color: theme.text, fontWeight: '600', flex: 1 }}>
+                          {formatUserName(athlete, 'Jugador')}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {!roster.length ? (
+                    <Text style={[styles.hintSmall, { color: theme.textMuted }]}>
+                      No hay atletas activos en esta categoría.
+                    </Text>
+                  ) : null}
+                  <Text style={[styles.label, { color: theme.textMuted, marginTop: 8 }]}>Cuerpo técnico</Text>
+                  {staff.map((person) => {
+                    const selected = picked.some((row) => String(row.usuario) === String(person._id));
+                    return (
+                      <TouchableOpacity
+                        key={person._id}
+                        onPress={() => togglePick(person._id, 'staff')}
+                        style={[
+                          styles.personRow,
+                          {
+                            borderColor: selected ? colorMarca : theme.border,
+                            backgroundColor: selected ? colorMarca + '18' : theme.surface,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.check,
+                            {
+                              borderColor: selected ? colorMarca : theme.border,
+                              backgroundColor: selected ? colorMarca : 'transparent',
+                            },
+                          ]}
+                        >
+                          {selected ? <Text style={styles.checkMark}>✓</Text> : null}
+                        </View>
+                        <Text style={{ color: theme.text, fontWeight: '600', flex: 1 }}>
+                          {formatUserName(person, 'Staff')} · staff
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {!staff.length ? (
+                    <Text style={[styles.hintSmall, { color: theme.textMuted }]}>
+                      Esta categoría no tiene profesores ni preparadores asignados.
+                    </Text>
+                  ) : null}
+                </>
+              )}
+            </>
+          ) : null}
+
           {needsClubSpace ? (
             <>
               <Text style={[styles.hint, { color: theme.textMuted }]}>
@@ -558,4 +761,23 @@ const styles = StyleSheet.create({
   selectionLine: { fontSize: 13, lineHeight: 18 },
   primaryBtn: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   primaryBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  personRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 8,
+  },
+  check: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkMark: { color: '#fff', fontSize: 13, fontWeight: '800' },
 });

@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import ClubSpinLoader from '../../../components/ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
 import { readScreenCache, useCachedFocusLoad } from '../../../hooks/useCachedFocusLoad';
@@ -198,7 +199,7 @@ export default function ComprobantesReviewTab({ clubData, theme, primaryColor, g
   if (loading && !groups.length) {
     return (
       <View style={styles.loader}>
-        <ActivityIndicator color={primaryColor} />
+        <ClubSpinLoader size={40} />
       </View>
     );
   }

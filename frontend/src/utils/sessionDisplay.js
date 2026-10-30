@@ -12,6 +12,22 @@ export function sessionTipoLabel(tipo) {
   return TIPO_LABELS[tipo] || 'Sesión';
 }
 
+/** Título del RPE según el tipo de sesión. */
+export function rpeSessionTitle(sesion) {
+  if (sesion?.tipo === 'partido') return 'RPE del partido';
+  if (sesion?.tipo === 'entrenamiento') return 'RPE del entrenamiento';
+  return 'RPE de la sesión';
+}
+
+/** Categoría y horario para distinguir un entreno de un partido. */
+export function rpeSessionDetail(sesion) {
+  const cat = sesion?.categoria?.nombre || sesion?.categoriaNombre || 'Sin categoría';
+  const start = sesion?.horaInicio;
+  const end = sesion?.horaFin;
+  const hours = start && end ? `${start}–${end}` : start || '';
+  return hours ? `${cat} · ${hours}` : cat;
+}
+
 /** Nombre a mostrar: personalizado o etiqueta por tipo. */
 export function sessionDisplayName(session) {
   const custom = (session?.nombreSesion || '').trim();
@@ -141,6 +157,39 @@ export function isSessionPast(session, now = new Date()) {
   const end = sessionEndLocalDate(session);
   if (!end) return false;
   return end.getTime() < now.getTime();
+}
+
+/** Hay lista de asistencia guardada, o el equivalente del partido (lista de buena fe). */
+export function sessionHasAsistencia(session) {
+  if (!session) return false;
+  if (Array.isArray(session.asistencia) && session.asistencia.length > 0) return true;
+  if (session.tipo === 'partido' && Array.isArray(session.listaBuenaFe) && session.listaBuenaFe.length > 0) {
+    return true;
+  }
+  return false;
+}
+
+/** Hay plan de entrenamiento, bloques corridos, o planilla / jugadas del partido. */
+export function sessionHasPlanificacion(session) {
+  if (!session) return false;
+  if (session.planEntrenamiento) return true;
+  if (Array.isArray(session.bloquesEjecutados) && session.bloquesEjecutados.length > 0) return true;
+  const planilla = session.planilla;
+  if (planilla?.sheetId || planilla?.nombre || (Array.isArray(planilla?.campos) && planilla.campos.length > 0)) {
+    return true;
+  }
+  if (Array.isArray(session.jugadas) && session.jugadas.length > 0) return true;
+  if (session.informeEnviadoEn) return true;
+  return false;
+}
+
+/**
+ * La sesión ya terminó y no quedó asistencia ni planificación.
+ * No se abre el entreno ni las estadísticas.
+ */
+export function sessionSinEstadisticas(session, now = new Date()) {
+  if (!isSessionPast(session, now)) return false;
+  return !sessionHasAsistencia(session) && !sessionHasPlanificacion(session);
 }
 
 /**

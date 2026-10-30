@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
+import ClubSpinLoader from './ClubSpinLoader';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -189,7 +190,7 @@ export default function WebImageCropModal({
                 resizeMode="stretch"
               />
             ) : (
-              <ActivityIndicator color={colorMarca} />
+              <ClubSpinLoader size={40} />
             )}
           </View>
 

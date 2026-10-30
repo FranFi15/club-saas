@@ -10,6 +10,7 @@ import {
   RefreshControl,
   Dimensions,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
@@ -22,6 +23,7 @@ import WellnessScalePicker from '../../components/WellnessScalePicker';
 import { seriesFromHistorial } from '../../utils/wellnessHistorial';
 import { WELLNESS_PRE_FIELDS } from '../../constants/wellnessMetrics';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { rpeSessionDetail, rpeSessionTitle } from '../../utils/sessionDisplay';
 
 const CHART_W = Math.min(Dimensions.get('window').width - 32, 400);
 
@@ -36,8 +38,16 @@ function preFromRecord(w) {
 }
 
 export default function CoachWellnessScreen({ navigation, route }) {
-  const { atletaId, atletaNombre, sesion, categoriaId, defaultTipo, tutorAtletaId, returnToEquipo } =
-    route.params || {};
+  const {
+    atletaId,
+    atletaNombre,
+    sesion,
+    categoriaId,
+    defaultTipo,
+    tutorAtletaId,
+    returnToEquipo,
+    sesionMeta: sesionMetaParam,
+  } = route.params || {};
   const targetAtletaId = atletaId || tutorAtletaId;
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
@@ -49,6 +59,7 @@ export default function CoachWellnessScreen({ navigation, route }) {
 
   const canPost = !!sesion;
   const [tipo, setTipo] = useState(defaultTipo === 'post' && canPost ? 'post' : 'pre');
+  const [sesionMeta, setSesionMeta] = useState(sesionMetaParam || null);
   const [pre, setPre] = useState(emptyPre);
   const [rpe, setRpe] = useState(7);
   const [saving, setSaving] = useState(false);
@@ -114,11 +125,15 @@ export default function CoachWellnessScreen({ navigation, route }) {
         const qs = tutorAtletaId ? `?atletaId=${tutorAtletaId}` : '';
         const res = await clubApi.get(`/wellness/mi-hoy${qs}`, { headers: h });
         if (res.data?.pre) setPre(preFromRecord(res.data.pre));
+        if (sesion) {
+          const match = (res.data?.sesionesHoy || []).find((s) => String(s._id) === String(sesion));
+          if (match) setSesionMeta(match);
+        }
       }
     } catch {
       /* sin bloquear */
     }
-  }, [targetAtletaId, categoriaId, tutorAtletaId, clubData?.urlIdentifier]);
+  }, [targetAtletaId, categoriaId, tutorAtletaId, sesion, clubData?.urlIdentifier]);
 
   useEffect(() => {
     loadTodayPre();
@@ -167,10 +182,13 @@ export default function CoachWellnessScreen({ navigation, route }) {
     }
   };
 
+  const postTitle = rpeSessionTitle(sesionMeta);
+  const postDetail = sesionMeta ? rpeSessionDetail(sesionMeta) : '';
+  const isPartido = sesionMeta?.tipo === 'partido';
   const formTitle = atletaNombre
     ? atletaNombre
     : tipo === 'post'
-      ? 'RPE de la sesión'
+      ? postTitle
       : 'Wellness del día';
 
   return (
@@ -187,8 +205,14 @@ export default function CoachWellnessScreen({ navigation, route }) {
         colorMarca={colorMarca}
         theme={theme}
         kicker="Wellness"
-        title={tipo === 'post' ? 'Wellness post' : 'Wellness pre'}
-        subtitle={formTitle}
+        title={tipo === 'post' ? postTitle : 'Wellness pre'}
+        subtitle={
+          tipo === 'post' && postDetail
+            ? atletaNombre
+              ? `${atletaNombre} · ${postDetail}`
+              : postDetail
+            : formTitle
+        }
         onBack={() => {
           if (returnToEquipo) {
             navigation.navigate({
@@ -216,7 +240,7 @@ export default function CoachWellnessScreen({ navigation, route }) {
           <>
             <Text style={[styles.sectionHead, { color: theme.text }]}>Historial por métrica (30 días)</Text>
             {showHistorialLoader ? (
-              <ActivityIndicator color={colorMarca} style={{ marginBottom: 16 }} />
+              <ClubSpinLoader size={40} style={{ marginBottom: 16 }} />
             ) : (
               <WellnessMetricsChart
                 series={historialSeries}
@@ -231,12 +255,20 @@ export default function CoachWellnessScreen({ navigation, route }) {
         ) : null}
 
         <Text style={[styles.sectionHead, { color: theme.text, marginTop: targetAtletaId ? 20 : 0 }]}>
-          {tipo === 'pre' ? 'Hoy (se renueva cada día)' : 'Después de entrenar'}
+          {tipo === 'pre'
+            ? 'Hoy (se renueva cada día)'
+            : isPartido
+              ? 'Después del partido'
+              : sesionMeta?.tipo === 'entrenamiento'
+                ? 'Después del entrenamiento'
+                : 'Después de la sesión'}
         </Text>
         <Text style={[styles.formHint, { color: theme.textMuted }]}>
           {tipo === 'pre'
             ? 'Deslizá cada barra del 1 al 10. Podés cargarlo aunque no haya sesión.'
-            : 'RPE de esta sesión (1–10).'}
+            : postDetail
+              ? `${postTitle} · ${postDetail}. Del 1 al 10.`
+              : 'RPE de esta sesión (1–10).'}
         </Text>
 
         {canPost ? (
@@ -281,7 +313,7 @@ export default function CoachWellnessScreen({ navigation, route }) {
           ))
         ) : (
           <WellnessScalePicker
-            label="RPE de la sesión"
+            label={postTitle}
             value={rpe}
             onChange={setRpe}
             accentColor={colorMarca}

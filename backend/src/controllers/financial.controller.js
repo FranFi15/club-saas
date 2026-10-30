@@ -1527,9 +1527,9 @@ const registerBulkManualPayment = asyncHandler(async (req, res) => {
         try {
             const atleta = await User.findById(payment.atleta).select('tutorPrincipal tutores rol roles');
             await createAppNotificationsMany(req.models, paymentNoticeUserIds(atleta, payment.atleta), {
-                tipo: 'pago_registrado',
-                titulo: 'Pago Registrado',
-                mensaje: `Se registró el pago de ${payment.plan?.nombre || 'cuota'} por $${payment.montoFinal}.`,
+            tipo: 'pago_registrado',
+            titulo: 'Pago Registrado',
+            mensaje: `Se registró el pago de ${payment.plan?.nombre || 'cuota'} por $${payment.montoFinal}.`,
                 referencia: payment._id,
             });
         } catch (e) {

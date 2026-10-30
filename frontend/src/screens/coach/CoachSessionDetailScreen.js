@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  ActivityIndicator,
   StatusBar,
   Switch,
   Modal,
@@ -26,12 +25,15 @@ import { getToken } from '../../utils/storage';
 import { clubApi } from '../../utils/api';
 import CustomAlert, { AlertHost } from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import DesignCard from '../../components/DesignCard';
 import UserAvatar from '../../components/UserAvatar';
 import CalendarDateField from '../../components/CalendarDateField';
+import FilterPillSheet from '../../components/FilterPillSheet';
 import { displayDateToIsoCalendar, isoCalendarDateToDisplay } from '../../utils/dateDisplay';
 import { maskTimeHHMM, isValidTimeHHMM } from '../../utils/timeDisplay';
 import { sessionDisplayName, sessionEsOpcional, sessionTipoLabel, consultaConfirmacionEstado, consultaConfirmacionLabel, isSessionReadOnly, isSessionPast } from '../../utils/sessionDisplay';
+import Foldable from '../../components/Foldable';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { formatUserName } from '../../utils/listSort';
 
@@ -74,6 +76,25 @@ function draftFromPlanBloque(b) {
   };
 }
 
+function athletesAlreadyOnSession(sess) {
+  if (!sess) return [];
+  if (sess.tipo === 'consulta_nutricion' || sess.tipo === 'consulta_psicologia') {
+    const ind = sess.atletaIndividual;
+    return ind && typeof ind === 'object' ? [ind] : [];
+  }
+  if (sess.tipo === 'partido') {
+    return (sess.listaBuenaFe || [])
+      .filter((row) => row.tipoPersona !== 'staff' && row.usuario && typeof row.usuario === 'object')
+      .map((row) => row.usuario);
+  }
+  const byId = new Map();
+  (sess.asistencia || []).forEach((row) => {
+    const athlete = row.atleta;
+    if (athlete && typeof athlete === 'object' && athlete._id) byId.set(String(athlete._id), athlete);
+  });
+  return [...byId.values()];
+}
+
 export default function CoachSessionDetailScreen({ navigation, route }) {
   const sessionId = route.params?.sessionId;
   const { clubData } = useContext(ClubContext);
@@ -91,6 +112,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
   const [session, setSession] = useState(() => cachedSession?.session ?? null);
   const [roster, setRoster] = useState(() => cachedSession?.roster ?? []);
   const [attendance, setAttendance] = useState(() => cachedSession?.attendance ?? {});
+  const [dorsals, setDorsals] = useState(() => cachedSession?.dorsals ?? {});
   /** Atletas con wellness pre cargado hoy (ids como string). */
   const [wellnessPreDoneToday, setWellnessPreDoneToday] = useState(
     () => new Set(cachedSession?.wellnessPreDoneToday ?? []),
@@ -112,8 +134,13 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
   const [timerPaused, setTimerPaused] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
   const tickRef = useRef(null);
+  const sessionRef = useRef(null);
+  const openGenRef = useRef(0);
+  sessionRef.current = session;
 
   const [detailTab, setDetailTab] = useState('checkin');
+  const [matchSheets, setMatchSheets] = useState(() => cachedSession?.matchSheets ?? []);
+  const [sheetPickerOpen, setSheetPickerOpen] = useState(null);
   const [spaces, setSpaces] = useState(() => cachedSession?.spaces ?? []);
   const [freeSpaces, setFreeSpaces] = useState(() => cachedSession?.freeSpaces ?? []);
   const [editFecha, setEditFecha] = useState('');
@@ -189,6 +216,12 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
       const id = row.atleta?._id || row.atleta;
       if (id) map[id] = row.estado || 'ausente';
     });
+    const dorsals = {};
+    (sess.listaBuenaFe || []).forEach((row) => {
+      if (row.tipoPersona === 'staff') return;
+      const id = row.usuario?._id || row.usuario;
+      if (id) dorsals[String(id)] = String(row.dorsal || '').replace(/\D/g, '').slice(0, 3);
+    });
     athletes.forEach((a) => {
       const id = a._id;
       if (map[id] == null) map[id] = null;
@@ -230,6 +263,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
       roster: athletes,
       wellnessPreDoneToday: [...donePre],
       attendance: map,
+      dorsals,
       executedBlocks: nextExecutedBlocks,
       planNombre: plan?._id ? plan.nombre || defaultNombre : defaultNombre,
       planObjetivo: plan?._id ? plan.objetivoSesion || '' : '',
@@ -245,7 +279,9 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
     setRoster(data.roster ?? []);
     setWellnessPreDoneToday(new Set(data.wellnessPreDoneToday ?? []));
     setAttendance(data.attendance ?? {});
+    setDorsals(data.dorsals ?? {});
     setExecutedBlocks(data.executedBlocks ?? []);
+    setMatchSheets(data.matchSheets ?? []);
     if (data.preservePlanNombre) {
       setPlanNombre(data.planNombre ?? '');
       setPlanObjetivo(data.planObjetivo ?? '');
@@ -257,53 +293,49 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
 
   const fetchSessionData = useCallback(async () => {
     if (!sessionId) return null;
+    const gen = ++openGenRef.current;
     const h = await headers();
     const { data: sess } = await clubApi.get(`/sessions/${sessionId}`, { headers: h });
+    if (gen !== openGenRef.current) return null;
     const catId = sess.categoria?._id || sess.categoria;
-
-    let espaciosLibres = [];
     const isConsulta = sess.tipo === 'consulta_nutricion' || sess.tipo === 'consulta_psicologia';
-    if (!isConsulta && sess.fecha && sess.horaInicio && sess.horaFin) {
-      try {
-        const { data: freeData } = await clubApi.get('/spaces/libres', {
-          headers: h,
-          params: {
-            fecha: sess.fecha,
-            horaInicio: sess.horaInicio,
-            horaFin: sess.horaFin,
-            excludeSessionId: sessionId,
-          },
-        });
-        espaciosLibres = freeData.espaciosLibres || [];
-      } catch {
-        espaciosLibres = [];
-      }
+    const alreadyOpen = String(sessionRef.current?._id || '') === String(sess._id);
+
+    if (!alreadyOpen) {
+      const seeded = isConsulta || sess.tipo === 'partido' ? athletesAlreadyOnSession(sess) : [];
+      const firstPaint = buildSessionPayload(sess, [], seeded, []);
+      firstPaint.matchSheets = [];
+      applySessionData(firstPaint);
     }
 
-    const { data: enrollments } = await clubApi.get(`/enrollments/categoria/${catId}`, { headers: h });
-    let athletes = enrollments.map((e) => e.atleta).filter(Boolean);
-    if (sess.tipo === 'consulta_nutricion' || sess.tipo === 'consulta_psicologia') {
+    const [enrollmentsRes, wellnessRes, sheetsRes] = await Promise.all([
+      catId
+        ? clubApi.get(`/enrollments/categoria/${catId}`, { headers: h }).catch(() => ({ data: [] }))
+        : Promise.resolve({ data: [] }),
+      catId && !isConsulta
+        ? clubApi.get(`/wellness/equipo/${catId}`, { headers: h }).catch(() => ({ data: [] }))
+        : Promise.resolve({ data: [] }),
+      sess.tipo === 'partido'
+        ? clubApi.get('/sessions/match-sheets', { headers: h }).catch(() => ({ data: [] }))
+        : Promise.resolve({ data: [] }),
+    ]);
+    if (gen !== openGenRef.current) return null;
+
+    let athletes = (enrollmentsRes.data || []).map((row) => row.atleta).filter(Boolean);
+    if (isConsulta) {
       const ind = sess.atletaIndividual;
-      if (ind && typeof ind === 'object') {
-        athletes = [ind];
-      } else if (ind) {
-        const found = athletes.find((a) => String(a._id) === String(ind));
+      if (ind && typeof ind === 'object') athletes = [ind];
+      else if (ind) {
+        const found = athletes.find((athlete) => String(athlete._id) === String(ind));
         athletes = found ? [found] : athletes;
       }
     }
+    if (!athletes.length) athletes = athletesAlreadyOnSession(sess);
 
-    let wellnessToday = [];
-    if (catId) {
-      try {
-        const { data } = await clubApi.get(`/wellness/equipo/${catId}`, { headers: h });
-        wellnessToday = data || [];
-      } catch {
-        /* sin bloquear check-in */
-      }
-    }
-
-    return buildSessionPayload(sess, espaciosLibres, athletes, wellnessToday);
-  }, [sessionId, clubData?.urlIdentifier, buildSessionPayload]);
+    const payload = buildSessionPayload(sess, [], athletes, wellnessRes.data || []);
+    payload.matchSheets = sheetsRes.data || [];
+    return payload;
+  }, [sessionId, clubData?.urlIdentifier, buildSessionPayload, applySessionData, headers]);
 
   const { loading, reload } = useCachedFocusLoad({
     cacheKey: sessionCacheKey,
@@ -421,6 +453,23 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
     if (!currentId) return true;
     return String(currentId) !== homeId;
   }, [session, readOnly]);
+  const isPartido = session?.tipo === 'partido';
+  const attendancePeople = useMemo(() => {
+    if (!isPartido) return roster;
+    return (session?.listaBuenaFe || [])
+      .filter((row) => row.tipoPersona !== 'staff')
+      .map((row) => {
+        const user = row.usuario;
+        if (user && typeof user === 'object' && user._id) return user;
+        const id = user?._id || user;
+        return roster.find((athlete) => String(athlete._id) === String(id)) || { _id: id, nombre: 'Jugador', apellido: '' };
+      })
+      .filter((person) => person?._id);
+  }, [isPartido, session?.listaBuenaFe, roster]);
+  const listaStaff = useMemo(() => {
+    if (!isPartido) return [];
+    return (session?.listaBuenaFe || []).filter((row) => row.tipoPersona === 'staff');
+  }, [isPartido, session?.listaBuenaFe]);
   const availableSpaces = useMemo(() => freeSpaces, [freeSpaces]);
   const plan = session?.planEntrenamiento;
   const hasPlan = !!(plan?.bloques?.length > 0);
@@ -431,6 +480,21 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
     setEditingPlanDraft(false);
     setSessionMetaOpen(false);
   }, [session?._id]);
+
+  const applyMatchSheet = async (planillaId) => {
+    if (!sessionId || !planillaId) return;
+    setSheetPickerOpen(null);
+    setSaving(true);
+    try {
+      const h = await headers();
+      await clubApi.put(`/sessions/${sessionId}/planilla`, { planillaId }, { headers: h });
+      await reload({ background: true });
+    } catch (e) {
+      showAlert('Planilla', e.response?.data?.message || 'No se pudo usar esa planilla.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const restoreHomeSpace = async () => {
     if (!sessionId || !canRestoreHome) return;
@@ -450,7 +514,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
   const saveAttendance = async ({ notify = true, nextMap, silent = false } = {}) => {
     if (!sessionId || readOnly) return;
     const map = nextMap || attendance;
-    const asistencia = roster
+    const asistencia = attendancePeople
       .filter((a) => map[a._id] != null)
       .map((a) => ({
         atleta: a._id,
@@ -460,15 +524,20 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
 
     if (!asistencia.length) {
       if (!silent) {
-        showAlert('Asistencia', 'Marcá al menos un atleta antes de guardar o avisar.');
+        showAlert(
+          'Asistencia',
+          isPartido
+            ? 'Marcá al menos un jugador de la lista de buena fe.'
+            : 'Marcá al menos un atleta antes de guardar o avisar.',
+        );
       }
       return;
     }
 
-    if (notify && asistencia.length < roster.length) {
+    if (notify && asistencia.length < attendancePeople.length) {
       showAlert(
         'Faltan marcas',
-        `Marcaste ${asistencia.length} de ${roster.length}. Completá la lista antes de avisar a las familias, o guardá sin avisar.`,
+        `Marcaste ${asistencia.length} de ${attendancePeople.length}. Completá la lista antes de avisar a las familias, o guardá sin avisar.`,
       );
       return;
     }
@@ -476,6 +545,20 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
     setSaving(true);
     try {
       const h = await headers();
+      if (isPartido) {
+        const lista = (session?.listaBuenaFe || []).map((row) => {
+          const id = String(row.usuario?._id || row.usuario);
+          const staff = row.tipoPersona === 'staff';
+          return {
+            usuario: id,
+            tipoPersona: staff ? 'staff' : 'jugador',
+            dorsal: staff
+              ? String(row.dorsal || '').slice(0, 4)
+              : String(dorsals[id] || '').replace(/\D/g, '').slice(0, 3),
+          };
+        });
+        await clubApi.put(`/sessions/${sessionId}/lista`, { lista }, { headers: h });
+      }
       await clubApi.put(
         `/sessions/${sessionId}/asistencia`,
         { asistencia, estado: session?.estado || 'programada', notify },
@@ -497,7 +580,6 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
     }
   };
 
-  const attendanceSaveTimerRef = useRef(null);
   const entrenoScrollRef = useRef(null);
   const entrenoScrollYRef = useRef(0);
   const entrenoFocusedInputRef = useRef(null);
@@ -573,22 +655,18 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
 
   const setAthleteAttendance = (atletaId, estado) => {
     if (readOnly) return;
-    const next = { ...attendance, [atletaId]: estado };
-    setAttendance(next);
-    if (attendanceSaveTimerRef.current) clearTimeout(attendanceSaveTimerRef.current);
-    attendanceSaveTimerRef.current = setTimeout(() => {
-      saveAttendance({ notify: false, nextMap: next, silent: true });
-    }, 450);
+    setAttendance((prev) => ({ ...prev, [atletaId]: estado }));
   };
 
   const markAllPresent = () => {
-    if (readOnly || !roster.length) return;
-    const next = { ...attendance };
-    roster.forEach((a) => {
-      next[a._id] = 'presente';
+    if (readOnly || !attendancePeople.length) return;
+    setAttendance((prev) => {
+      const next = { ...prev };
+      attendancePeople.forEach((a) => {
+        next[a._id] = 'presente';
+      });
+      return next;
     });
-    setAttendance(next);
-    saveAttendance({ notify: false, nextMap: next, silent: true });
   };
 
   const startEditingPlan = () => {
@@ -950,7 +1028,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
         <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-        <ActivityIndicator color={colorMarca} style={{ marginTop: 40 }} />
+        <ClubSpinLoader style={{ flex: 1 }} />
       </SafeAreaView>
     );
   }
@@ -1280,6 +1358,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
           </TouchableOpacity>
         }
         footer={
+          isPartido ? null : (
           <View style={styles.headerTabs}>
             {[
               { key: 'checkin', label: 'Check-in' },
@@ -1306,6 +1385,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
               );
             })}
           </View>
+          )
         }
       />
 
@@ -1488,8 +1568,90 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
         </KeyboardAvoidingView>
       </Modal>
 
-      {detailTab === 'checkin' ? (
-        <ScrollView contentContainerStyle={styles.scroll}>
+      {isPartido || detailTab === 'checkin' ? (
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          {isPartido ? (
+            <>
+              <TouchableOpacity
+                onPress={() => setSheetPickerOpen('planilla')}
+                style={[styles.secondaryOutlineBtn, { borderColor: colorMarca, marginTop: 0, marginBottom: 10 }]}
+                disabled={saving}
+              >
+                <Text style={{ color: colorMarca, fontWeight: '800', textAlign: 'center' }}>
+                  Seleccionar plantilla
+                </Text>
+                {session?.planilla?.nombre ? (
+                  <Text style={{ color: theme.textMuted, fontWeight: '600', textAlign: 'center', marginTop: 4 }}>
+                    {session.planilla.nombre}
+                  </Text>
+                ) : null}
+              </TouchableOpacity>
+              {session?.planilla?.sheetId && navigation.getState()?.routeNames?.includes('CoachMatchSheet') ? (
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('CoachMatchSheet', { sheetId: session.planilla.sheetId })}
+                  style={[styles.secondaryOutlineBtn, { borderColor: colorMarca, marginTop: 0, marginBottom: 10 }]}
+                  disabled={saving}
+                >
+                  <Text style={{ color: colorMarca, fontWeight: '800', textAlign: 'center' }}>
+                    Editar planilla
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                onPress={() => navigation.navigate('CoachMatchCourt', { sessionId })}
+                style={{ backgroundColor: colorMarca, borderRadius: 12, padding: 14, marginBottom: 12 }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '800', textAlign: 'center' }}>Abrir cancha</Text>
+              </TouchableOpacity>
+              <FilterPillSheet
+                hidePills
+                pills={[
+                  {
+                    key: 'planilla',
+                    placeholder: 'Plantilla',
+                    value: session?.planilla?.sheetId || '',
+                    searchable: true,
+                    sections: [
+                      {
+                        title: '',
+                        data: matchSheets.map((sheet) => ({
+                          value: sheet._id,
+                          label: sheet.nombre || 'Planilla',
+                          onEdit: navigation.getState()?.routeNames?.includes('CoachMatchSheet')
+                            ? () => navigation.navigate('CoachMatchSheet', { sheetId: sheet._id })
+                            : undefined,
+                        })),
+                      },
+                    ],
+                    onChange: (planillaId) => {
+                      applyMatchSheet(planillaId);
+                    },
+                    footerActions: navigation.getState()?.routeNames?.includes('CoachMatchSheet')
+                      ? [
+                          {
+                            label: 'Crear planilla',
+                            icon: 'add-circle-outline',
+                            onPress: () => navigation.navigate('CoachMatchSheet'),
+                          },
+                          ...(session?.planilla?.sheetId
+                            ? [{
+                                label: 'Editar planilla',
+                                icon: 'create-outline',
+                                onPress: () => navigation.navigate('CoachMatchSheet', { sheetId: session.planilla.sheetId }),
+                              }]
+                            : []),
+                        ]
+                      : undefined,
+                  },
+                ]}
+                openKey={sheetPickerOpen}
+                onOpen={setSheetPickerOpen}
+                onClose={() => setSheetPickerOpen(null)}
+                colorMarca={colorMarca}
+                theme={theme}
+              />
+            </>
+          ) : null}
           {readOnly ? (
             <View style={[styles.reopenBanner, { borderColor: '#6b7280', backgroundColor: theme.surface, marginBottom: 12 }]}>
               <Ionicons name="lock-closed-outline" size={22} color="#6b7280" />
@@ -1556,8 +1718,15 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
             </View>
           ) : null}
 
-          <Text style={[styles.section, { color: theme.text }]}>Asistencia</Text>
-          {!readOnly ? (
+          <Text style={[styles.section, { color: theme.text }]}>
+            {isPartido ? 'Lista de buena fe' : 'Asistencia'}
+          </Text>
+          {isPartido && !attendancePeople.length ? (
+            <Text style={[styles.hint, { color: theme.textMuted }]}>
+              Este partido no tiene jugadores en la lista de buena fe.
+            </Text>
+          ) : null}
+          {!readOnly && attendancePeople.length ? (
             <TouchableOpacity
               style={[styles.markAllBtn, { borderColor: '#22c55e', backgroundColor: '#22c55e18' }]}
               onPress={markAllPresent}
@@ -1567,7 +1736,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
               <Text style={{ color: '#22c55e', fontWeight: '800', fontSize: 13 }}>Marcar todos presentes</Text>
             </TouchableOpacity>
           ) : null}
-          {roster.map((a) => {
+          {attendancePeople.map((a) => {
             const aid = String(a._id);
             const needsWellness = !wellnessPreDoneToday.has(aid);
             const catId = session?.categoria?._id || session?.categoria;
@@ -1596,6 +1765,21 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                       <Text style={[styles.athStatus, { color: theme.textMuted }]}>Sin marcar</Text>
                     )}
                   </View>
+                  {isPartido ? (
+                    <TextInput
+                      value={dorsals[aid] || ''}
+                      onChangeText={(text) => {
+                        const next = text.replace(/\D/g, '').slice(0, 3);
+                        setDorsals((prev) => ({ ...prev, [aid]: next }));
+                      }}
+                      editable={!readOnly && !saving}
+                      keyboardType="number-pad"
+                      placeholder="Nº"
+                      placeholderTextColor={theme.textMuted}
+                      maxLength={3}
+                      style={[styles.dorsalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
+                    />
+                  ) : null}
                   {needsWellness ? (
                     <TouchableOpacity
                       style={[styles.wellnessBtn, { borderColor: colorMarca, backgroundColor: colorMarca + '18' }]}
@@ -1605,6 +1789,12 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                           atletaNombre: formatUserName(a),
                           categoriaId: catId,
                           sesion: sessionId,
+                          sesionMeta: {
+                            tipo: session?.tipo,
+                            categoria: { nombre: session?.categoria?.nombre },
+                            horaInicio: session?.horaInicio,
+                            horaFin: session?.horaFin,
+                          },
                         })
                       }
                       accessibilityLabel="Cargar wellness pre"
@@ -1658,21 +1848,47 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
               </DesignCard>
             );
           })}
-          {!readOnly ? (
-            <TouchableOpacity
-              style={[styles.primaryBtn, { backgroundColor: colorMarca, opacity: saving ? 0.7 : 1 }]}
-              onPress={() => saveAttendance({ notify: true, silent: false })}
-              disabled={saving}
-            >
-              <Text style={styles.primaryBtnTxt}>
-                {saving ? 'Guardando…' : 'Avisar a familias'}
+          {isPartido && listaStaff.length ? (
+            <View style={{ marginTop: 8, marginBottom: 8 }}>
+              <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Cuerpo técnico</Text>
+              {listaStaff.map((row) => (
+                <Text key={String(row.usuario?._id || row.usuario)} style={{ color: theme.text, marginBottom: 4 }}>
+                  {formatUserName(row.usuario, 'Staff')}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+          {!readOnly && attendancePeople.length ? (
+            <>
+              <Text style={[styles.hint, { color: theme.textMuted, marginTop: 4 }]}>
+                {isPartido
+                  ? 'Marcá a cada jugador, cargá su número y guardá la lista junta.'
+                  : 'Marcá a cada jugador y guardá la lista junta.'}
               </Text>
-            </TouchableOpacity>
-          ) : (
+              <TouchableOpacity
+                style={[styles.primaryBtn, { backgroundColor: colorMarca, opacity: saving ? 0.7 : 1 }]}
+                onPress={() => saveAttendance({ notify: false, silent: false })}
+                disabled={saving}
+              >
+                <Text style={styles.primaryBtnTxt}>
+                  {saving ? 'Guardando…' : 'Guardar asistencia'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.secondaryOutlineBtn, { borderColor: colorMarca, opacity: saving ? 0.7 : 1 }]}
+                onPress={() => saveAttendance({ notify: true, silent: false })}
+                disabled={saving}
+              >
+                <Text style={{ color: colorMarca, fontWeight: '800', textAlign: 'center' }}>
+                  Avisar a familias
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : readOnly ? (
             <Text style={[styles.hint, { color: theme.textMuted, marginTop: 8 }]}>
               Sesión cerrada — la asistencia ya no se puede editar desde aquí.
             </Text>
-          )}
+          ) : null}
         </ScrollView>
       ) : (
           <ScrollView
@@ -1814,7 +2030,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                         </TouchableOpacity>
                       </View>
 
-                      {d.moreOpen ? (
+                      <Foldable open={d.moreOpen}>
                         <View style={{ marginTop: 12 }}>
                           <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Formato</Text>
                           <TextInput
@@ -1867,7 +2083,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                             onFocus={ensureEntrenoInputVisible}
                           />
                         </View>
-                      ) : null}
+                      </Foldable>
 
                       {draftBlocks.length > 1 && !readOnly ? (
                         <TouchableOpacity
@@ -2187,6 +2403,16 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
   },
   athMeta: { flex: 1, minWidth: 0 },
+  dorsalInput: {
+    width: 52,
+    height: 40,
+    borderWidth: 1,
+    borderRadius: 10,
+    textAlign: 'center',
+    fontWeight: '800',
+    fontSize: 16,
+    paddingVertical: 0,
+  },
   athName: { fontSize: 15, fontWeight: '700' },
   athStatus: { fontSize: 12, fontWeight: '700', marginTop: 2 },
   wellnessBtn: {

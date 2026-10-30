@@ -11,6 +11,7 @@ import {
   Dimensions,
   Platform,
 } from 'react-native';
+import ClubSpinLoader from './ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../utils/api';
 import CourtImageBoard from './CourtImageBoard';
@@ -852,7 +853,7 @@ export default function CourtMetricPanel({
 
       {mode === 'historial' ? (
         <ScrollView style={{ maxHeight: 420 }}>
-          {loadingHist ? <ActivityIndicator color={cc} style={{ marginVertical: 20 }} /> : null}
+          {loadingHist ? <ClubSpinLoader size={40} style={{ marginVertical: 20 }} /> : null}
           {renderProgressChart(
             isTiempo ? 'Evolución del tiempo' : isTotal ? 'Evolución del total' : 'Evolución del %',
           )}
@@ -985,7 +986,7 @@ export default function CourtMetricPanel({
               </TouchableOpacity>
               <TouchableOpacity onPress={submitResult} disabled={savingResult}>
                 {savingResult ? (
-                  <ActivityIndicator color={cc} />
+                  <ClubSpinLoader size={40} />
                 ) : (
                   <Text style={{ color: cc, fontWeight: '800' }}>Guardar</Text>
                 )}

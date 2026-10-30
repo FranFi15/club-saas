@@ -4,6 +4,7 @@ import {
   ActivityIndicator, StatusBar, Modal, TextInput, RefreshControl, ScrollView,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -15,6 +16,7 @@ import { ThemeContext } from '../../context/ThemeContext';
 import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
+import ListTopFade from '../../components/ListTopFade';
 import FormSheet from '../../components/FormSheet';
 import DesignCard from '../../components/DesignCard';
 import SearchableDropdown from '../../components/SearchableDropdown';
@@ -44,13 +46,24 @@ export default function EspaciosFisicosScreen({ navigation }) {
   const spacesCacheKey = clubData?.urlIdentifier ? `admin-espacios:${clubData.urlIdentifier}` : '';
 
   const [spaces, setSpaces] = useState(() => readScreenCache(spacesCacheKey)?.list ?? []);
+  const [searchQuery, setSearchQuery] = useState('');
+  const filteredSpaces = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return spaces;
+    return spaces.filter((space) => {
+      const nombre = String(space.nombre || '').toLowerCase();
+      const tipo = String(space.tipo || '').toLowerCase();
+      return nombre.includes(q) || tipo.includes(q);
+    });
+  }, [spaces, searchQuery]);
   const {
     visibleItems: visibleSpaces,
     onEndReached,
     onEndReachedThreshold,
     ListFooterComponent,
-  } = useClientInfiniteScroll(spaces, {
+  } = useClientInfiniteScroll(filteredSpaces, {
     pageSize: 20,
+    resetKey: searchQuery,
     colorMarca,
     theme,
   });
@@ -527,15 +540,34 @@ export default function EspaciosFisicosScreen({ navigation }) {
         onBack={() => navigation.goBack()}
       />
 
+      <View style={styles.searchContainer}>
+        <View style={[styles.searchBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Ionicons name="search" size={20} color={theme.icon} style={styles.searchIcon} />
+          <TextInput
+            style={[styles.searchInput, { color: theme.text }]}
+            placeholder="Buscar por nombre o tipo..."
+            placeholderTextColor={theme.textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCorrect={false}
+          />
+          {searchQuery.length > 0 ? (
+            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={8}>
+              <Ionicons name="close-circle" size={20} color={theme.icon} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </View>
+
       <View style={styles.body}>
         {showInitialLoader ? (
-          <ActivityIndicator size="large" color={colorMarca} style={{ marginTop: 50 }} />
+          <ClubSpinLoader size={64} style={{ marginTop: 50 }} />
         ) : (
           <FlatList
              data={visibleSpaces}
              keyExtractor={(item) => item._id}
              renderItem={renderListItem}
-             contentContainerStyle={{ paddingBottom: 80, paddingTop: 20 }}
+             contentContainerStyle={{ paddingBottom: 80, paddingTop: 8 }}
              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
              onEndReached={onEndReached}
              onEndReachedThreshold={onEndReachedThreshold}
@@ -543,12 +575,19 @@ export default function EspaciosFisicosScreen({ navigation }) {
              ListEmptyComponent={
                <View style={styles.emptyState}>
                  <Ionicons name="map-outline" size={60} color={theme.icon} />
-                 <Text style={[styles.emptyText, { color: theme.text }]}>Sin espacios</Text>
-                 <Text style={[styles.emptySubText, { color: theme.textMuted }]}>No hay espacios físicos registrados.</Text>
+                 <Text style={[styles.emptyText, { color: theme.text }]}>
+                   {spaces.length === 0 ? 'Sin espacios' : 'Sin resultados'}
+                 </Text>
+                 <Text style={[styles.emptySubText, { color: theme.textMuted }]}>
+                   {spaces.length === 0
+                     ? 'No hay espacios físicos registrados.'
+                     : 'Probá con otro nombre o tipo.'}
+                 </Text>
                </View>
              }
           />
         )}
+        <ListTopFade color={theme.background} />
       </View>
 
       {canEditSpaces ? (
@@ -923,6 +962,17 @@ export default function EspaciosFisicosScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  searchContainer: { paddingHorizontal: 20, marginTop: 12, marginBottom: 4 },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 50,
+    borderRadius: 5,
+    paddingHorizontal: 15,
+    borderWidth: 1,
+  },
+  searchIcon: { marginRight: 10 },
+  searchInput: { flex: 1, fontSize: 16 },
   body: { flex: 1, paddingHorizontal: 20 },
   cardInner: { flexDirection: 'row', alignItems: 'center' },
   avatar: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginRight: 15 },

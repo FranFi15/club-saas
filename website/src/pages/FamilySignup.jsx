@@ -2,6 +2,20 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CLUB_API_URL, SUPER_API_URL, TERMS_URL, PRIVACY_URL, APP_URL } from '../api';
 import './FamilySignup.css';
 
+function emptyTutor() {
+  return {
+    nombre: '',
+    apellido: '',
+    email: '',
+    password: '',
+    telefono: '',
+    dni: '',
+    direccion: '',
+    obraSocial: '',
+    fotoPerfil: '',
+  };
+}
+
 function emptyAthlete() {
   return {
     nombre: '',
@@ -189,17 +203,7 @@ export default function FamilySignup() {
   const [clubNombre, setClubNombre] = useState(club);
   const [done, setDone] = useState(null);
   const [acceptTerms, setAcceptTerms] = useState(false);
-  const [tutor, setTutor] = useState({
-    nombre: '',
-    apellido: '',
-    email: '',
-    password: '',
-    telefono: '',
-    dni: '',
-    direccion: '',
-    obraSocial: '',
-    fotoPerfil: '',
-  });
+  const [tutores, setTutores] = useState([]);
   const [atletas, setAtletas] = useState([]);
 
   useEffect(() => {
@@ -232,6 +236,8 @@ export default function FamilySignup() {
         }
         setInvite(preview);
         setAtletas(preview.athleteSlots.map(() => emptyAthlete()));
+        const tutorSlots = Math.max(0, Number(preview.tutorCount) || 0);
+        setTutores(Array.from({ length: tutorSlots }, () => emptyTutor()));
       } catch (e) {
         if (!cancelled) setError(e.message || 'No se pudo cargar la invitación.');
       } finally {
@@ -244,7 +250,9 @@ export default function FamilySignup() {
     };
   }, [club, token]);
 
-  const updateTutor = (field, value) => setTutor((p) => ({ ...p, [field]: value }));
+  const updateTutor = (index, field, value) => {
+    setTutores((prev) => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  };
   const updateAthlete = (index, field, value) => {
     setAtletas((prev) => prev.map((a, i) => (i === index ? { ...a, [field]: value } : a)));
   };
@@ -259,29 +267,31 @@ export default function FamilySignup() {
       setError('Tenés que aceptar los Términos y la Política de privacidad.');
       return;
     }
-    if (requiereTutor) {
-      if (blank(tutor.nombre) || blank(tutor.apellido) || blank(tutor.email) || blank(tutor.password)) {
-        setError('Completá nombre, apellido, email y contraseña del tutor.');
+    for (let i = 0; i < tutores.length; i += 1) {
+      const t = tutores[i] || {};
+      const label = tutores.length === 1 ? 'el tutor' : `el tutor ${i + 1}`;
+      if (blank(t.nombre) || blank(t.apellido) || blank(t.email) || blank(t.password)) {
+        setError(`Completá nombre, apellido, email y contraseña de ${label}.`);
         return;
       }
-      if (blank(tutor.telefono)) {
-        setError('Indicá el teléfono del tutor.');
+      if (blank(t.telefono)) {
+        setError(`Indicá el teléfono de ${label}.`);
         return;
       }
-      if (blank(tutor.dni)) {
-        setError('Indicá el DNI del tutor.');
+      if (blank(t.dni)) {
+        setError(`Indicá el DNI de ${label}.`);
         return;
       }
-      if (blank(tutor.obraSocial)) {
-        setError('Indicá la obra social del tutor.');
+      if (blank(t.obraSocial)) {
+        setError(`Indicá la obra social de ${label}.`);
         return;
       }
-      if (blank(tutor.direccion)) {
-        setError('Indicá la dirección del tutor.');
+      if (blank(t.direccion)) {
+        setError(`Indicá la dirección de ${label}.`);
         return;
       }
-      if (blank(tutor.fotoPerfil)) {
-        setError('Subí una foto del tutor (cámara o galería).');
+      if (blank(t.fotoPerfil)) {
+        setError(`Subí una foto de ${label} (cámara o galería).`);
         return;
       }
     }
@@ -318,13 +328,13 @@ export default function FamilySignup() {
         club,
         method: 'POST',
         body: {
-          ...(requiereTutor
+          ...(tutores.length
             ? {
-                tutor: {
-                  ...tutor,
-                  direccion: tutor.direccion.trim(),
-                  fotoPerfil: tutor.fotoPerfil.trim(),
-                },
+                tutores: tutores.map((row) => ({
+                  ...row,
+                  direccion: row.direccion.trim(),
+                  fotoPerfil: row.fotoPerfil.trim(),
+                })),
               }
             : {}),
           atletas: atletas.map((a) => ({
@@ -354,7 +364,8 @@ export default function FamilySignup() {
   }
 
   if (done) {
-    const withTutor = Boolean(done.tutor);
+    const listedTutors = done.tutores?.length ? done.tutores : done.tutor ? [done.tutor] : [];
+    const withTutor = listedTutors.length > 0;
     return (
       <div className="fs-page">
         <div className="fs-card">
@@ -366,11 +377,11 @@ export default function FamilySignup() {
             definieron.
           </p>
           <ul className="fs-summary">
-            {done.tutor ? (
-              <li>
-                Tutor: {done.tutor.nombre} {done.tutor.apellido} ({done.tutor.email})
+            {listedTutors.map((t) => (
+              <li key={t._id || t.email}>
+                Tutor: {t.nombre} {t.apellido} ({t.email})
               </li>
-            ) : null}
+            ))}
             {(done.atletas || []).map((a) => (
               <li key={a._id}>
                 Atleta: {a.nombre} {a.apellido} — usuario:{' '}
@@ -407,15 +418,17 @@ export default function FamilySignup() {
         <h1 className="fs-title">{clubNombre || club}</h1>
         <p className="fs-lead">
           {requiereTutor
-            ? `Completá tus datos y los de ${athleteCount} atleta${athleteCount === 1 ? '' : 's'}. Las categorías ya las eligió el club.`
+            ? `Completá los datos de ${tutores.length} tutor${tutores.length === 1 ? '' : 'es'} y ${athleteCount} atleta${athleteCount === 1 ? '' : 's'}. Las categorías ya las eligió el club.`
             : `Completá tus datos para registrarte. La categoría ya la eligió el club.`}
         </p>
 
         {error ? <p className="fs-error">{error}</p> : null}
 
-        {requiereTutor ? (
-          <section className="fs-section">
-            <h2 className="fs-section-title">Tutor / responsable</h2>
+        {tutores.map((tutor, index) => (
+          <section className="fs-section" key={`tutor-${index}`}>
+            <h2 className="fs-section-title">
+              {tutores.length === 1 ? 'Tutor / responsable' : `Tutor ${index + 1}`}
+            </h2>
             <PhotoField
               label="Foto"
               value={tutor.fotoPerfil}
@@ -424,16 +437,16 @@ export default function FamilySignup() {
               club={club}
               token={token}
               required
-              onChange={(url) => updateTutor('fotoPerfil', url)}
+              onChange={(url) => updateTutor(index, 'fotoPerfil', url)}
             />
             <div className="fs-grid">
               <label className="fs-field">
                 <span>Nombre *</span>
-                <input required value={tutor.nombre} onChange={(e) => updateTutor('nombre', e.target.value)} />
+                <input required value={tutor.nombre} onChange={(e) => updateTutor(index, 'nombre', e.target.value)} />
               </label>
               <label className="fs-field">
                 <span>Apellido *</span>
-                <input required value={tutor.apellido} onChange={(e) => updateTutor('apellido', e.target.value)} />
+                <input required value={tutor.apellido} onChange={(e) => updateTutor(index, 'apellido', e.target.value)} />
               </label>
               <label className="fs-field">
                 <span>Email *</span>
@@ -442,14 +455,14 @@ export default function FamilySignup() {
                   type="email"
                   autoComplete="email"
                   value={tutor.email}
-                  onChange={(e) => updateTutor('email', e.target.value)}
+                  onChange={(e) => updateTutor(index, 'email', e.target.value)}
                 />
               </label>
               <PasswordField
                 label="Contraseña *"
                 required
                 value={tutor.password}
-                onChange={(e) => updateTutor('password', e.target.value)}
+                onChange={(e) => updateTutor(index, 'password', e.target.value)}
               />
               <label className="fs-field">
                 <span>Teléfono *</span>
@@ -458,19 +471,19 @@ export default function FamilySignup() {
                   type="tel"
                   autoComplete="tel"
                   value={tutor.telefono}
-                  onChange={(e) => updateTutor('telefono', e.target.value)}
+                  onChange={(e) => updateTutor(index, 'telefono', e.target.value)}
                 />
               </label>
               <label className="fs-field">
                 <span>DNI *</span>
-                <input required value={tutor.dni} onChange={(e) => updateTutor('dni', e.target.value)} />
+                <input required value={tutor.dni} onChange={(e) => updateTutor(index, 'dni', e.target.value)} />
               </label>
               <label className="fs-field">
                 <span>Obra social *</span>
                 <input
                   required
                   value={tutor.obraSocial}
-                  onChange={(e) => updateTutor('obraSocial', e.target.value)}
+                  onChange={(e) => updateTutor(index, 'obraSocial', e.target.value)}
                   placeholder="Ej. OSDE, Swiss Medical"
                 />
               </label>
@@ -480,13 +493,13 @@ export default function FamilySignup() {
                   required
                   autoComplete="street-address"
                   value={tutor.direccion}
-                  onChange={(e) => updateTutor('direccion', e.target.value)}
+                  onChange={(e) => updateTutor(index, 'direccion', e.target.value)}
                   placeholder="Calle, número, localidad"
                 />
               </label>
             </div>
           </section>
-        ) : null}
+        ))}
 
         {(invite?.athleteSlots || []).map((slot, index) => (
           <section className="fs-section" key={slot.slotId || index}>

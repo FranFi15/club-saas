@@ -1,5 +1,6 @@
 import React from 'react';
-import { Modal, View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { Modal, View, Text, StyleSheet } from 'react-native';
+import ClubSpinLoader from './ClubSpinLoader';
 
 /**
  * Blocking loading overlay for long-running generation / batch actions.
@@ -10,7 +11,6 @@ export default function BusyOverlay({
   title = 'Procesando…',
   hint = 'Esto puede tardar unos segundos. No cierres la pantalla.',
   theme,
-  color,
   asModal = true,
 }) {
   if (!visible) return null;
@@ -18,12 +18,11 @@ export default function BusyOverlay({
   const surface = theme?.surface || '#fff';
   const text = theme?.text || '#111';
   const muted = theme?.textMuted || '#6b7280';
-  const spinner = color || theme?.primary || '#2563eb';
 
   const body = (
     <View style={[styles.overlay, !asModal && styles.overlayAbsolute]}>
       <View style={[styles.card, { backgroundColor: surface }]}>
-        <ActivityIndicator size="large" color={spinner} />
+        <ClubSpinLoader size={64} />
         <Text style={[styles.title, { color: text }]}>{title}</Text>
         {hint ? <Text style={[styles.hint, { color: muted }]}>{hint}</Text> : null}
       </View>

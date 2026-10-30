@@ -9,6 +9,7 @@ import {
   ScrollView,
   StatusBar,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -112,7 +113,7 @@ export default function CoachCancelSessionScreen({ navigation, route }) {
       />
 
       {loading ? (
-        <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />
+        <ClubSpinLoader size={56} style={{ marginTop: 32 }} />
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <Text style={[styles.hint, { color: theme.textMuted }]}>

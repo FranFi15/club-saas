@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   RefreshControl,
   StatusBar,
-  ActivityIndicator,
   TextInput,
   Modal,
   ScrollView,
@@ -15,6 +14,7 @@ import {
   LayoutAnimation,
   Animated,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -617,7 +617,7 @@ export default function CoachCategoriesScreen({ navigation, route }) {
   const listFooter = (
     <View style={styles.footerBox}>
       {hasMoreVisible ? (
-        <ActivityIndicator color={colorMarca} style={{ marginVertical: 12 }} />
+        <ClubSpinLoader size={40} style={{ marginVertical: 12 }} />
       ) : filteredAthletes.length > 0 ? (
         <Text style={[styles.footerDone, { color: theme.textMuted }]}>Fin del listado</Text>
       ) : null}
@@ -643,7 +643,7 @@ export default function CoachCategoriesScreen({ navigation, route }) {
       />
 
       {showInitialLoader ? (
-        <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />
+        <ClubSpinLoader size={56} style={{ marginTop: 32 }} />
       ) : (
         <FlatList
           data={visibleAthletes}
@@ -747,7 +747,7 @@ export default function CoachCategoriesScreen({ navigation, route }) {
                 {panel === 'wellness' ? (
                   <AthletePanelReveal style={styles.panelBlock}>
                     {metricsLoading && !wellnessReady ? (
-                      <ActivityIndicator color={colorMarca} style={{ marginVertical: 16 }} />
+                      <ClubSpinLoader size={40} style={{ marginVertical: 16 }} />
                     ) : (
                       <>
                         <TouchableOpacity
@@ -820,7 +820,7 @@ export default function CoachCategoriesScreen({ navigation, route }) {
                 {panel === 'asistencias' ? (
                   <AthletePanelReveal style={styles.panelBlock}>
                     {metricsLoading && !attendanceReady ? (
-                      <ActivityIndicator color={colorMarca} style={{ marginVertical: 16 }} />
+                      <ClubSpinLoader size={40} style={{ marginVertical: 16 }} />
                     ) : (
                       <>
                         {renderAttendanceSummary(a._id, catId)}

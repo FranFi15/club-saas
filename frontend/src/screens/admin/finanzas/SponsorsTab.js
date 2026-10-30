@@ -15,6 +15,7 @@ import {
   StyleSheet,
   Pressable,
 } from 'react-native';
+import ClubSpinLoader from '../../../components/ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import FormSheet from '../../../components/FormSheet';
 import { clubApi } from '../../../utils/api';
@@ -456,7 +457,7 @@ export default function SponsorsTab({
       </View>
 
       {loading && !sponsors.length ? (
-        <ActivityIndicator color={cc} style={{ marginTop: 40 }} />
+        <ClubSpinLoader size={56} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={visibleItems}
@@ -623,7 +624,7 @@ export default function SponsorsTab({
                 ) : (
                   <View style={[styles.photoPlaceholder, { borderColor: theme.border, backgroundColor: theme.background }]}>
                     {uploading ? (
-                      <ActivityIndicator color={cc} />
+                      <ClubSpinLoader size={40} />
                     ) : (
                       <>
                         <Ionicons name="camera-outline" size={24} color={theme.textMuted} />

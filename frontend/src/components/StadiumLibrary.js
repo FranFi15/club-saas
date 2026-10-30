@@ -12,6 +12,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
+import ClubSpinLoader from './ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../utils/api';
 import StadiumAreaStage from './StadiumAreaStage';
@@ -264,7 +265,7 @@ export default function StadiumLibrary({
                   style={draft.mapaUrl ? { marginBottom: 8 } : [styles.mapPicker, { borderColor: theme.border, backgroundColor: theme.surface }]}
                 >
                   {uploading ? (
-                    <ActivityIndicator color={colorMarca} />
+                    <ClubSpinLoader size={40} />
                   ) : (
                     <Text style={{ color: draft.mapaUrl ? colorMarca : theme.textMuted, fontWeight: '700' }}>
                       {draft.mapaUrl ? 'Cambiar plano' : 'Subir plano'}

@@ -4,11 +4,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import NotificationBell from './NotificationBell';
 import HeaderClubLogo, { HEADER_CLUB_LOGO_SIZE } from './HeaderClubLogo';
+import HeaderBottomFade, { HEADER_BOTTOM_FADE } from './HeaderBottomFade';
 import { statusBarStyleForColor } from '../utils/statusBarContrast';
 
 /** Altura del bloque de marca. Con toolbar (volver) hace falta un poco más. */
-export const COACH_HEADER_HEIGHT = 120;
-export const COACH_HEADER_HEIGHT_WITH_TOOLBAR = 146;
+export const COACH_HEADER_HEIGHT = 136;
+export const COACH_HEADER_HEIGHT_WITH_TOOLBAR = 162;
 
 const TOOLBAR_HEIGHT = 40;
 const TOOLBAR_TOP_PAD = 6;
@@ -20,7 +21,7 @@ const HEADER_EDGE = 12;
 const FAB_SIZE = 40;
 const FAB_GAP = 8;
 const FAB_CLEAR_OF_BELL = HEADER_EDGE + NOTIFICATION_BTN_SIZE + FAB_GAP;
-/** Dos botones (estadísticas + nueva sesión) más el hueco de la campana. */
+/** Dos botones del header (partidos + estadísticas) más el hueco de la campana. */
 const FAB_PAIR_INSET = FAB_CLEAR_OF_BELL + FAB_SIZE + FAB_GAP + FAB_SIZE + 8;
 /** Espacio reservado a la derecha del texto cuando hay avatar en el hero. */
 export const COACH_HEADER_HERO_RIGHT_SIZE = 100;
@@ -39,7 +40,6 @@ export default function CoachScreenHeader({
   rightAccessory,
   heroRight,
   footer,
-  reserveOverlaySpace = false,
   showNotifications = true,
   showClubLogo = true,
 }) {
@@ -68,6 +68,7 @@ export default function CoachScreenHeader({
 
   return (
     <View
+      pointerEvents="box-none"
       style={[
         styles.heroWrap,
         {
@@ -108,8 +109,6 @@ export default function CoachScreenHeader({
                 showNotifications ? BACK_BTN_SIZE + 10 : 0,
               ),
             },
-            reserveOverlaySpace && styles.heroBodyFabInset,
-            showNotifications && reserveOverlaySpace && styles.heroBodyWithBackAndFabs,
           ]}
         >
           {displayClubLogo ? <HeaderClubLogo size={HEADER_CLUB_LOGO_SIZE} /> : null}
@@ -150,6 +149,7 @@ export default function CoachScreenHeader({
           </View>
         ) : null}
       </View>
+      <HeaderBottomFade color={colorMarca} background={theme?.background} />
     </View>
   );
 }
@@ -204,7 +204,7 @@ export function CoachHeaderBadge({ children }) {
 }
 
 const styles = StyleSheet.create({
-  heroWrap: { width: '100%' },
+  heroWrap: { width: '100%', zIndex: 2, marginBottom: HEADER_BOTTOM_FADE },
   headerFabHost: {
     position: 'relative',
     zIndex: 2,
@@ -213,11 +213,12 @@ const styles = StyleSheet.create({
   headerFabOverlay: {
     position: 'absolute',
     right: FAB_CLEAR_OF_BELL,
-    bottom: 10,
+    bottom: 22 + HEADER_BOTTOM_FADE,
     flexDirection: 'row',
     alignItems: 'center',
     gap: FAB_GAP,
-    zIndex: 3,
+    zIndex: 20,
+    elevation: 8,
   },
   hero: {
     borderRadius: 0,

@@ -5,9 +5,9 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   StatusBar,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import QRCode from 'react-native-qrcode-svg';
 import { Ionicons } from '@expo/vector-icons';
@@ -203,7 +203,7 @@ export default function MemberClubEntryScreen({ navigation, route }) {
 
           <View style={styles.qrWrap}>
             {loading && !qrValue ? (
-              <ActivityIndicator size="large" color={colorMarca} />
+              <ClubSpinLoader size={64} />
             ) : qrValue ? (
               <QRCode value={qrValue} size={220} backgroundColor="#fff" color="#111827" />
             ) : (

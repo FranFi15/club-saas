@@ -4,7 +4,6 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
-  ActivityIndicator,
   RefreshControl,
   TextInput,
   StyleSheet,
@@ -12,6 +11,8 @@ import {
   Pressable,
   Platform,
 } from 'react-native';
+import ClubSpinLoader from '../../../components/ClubSpinLoader';
+import ListTopFade from '../../../components/ListTopFade';
 import { Ionicons } from '@expo/vector-icons';
 import { finanzasStyles as s } from './finanzasStyles';
 import { ESTADO_FILTROS, fmtMoney, contrastOutlineBtn } from './finanzasConstants';
@@ -250,7 +251,7 @@ export default function AtletasPagosTab({
 
   const renderListEmpty = useCallback(() => {
     if (isLoadingPay) {
-      return <ActivityIndicator color={cc} style={{ marginTop: 40 }} size="large" />;
+      return <ClubSpinLoader size={64} style={{ marginTop: 40 }} />;
     }
     return (
       <View style={s.empty}>
@@ -311,7 +312,7 @@ export default function AtletasPagosTab({
 
         {showResumen ? (
           isLoadingStats ? (
-            <ActivityIndicator color={cc} style={{ marginBottom: 12 }} />
+            <ClubSpinLoader size={40} style={{ marginBottom: 12 }} />
           ) : (
             <>
               <View style={s.statsRow}>
@@ -414,11 +415,12 @@ export default function AtletasPagosTab({
               <Ionicons name="close-circle" size={20} color={theme.icon} />
             </TouchableOpacity>
           ) : isSearchPending ? (
-            <ActivityIndicator size="small" color={cc} />
+            <ClubSpinLoader size={26} />
           ) : null}
         </View>
       </View>
 
+      <View style={{ flex: 1 }}>
       <FlatList
         style={styles.list}
         data={athletes}
@@ -434,13 +436,15 @@ export default function AtletasPagosTab({
         onEndReachedThreshold={0.35}
         ListFooterComponent={
           loadingMorePayments ? (
-            <ActivityIndicator color={cc} style={{ marginVertical: 16 }} />
+            <ClubSpinLoader size={40} style={{ marginVertical: 16 }} />
           ) : null
         }
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cc} colors={[cc]} />
         }
       />
+      <ListTopFade color={theme.background} />
+      </View>
 
       <Modal visible={filterOpen} transparent animationType="fade" onRequestClose={() => setFilterOpen(false)}>
         <View style={styles.menuOverlay}>

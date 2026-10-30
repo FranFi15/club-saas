@@ -6,10 +6,10 @@ import {
   Modal,
   TouchableOpacity,
   Image,
-  ActivityIndicator,
   Platform,
   StatusBar,
 } from 'react-native';
+import ClubSpinLoader from './ClubSpinLoader';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -171,7 +171,7 @@ export default function VisitorCameraModal({
               accessibilityLabel="Capturar"
             >
               <View style={styles.shutterInner}>
-                {capturing ? <ActivityIndicator color="#111" /> : null}
+                {capturing ? <ClubSpinLoader size={40} /> : null}
               </View>
             </TouchableOpacity>
           )}

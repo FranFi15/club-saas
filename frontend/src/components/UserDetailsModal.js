@@ -1,8 +1,15 @@
 // src/components/UserDetailsModal.js
 import React, { useContext, useState, useEffect } from 'react';
-import { 
-  View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Linking, ActivityIndicator
+import {
+  View,
+  Text,
+  StyleSheet,
+  Modal,
+  TouchableOpacity,
+  ScrollView,
+  Linking,
 } from 'react-native';
+import ClubSpinLoader from './ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ThemeContext } from '../context/ThemeContext';
@@ -150,7 +157,7 @@ export default function UserDetailsModal({ visible, user, onClose, onEdit, onDel
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>Planteles Inscriptos</Text>
                 
                 {loadingCats ? (
-                  <ActivityIndicator size="small" color={colorMarca} style={{ alignSelf: 'flex-start' }} />
+                  <ClubSpinLoader size={26} style={{ alignSelf: 'flex-start' }} />
                 ) : enrollments.length > 0 ? (
                   enrollments.map((enc) => (
                     <View key={enc._id} style={styles.familyRow}>
@@ -166,7 +173,7 @@ export default function UserDetailsModal({ visible, user, onClose, onEdit, onDel
               </View>
             )}
 
-            {(user.tutorPrincipal || (user.familiaresACargo && user.familiaresACargo.length > 0)) && (
+            {(user.tutorPrincipal || (user.tutores && user.tutores.length > 0) || (user.familiaresACargo && user.familiaresACargo.length > 0)) && (
               <View style={[styles.infoCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>Vínculos Familiares</Text>
                 
@@ -178,6 +185,14 @@ export default function UserDetailsModal({ visible, user, onClose, onEdit, onDel
                     </Text>
                   </View>
                 )}
+                {(user.tutores || []).filter((tutor) => tutor && (tutor.nombre || tutor.apellido)).map((tutor) => (
+                  <View key={String(tutor._id)} style={styles.familyRow}>
+                    <Ionicons name="person-outline" size={18} color={theme.icon} />
+                    <Text style={[styles.familyText, { color: theme.text }]}>
+                      Tutor: {formatUserName(tutor)}
+                    </Text>
+                  </View>
+                ))}
 
                 {user.familiaresACargo && user.familiaresACargo.length > 0 && (
                   <>

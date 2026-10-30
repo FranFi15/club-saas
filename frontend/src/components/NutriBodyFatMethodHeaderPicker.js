@@ -6,8 +6,8 @@ import {
   TouchableOpacity,
   Modal,
   Pressable,
-  ActivityIndicator,
 } from 'react-native';
+import ClubSpinLoader from './ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { BODY_FAT_METHOD_OPTIONS, bodyFatMethodLabel } from '../utils/nutriBodyComposition';
 import { useNutritionSettings } from '../context/NutritionSettingsContext';
@@ -81,7 +81,7 @@ export default function NutriBodyFatMethodHeaderPicker({ theme, colorMarca = '#3
                 </TouchableOpacity>
               );
             })}
-            {saving ? <ActivityIndicator style={{ marginTop: 12 }} /> : null}
+            {saving ? <ClubSpinLoader size={40} style={{ marginTop: 12 }} /> : null}
           </Pressable>
         </Pressable>
       </Modal>

@@ -3,7 +3,8 @@ import { LogBox } from 'react-native';
 import { initPushNotifications } from './src/services/pushNotifications';
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
-import React from 'react';
+import React, { useEffect } from 'react';
+import { lockAppPortrait } from './src/hooks/useLandscapeLock';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ClubProvider } from './src/context/ClubContext';
@@ -41,6 +42,10 @@ if (sentryDsn) {
 }
 
 function App() {
+  useEffect(() => {
+    lockAppPortrait();
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>

@@ -11,6 +11,7 @@ import {
   RefreshControl,
   AppState,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -21,6 +22,7 @@ import { isoCalendarDateToDisplay } from '../../utils/dateDisplay';
 import { persistUserTokensFromProfile } from '../../utils/profileTokens';
 import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScreenHeader';
+import Foldable, { FoldableChevron } from '../../components/Foldable';
 import ProfileEditDataButton from '../../components/ProfileEditDataButton';
 import ProfileClubEntryButton from '../../components/ProfileClubEntryButton';
 import ProfileLogoutButton from '../../components/ProfileLogoutButton';
@@ -208,6 +210,48 @@ export default function AdminProfileScreen({ navigation }) {
     }
   };
 
+  const unlinkMercadoPago = async () => {
+    setMpSaving(true);
+    try {
+      const h = await getHeaders();
+      await clubApi.delete('/mercadopago/integration', { headers: h });
+      setIntegration((prev) => ({
+        ...prev,
+        tokenSource: 'none',
+        linkedViaOauth: false,
+        maskedSuffix: null,
+        sellerMapped: false,
+        mercadopagoUserId: null,
+        envFallbackActive: false,
+      }));
+      showAlert('Listo', 'Mercado Pago quedó desvinculado. Los pagos por la app quedan pausados hasta que lo conectes de nuevo.');
+      if (typeof reload === 'function') reload({ background: true });
+    } catch (e) {
+      showAlert(
+        'No se pudo desvincular',
+        e.response?.data?.message || 'No pudimos desvincular Mercado Pago. Intentá de nuevo.',
+      );
+    } finally {
+      setMpSaving(false);
+    }
+  };
+
+  const confirmUnlinkMercadoPago = () => {
+    showAlert(
+      'Desvincular Mercado Pago',
+      'El club deja de cobrar por Mercado Pago hasta que conectes otra cuenta.',
+      {
+        showCancel: true,
+        isDanger: true,
+        confirmText: 'Desvincular',
+        onConfirm: () => {
+          setAlertConfig((p) => ({ ...p, visible: false }));
+          unlinkMercadoPago();
+        },
+      },
+    );
+  };
+
   const fullName = profile
     ? formatUserName(profile) ||
       'Tu cuenta'
@@ -247,7 +291,7 @@ export default function AdminProfileScreen({ navigation }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
       >
         {showInitialLoader ? (
-          <ActivityIndicator color={colorMarca} style={{ marginVertical: 24 }} />
+          <ClubSpinLoader size={40} style={{ marginVertical: 24 }} />
         ) : (
           <>
             <View style={[profileCardStyles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -263,14 +307,10 @@ export default function AdminProfileScreen({ navigation }) {
                   <Ionicons name="information-circle-outline" size={18} color={theme.icon} />
                   <Text style={[styles.detailsTitle, { color: theme.text }]}>Datos del perfil</Text>
                 </View>
-                <Ionicons
-                  name={detailsOpen ? 'chevron-up' : 'chevron-down'}
-                  size={20}
-                  color={theme.textMuted}
-                />
+                <FoldableChevron open={detailsOpen} color={theme.textMuted} size={20} />
               </TouchableOpacity>
 
-              {detailsOpen ? (
+              <Foldable open={detailsOpen}>
                 <>
                   <ProfileInfoRow
                     icon="calendar-outline"
@@ -349,22 +389,31 @@ export default function AdminProfileScreen({ navigation }) {
                     </>
                   ) : null}
                 </>
-              ) : null}
+              </Foldable>
             </View>
 
             {canManageMercadoPago ? (
               <TouchableOpacity
-                style={[styles.mpOAuthBtn, { opacity: mpSaving || loading ? 0.7 : 1 }]}
-                onPress={startMercadoPagoOAuth}
+                style={[
+                  styles.mpOAuthBtn,
+                  clubMpLinked && styles.mpUnlinkBtn,
+                  { opacity: mpSaving || loading ? 0.7 : 1 },
+                ]}
+                onPress={clubMpLinked ? confirmUnlinkMercadoPago : startMercadoPagoOAuth}
                 disabled={mpSaving || loading}
               >
                 {mpSaving || loading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <>
-                    <Ionicons name="wallet-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
+                    <Ionicons
+                      name={clubMpLinked ? 'unlink-outline' : 'wallet-outline'}
+                      size={20}
+                      color="#fff"
+                      style={{ marginRight: 8 }}
+                    />
                     <Text style={styles.mpOAuthBtnText}>
-                      {clubMpLinked ? 'Reconectar a Mercado Pago' : 'Conectar a Mercado Pago'}
+                      {clubMpLinked ? 'Desvincular Mercado Pago' : 'Conectar a Mercado Pago'}
                     </Text>
                   </>
                 )}
@@ -422,6 +471,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  mpUnlinkBtn: { backgroundColor: '#dc2626' },
   mpOAuthBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   mpHint: { fontSize: 12, lineHeight: 17, paddingHorizontal: 14, paddingBottom: 14, marginTop: -4 },
 });

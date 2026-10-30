@@ -4,10 +4,10 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  ActivityIndicator,
   RefreshControl,
   StatusBar,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -128,7 +128,7 @@ export default function AdminPendientesScreen({ navigation }) {
         onBack={() => navigation.goBack()}
       />
       {loading ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={colorMarca} />
+        <ClubSpinLoader size={56} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={visibleItems}

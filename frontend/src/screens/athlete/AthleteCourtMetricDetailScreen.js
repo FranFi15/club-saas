@@ -4,9 +4,9 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
   StatusBar,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
@@ -59,7 +59,7 @@ export default function AthleteCourtMetricDetailScreen({ navigation, route }) {
   if (loading) {
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
-        <ActivityIndicator color={cc} style={{ marginTop: 40 }} />
+        <ClubSpinLoader size={56} style={{ marginTop: 40 }} />
       </SafeAreaView>
     );
   }

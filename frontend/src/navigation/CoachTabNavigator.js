@@ -1,7 +1,8 @@
 import React, { useContext, useCallback } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { Platform } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { fadeStackScreenOptions } from './screenFade';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
@@ -10,11 +11,16 @@ import StaffProfileScreen from '../screens/staff/StaffProfileScreen';
 import { createProfileStack } from './createProfileStack';
 import CoachDashboardScreen from '../screens/coach/CoachDashboardScreen';
 import CoachAgendaScreen from '../screens/coach/CoachAgendaScreen';
+import CoachPartidosScreen from '../screens/coach/CoachPartidosScreen';
 import CoachRelocateSessionsScreen from '../screens/coach/CoachRelocateSessionsScreen';
 import CoachSessionDetailScreen from '../screens/coach/CoachSessionDetailScreen';
 import CoachNewSessionScreen from '../screens/coach/CoachNewSessionScreen';
 import CoachCancelSessionScreen from '../screens/coach/CoachCancelSessionScreen';
 import CoachSessionStatsScreen from '../screens/coach/CoachSessionStatsScreen';
+import CoachMatchCourtScreen from '../screens/coach/CoachMatchCourtScreen';
+import CoachMatchActionsScreen from '../screens/coach/CoachMatchActionsScreen';
+import CoachMatchSheetScreen from '../screens/coach/CoachMatchSheetScreen';
+import MatchReportScreen from '../screens/MatchReportScreen';
 import CoachCategoriesScreen from '../screens/coach/CoachCategoriesScreen';
 import CoachCategoryDetailScreen from '../screens/coach/CoachCategoryDetailScreen';
 import CoachWellnessScreen from '../screens/coach/CoachWellnessScreen';
@@ -46,7 +52,7 @@ const CoachProfileStackNav = createProfileStack(StaffProfileScreen);
 
 function CoachHomeStackNav() {
   return (
-    <CoachHomeStack.Navigator screenOptions={{ headerShown: false }}>
+    <CoachHomeStack.Navigator screenOptions={fadeStackScreenOptions}>
       <CoachHomeStack.Screen name="CoachDashboardMain" component={CoachDashboardScreen} />
     </CoachHomeStack.Navigator>
   );
@@ -54,13 +60,18 @@ function CoachHomeStackNav() {
 
 function CoachSessionsStackNav() {
   return (
-    <CoachSessionsStack.Navigator screenOptions={{ headerShown: false }}>
+    <CoachSessionsStack.Navigator screenOptions={fadeStackScreenOptions}>
       <CoachSessionsStack.Screen name="CoachAgenda" component={CoachAgendaScreen} />
+      <CoachSessionsStack.Screen name="CoachPartidos" component={CoachPartidosScreen} />
       <CoachSessionsStack.Screen name="CoachRelocateSessions" component={CoachRelocateSessionsScreen} />
       <CoachSessionsStack.Screen name="CoachSessionDetail" component={CoachSessionDetailScreen} />
       <CoachSessionsStack.Screen name="CoachNewSession" component={CoachNewSessionScreen} />
       <CoachSessionsStack.Screen name="CoachCancelSession" component={CoachCancelSessionScreen} />
       <CoachSessionsStack.Screen name="CoachSessionStats" component={CoachSessionStatsScreen} />
+      <CoachSessionsStack.Screen name="CoachMatchCourt" component={CoachMatchCourtScreen} />
+      <CoachSessionsStack.Screen name="CoachMatchActions" component={CoachMatchActionsScreen} />
+      <CoachSessionsStack.Screen name="CoachMatchSheet" component={CoachMatchSheetScreen} />
+      <CoachSessionsStack.Screen name="MatchReport" component={MatchReportScreen} />
       <CoachSessionsStack.Screen name="CoachWellness" component={CoachWellnessScreen} />
     </CoachSessionsStack.Navigator>
   );
@@ -68,7 +79,7 @@ function CoachSessionsStackNav() {
 
 function CoachTeamStackNav() {
   return (
-    <CoachTeamStack.Navigator screenOptions={{ headerShown: false }}>
+    <CoachTeamStack.Navigator screenOptions={fadeStackScreenOptions}>
       <CoachTeamStack.Screen name="CoachCategories" component={CoachCategoriesScreen} />
       <CoachTeamStack.Screen name="CoachCategoryDetail" component={CoachCategoryDetailScreen} />
       <CoachTeamStack.Screen name="CoachWellness" component={CoachWellnessScreen} />
@@ -85,7 +96,7 @@ function CoachTeamStackNav() {
 
 function CoachCommsStackNav() {
   return (
-    <CoachCommsStack.Navigator screenOptions={{ headerShown: false }}>
+    <CoachCommsStack.Navigator screenOptions={fadeStackScreenOptions}>
       <CoachCommsStack.Screen name="CoachCommsHub" component={CoachCommsHubScreen} />
       <CoachCommsStack.Screen
         name="NoticiasStaff"
@@ -100,6 +111,8 @@ function CoachCommsStackNav() {
     </CoachCommsStack.Navigator>
   );
 }
+
+const GAME_SCREENS = new Set(['CoachMatchCourt', 'CoachMatchActions']);
 
 export default function CoachTabNavigator() {
   const { clubData } = useContext(ClubContext);
@@ -116,11 +129,7 @@ export default function CoachTabNavigator() {
   const tabBottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 10);
   const tabBarHeight = 64 + tabBottomPad;
 
-  return (
-    <Tab.Navigator
-      key={isDarkMode ? 'dark' : 'light'}
-      tabBarPosition="bottom"
-      screenOptions={buildSwipeBottomTabOptions({
+  const tabOptions = buildSwipeBottomTabOptions({
         colorMarca,
         theme,
         tabBarHeight,
@@ -151,7 +160,22 @@ export default function CoachTabNavigator() {
             CoachComunicar: 'Social',
             CoachPerfil: 'Perfil',
           })[name],
-      })}
+      });
+
+  return (
+    <Tab.Navigator
+      key={isDarkMode ? 'dark' : 'light'}
+      tabBarPosition="bottom"
+      screenOptions={({ route }) => {
+        const options = tabOptions({ route });
+        const focused = getFocusedRouteNameFromRoute(route);
+        if (!GAME_SCREENS.has(focused)) return options;
+        return {
+          ...options,
+          swipeEnabled: false,
+          tabBarStyle: { display: 'none', height: 0, overflow: 'hidden' },
+        };
+      }}
     >
       <Tab.Screen
         name="CoachInicio"

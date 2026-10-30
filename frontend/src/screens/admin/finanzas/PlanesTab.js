@@ -4,18 +4,19 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   TextInput,
   Modal,
   RefreshControl,
   Switch,
 } from 'react-native';
+import ClubSpinLoader from '../../../components/ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import HoverRevealSwipeable from '../../../components/HoverRevealSwipeable';
 import { finanzasStyles as s } from './finanzasStyles';
 import { fmtMoney, contrastOutlineBtn } from './finanzasConstants';
 import CuotaSocialSection from './CuotaSocialSection';
 import DesignCard from '../../../components/DesignCard';
+import Foldable, { FoldableChevron } from '../../../components/Foldable';
 import { ThemeContext } from '../../../context/ThemeContext';
 import { clubApi } from '../../../utils/api';
 import { AlertHost } from '../../../components/CustomAlert';
@@ -322,7 +323,7 @@ export default function PlanesTab({
             </Text>
           </View>
           {autoGenLoading || autoGenSaving ? (
-            <ActivityIndicator color={cc} />
+            <ClubSpinLoader size={40} />
           ) : (
             <Switch
               value={autoGenEnabled}
@@ -380,7 +381,7 @@ export default function PlanesTab({
         </View>
 
         {loading ? (
-          <ActivityIndicator color={cc} style={{ marginTop: 30 }} />
+          <ClubSpinLoader size={56} style={{ marginTop: 30 }} />
         ) : filteredPlans.length === 0 ? (
           <View style={s.empty}>
             <Ionicons name="document-text-outline" size={50} color={theme.icon} />
@@ -421,7 +422,7 @@ export default function PlanesTab({
         </View>
 
         {isLoadingStructure && !disciplines.length ? (
-          <ActivityIndicator color={cc} style={{ marginTop: 20 }} />
+          <ClubSpinLoader size={40} style={{ marginTop: 20 }} />
         ) : disciplines.length === 0 ? (
           <View style={[s.empty, { marginTop: 10 }]}>
             <Text style={[s.emptySub, { color: theme.textMuted }]}>No hay disciplinas cargadas.</Text>
@@ -444,7 +445,7 @@ export default function PlanesTab({
                   style={[styles.discHeader, { backgroundColor: theme.surface, borderColor: theme.border }]}
                   onPress={() => toggleDisc(did)}
                 >
-                  <Ionicons name={open ? 'chevron-down' : 'chevron-forward'} size={18} color={theme.text} />
+                  <FoldableChevron open={open} color={theme.text} size={18} />
                   <Text style={[styles.discTitle, { color: theme.text, flex: 1 }]}>{disc.nombre}</Text>
                   <Text style={{ color: theme.textMuted, fontSize: 12 }}>
                     {cats.length} cat.{assignQuery ? ' · filtrado' : ''}
@@ -461,8 +462,8 @@ export default function PlanesTab({
                     )
                   : null}
 
-                {open
-                  ? cats.map((cat) =>
+                <Foldable open={open}>
+                  {cats.map((cat) =>
                       renderAssignRow(
                         cat.nombre,
                         null,
@@ -470,14 +471,13 @@ export default function PlanesTab({
                         () => openAssign({ type: 'category', id: cat._id, label: `${disc.nombre} · ${cat.nombre}` }),
                         true
                       )
-                    )
-                  : null}
-
-                {open && cats.length === 0 ? (
-                  <Text style={{ color: theme.textMuted, fontSize: 12, marginLeft: 14, marginBottom: 8 }}>
-                    Sin categorías en esta disciplina.
-                  </Text>
-                ) : null}
+                    )}
+                  {cats.length === 0 ? (
+                    <Text style={{ color: theme.textMuted, fontSize: 12, marginLeft: 14, marginBottom: 8 }}>
+                      Sin categorías en esta disciplina.
+                    </Text>
+                  ) : null}
+                </Foldable>
               </View>
             );
           })
@@ -529,7 +529,7 @@ export default function PlanesTab({
               ) : null}
             </ScrollView>
 
-            {isSavingAssignment ? <ActivityIndicator color={cc} style={{ marginTop: 12 }} /> : null}
+            {isSavingAssignment ? <ClubSpinLoader size={40} style={{ marginTop: 12 }} /> : null}
           </View>
           <AlertHost active={!!assignTarget} />
         </View>

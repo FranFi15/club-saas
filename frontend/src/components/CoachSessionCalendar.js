@@ -4,8 +4,8 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
 } from 'react-native';
+import ClubSpinLoader from './ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { calendarPartsToYmd, todayYmd } from '../utils/timeSlots';
 
@@ -26,7 +26,7 @@ const MONTHS = [
 ];
 const MONTHS_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
-function buildMonthDays(year, monthIndex) {
+function buildMonthWeeks(year, monthIndex) {
   const dim = new Date(year, monthIndex + 1, 0).getDate();
   const firstDow = new Date(year, monthIndex, 1).getDay();
   const cells = [];
@@ -34,7 +34,10 @@ function buildMonthDays(year, monthIndex) {
   for (let day = 1; day <= dim; day++) {
     cells.push({ day, ymd: calendarPartsToYmd(year, monthIndex, day) });
   }
-  return cells;
+  while (cells.length % 7 !== 0) cells.push(null);
+  const weeks = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return weeks;
 }
 
 /**
@@ -62,7 +65,7 @@ function CoachSessionCalendar({
     if (pickerOpen) setPickerYear(year);
   }, [pickerOpen, year]);
 
-  const cells = useMemo(() => buildMonthDays(year, monthIndex), [year, monthIndex]);
+  const weeks = useMemo(() => buildMonthWeeks(year, monthIndex), [year, monthIndex]);
 
   const jumpTo = (targetYear, targetMonthIndex) => {
     const delta = (targetYear - year) * 12 + (targetMonthIndex - monthIndex);
@@ -91,7 +94,7 @@ function CoachSessionCalendar({
             {MONTHS[monthIndex]} {year}
           </Text>
           <Ionicons name="chevron-down" size={16} color={theme.textMuted} style={{ marginLeft: 4 }} />
-          {loading ? <ActivityIndicator size="small" color={colorMarca} style={{ marginLeft: 8 }} /> : null}
+          {loading ? <ClubSpinLoader size={26} style={{ marginLeft: 8 }} /> : null}
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => onChangeMonth(1)}
@@ -110,53 +113,57 @@ function CoachSessionCalendar({
         ))}
       </View>
 
-      <View style={styles.grid}>
-        {cells.map((cell, i) => {
-          if (!cell) return <View key={`e-${i}`} style={styles.cell} />;
-          const count = sessionCountByDay[cell.ymd] || 0;
-          const pendingCount = pendingConfirmByDay[cell.ymd] || 0;
-          const selected = cell.ymd === selectedYmd;
-          const isToday = cell.ymd === today;
-          const hasPending = pendingCount > 0;
-          const hasSessions = count > 0;
-          const showDot = hasPending || hasSessions;
+      <View>
+        {weeks.map((week, weekIndex) => (
+          <View key={`w-${weekIndex}`} style={styles.dayRow}>
+            {week.map((cell, dayIndex) => {
+              if (!cell) return <View key={`e-${weekIndex}-${dayIndex}`} style={styles.cell} />;
+              const count = sessionCountByDay[cell.ymd] || 0;
+              const pendingCount = pendingConfirmByDay[cell.ymd] || 0;
+              const selected = cell.ymd === selectedYmd;
+              const isToday = cell.ymd === today;
+              const hasPending = pendingCount > 0;
+              const hasSessions = count > 0;
+              const showDot = hasPending || hasSessions;
 
-          return (
-            <TouchableOpacity
-              key={cell.ymd}
-              style={[
-                styles.cell,
-                selected && { backgroundColor: colorMarca, borderRadius: 20 },
-                !selected && isToday && { borderWidth: 2, borderColor: colorMarca, borderRadius: 20 },
-              ]}
-              onPress={() => onSelectDay(cell.ymd)}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.dayNum,
-                  { color: theme.text },
-                  selected && styles.dayNumSel,
-                  !selected && isToday && { color: colorMarca, fontWeight: '800' },
-                ]}
-              >
-                {cell.day}
-              </Text>
-              {showDot ? (
-                <View
+              return (
+                <TouchableOpacity
+                  key={cell.ymd}
                   style={[
-                    styles.dot,
-                    {
-                      backgroundColor: hasPending ? '#ef4444' : selected ? '#fff' : colorMarca,
-                    },
+                    styles.cell,
+                    selected && { backgroundColor: colorMarca, borderRadius: 20 },
+                    !selected && isToday && { borderWidth: 2, borderColor: colorMarca, borderRadius: 20 },
                   ]}
-                />
-              ) : (
-                <View style={styles.dotPlaceholder} />
-              )}
-            </TouchableOpacity>
-          );
-        })}
+                  onPress={() => onSelectDay(cell.ymd)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.dayNum,
+                      { color: theme.text },
+                      selected && styles.dayNumSel,
+                      !selected && isToday && { color: colorMarca, fontWeight: '800' },
+                    ]}
+                  >
+                    {cell.day}
+                  </Text>
+                  {showDot ? (
+                    <View
+                      style={[
+                        styles.dot,
+                        {
+                          backgroundColor: hasPending ? '#ef4444' : selected ? '#fff' : colorMarca,
+                        },
+                      ]}
+                    />
+                  ) : (
+                    <View style={styles.dotPlaceholder} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
       </View>
 
       {pickerOpen ? (
@@ -249,20 +256,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: 8,
   },
+  dayRow: {
+    flexDirection: 'row',
+  },
   weekLbl: {
     flex: 1,
     textAlign: 'center',
     fontSize: 11,
     fontWeight: '700',
   },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
   cell: {
-    width: `${100 / 7}%`,
-    aspectRatio: 1,
-    maxHeight: 48,
+    flex: 1,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 4,

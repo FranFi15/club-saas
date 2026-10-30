@@ -1,5 +1,6 @@
 import React, { useContext, useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, StatusBar, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, StatusBar } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
@@ -95,7 +96,7 @@ export default function EstructuraHubScreen({ navigation }) {
             contentStyle={styles.statInner}
           >
             {loadingStats ? (
-              <ActivityIndicator color={colorMarca} />
+              <ClubSpinLoader size={40} />
             ) : (
               <>
                 <Text style={[styles.statNumber, { color: theme.text }]}>{statValue(counts.atletas)}</Text>
@@ -113,7 +114,7 @@ export default function EstructuraHubScreen({ navigation }) {
                 contentStyle={styles.statInner}
               >
                 {loadingStats ? (
-                  <ActivityIndicator color={colorMarca} />
+                  <ClubSpinLoader size={40} />
                 ) : (
                   <>
                     <Text style={[styles.statNumber, { color: theme.text }]}>{statValue(counts.disciplinas)}</Text>
@@ -129,7 +130,7 @@ export default function EstructuraHubScreen({ navigation }) {
                 contentStyle={styles.statInner}
               >
                 {loadingStats ? (
-                  <ActivityIndicator color={colorMarca} />
+                  <ClubSpinLoader size={40} />
                 ) : (
                   <>
                     <Text style={[styles.statNumber, { color: theme.text }]}>{statValue(counts.categorias)}</Text>

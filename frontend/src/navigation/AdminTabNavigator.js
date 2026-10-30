@@ -2,6 +2,7 @@ import React, { useContext, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Platform } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { fadeStackScreenOptions } from './screenFade';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
@@ -47,7 +48,7 @@ const PerfilStack = createNativeStackNavigator();
 
 function EstructuraStackNavigator() {
   return (
-    <EstructuraStack.Navigator screenOptions={{ headerShown: false }}>
+    <EstructuraStack.Navigator screenOptions={fadeStackScreenOptions}>
       <EstructuraStack.Screen name="EstructuraHome" component={EstructuraHubScreen} />
       <EstructuraStack.Screen name="Estadisticas" component={AdminStatsScreen} />
       <EstructuraStack.Screen name="SolicitudesInscripcion" component={AdminEnrollmentRequestsScreen} />
@@ -65,7 +66,7 @@ function EstructuraStackNavigator() {
 
 function GestionStackNavigator() {
   return (
-    <GestionStack.Navigator screenOptions={{ headerShown: false }}>
+    <GestionStack.Navigator screenOptions={fadeStackScreenOptions}>
       <GestionStack.Screen name="GestionMenu" component={AdminGestionHubScreen} />
       <GestionStack.Screen name="Pendientes" component={AdminPendientesScreen} />
       <GestionStack.Screen name="Alquileres" component={AlquileresScreen} />
@@ -93,7 +94,7 @@ function GestionStackNavigator() {
 
 function FinanzasStackNavigator() {
   return (
-    <FinanzasStack.Navigator screenOptions={{ headerShown: false }}>
+    <FinanzasStack.Navigator screenOptions={fadeStackScreenOptions}>
       <FinanzasStack.Screen name="FinanzasHome" component={FinanzasScreen} />
     </FinanzasStack.Navigator>
   );
@@ -101,7 +102,7 @@ function FinanzasStackNavigator() {
 
 function PerfilStackNavigator() {
   return (
-    <PerfilStack.Navigator screenOptions={{ headerShown: false }}>
+    <PerfilStack.Navigator screenOptions={fadeStackScreenOptions}>
       <PerfilStack.Screen name="PerfilMain" component={AdminProfileScreen} />
       <PerfilStack.Screen name="EditProfile" component={EditProfileScreen} />
       <PerfilStack.Screen name="ClubEntryQr" component={MemberClubEntryScreen} />

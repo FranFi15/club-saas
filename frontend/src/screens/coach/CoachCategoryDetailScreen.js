@@ -17,6 +17,8 @@ import {
   LayoutAnimation,
   Animated,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ListTopFade from '../../components/ListTopFade';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -147,6 +149,12 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
   const [docList, setDocList] = useState([]);
   const [docLoading, setDocLoading] = useState(false);
   const [docEstadoFilter, setDocEstadoFilter] = useState('revision');
+  const [docAtletaFilter, setDocAtletaFilter] = useState('');
+  const [docUserQuery, setDocUserQuery] = useState('');
+  const [docPage, setDocPage] = useState(1);
+  const [docHasMore, setDocHasMore] = useState(false);
+  const [docLoadingMore, setDocLoadingMore] = useState(false);
+  const docLoadingMoreRef = useRef(false);
   const [docPendingCount, setDocPendingCount] = useState(
     () => readScreenCache(rosterCacheKey)?.docPendingCount ?? 0,
   );
@@ -332,27 +340,53 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
   };
 
   const loadDocSubmissions = useCallback(
-    async (estado = docEstadoFilter) => {
+    async (estado = docEstadoFilter, atletaId = docAtletaFilter) => {
       if (!categoriaId) return;
       setDocLoading(true);
       try {
         const h = await headers();
-        const params = { categoriaId, page: 1, limit: 30 };
+        const params = { categoriaId, page: 1, limit: 10 };
         if (estado) params.estado = estado;
+        if (atletaId) params.atletaId = atletaId;
         const res = await clubApi.get('/requirements/submissions', { headers: h, params });
         setDocList(pickPaginatedRows(res.data, 'submissions'));
-        if (estado === 'revision') {
+        setDocPage(res.data?.page ?? 1);
+        setDocHasMore(Boolean(res.data?.hasMore));
+        if (estado === 'revision' && !atletaId) {
           setDocPendingCount(res.data?.total ?? pickPaginatedRows(res.data, 'submissions').length);
         }
       } catch (e) {
         showAlert('Error', e.response?.data?.message || 'No se pudieron cargar las entregas.');
         setDocList([]);
+        setDocHasMore(false);
       } finally {
         setDocLoading(false);
       }
     },
-    [categoriaId, docEstadoFilter, clubData?.urlIdentifier],
+    [categoriaId, docEstadoFilter, docAtletaFilter, clubData?.urlIdentifier],
   );
+
+  const loadMoreDocs = useCallback(async () => {
+    if (docLoadingMoreRef.current || docLoadingMore || !docHasMore || docLoading || !categoriaId) return;
+    docLoadingMoreRef.current = true;
+    setDocLoadingMore(true);
+    try {
+      const h = await headers();
+      const params = { categoriaId, page: docPage + 1, limit: 10 };
+      if (docEstadoFilter) params.estado = docEstadoFilter;
+      if (docAtletaFilter) params.atletaId = docAtletaFilter;
+      const res = await clubApi.get('/requirements/submissions', { headers: h, params });
+      const rows = pickPaginatedRows(res.data, 'submissions');
+      setDocList((prev) => [...prev, ...rows]);
+      setDocPage(res.data?.page ?? docPage + 1);
+      setDocHasMore(Boolean(res.data?.hasMore));
+    } catch (e) {
+      showAlert('Error', e.response?.data?.message || 'No se pudieron cargar más entregas.');
+    } finally {
+      docLoadingMoreRef.current = false;
+      setDocLoadingMore(false);
+    }
+  }, [docLoadingMore, docHasMore, docLoading, categoriaId, docPage, docEstadoFilter, docAtletaFilter, clubData?.urlIdentifier]);
 
   useFocusEffect(
     useCallback(() => {
@@ -365,8 +399,10 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
 
   const openDocModal = () => {
     setDocEstadoFilter('revision');
+    setDocAtletaFilter('');
+    setDocUserQuery('');
     setDocOpen(true);
-    loadDocSubmissions('revision');
+    loadDocSubmissions('revision', '');
   };
 
   const canReviewDoc = useCallback(
@@ -519,7 +555,19 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
     );
   };
 
-  const docPendingInList = useMemo(() => docList.filter((s) => s.estado === 'revision').length, [docList]);
+  const docUserMatches = useMemo(() => {
+    const q = docUserQuery.trim().toLowerCase();
+    if (!q || docAtletaFilter) return [];
+    return enrollments
+      .filter((e) => e.atleta?._id && formatUserName(e.atleta).toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [docUserQuery, docAtletaFilter, enrollments]);
+
+  const selectedDocUser = useMemo(() => {
+    if (!docAtletaFilter) return '';
+    const row = enrollments.find((e) => String(e.atleta?._id) === String(docAtletaFilter));
+    return row?.atleta ? formatUserName(row.atleta) : 'Usuario';
+  }, [docAtletaFilter, enrollments]);
 
   const openTeamWellness = async () => {
     setWellnessOpen(true);
@@ -852,10 +900,12 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
         </View>
       ) : null}
 
+      <View style={{ flex: 1 }}>
       {showInitialLoader ? (
-        <ActivityIndicator color={colorMarca} style={{ marginTop: 24 }} />
+        <ClubSpinLoader size={40} style={{ marginTop: 24 }} />
       ) : (
         <FlatList
+          style={{ flex: 1 }}
           data={visibleEnrollments}
           keyExtractor={(item) => item._id}
           renderItem={renderAthlete}
@@ -874,6 +924,8 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
           }
         />
       )}
+      <ListTopFade color={theme.background} />
+      </View>
 
       <Modal visible={addOpen} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
@@ -898,7 +950,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
               onChangeText={setAddSearch}
             />
             {addLoading || addSearching ? (
-              <ActivityIndicator color={colorMarca} style={{ marginVertical: 16 }} />
+              <ClubSpinLoader size={40} style={{ marginVertical: 16 }} />
             ) : (
               <ScrollView style={{ maxHeight: 280 }}>
                 {availableAthletes.length === 0 ? (
@@ -1021,7 +1073,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
 
             {wellnessLoading ? (
               <View style={styles.wellnessLoadingBox}>
-                <ActivityIndicator color={colorMarca} size="large" />
+                <ClubSpinLoader size={64} />
                 <Text style={[styles.wellnessLoadingTxt, { color: theme.textMuted }]}>
                   Cargando reportes…
                 </Text>
@@ -1155,7 +1207,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
               {!docLoading ? (
                 <View style={styles.wellnessHeroBadge}>
                   <Text style={styles.wellnessHeroBadgeTxt}>
-                    {docPendingInList} pendiente{docPendingInList === 1 ? '' : 's'} de revisión
+                    {docPendingCount} pendiente{docPendingCount === 1 ? '' : 's'} de revisión
                   </Text>
                 </View>
               ) : null}
@@ -1199,15 +1251,70 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
               })}
             </ScrollView>
 
+            <View style={styles.docUserFilter}>
+              <View
+                style={[
+                  styles.docUserField,
+                  { borderColor: theme.border, backgroundColor: theme.surface },
+                ]}
+              >
+                <Ionicons name="search" size={16} color={theme.textMuted} />
+                <TextInput
+                  value={docAtletaFilter ? selectedDocUser : docUserQuery}
+                  onChangeText={(text) => {
+                    if (docAtletaFilter) return;
+                    setDocUserQuery(text);
+                  }}
+                  editable={!docAtletaFilter}
+                  placeholder="Buscar usuario"
+                  placeholderTextColor={theme.textMuted}
+                  style={[styles.docUserInput, { color: theme.text }]}
+                />
+                {docAtletaFilter ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setDocAtletaFilter('');
+                      setDocUserQuery('');
+                      loadDocSubmissions(docEstadoFilter, '');
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="close-circle" size={18} color={theme.textMuted} />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+              {docUserMatches.map((row) => (
+                <TouchableOpacity
+                  key={String(row.atleta._id)}
+                  style={[styles.docUserOption, { borderColor: theme.border, backgroundColor: theme.surface }]}
+                  onPress={() => {
+                    const id = String(row.atleta._id);
+                    setDocAtletaFilter(id);
+                    setDocUserQuery('');
+                    loadDocSubmissions(docEstadoFilter, id);
+                  }}
+                >
+                  <Text style={{ color: theme.text, fontWeight: '600' }}>{formatUserName(row.atleta)}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             {docLoading ? (
               <View style={styles.wellnessLoadingBox}>
-                <ActivityIndicator color={colorMarca} size="large" />
+                <ClubSpinLoader size={64} />
               </View>
             ) : (
               <ScrollView
                 style={styles.wellnessScroll}
                 contentContainerStyle={styles.wellnessScrollContent}
                 showsVerticalScrollIndicator={false}
+                scrollEventThrottle={200}
+                onScroll={({ nativeEvent }) => {
+                  const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+                  if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 120) {
+                    loadMoreDocs();
+                  }
+                }}
               >
                 {docList.length === 0 ? (
                   <View style={[styles.wellnessEmpty, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -1244,7 +1351,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
                               disabled={fileBusy}
                             >
                               {fileBusy ? (
-                                <ActivityIndicator size="small" color={theme.text} />
+                                <ClubSpinLoader size={26} />
                               ) : (
                                 <>
                                   <Ionicons
@@ -1319,6 +1426,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
                     );
                   })
                 )}
+                {docLoadingMore ? <ClubSpinLoader size={40} style={{ marginVertical: 16 }} /> : null}
               </ScrollView>
             )}
           </View>
@@ -1415,6 +1523,23 @@ const styles = StyleSheet.create({
   },
   docFilterScroll: { maxHeight: 62, flexGrow: 0 },
   docFilterContent: { paddingHorizontal: 16, paddingVertical: 8, gap: 8, alignItems: 'center' },
+  docUserFilter: { paddingHorizontal: 16, paddingBottom: 8, gap: 6 },
+  docUserField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    minHeight: 42,
+  },
+  docUserInput: { flex: 1, fontSize: 15, paddingVertical: 8 },
+  docUserOption: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
   docFilterChip: {
     paddingHorizontal: 14,
     paddingVertical: 10,

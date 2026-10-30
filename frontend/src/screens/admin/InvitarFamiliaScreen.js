@@ -12,6 +12,7 @@ import {
   Switch,
   TextInput,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -41,6 +42,7 @@ export default function InvitarFamiliaScreen({ navigation }) {
   const [categories, setCategories] = useState([]);
   const [slots, setSlots] = useState([emptySlot(), emptySlot()]);
   const [includeTutor, setIncludeTutor] = useState(true);
+  const [tutorCount, setTutorCount] = useState(1);
   const [esPrueba, setEsPrueba] = useState(false);
   const [diasPrueba, setDiasPrueba] = useState('15');
   const [loadingMeta, setLoadingMeta] = useState(true);
@@ -160,6 +162,7 @@ export default function InvitarFamiliaScreen({ navigation }) {
       const { data } = await clubApi.post(
         '/family-invites',
         {
+          tutorCount: includeTutor ? tutorCount : 0,
           includeTutor,
           athleteSlots: slots.map((s) => ({ categoria: s.categoria })),
           esPrueba: !!esPrueba,
@@ -177,7 +180,8 @@ export default function InvitarFamiliaScreen({ navigation }) {
   };
 
   const shareUrl = async (url) => {
-    const who = includeTutor || created?.tutorCount > 0 ? 'familia' : 'alta';
+    const tutors = created?.tutorCount ?? (includeTutor ? tutorCount : 0);
+    const who = tutors > 1 ? 'familia' : tutors > 0 ? 'familia' : 'alta';
     try {
       await Share.share({
         message: `Hola! Completá el ${who} en ${clubData?.nombre || 'el club'}:\n${url}`,
@@ -234,7 +238,7 @@ export default function InvitarFamiliaScreen({ navigation }) {
       />
 
       {loadingMeta ? (
-        <ActivityIndicator color={colorMarca} style={{ marginTop: 40 }} />
+        <ClubSpinLoader size={56} style={{ marginTop: 40 }} />
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           {!canCreateInvite ? (
@@ -246,7 +250,7 @@ export default function InvitarFamiliaScreen({ navigation }) {
             <View style={[styles.resultCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <Text style={[styles.resultTitle, { color: theme.text }]}>Enlace listo</Text>
               <Text style={[styles.resultHint, { color: theme.textMuted }]}>
-                Enviáselo al {(created.tutorCount ?? 1) > 0 ? 'tutor' : 'atleta'}. Vence el{' '}
+                Enviáselo {(created.tutorCount ?? 0) > 1 ? 'a los tutores' : (created.tutorCount ?? 0) > 0 ? 'al tutor' : 'al atleta'}. Vence el{' '}
                 {created.expiresAt
                   ? new Date(created.expiresAt).toLocaleString('es-AR', {
                       day: '2-digit',
@@ -281,6 +285,7 @@ export default function InvitarFamiliaScreen({ navigation }) {
                 onPress={() => {
                   setCreated(null);
                   setIncludeTutor(true);
+                  setTutorCount(1);
                   setEsPrueba(false);
                   setDiasPrueba('15');
                   setSlots([emptySlot(), emptySlot()]);
@@ -306,6 +311,7 @@ export default function InvitarFamiliaScreen({ navigation }) {
                   ]}
                   onPress={() => {
                     setIncludeTutor(true);
+                    setTutorCount((n) => (n > 0 ? n : 1));
                     if (slots.length < 2) setSlots([emptySlot(), emptySlot()]);
                   }}
                 >
@@ -323,6 +329,7 @@ export default function InvitarFamiliaScreen({ navigation }) {
                   ]}
                   onPress={() => {
                     setIncludeTutor(false);
+                    setTutorCount(0);
                     setSlots([emptySlot()]);
                   }}
                 >
@@ -382,8 +389,36 @@ export default function InvitarFamiliaScreen({ navigation }) {
                 </View>
               ) : null}
 
+              {includeTutor ? (
+                <>
+                  <Text style={[styles.sectionLabel, { color: theme.text }]}>Tutores a registrar</Text>
+                  <Text style={[styles.sectionHint, { color: theme.textMuted }]}>
+                    Todos los tutores quedan vinculados a los mismos atletas y ven la misma información.
+                  </Text>
+                  <View style={[styles.slotCard, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', alignItems: 'center' }]}>
+                    <Text style={[styles.slotTitle, { color: theme.text, flex: 1 }]}>
+                      {tutorCount} tutor{tutorCount === 1 ? '' : 'es'}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setTutorCount((n) => Math.max(1, n - 1))}
+                      hitSlop={8}
+                      style={{ padding: 6 }}
+                    >
+                      <Ionicons name="remove-circle-outline" size={26} color={colorMarca} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setTutorCount((n) => Math.min(2, n + 1))}
+                      hitSlop={8}
+                      style={{ padding: 6 }}
+                    >
+                      <Ionicons name="add-circle-outline" size={26} color={colorMarca} />
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : null}
+
               <Text style={[styles.sectionLabel, { color: theme.text }]}>
-                {includeTutor ? 'Atletas a registrar' : 'Atleta a registrar'}
+                {slots.length > 1 ? 'Atletas a registrar' : 'Atleta a registrar'}
               </Text>
               <Text style={[styles.sectionHint, { color: theme.textMuted }]}>
                 {includeTutor
@@ -459,8 +494,9 @@ export default function InvitarFamiliaScreen({ navigation }) {
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.recentTitle, { color: theme.text }]}>
-                      {inv.requiereTutor === false ? 'Solo atleta' : 'Familia'} · {inv.athleteCount}{' '}
-                      atleta{inv.athleteCount === 1 ? '' : 's'} · {inv.estado}
+                      {inv.requiereTutor === false ? 'Solo atleta' : 'Familia'}
+                      {(inv.tutorCount || 0) > 0 ? ` · ${inv.tutorCount} tutor${inv.tutorCount === 1 ? '' : 'es'}` : ''}
+                      {' · '}{inv.athleteCount} atleta{inv.athleteCount === 1 ? '' : 's'} · {inv.estado}
                       {inv.expired ? ' (vencida)' : ''}
                     </Text>
                     <Text style={{ color: theme.textMuted, fontSize: 12 }} numberOfLines={2}>

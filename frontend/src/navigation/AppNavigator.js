@@ -1,8 +1,10 @@
 // src/navigation/AppNavigator.js
 import React, { useContext, useMemo } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import ClubSpinLoader from '../components/ClubSpinLoader';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { fadeStackScreenOptions } from './screenFade';
 
 import WorkspaceSearchScreen from '../screens/WorkspaceSearchScreen';
 import LoginScreen from '../screens/LoginScreen';
@@ -42,7 +44,7 @@ export default function AppNavigator() {
   if (!clubHydrated || !sessionHydrated) {
     return (
       <View style={styles.boot}>
-        <ActivityIndicator size="large" />
+        <ClubSpinLoader size={64} />
       </View>
     );
   }
@@ -58,7 +60,7 @@ export default function AppNavigator() {
       <PasswordResetDeepLinkHandler />
       <Stack.Navigator
         initialRouteName={initialRoute}
-        screenOptions={{ headerShown: false }}
+        screenOptions={fadeStackScreenOptions}
       >
         <Stack.Screen name="WorkspaceSearch" component={WorkspaceSearchScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />

@@ -1,12 +1,97 @@
-import React from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import React, { useLayoutEffect, useRef } from 'react';
+import { Animated, Easing, View, Text, StyleSheet, Platform } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+import { SCREEN_FADE_MS } from './screenFade';
 
 /**
  * Bottom-looking tabs with horizontal swipe (PagerView).
  * Use `tabBarPosition="bottom"` on the Navigator.
  */
-export const createSwipeBottomTabNavigator = createMaterialTopTabNavigator;
+const BaseSwipeBottomTab = createMaterialTopTabNavigator;
+
+/** Un toque deja esta marca. Un swipe la borra, para no fundir al deslizar. */
+let pendingTabPressFade = false;
+
+function markTabPressFade() {
+  pendingTabPressFade = true;
+}
+
+function clearTabPressFade() {
+  pendingTabPressFade = false;
+}
+
+function consumeTabPressFade() {
+  if (!pendingTabPressFade) return false;
+  pendingTabPressFade = false;
+  return true;
+}
+
+function mergeScreenListeners(screenListeners) {
+  return (props) => {
+    const parent =
+      typeof screenListeners === 'function' ? screenListeners(props) : screenListeners || {};
+    return {
+      ...parent,
+      tabPress: (event) => {
+        markTabPressFade();
+        parent.tabPress?.(event);
+      },
+      swipeStart: (event) => {
+        clearTabPressFade();
+        parent.swipeStart?.(event);
+      },
+    };
+  };
+}
+
+/** Fundido al entrar cuando el cambio vino de un toque en el ícono. */
+function TabPressFade({ children }) {
+  const isFocused = useIsFocused();
+  const wasFocused = useRef(false);
+  const opacity = useRef(new Animated.Value(1)).current;
+
+  useLayoutEffect(() => {
+    const becameFocused = isFocused && !wasFocused.current;
+    wasFocused.current = isFocused;
+    if (!becameFocused || !consumeTabPressFade()) return undefined;
+    opacity.setValue(0);
+    const animation = Animated.timing(opacity, {
+      toValue: 1,
+      duration: SCREEN_FADE_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [isFocused, opacity]);
+
+  return (
+    <Animated.View style={[styles.fadeHost, { opacity }]} collapsable={false}>
+      {children}
+    </Animated.View>
+  );
+}
+
+export function createSwipeBottomTabNavigator(config) {
+  const Tabs = BaseSwipeBottomTab(config);
+
+  function Navigator({ screenLayout, screenListeners, ...rest }) {
+    return (
+      <Tabs.Navigator
+        {...rest}
+        screenListeners={mergeScreenListeners(screenListeners)}
+        screenLayout={(layoutProps) => (
+          <TabPressFade>
+            {typeof screenLayout === 'function' ? screenLayout(layoutProps) : layoutProps.children}
+          </TabPressFade>
+        )}
+      />
+    );
+  }
+
+  return { ...Tabs, Navigator };
+}
 
 /** Fixed glyph slot so every tab icon lines up (even with badges). */
 export const TAB_ICON_SIZE = 22;
@@ -36,7 +121,9 @@ export function buildSwipeBottomTabOptions({
     headerShown: false,
     swipeEnabled: true,
     lazy: true,
-    animationEnabled: true,
+    // Un toque ya anima el pager, y el cambio de ruta lo anima otra vez.
+    // En iOS esa segunda animación cierra la app, sobre todo al volver a la primera pestaña.
+    animationEnabled: false,
     tabBarActiveTintColor: colorMarca,
     tabBarInactiveTintColor: theme.icon,
     tabBarShowIcon: true,
@@ -129,6 +216,9 @@ export function buildSwipeBottomTabOptions({
 }
 
 const styles = StyleSheet.create({
+  fadeHost: {
+    flex: 1,
+  },
   tabCol: {
     width: '100%',
     alignItems: 'center',

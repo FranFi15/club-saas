@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -65,6 +66,11 @@ const MEJOR_DIR_OPTS = [
   { value: 'menor_es_mejor', label: '↓ Menor = mejor' },
 ];
 
+const GRAPH_TYPE_OPTS = [
+  { value: 'barras', label: 'Barras' },
+  { value: 'lineas', label: 'Líneas' },
+];
+
 const AREA_LABELS = {
   ...NUTRI_AREA_LABELS,
   fisico: 'Físico',
@@ -111,6 +117,7 @@ export default function CoachMeasurementScreen({ navigation, route }) {
   const [newName, setNewName] = useState('');
   const [newUnit, setNewUnit] = useState('cm');
   const [newMejorDir, setNewMejorDir] = useState('mayor_es_mejor');
+  const [newTipoGrafico, setNewTipoGrafico] = useState('barras');
   const [newMetricArea, setNewMetricArea] = useState('metodologia_isak');
   const [creating, setCreating] = useState(false);
   const [userRol, setUserRol] = useState(() => readScreenCache(measurementCacheKey)?.userRol ?? '');
@@ -300,6 +307,7 @@ export default function CoachMeasurementScreen({ navigation, route }) {
       const h = await headers();
       const rolForArea = userRol || (await getToken('userRol')) || '';
       const areaPayload = rolForArea === 'nutricionista' ? newMetricArea : 'fisico';
+      const canChooseGraph = rolForArea === 'profe' || rolForArea === 'preparador_fisico';
       const { data } = await clubApi.post(
         '/performance/definiciones',
         {
@@ -307,6 +315,7 @@ export default function CoachMeasurementScreen({ navigation, route }) {
           unidad: newUnit.trim() || 'u',
           mejorDireccion: newMejorDir,
           area: areaPayload,
+          ...(canChooseGraph ? { tipoGrafico: newTipoGrafico } : {}),
         },
         { headers: h },
       );
@@ -624,7 +633,7 @@ export default function CoachMeasurementScreen({ navigation, route }) {
       </View>
 
       {showInitialLoader ? (
-        <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />
+        <ClubSpinLoader size={56} style={{ marginTop: 32 }} />
       ) : (
         <View style={styles.tabBody}>
           {activeTab === 'registrar' && (
@@ -749,6 +758,21 @@ export default function CoachMeasurementScreen({ navigation, route }) {
                       colorMarca={colorMarca}
                     />
                   </View>
+                  {userRol === 'profe' || userRol === 'preparador_fisico' ? (
+                    <>
+                      <Text style={[styles.label, { color: theme.text }]}>Tipo de gráfico</Text>
+                      <View style={styles.dropdownWrap}>
+                        <SearchableDropdown
+                          data={GRAPH_TYPE_OPTS}
+                          value={newTipoGrafico}
+                          onChange={setNewTipoGrafico}
+                          placeholder="Elegí el gráfico…"
+                          theme={theme}
+                          colorMarca={colorMarca}
+                        />
+                      </View>
+                    </>
+                  ) : null}
                   <TouchableOpacity
                     style={[styles.secondaryBtn, { borderColor: colorMarca }]}
                     onPress={createDefinition}

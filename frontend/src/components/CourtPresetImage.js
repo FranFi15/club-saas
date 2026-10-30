@@ -8,16 +8,34 @@ const VB_H = 200;
 const VIEWBOX = `0 0 ${VB_W} ${VB_H}`;
 
 /** Schematic court / pool drawn with SVG for presets (no PNG assets required). */
-export default function CourtPresetImage({ imagenUrl, deporte, style, width = '100%', height = 220 }) {
+export default function CourtPresetImage({ imagenUrl, deporte, style, width = '100%', height = 220, horizontal = false }) {
   const key = deporte || deporteFromPresetUrl(imagenUrl) || (isCourtPresetUrl(imagenUrl) ? null : null);
   const sport = key || 'basquet';
+  const boxW = horizontal ? VB_H : VB_W;
+  const boxH = horizontal ? VB_W : VB_H;
+  const drawing = (
+    <>
+      {sport === 'basquet' ? <BasquetCourt /> : null}
+      {sport === 'futbol' ? <FutbolPitch /> : null}
+      {sport === 'voley' ? <VoleyCourt /> : null}
+      {sport === 'rugby' ? <RugbyPitch /> : null}
+      {sport === 'hockey_cesped' ? <HockeyPitch /> : null}
+      {sport === 'natacion' ? <NatacionPool /> : null}
+      {!['basquet', 'futbol', 'voley', 'rugby', 'hockey_cesped', 'natacion'].includes(sport) ? (
+        <>
+          <Rect x="0" y="0" width={VB_W} height={VB_H} fill="#1a5c3a" />
+          <Rect x="8" y="8" width="104" height="184" fill="none" stroke="#f5f5f5" strokeWidth="2" />
+        </>
+      ) : null}
+    </>
+  );
 
   return (
     <View
       style={[
         styles.wrap,
         style,
-        { height },
+        { height, width },
         sport === 'basquet' && styles.wrapBasquet,
         sport === 'hockey_cesped' && styles.wrapHockey,
         sport === 'natacion' && styles.wrapPool,
@@ -27,55 +45,147 @@ export default function CourtPresetImage({ imagenUrl, deporte, style, width = '1
       <Svg
         width="100%"
         height="100%"
-        viewBox={VIEWBOX}
+        viewBox={`0 0 ${boxW} ${boxH}`}
         preserveAspectRatio="xMidYMid meet"
         style={Platform.OS === 'web' ? styles.svgFill : undefined}
       >
-        {sport === 'basquet' ? <BasquetCourt /> : null}
-        {sport === 'futbol' ? <FutbolPitch /> : null}
-        {sport === 'voley' ? <VoleyCourt /> : null}
-        {sport === 'rugby' ? <RugbyPitch /> : null}
-        {sport === 'hockey_cesped' ? <HockeyPitch /> : null}
-        {sport === 'natacion' ? <NatacionPool /> : null}
-        {!['basquet', 'futbol', 'voley', 'rugby', 'hockey_cesped', 'natacion'].includes(sport) ? (
-          <>
-            <Rect x="0" y="0" width={VB_W} height={VB_H} fill="#1a5c3a" />
-            <Rect x="8" y="8" width="104" height="184" fill="none" stroke="#f5f5f5" strokeWidth="2" />
-          </>
-        ) : null}
+        {horizontal ? <G transform={`translate(${VB_H},0) rotate(90)`}>{drawing}</G> : drawing}
       </Svg>
     </View>
   );
 }
 
-/** Hardwood court (vertical): keys, FT circles, 3-point arcs. */
+/** Hardwood court (vertical). Lines measured from the reference schematic. */
 function BasquetCourt() {
   const line = '#f5f5f5';
-  const cx = 60;
+  const L = 8;
+  const R = 112;
+  const T = 8;
+  const B = 192;
+  const wid = R - L;
+  const len = B - T;
+  const cx = (L + R) / 2;
+  const midY = (T + B) / 2;
+
+  const yFrom = (fraction) => T + fraction * len;
+  const keyLen = 0.202 * len;
+  const keyHalf = (0.318 * wid) / 2;
+  const keyL = cx - keyHalf;
+  const keyR = cx + keyHalf;
+  const ftR = 0.127 * wid;
+  const innerHalf = 0.12 * wid;
+  const innerExtra = 0.019 * len;
+  const corner = 0.063 * wid;
+  const straight = 0.154 * len;
+  const nose = 0.31 * len;
+  const semiR = 8.5;
+  const semiFromBase = 7.8;
+  const rimR = 3;
+  const boardGap = 2.6;
+  const boardW = 14;
+  const boardT = 1.8;
+  const joinY = T + straight;
+  const noseY = T + nose;
+  const dx = cx - (L + corner);
+  const arcCy = (noseY * noseY - joinY * joinY - dx * dx) / (2 * (noseY - joinY));
+  const arcRy = noseY - arcCy;
+  const arcRx = dx / Math.sqrt(1 - ((joinY - arcCy) / arcRy) ** 2);
+  const n = (value) => Math.round(value * 10) / 10;
+
+  const sidelineTick = (fraction) => {
+    const y = n(yFrom(fraction));
+    return (
+      <G key={`tick-${fraction}`}>
+        <Line x1={L - 4} y1={y} x2={L + 5} y2={y} stroke={line} strokeWidth="1.4" />
+        <Line x1={R - 5} y1={y} x2={R + 4} y2={y} stroke={line} strokeWidth="1.4" />
+      </G>
+    );
+  };
+
+  const basketEnd = (baseline, towardCenter) => {
+    const ftY = towardCenter > 0 ? baseline + keyLen : baseline - keyLen;
+    const semiY = towardCenter > 0 ? baseline + semiFromBase : baseline - semiFromBase;
+    const boardFace = towardCenter > 0 ? semiY - boardGap : semiY + boardGap;
+    const rimY = boardFace + towardCenter * (0.4 + rimR);
+    const arcJoin = towardCenter > 0 ? baseline + straight : baseline - straight;
+    const innerEnd = towardCenter > 0 ? ftY + innerExtra : ftY - innerExtra;
+    const sweepOut = towardCenter > 0 ? 0 : 1;
+    const sweepIn = towardCenter > 0 ? 1 : 0;
+    const left = n(L + corner);
+    const right = n(R - corner);
+    const arc = `M ${left} ${n(arcJoin)} A ${n(arcRx)} ${n(arcRy)} 0 0 ${sweepOut} ${right} ${n(arcJoin)}`;
+    const laneMarks = [0.4, 0.58, 0.74].map((fraction) => {
+      const y = towardCenter > 0 ? baseline + fraction * keyLen : baseline - fraction * keyLen;
+      return (
+        <G key={`lane-${fraction}`}>
+          <Line x1={n(keyL - 2.4)} y1={n(y)} x2={n(keyL)} y2={n(y)} stroke={line} strokeWidth="1.6" />
+          <Line x1={n(keyR)} y1={n(y)} x2={n(keyR + 2.4)} y2={n(y)} stroke={line} strokeWidth="1.6" />
+        </G>
+      );
+    });
+    return (
+      <G key={`basket-${baseline}`}>
+        <Rect
+          x={n(keyL)}
+          y={n(Math.min(baseline, ftY))}
+          width={n(keyR - keyL)}
+          height={n(keyLen)}
+          fill="none"
+          stroke={line}
+          strokeWidth="1.5"
+        />
+        <Line x1={n(cx - innerHalf)} y1={n(baseline)} x2={n(cx - innerHalf)} y2={n(innerEnd)} stroke={line} strokeWidth="1.3" />
+        <Line x1={n(cx + innerHalf)} y1={n(baseline)} x2={n(cx + innerHalf)} y2={n(innerEnd)} stroke={line} strokeWidth="1.3" />
+        {laneMarks}
+        <Path
+          d={`M ${n(cx - ftR)} ${n(ftY)} A ${n(ftR)} ${n(ftR)} 0 0 ${sweepOut} ${n(cx + ftR)} ${n(ftY)}`}
+          fill="none"
+          stroke={line}
+          strokeWidth="1.5"
+        />
+        <Path
+          d={`M ${n(cx - ftR)} ${n(ftY)} A ${n(ftR)} ${n(ftR)} 0 0 ${sweepIn} ${n(cx + ftR)} ${n(ftY)}`}
+          fill="none"
+          stroke={line}
+          strokeWidth="1.3"
+          strokeDasharray="2.2 1.8"
+        />
+        <Path
+          d={`M ${n(cx - semiR)} ${n(semiY)} A ${semiR} ${semiR} 0 0 ${sweepOut} ${n(cx + semiR)} ${n(semiY)}`}
+          fill="none"
+          stroke={line}
+          strokeWidth="1.3"
+        />
+        <Rect
+          x={n(cx - boardW / 2)}
+          y={n(towardCenter > 0 ? semiY - boardGap - boardT : semiY + boardGap)}
+          width={boardW}
+          height={boardT}
+          fill="none"
+          stroke={line}
+          strokeWidth="1.2"
+        />
+        <Circle cx={cx} cy={n(rimY)} r={rimR} fill="none" stroke={line} strokeWidth="1.2" />
+        <Path d={`M ${left} ${n(baseline)} L ${left} ${n(arcJoin)}`} fill="none" stroke={line} strokeWidth="1.5" />
+        <Path d={arc} fill="none" stroke={line} strokeWidth="1.5" />
+        <Path d={`M ${right} ${n(arcJoin)} L ${right} ${n(baseline)}`} fill="none" stroke={line} strokeWidth="1.5" />
+      </G>
+    );
+  };
+
   return (
     <G>
       <Rect x="0" y="0" width={VB_W} height={VB_H} fill="#c47a3a" />
-      <Rect x="6" y="6" width="108" height="188" fill="#d4894a" stroke={line} strokeWidth="2" />
-      <Line x1="6" y1="100" x2="114" y2="100" stroke={line} strokeWidth="1.5" />
-      <Circle cx={cx} cy="100" r="12" fill="none" stroke={line} strokeWidth="1.5" />
-
-      {/* Top key */}
-      <Rect x="38" y="6" width="44" height="32" fill="#b86a30" stroke={line} strokeWidth="1.5" />
-      <Path d="M 42 38 A 14 14 0 0 0 78 38" fill="none" stroke={line} strokeWidth="1.5" />
-      <Path d="M 42 38 A 14 14 0 0 1 78 38" fill="none" stroke={line} strokeWidth="1" strokeDasharray="3 2" />
-      <Line x1="52" y1="6" x2="52" y2="14" stroke={line} strokeWidth="1.5" />
-      <Line x1="68" y1="6" x2="68" y2="14" stroke={line} strokeWidth="1.5" />
-      <Circle cx={cx} cy="12" r="2.2" fill="none" stroke={line} strokeWidth="1.2" />
-      <Path d="M 18 6 L 18 22 A 42 42 0 0 0 102 22 L 102 6" fill="none" stroke={line} strokeWidth="1.5" />
-
-      {/* Bottom key */}
-      <Rect x="38" y="162" width="44" height="32" fill="#b86a30" stroke={line} strokeWidth="1.5" />
-      <Path d="M 42 162 A 14 14 0 0 1 78 162" fill="none" stroke={line} strokeWidth="1.5" />
-      <Path d="M 42 162 A 14 14 0 0 0 78 162" fill="none" stroke={line} strokeWidth="1" strokeDasharray="3 2" />
-      <Line x1="52" y1="186" x2="52" y2="194" stroke={line} strokeWidth="1.5" />
-      <Line x1="68" y1="186" x2="68" y2="194" stroke={line} strokeWidth="1.5" />
-      <Circle cx={cx} cy="188" r="2.2" fill="none" stroke={line} strokeWidth="1.2" />
-      <Path d="M 18 194 L 18 178 A 42 42 0 0 1 102 178 L 102 194" fill="none" stroke={line} strokeWidth="1.5" />
+      <Rect x={L} y={T} width={wid} height={len} fill="#d4894a" stroke={line} strokeWidth="2" />
+      <Line x1={L} y1={midY} x2={R} y2={midY} stroke={line} strokeWidth="1.6" />
+      <Circle cx={cx} cy={midY} r={n(0.121 * wid)} fill="none" stroke={line} strokeWidth="1.5" />
+      <Circle cx={cx} cy={midY} r={n(0.041 * wid)} fill="none" stroke={line} strokeWidth="1.3" />
+      {sidelineTick(0.296)}
+      {sidelineTick(0.704)}
+      <Line x1={R} y1={n(midY - 0.044 * len)} x2={R + 6} y2={n(midY - 0.044 * len)} stroke={line} strokeWidth="1.4" />
+      <Line x1={R} y1={n(midY + 0.044 * len)} x2={R + 6} y2={n(midY + 0.044 * len)} stroke={line} strokeWidth="1.4" />
+      {basketEnd(T, 1)}
+      {basketEnd(B, -1)}
     </G>
   );
 }

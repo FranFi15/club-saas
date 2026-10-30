@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Switch,
 } from 'react-native';
+import ClubSpinLoader from '../../../components/ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
 import BusyOverlay from '../../../components/BusyOverlay';
@@ -171,7 +172,7 @@ export default function AdvancePaymentsModal({
           ) : null}
 
           {loadingInfo ? (
-            <ActivityIndicator color={primaryColor} style={{ marginVertical: 20 }} />
+            <ClubSpinLoader size={40} style={{ marginVertical: 20 }} />
           ) : (
             <>
               {advanceInfo?.limitadoPorGrilla ? (

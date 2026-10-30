@@ -8,10 +8,13 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import ClubSpinLoader from '../../../components/ClubSpinLoader';
+import ListTopFade from '../../../components/ListTopFade';
 import { Ionicons } from '@expo/vector-icons';
 import { finanzasStyles as s } from './finanzasStyles';
 import { MN, EST_COLOR, fmtMoney, contrastOutlineBtn } from './finanzasConstants';
 import DesignCard from '../../../components/DesignCard';
+import Foldable, { FoldableChevron } from '../../../components/Foldable';
 import UserAvatar from '../../../components/UserAvatar';
 import { ThemeContext } from '../../../context/ThemeContext';
 import { formatUserName } from '../../../utils/listSort';
@@ -192,11 +195,7 @@ export default function FamiliasTab({
               style={[styles.toggleBtn, contrastOutlineBtn(theme, isDarkMode)]}
               onPress={() => toggleSection(setExpandedAthletes, tutorId)}
             >
-              <Ionicons
-                name={expandedAthletes[tutorId] ? 'chevron-up' : 'chevron-down'}
-                size={16}
-                color={theme.text}
-              />
+              <FoldableChevron open={!!expandedAthletes[tutorId]} color={theme.text} size={16} />
               <Text style={[styles.toggleBtnTxt, { color: theme.text }]}>
                 Atletas ({g.hijos.length})
               </Text>
@@ -206,11 +205,7 @@ export default function FamiliasTab({
                 style={[styles.toggleBtn, contrastOutlineBtn(theme, isDarkMode)]}
                 onPress={() => toggleSection(setExpandedDiscount, tutorId)}
               >
-                <Ionicons
-                  name={expandedDiscount[tutorId] ? 'chevron-up' : 'chevron-down'}
-                  size={16}
-                  color={theme.text}
-                />
+                <FoldableChevron open={!!expandedDiscount[tutorId]} color={theme.text} size={16} />
                 <Text style={[styles.toggleBtnTxt, { color: theme.text }]}>
                   Descuento{pctActual > 0 ? ` (${pctActual}%)` : ''}
                 </Text>
@@ -218,8 +213,8 @@ export default function FamiliasTab({
             ) : null}
           </View>
 
-          {expandedAthletes[tutorId]
-            ? g.hijos.map((h) => {
+          <Foldable open={!!expandedAthletes[tutorId]}>
+            {g.hijos.map((h) => {
                 const cuota = h.cuotaMes;
                 const hijoImpagas = h.cuotasImpagas || [];
                 const payables = hijoImpagas.length
@@ -348,10 +343,11 @@ export default function FamiliasTab({
                     </View>
                   </View>
                 );
-              })
-            : null}
+              })}
+          </Foldable>
 
-          {canManageDiscounts && expandedDiscount[tutorId] ? (
+          {canManageDiscounts ? (
+            <Foldable open={!!expandedDiscount[tutorId]}>
             <View style={[styles.discountBox, { backgroundColor: theme.background, borderColor: theme.border }]}>
               <Text style={[styles.discountLabel, { color: theme.text }]}>Descuento familiar (%)</Text>
               <Text style={[styles.discountHint, { color: theme.textMuted }]}>
@@ -382,6 +378,7 @@ export default function FamiliasTab({
                 </TouchableOpacity>
               </View>
             </View>
+            </Foldable>
           ) : null}
         </DesignCard>
       );
@@ -414,18 +411,15 @@ export default function FamiliasTab({
           style={[styles.globalToggleBtn, contrastOutlineBtn(theme, isDarkMode)]}
           onPress={() => setExpandedGlobalDiscount((v) => !v)}
         >
-          <Ionicons
-            name={expandedGlobalDiscount ? 'chevron-up' : 'chevron-down'}
-            size={18}
-            color={theme.text}
-          />
+          <FoldableChevron open={expandedGlobalDiscount} color={theme.text} size={18} />
           <Text style={[styles.toggleBtnTxt, { color: theme.text, flex: 1 }]}>
             Descuento global{globalDiscount > 0 ? ` (${globalDiscount}%)` : ''}
           </Text>
         </TouchableOpacity>
       ) : null}
 
-      {canManageDiscounts && expandedGlobalDiscount ? (
+      {canManageDiscounts ? (
+        <Foldable open={expandedGlobalDiscount}>
         <DesignCard
           theme={theme}
           isDarkMode={isDarkMode}
@@ -460,6 +454,7 @@ export default function FamiliasTab({
             </TouchableOpacity>
           </View>
         </DesignCard>
+        </Foldable>
       ) : null}
 
       <Text style={[s.sectionTitle, { color: theme.text, marginTop: 12, marginBottom: 8 }]}>Familias</Text>
@@ -500,7 +495,7 @@ export default function FamiliasTab({
             <Ionicons name="close-circle" size={20} color={theme.icon} />
           </TouchableOpacity>
         ) : isSearchPending || isRefreshing ? (
-          <ActivityIndicator size="small" color={cc} />
+          <ClubSpinLoader size={26} />
         ) : null}
       </View>
     </>
@@ -508,7 +503,7 @@ export default function FamiliasTab({
 
   const renderListEmpty = useCallback(() => {
     if (isLoading) {
-      return <ActivityIndicator color={cc} style={{ marginTop: 40 }} size="large" />;
+      return <ClubSpinLoader size={64} style={{ marginTop: 40 }} />;
     }
     if (filtroBusqueda.trim()) {
       return (
@@ -546,12 +541,13 @@ export default function FamiliasTab({
         }}
         onEndReachedThreshold={0.35}
         ListFooterComponent={
-          loadingMoreFamilias ? <ActivityIndicator color={cc} style={{ marginVertical: 16 }} /> : null
+          loadingMoreFamilias ? <ClubSpinLoader size={40} style={{ marginVertical: 16 }} /> : null
         }
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cc} colors={[cc]} />
         }
       />
+      <ListTopFade color={theme.background} />
     </View>
   );
 }

@@ -6,9 +6,9 @@ import {
   Modal,
   TouchableOpacity,
   FlatList,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import ClubSpinLoader from './ClubSpinLoader';
 import HoverRevealSwipeable from './HoverRevealSwipeable';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -449,7 +449,7 @@ export default function NotificationsModal({ visible, onClose }) {
 
           {bootstrapping ? (
             <View style={[styles.loaderWrap, { backgroundColor: listBg }]}>
-              <ActivityIndicator color={colorMarca} />
+              <ClubSpinLoader size={40} />
             </View>
           ) : (
             <FlatList

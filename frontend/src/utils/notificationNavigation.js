@@ -140,6 +140,14 @@ export function getNotificationTarget(item, { rol, cuotasEnApp, isTutor }) {
     }
   }
 
+  if (tipo === 'partido_informe') {
+    const params = { sessionId: item.referencia };
+    if (rol === 'atleta') return { tab: 'AthleteMetrics', screen: 'PartidoStats', params: { ...params, vistaJugador: true } };
+    if (rol === 'profe') return { tab: 'CoachSesiones', screen: 'MatchReport', params };
+    if (rol === 'preparador_fisico') return { tab: 'PrepSesiones', screen: 'MatchReport', params };
+    return null;
+  }
+
   if (tipo === 'prueba_expirada') {
     if (isTutor || rol === 'tutor') return { tab: 'TutorInicio' };
     if (rol === 'atleta') return { tab: 'AthleteAgenda' };

@@ -1,5 +1,6 @@
 import React, { useContext } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput } from 'react-native';
+import ClubSpinLoader from '../../../components/ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { finanzasStyles as s } from './finanzasStyles';
 import { MN, ESTADO_FILTROS, EST_COLOR, fmtMoney, contrastOutlineBtn } from './finanzasConstants';
@@ -220,7 +221,7 @@ export default function CuotasTab({
 
         <Text style={[s.sectionTitle, { color: theme.text }]}>Cuotas</Text>
         {isLoadingPay ? (
-          <ActivityIndicator color={cc} style={{ marginTop: 20 }} />
+          <ClubSpinLoader size={40} style={{ marginTop: 20 }} />
         ) : payments.length === 0 ? (
           <View style={s.empty}>
             <Ionicons name="receipt-outline" size={50} color={theme.icon} />

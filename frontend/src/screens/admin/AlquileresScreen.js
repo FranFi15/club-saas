@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, RefreshControl, Platform, Linking, KeyboardAvoidingView } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ListTopFade from '../../components/ListTopFade';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -660,6 +662,7 @@ export default function AlquileresScreen({ navigation }) {
         })}
       </View>
 
+      <View style={{ flex: 1 }}>
       <ScrollView
         style={styles.body}
         showsVerticalScrollIndicator={false}
@@ -675,7 +678,7 @@ export default function AlquileresScreen({ navigation }) {
       >
         {activeTab === 'balance' ? (
           isLoadingBalance && !balanceData ? (
-            <ActivityIndicator color={cc} style={{ marginTop: 30 }} />
+            <ClubSpinLoader size={56} style={{ marginTop: 30 }} />
           ) : (
             <>
               <View style={styles.balanceStats}>
@@ -712,7 +715,7 @@ export default function AlquileresScreen({ navigation }) {
                   <View key={`${h.rentalId}-${h.fecha}-${i}`}>{renderHistorialRow(h)}</View>
                 ))
               )}
-              {loadingMoreHistorial ? <ActivityIndicator color={cc} style={{ marginVertical: 12 }} /> : null}
+              {loadingMoreHistorial ? <ClubSpinLoader size={40} style={{ marginVertical: 12 }} /> : null}
             </>
           )
         ) : activeTab === 'reservas' ? (
@@ -740,7 +743,7 @@ export default function AlquileresScreen({ navigation }) {
               }}
             />
             {isLoadingRentals && filteredReservas.length === 0 ? (
-              <ActivityIndicator color={cc} style={{ marginTop: 30 }} />
+              <ClubSpinLoader size={56} style={{ marginTop: 30 }} />
             ) : filteredReservas.length === 0 ? (
               <Text style={[styles.emptyReservas, { color: theme.textMuted }]}>
                 No hay reservas{reservasSpaceFilter ? ' para este espacio' : ''}.
@@ -750,11 +753,11 @@ export default function AlquileresScreen({ navigation }) {
                 {filteredReservas.map((r) => (
                   <View key={String(r._id)}>{renderReservaCard(r)}</View>
                 ))}
-                {loadingMoreRentals ? <ActivityIndicator color={cc} style={{ marginVertical: 12 }} /> : null}
+                {loadingMoreRentals ? <ClubSpinLoader size={40} style={{ marginVertical: 12 }} /> : null}
               </View>
             )}
           </>
-        ) : showInitialSpacesLoader ? <ActivityIndicator color={cc} style={{marginTop:20}} /> : (
+        ) : showInitialSpacesLoader ? <ClubSpinLoader size={40} style={{marginTop:20}} /> : (
           <>
             <Text style={[styles.label, { color: theme.textMuted, marginBottom: 10 }]}>Seleccionar Espacio</Text>
             <FlatList horizontal showsHorizontalScrollIndicator={false} data={spaces} keyExtractor={s=>s._id}
@@ -816,7 +819,7 @@ export default function AlquileresScreen({ navigation }) {
               ) : null}
             </View>
 
-            {isLoadingGrid ? <ActivityIndicator color={cc} style={{marginVertical:30}} /> : (
+            {isLoadingGrid ? <ClubSpinLoader size={40} style={{marginVertical:30}} /> : (
               <View style={{paddingBottom:90}}>
                 {SLOTS.map((slot,i) => (
                   <View key={i}>{renderSlot({ item: slot })}</View>
@@ -826,6 +829,8 @@ export default function AlquileresScreen({ navigation }) {
           </>
         )}
       </ScrollView>
+      <ListTopFade color={theme.background} />
+      </View>
 
       {activeTab === 'calendario' && canMutateRentals ? (
       <TouchableOpacity style={[styles.fab, { backgroundColor: '#10b981' }]} onPress={()=>openNewRental(null)}>

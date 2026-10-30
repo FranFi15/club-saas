@@ -2,6 +2,7 @@ import React, { useContext, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Platform } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { fadeStackScreenOptions } from './screenFade';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
@@ -43,7 +44,7 @@ const NutProfileStackNav = createProfileStack(StaffProfileScreen);
 
 function NutHomeStackNav() {
   return (
-    <NutHomeStack.Navigator screenOptions={{ headerShown: false }}>
+    <NutHomeStack.Navigator screenOptions={fadeStackScreenOptions}>
       <NutHomeStack.Screen name="NutDashboardMain" component={NutritionDashboardScreen} />
     </NutHomeStack.Navigator>
   );
@@ -51,7 +52,7 @@ function NutHomeStackNav() {
 
 function NutSessionsStackNav() {
   return (
-    <NutSessionsStack.Navigator screenOptions={{ headerShown: false }}>
+    <NutSessionsStack.Navigator screenOptions={fadeStackScreenOptions}>
       <NutSessionsStack.Screen name="NutritionAgenda" component={NutritionAgendaScreen} />
       <NutSessionsStack.Screen name="CoachSessionDetail" component={CoachSessionDetailScreen} />
       <NutSessionsStack.Screen name="NutritionNewConsult" component={NutritionNewConsultScreen} />
@@ -63,7 +64,7 @@ function NutSessionsStackNav() {
 
 function NutTeamStackNav() {
   return (
-    <NutTeamStack.Navigator screenOptions={{ headerShown: false }}>
+    <NutTeamStack.Navigator screenOptions={fadeStackScreenOptions}>
       <NutTeamStack.Screen
         name="NutRoster"
         component={StaffAthleteRosterScreen}
@@ -82,7 +83,7 @@ function NutTeamStackNav() {
 
 function NutCommsStackNav() {
   return (
-    <NutCommsStack.Navigator screenOptions={{ headerShown: false }}>
+    <NutCommsStack.Navigator screenOptions={fadeStackScreenOptions}>
       <NutCommsStack.Screen name="CoachCommsHub" component={CoachCommsHubScreen} />
       <NutCommsStack.Screen
         name="NoticiasStaff"

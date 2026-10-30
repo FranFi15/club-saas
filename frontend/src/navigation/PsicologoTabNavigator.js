@@ -2,6 +2,7 @@ import React, { useContext, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Platform } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { fadeStackScreenOptions } from './screenFade';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
@@ -42,7 +43,7 @@ const PsiProfileStackNav = createProfileStack(StaffProfileScreen);
 
 function PsiHomeStackNav() {
   return (
-    <PsiHomeStack.Navigator screenOptions={{ headerShown: false }}>
+    <PsiHomeStack.Navigator screenOptions={fadeStackScreenOptions}>
       <PsiHomeStack.Screen name="PsiDashboardMain" component={PsychologyDashboardScreen} />
     </PsiHomeStack.Navigator>
   );
@@ -50,7 +51,7 @@ function PsiHomeStackNav() {
 
 function PsiSessionsStackNav() {
   return (
-    <PsiSessionsStack.Navigator screenOptions={{ headerShown: false }}>
+    <PsiSessionsStack.Navigator screenOptions={fadeStackScreenOptions}>
       <PsiSessionsStack.Screen name="PsychologyAgenda" component={PsychologyAgendaScreen} />
       <PsiSessionsStack.Screen name="CoachSessionDetail" component={CoachSessionDetailScreen} />
       <PsiSessionsStack.Screen name="PsychologyNewConsult" component={PsychologyNewConsultScreen} />
@@ -62,7 +63,7 @@ function PsiSessionsStackNav() {
 
 function PsiTeamStackNav() {
   return (
-    <PsiTeamStack.Navigator screenOptions={{ headerShown: false }}>
+    <PsiTeamStack.Navigator screenOptions={fadeStackScreenOptions}>
       <PsiTeamStack.Screen
         name="PsiRoster"
         component={StaffAthleteRosterScreen}
@@ -82,7 +83,7 @@ function PsiTeamStackNav() {
 
 function PsiCommsStackNav() {
   return (
-    <PsiCommsStack.Navigator screenOptions={{ headerShown: false }}>
+    <PsiCommsStack.Navigator screenOptions={fadeStackScreenOptions}>
       <PsiCommsStack.Screen name="CoachCommsHub" component={CoachCommsHubScreen} />
       <PsiCommsStack.Screen
         name="NoticiasStaff"

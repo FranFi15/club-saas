@@ -1,4 +1,4 @@
-import React, { useContext, useCallback, useState, useMemo, useEffect } from 'react';
+import React, { useContext, useCallback, useState, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   Platform,
   Modal,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -30,6 +31,54 @@ import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusL
 import { pickPaginatedRows } from '../../utils/paginatedApi';
 
 const UNFILED_KEY = 'unfiled';
+const DOC_PAGE = 10;
+
+async function athleteFilterOptions(headers, { isAdmin, categories }) {
+  const byId = new Map();
+  const addUser = (user) => {
+    const id = user?._id;
+    if (!id || byId.has(String(id))) return;
+    const label = formatUserName(user);
+    if (!label) return;
+    byId.set(String(id), label);
+  };
+
+  try {
+    if (isAdmin) {
+      let page = 1;
+      let totalPages = 1;
+      while (page <= totalPages && page <= 20) {
+        const res = await clubApi.get('/users', {
+          headers,
+          params: { rol: 'atleta', limit: 100, page },
+        });
+        const users = res.data?.users || [];
+        users.forEach(addUser);
+        totalPages = Number(res.data?.totalPages) || page;
+        if (!users.length) break;
+        page += 1;
+      }
+    } else {
+      const ids = (categories || []).map((c) => c._id).filter(Boolean);
+      const results = await Promise.all(
+        ids.map((id) =>
+          clubApi.get(`/enrollments/categoria/${id}`, { headers }).catch(() => ({ data: [] })),
+        ),
+      );
+      results.forEach((res) => {
+        const rows = Array.isArray(res.data) ? res.data : [];
+        rows.forEach((row) => addUser(row?.atleta));
+      });
+    }
+  } catch {
+    return [{ label: 'Todos los usuarios', value: '' }];
+  }
+
+  return [
+    { label: 'Todos los usuarios', value: '' },
+    ...sortByNombre([...byId.entries()].map(([value, label]) => ({ value, label, nombre: label }))),
+  ];
+}
 
 const ESTADO_FILTERS = [
   { value: '', label: 'Todos los estados' },
@@ -61,11 +110,30 @@ function FiltersPanel({
   onRequerimientoChange,
   showScopeFilters,
   showPedidoFilter,
+  showUserFilter,
+  usuarioFilter,
+  usuarioOptions,
+  onUsuarioChange,
 }) {
   const dropdownProps = { theme, colorMarca, compact: true };
 
   return (
     <View style={[styles.filtersPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      {showUserFilter ? (
+        <View style={styles.filterCellFull}>
+          <Text style={[styles.filtersLabel, { color: theme.textMuted }]} numberOfLines={1}>
+            Usuario
+          </Text>
+          <SearchableDropdown
+            {...dropdownProps}
+            data={usuarioOptions}
+            value={usuarioFilter}
+            onChange={onUsuarioChange}
+            placeholder="Todos los usuarios"
+          />
+        </View>
+      ) : null}
+
       {showPedidoFilter ? (
         <View style={styles.filterCellFull}>
           <Text style={[styles.filtersLabel, { color: theme.textMuted }]} numberOfLines={1}>
@@ -214,11 +282,13 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
     }
   }, [isAdminVariant, route?.params?.categoriaId, route?.params?.estado, route?.params?.requerimientoId, route?.params?.atletaId]);
 
+  const [usuarioFilter, setUsuarioFilter] = useState('');
+
   const filterMetaCacheKey = clubData?.urlIdentifier
-    ? `${isAdminVariant ? 'admin' : 'coach'}-doc-filters-v2:${clubData.urlIdentifier}`
+    ? `${isAdminVariant ? 'admin' : 'coach'}-doc-filters-v3:${clubData.urlIdentifier}`
     : '';
   const docsCacheKey = clubData?.urlIdentifier
-    ? `${isAdminVariant ? 'admin' : 'team'}-docs:${clubData.urlIdentifier}:${lockedAtletaId}:${selectedFolderKey || ''}:${estadoFilter}:${disciplinaFilter}:${categoriaFilter}:${requerimientoFilter}`
+    ? `${isAdminVariant ? 'admin' : 'team'}-docs:${clubData.urlIdentifier}:${lockedAtletaId}:${usuarioFilter}:${selectedFolderKey || ''}:${estadoFilter}:${disciplinaFilter}:${categoriaFilter}:${requerimientoFilter}`
     : '';
 
   const cachedFilterMeta = readScreenCache(filterMetaCacheKey);
@@ -229,6 +299,10 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
   const [categories, setCategories] = useState(() => cachedFilterMeta?.categories ?? []);
   const [disciplines, setDisciplines] = useState(() => cachedFilterMeta?.disciplines ?? []);
   const [requirements, setRequirements] = useState(() => cachedFilterMeta?.requirements ?? []);
+  const [usuarioOptions, setUsuarioOptions] = useState(
+    () => cachedFilterMeta?.athletes ?? [{ label: 'Todos los usuarios', value: '' }],
+  );
+  const loadingMoreRef = useRef(false);
   const [userId, setUserId] = useState('');
   const [userRol, setUserRol] = useState('');
   const [reviewingId, setReviewingId] = useState(null);
@@ -313,52 +387,69 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
         clubApi.get('/disciplines', { headers: h }),
         pedidosReq,
       ]);
+      const categories = sortByNombre(catRes.data || []);
       return {
-        categories: sortByNombre(catRes.data || []),
+        categories,
         disciplines: sortByNombre(discRes.data || []),
         requirements: pedRes.data?.requirements || [],
+        athletes: await athleteFilterOptions(h, { isAdmin: true, categories }),
       };
     }
     const [catRes, pedRes] = await Promise.all([
       clubApi.get('/categories/mis-categorias', { headers: h }),
       pedidosReq,
     ]);
+    const categories = sortByNombre(catRes.data || []);
     return {
-      categories: sortByNombre(catRes.data || []),
+      categories,
       disciplines: [],
       requirements: pedRes.data?.requirements || [],
+      athletes: await athleteFilterOptions(h, { isAdmin: false, categories }),
     };
   }, [headers, isAdminVariant, lockedCategoriaId]);
 
-  const fetchSubmissions = useCallback(async () => {
-    const h = await headers();
-    const params = { page: 1, limit: 30 };
-    const categoryId = lockedCategoriaId || categoriaFilter;
-    if (estadoFilter) params.estado = estadoFilter;
-    if (!lockedCategoriaId && disciplinaFilter) params.disciplinaId = disciplinaFilter;
-    if (categoryId) params.categoriaId = categoryId;
-    if (lockedAtletaId) params.atletaId = lockedAtletaId;
-    applyCarpetaParams(params);
-    const res = await clubApi.get('/requirements/submissions', { headers: h, params });
-    const rows = pickPaginatedRows(res.data, 'submissions');
-    setSubmissionsPage(res.data?.page ?? 1);
-    setSubmissionsHasMore(Boolean(res.data?.hasMore));
-    return rows;
-  }, [headers, estadoFilter, disciplinaFilter, categoriaFilter, lockedCategoriaId, lockedAtletaId, applyCarpetaParams]);
-
-  const loadMoreSubmissions = useCallback(async () => {
-    if (loadingMoreSubmissions || !submissionsHasMore || browseLevel !== 'deliveries') return;
-    setLoadingMoreSubmissions(true);
-    try {
-      const h = await headers();
-      const params = { page: submissionsPage + 1, limit: 30 };
+  const submissionQuery = useCallback(
+    (page) => {
+      const params = { page, limit: DOC_PAGE };
       const categoryId = lockedCategoriaId || categoriaFilter;
       if (estadoFilter) params.estado = estadoFilter;
       if (!lockedCategoriaId && disciplinaFilter) params.disciplinaId = disciplinaFilter;
       if (categoryId) params.categoriaId = categoryId;
-      if (lockedAtletaId) params.atletaId = lockedAtletaId;
+      const atletaId = lockedAtletaId || usuarioFilter;
+      if (atletaId) params.atletaId = atletaId;
       applyCarpetaParams(params);
-      const res = await clubApi.get('/requirements/submissions', { headers: h, params });
+      return params;
+    },
+    [
+      estadoFilter,
+      disciplinaFilter,
+      categoriaFilter,
+      lockedCategoriaId,
+      lockedAtletaId,
+      usuarioFilter,
+      applyCarpetaParams,
+    ],
+  );
+
+  const fetchSubmissions = useCallback(async () => {
+    const h = await headers();
+    const res = await clubApi.get('/requirements/submissions', { headers: h, params: submissionQuery(1) });
+    const rows = pickPaginatedRows(res.data, 'submissions');
+    setSubmissionsPage(res.data?.page ?? 1);
+    setSubmissionsHasMore(Boolean(res.data?.hasMore));
+    return rows;
+  }, [headers, submissionQuery]);
+
+  const loadMoreSubmissions = useCallback(async () => {
+    if (loadingMoreRef.current || loadingMoreSubmissions || !submissionsHasMore || browseLevel !== 'deliveries') return;
+    loadingMoreRef.current = true;
+    setLoadingMoreSubmissions(true);
+    try {
+      const h = await headers();
+      const res = await clubApi.get('/requirements/submissions', {
+        headers: h,
+        params: submissionQuery(submissionsPage + 1),
+      });
       const rows = pickPaginatedRows(res.data, 'submissions');
       setList((prev) => [...prev, ...rows]);
       setSubmissionsPage(res.data?.page ?? submissionsPage + 1);
@@ -366,6 +457,7 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
     } catch (e) {
       showAlert('Error', e.response?.data?.message || 'No se pudieron cargar más entregas.');
     } finally {
+      loadingMoreRef.current = false;
       setLoadingMoreSubmissions(false);
     }
   }, [
@@ -373,12 +465,7 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
     submissionsHasMore,
     submissionsPage,
     headers,
-    estadoFilter,
-    disciplinaFilter,
-    categoriaFilter,
-    lockedCategoriaId,
-    lockedAtletaId,
-    applyCarpetaParams,
+    submissionQuery,
     browseLevel,
   ]);
 
@@ -390,6 +477,7 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
       setCategories(data?.categories ?? []);
       setDisciplines(data?.disciplines ?? []);
       setRequirements(data?.requirements ?? []);
+      setUsuarioOptions(data?.athletes ?? [{ label: 'Todos los usuarios', value: '' }]);
     },
     onFetchError: () => {
       setCategories([]);
@@ -988,7 +1076,7 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
             disabled={fileBusy}
           >
             {fileBusy ? (
-              <ActivityIndicator size="small" color={theme.text} />
+              <ClubSpinLoader size={26} />
             ) : (
               <>
                 <Ionicons name={isPdf ? 'download-outline' : 'eye-outline'} size={16} color={theme.text} />
@@ -1074,6 +1162,10 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
       onRequerimientoChange={setRequerimientoFilter}
       showScopeFilters={showScopeFilters}
       showPedidoFilter={scopedRequirements.length > 0}
+      showUserFilter={!lockedAtletaId}
+      usuarioFilter={usuarioFilter}
+      usuarioOptions={usuarioOptions}
+      onUsuarioChange={setUsuarioFilter}
     />
   );
 
@@ -1106,7 +1198,7 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
           }
           ListEmptyComponent={
             loadingFolders ? (
-              <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />
+              <ClubSpinLoader size={56} style={{ marginTop: 32 }} />
             ) : (
               <Text style={[styles.empty, { color: theme.textMuted }]}>
                 Todavía no hay carpetas. Creá una para organizar tus pedidos.
@@ -1132,7 +1224,7 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
           }
           ListEmptyComponent={
             loadingPedidos ? (
-              <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />
+              <ClubSpinLoader size={56} style={{ marginTop: 32 }} />
             ) : (
               <Text style={[styles.empty, { color: theme.textMuted }]}>
                 No hay pedidos en esta carpeta.
@@ -1152,12 +1244,12 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
           onEndReached={loadMoreSubmissions}
           onEndReachedThreshold={0.35}
           ListFooterComponent={
-            loadingMoreSubmissions ? <ActivityIndicator color={colorMarca} style={{ marginVertical: 16 }} /> : null
+            loadingMoreSubmissions ? <ClubSpinLoader size={40} style={{ marginVertical: 16 }} /> : null
           }
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
           ListEmptyComponent={
             showInitialLoader ? (
-              <ActivityIndicator color={colorMarca} style={{ marginTop: 32 }} />
+              <ClubSpinLoader size={56} style={{ marginTop: 32 }} />
             ) : (
               <Text style={[styles.empty, { color: theme.textMuted }]}>No hay entregas con estos filtros.</Text>
             )

@@ -1,6 +1,8 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { Platform, View, ActivityIndicator } from 'react-native';
+import { Platform, View } from 'react-native';
+import ClubSpinLoader from '../components/ClubSpinLoader';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { fadeStackScreenOptions } from './screenFade';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
@@ -23,7 +25,7 @@ const StaffProfileStackNav = createProfileStack(StaffProfileScreen);
 
 function StaffWorkStackNav() {
   return (
-    <StaffHomeStackNavigator.Navigator screenOptions={{ headerShown: false }}>
+    <StaffHomeStackNavigator.Navigator screenOptions={fadeStackScreenOptions}>
       <StaffHomeStackNavigator.Screen name="StaffDashboard" component={StaffDashboardScreen} />
       <StaffHomeStackNavigator.Screen
         name="NoticiasStaff"
@@ -98,7 +100,7 @@ export default function StaffTabNavigator() {
   if (staffRol === null) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.background }}>
-        <ActivityIndicator size="large" color={clubData?.primaryColor || '#3b82f6'} />
+        <ClubSpinLoader size={64} />
       </View>
     );
   }

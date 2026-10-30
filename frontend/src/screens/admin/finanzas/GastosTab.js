@@ -12,6 +12,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import ClubSpinLoader from '../../../components/ClubSpinLoader';
+import ListTopFade from '../../../components/ListTopFade';
 import { Ionicons } from '@expo/vector-icons';
 import FormSheet from '../../../components/FormSheet';
 import { clubApi } from '../../../utils/api';
@@ -494,10 +496,12 @@ export default function GastosTab({
         </ScrollView>
       </View>
 
+      <View style={{ flex: 1 }}>
       {loading && bills.length === 0 ? (
-        <ActivityIndicator color={cc} style={{ marginTop: 40 }} />
+        <ClubSpinLoader size={56} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
+          style={{ flex: 1 }}
           data={visibleBills}
           keyExtractor={(item) => String(item._id)}
           renderItem={renderItem}
@@ -519,6 +523,8 @@ export default function GastosTab({
           }
         />
       )}
+      <ListTopFade color={theme.background} />
+      </View>
 
       {canMutate ? (
         <TouchableOpacity style={[s.fab, { backgroundColor: cc }]} onPress={() => setModeModal(true)}>
@@ -683,7 +689,7 @@ export default function GastosTab({
               </TouchableOpacity>
             </View>
             {selectLoading ? (
-              <ActivityIndicator color={cc} style={{ marginVertical: 24 }} />
+              <ClubSpinLoader size={40} style={{ marginVertical: 24 }} />
             ) : (
               <FlatList
                 data={selectRows}

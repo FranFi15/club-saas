@@ -2,6 +2,7 @@ import React, { useContext, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Platform } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { fadeStackScreenOptions } from './screenFade';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
@@ -25,7 +26,7 @@ const ControlProfileStack = createProfileStack(StaffProfileScreen);
 
 function ControlChatStackNav() {
   return (
-    <ChatStack.Navigator screenOptions={{ headerShown: false }}>
+    <ChatStack.Navigator screenOptions={fadeStackScreenOptions}>
       <ChatStack.Screen name="ChatInbox" component={ChatInboxScreen} />
       <ChatStack.Screen name="ChatThread" component={ChatThreadScreen} />
       <ChatStack.Screen name="ChatNew" component={ChatNewScreen} />

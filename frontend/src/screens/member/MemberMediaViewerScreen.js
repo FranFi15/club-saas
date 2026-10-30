@@ -7,8 +7,8 @@ import {
   TouchableOpacity,
   Linking,
   StatusBar,
-  ActivityIndicator,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
@@ -123,7 +123,7 @@ export default function MemberMediaViewerScreen({ navigation, route }) {
               disabled={downloading}
             >
               {downloading ? (
-                <ActivityIndicator size="small" color={theme.text} />
+                <ClubSpinLoader size={26} />
               ) : (
                 <>
                   <Ionicons name="download-outline" size={18} color={theme.text} />

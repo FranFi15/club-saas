@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COACH_HEADER_HEIGHT, COACH_HEADER_HEIGHT_WITH_TOOLBAR, CoachHeaderActions } from './CoachScreenHeader';
 import NotificationBell from './NotificationBell';
 import HeaderClubLogo, { HEADER_CLUB_LOGO_SIZE } from './HeaderClubLogo';
+import HeaderBottomFade, { HEADER_BOTTOM_FADE } from './HeaderBottomFade';
 import { statusBarStyleForColor } from '../utils/statusBarContrast';
 
 const BACK_BTN_SIZE = 36;
@@ -43,6 +44,7 @@ export default function AdminScreenHeader({
 
   return (
     <View
+      pointerEvents="box-none"
       style={[
         styles.headerWrap,
         {
@@ -133,12 +135,13 @@ export default function AdminScreenHeader({
           </View>
         ) : null}
       </View>
+      <HeaderBottomFade color={colorMarca} background={theme?.background} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  headerWrap: { width: '100%' },
+  headerWrap: { width: '100%', zIndex: 2, marginBottom: HEADER_BOTTOM_FADE },
   headerCard: {
     borderRadius: 0,
     width: '100%',
@@ -173,7 +176,7 @@ const styles = StyleSheet.create({
   bottomRightAccessory: {
     position: 'absolute',
     right: 12,
-    bottom: 10,
+    bottom: 22,
     zIndex: 3,
     maxWidth: '58%',
   },

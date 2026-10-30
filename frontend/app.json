@@ -3,14 +3,14 @@
     "name": "Hermes Club App",
     "slug": "hermes-club-app",
     "scheme": "clubapp",
-    "version": "1.0.17",
-    "orientation": "portrait",
+    "version": "1.0.18",
+    "orientation": "default",
     "icon": "./assets/icono-app.png",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.hermesclubapp.app",
-      "buildNumber": "20"
+      "buildNumber": "21"
     },
     "androidStatusBar": {
       "translucent": true,
@@ -19,7 +19,7 @@
     },
     "android": {
       "package": "com.hermesclubapp.app",
-      "versionCode": 25,
+      "versionCode": 26,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/androidicon.png",
@@ -75,6 +75,12 @@
         {
           "photosPermission": "Permite subir fotos de comprobantes de pago y documentación del club.",
           "cameraPermission": "Permite tomar fotos para comprobantes y documentación del club."
+        }
+      ],
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "PORTRAIT_UP"
         }
       ],
       [

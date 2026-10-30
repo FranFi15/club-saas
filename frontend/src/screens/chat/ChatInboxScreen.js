@@ -5,12 +5,13 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  ActivityIndicator,
   RefreshControl,
   TextInput,
   StatusBar,
   Switch,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ListTopFade from '../../components/ListTopFade';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -249,7 +250,7 @@ export default function ChatInboxScreen({ navigation }) {
             </Text>
           </View>
           {staffGroupSaving ? (
-            <ActivityIndicator color={colorMarca} />
+            <ClubSpinLoader size={40} />
           ) : (
             <Switch
               value={staffGroupEnabled}
@@ -289,10 +290,12 @@ export default function ChatInboxScreen({ navigation }) {
           ) : null}
         </View>
       </View>
+      <View style={{ flex: 1 }}>
       {loading ? (
-        <ActivityIndicator style={{ marginTop: 32 }} color={colorMarca} />
+        <ClubSpinLoader size={56} style={{ marginTop: 32 }} />
       ) : (
         <FlatList
+          style={{ flex: 1 }}
           data={visibleItems}
           keyExtractor={(item) => String(item._id)}
           renderItem={renderItem}
@@ -330,6 +333,8 @@ export default function ChatInboxScreen({ navigation }) {
           }
         />
       )}
+      <ListTopFade color={theme.background} />
+      </View>
     </SafeAreaView>
   );
 }

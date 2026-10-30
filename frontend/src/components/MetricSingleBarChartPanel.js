@@ -2,6 +2,7 @@ import React, { useContext } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import SearchableDropdown from './SearchableDropdown';
 import MeasurementBarChart from './MeasurementBarChart';
+import MeasurementLineChart from './MeasurementLineChart';
 import DesignCard from './DesignCard';
 import { ThemeContext } from '../context/ThemeContext';
 import {
@@ -24,6 +25,7 @@ export default function MetricSingleBarChartPanel({
   nutriLabels = false,
   emptyDefsMessage = 'Todavía no hay mediciones para graficar.',
   emptySeriesMessage = 'Sin datos para esta métrica.',
+  showPicker = true,
 }) {
   const { isDarkMode: isDarkModeCtx } = useContext(ThemeContext);
   const isDarkMode = isDarkModeProp ?? isDarkModeCtx;
@@ -37,17 +39,21 @@ export default function MetricSingleBarChartPanel({
 
   return (
     <>
-      <Text style={[styles.label, { color: theme.textMuted }]}>Métrica</Text>
-      <View style={styles.dropdownWrap}>
-        <SearchableDropdown
-          data={options}
-          value={chartMetricId}
-          onChange={onChangeChartMetricId}
-          placeholder="Elegí una métrica…"
-          theme={theme}
-          colorMarca={colorMarca}
-        />
-      </View>
+      {showPicker ? (
+        <>
+          <Text style={[styles.label, { color: theme.textMuted }]}>Métrica</Text>
+          <View style={styles.dropdownWrap}>
+            <SearchableDropdown
+              data={options}
+              value={chartMetricId}
+              onChange={onChangeChartMetricId}
+              placeholder="Elegí una métrica…"
+              theme={theme}
+              colorMarca={colorMarca}
+            />
+          </View>
+        </>
+      ) : null}
       <DesignCard
         theme={theme}
         isDarkMode={isDarkMode}

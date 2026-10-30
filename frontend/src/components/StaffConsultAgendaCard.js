@@ -6,10 +6,10 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
-  ActivityIndicator,
   TextInput,
   Platform,
 } from 'react-native';
+import ClubSpinLoader from './ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
 import { getToken } from '../utils/storage';
@@ -240,7 +240,7 @@ export default function StaffConsultAgendaCard({
               </TouchableOpacity>
             </View>
             {loadingAthletes ? (
-              <ActivityIndicator color={colorMarca} style={{ marginVertical: 24 }} />
+              <ClubSpinLoader size={40} style={{ marginVertical: 24 }} />
             ) : (
               <>
                 <View style={styles.searchWrap}>
@@ -296,7 +296,7 @@ export default function StaffConsultAgendaCard({
                         {formatUserName(a)}
                       </Text>
                       {savingAthlete ? (
-                        <ActivityIndicator color={colorMarca} size="small" />
+                        <ClubSpinLoader size={26} />
                       ) : selected ? (
                         <Text style={{ color: theme.textMuted, fontSize: 12 }}>Actual</Text>
                       ) : (

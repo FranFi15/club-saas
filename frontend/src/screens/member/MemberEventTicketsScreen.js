@@ -4,12 +4,12 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  ActivityIndicator,
   StatusBar,
   RefreshControl,
   TouchableOpacity,
   Image,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
@@ -123,7 +123,7 @@ export default function MemberEventTicketsScreen({ navigation }) {
           })()}
         </View>
       ) : loading && !tickets.length ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={colorMarca} />
+        <ClubSpinLoader size={56} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           style={styles.list}

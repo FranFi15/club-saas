@@ -12,6 +12,7 @@ import {
   Platform,
   Modal,
 } from 'react-native';
+import ClubSpinLoader from './ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import * as DocumentPicker from 'expo-document-picker';
@@ -424,7 +425,7 @@ export default function RequestDocComposer({
   ];
 
   if (loadingMeta) {
-    return <ActivityIndicator color={colorMarca} style={{ marginTop: 40 }} />;
+    return <ClubSpinLoader size={56} style={{ marginTop: 40 }} />;
   }
 
   return (
@@ -495,7 +496,7 @@ export default function RequestDocComposer({
         </Text>
         {uploadingAdjunto ? (
           <View style={styles.uploadingBox}>
-            <ActivityIndicator color={colorMarca} />
+            <ClubSpinLoader size={40} />
             <Text style={[styles.uploadingText, { color: theme.textMuted }]}>Subiendo archivo…</Text>
           </View>
         ) : adjuntoUrl ? (

@@ -1,9 +1,17 @@
 // src/screens/admin/UsuariosScreen.js
 import React, { useState, useContext, useCallback, useEffect, useMemo } from 'react';
-import { 
-  View, Text, StyleSheet, FlatList, TouchableOpacity, 
-  ActivityIndicator, StatusBar, TextInput, Alert, RefreshControl
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  StatusBar,
+  TextInput,
+  Alert,
+  RefreshControl,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import HoverRevealSwipeable from '../../components/HoverRevealSwipeable';
@@ -14,6 +22,7 @@ import { getToken } from '../../utils/storage';
 
 import CustomAlert from '../../components/CustomAlert';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
+import ListTopFade from '../../components/ListTopFade';
 import DesignCard from '../../components/DesignCard';
 import UserFormModal from '../../components/UserFormModal';
 import UserDetailsModal from '../../components/UserDetailsModal';
@@ -451,8 +460,12 @@ export default function UsuariosScreen({ navigation }) {
     const inactive = item.estado === 'inactivo';
 
     if (item.tutorPrincipal && item.tutorPrincipal.nombre) {
-      familyTagText = `A cargo de: ${formatUserName(item.tutorPrincipal)}`;
-      familyIcon = 'person';
+      const extras = (Array.isArray(item.tutores) ? item.tutores : [])
+        .filter((tutor) => tutor && tutor.nombre)
+        .map((tutor) => formatUserName(tutor));
+      const names = [formatUserName(item.tutorPrincipal), ...extras];
+      familyTagText = `A cargo de: ${names.join(', ')}`;
+      familyIcon = names.length > 1 ? 'people' : 'person';
     } else if (item.familiaresACargo && item.familiaresACargo.length > 0) {
       const nombresFamiliares = item.familiaresACargo.map((f) => f.nombre).join(', ');
       familyTagText = `Tutor de: ${nombresFamiliares}`;
@@ -534,7 +547,7 @@ export default function UsuariosScreen({ navigation }) {
 
   const renderFooter = () => {
     if (!isFetchingMore) return null;
-    return <ActivityIndicator size="small" color={colorMarca} style={{ padding: 20 }} />;
+    return <ClubSpinLoader size={26} style={{ padding: 20 }} />;
   };
 
   return (
@@ -583,13 +596,13 @@ export default function UsuariosScreen({ navigation }) {
           inputHeight={48}
         />
         {isRefreshingUsers ? (
-          <ActivityIndicator size="small" color={colorMarca} style={styles.filterRefreshing} />
+          <ClubSpinLoader size={26} style={styles.filterRefreshing} />
         ) : null}
       </View>
 
       <View style={styles.body}>
         {showInitialLoader ? (
-          <ActivityIndicator size="large" color={colorMarca} style={{ marginTop: 50 }} />
+          <ClubSpinLoader size={64} style={{ marginTop: 50 }} />
         ) : (
           <FlatList
             data={sortedUsers}
@@ -609,6 +622,7 @@ export default function UsuariosScreen({ navigation }) {
             }
           />
         )}
+        <ListTopFade color={theme.background} />
       </View>
 
       {canMutateUsers ? (

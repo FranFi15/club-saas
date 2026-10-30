@@ -15,6 +15,7 @@ import {
   RefreshControl,
   Switch,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import HoverRevealSwipeable from '../../components/HoverRevealSwipeable';
@@ -26,6 +27,7 @@ import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
 import BusyOverlay from '../../components/BusyOverlay';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
+import Foldable, { FoldableChevron } from '../../components/Foldable';
 import DesignCard from '../../components/DesignCard';
 import { sortEnrollmentsByAtleta, sortUsersByName, formatUserName } from '../../utils/listSort';
 import UserDetailsModal from '../../components/UserDetailsModal';
@@ -782,13 +784,13 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
                   >
                     Asistencias
                   </Text>
-                  <Ionicons
-                    name={attExpanded ? 'chevron-up' : 'chevron-down'}
+                  <FoldableChevron
+                    open={attExpanded}
                     size={16}
                     color={attExpanded ? (isDarkMode ? '#111111' : '#ffffff') : theme.text}
                   />
                 </TouchableOpacity>
-                {attExpanded ? renderAttendanceSummary(atletaId) : null}
+                <Foldable open={attExpanded}>{renderAttendanceSummary(atletaId)}</Foldable>
               </View>
             ) : null
           }
@@ -940,13 +942,9 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
               }
             />
           </View>
-          <Ionicons
-            name={chatPanelOpen ? 'chevron-up' : 'chevron-down'}
-            size={20}
-            color={theme.textMuted}
-          />
+          <FoldableChevron open={chatPanelOpen} color={theme.textMuted} size={20} />
         </TouchableOpacity>
-        {chatPanelOpen ? (
+        <Foldable open={chatPanelOpen}>
           <>
             <View style={[styles.chatRowDivider, { backgroundColor: theme.border }]} />
             <View style={styles.chatRow}>
@@ -975,7 +973,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
               />
             </View>
           </>
-        ) : null}
+        </Foldable>
       </View>
 
       <ScrollView
@@ -1036,7 +1034,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
 
       <View style={styles.body}>
         {showInitialLoader ? (
-          <ActivityIndicator size="large" color={colorMarca} style={{ marginTop: 50 }} />
+          <ClubSpinLoader size={64} style={{ marginTop: 50 }} />
         ) : (
           <FlatList
              data={visibleListData}
@@ -1139,7 +1137,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                  />
-                 {(isSearching || addLoading) && <ActivityIndicator color={colorMarca} style={{ marginRight: 15 }} />}
+                 {(isSearching || addLoading) && <ClubSpinLoader size={40} style={{ marginRight: 15 }} />}
               </View>
 
               <FlatList
@@ -1279,7 +1277,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
             ) : null}
 
             {isLoadingPlans ? (
-              <ActivityIndicator size="large" color={colorMarca} style={{ marginTop: 20 }} />
+              <ClubSpinLoader size={64} style={{ marginTop: 20 }} />
             ) : (
               <FlatList
                 data={[{ _id: null, nombre: 'Sin plan', monto: 0 }, ...plans.filter((p) => p.activo !== false)]}

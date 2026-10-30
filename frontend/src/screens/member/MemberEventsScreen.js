@@ -18,6 +18,7 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -431,7 +432,7 @@ export default function MemberEventsScreen({ navigation }) {
 
       <View style={styles.body}>
         {loading && !events.length ? (
-          <ActivityIndicator style={{ marginTop: 40 }} color={colorMarca} />
+          <ClubSpinLoader size={56} style={{ marginTop: 40 }} />
         ) : (
           <FlatList
             style={styles.list}
@@ -678,7 +679,7 @@ export default function MemberEventsScreen({ navigation }) {
               ]}
             >
               {quoting && !quote ? (
-                <ActivityIndicator color={colorMarca} />
+                <ClubSpinLoader size={40} />
               ) : quote ? (
                 <>
                   {quote.descuentoBloqueadoPorDeuda ? (

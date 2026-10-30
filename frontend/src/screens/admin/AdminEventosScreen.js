@@ -18,6 +18,7 @@ import {
   Pressable,
   useWindowDimensions,
 } from 'react-native';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -32,6 +33,7 @@ import StadiumLibrary from '../../components/StadiumLibrary';
 import DiscountLibrary from '../../components/DiscountLibrary';
 import StadiumAreaStage from '../../components/StadiumAreaStage';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
+import Foldable, { FoldableChevron } from '../../components/Foldable';
 import { canMutateAsAdmin, isClubOwnerRole } from '../../constants/appRoles';
 import { USER_ROL_LABELS } from '../../constants/userRoles';
 import { formatJsDateToDisplay, maskDateDDMMAAAA, displayDateToIsoCalendar } from '../../utils/dateDisplay';
@@ -1304,7 +1306,7 @@ export default function AdminEventosScreen({ navigation }) {
           >
             <View style={styles.imagePlaceholder}>
               {uploadingImage ? (
-                <ActivityIndicator color={colorMarca} />
+                <ClubSpinLoader size={40} />
               ) : (
                 <>
                   <Ionicons name="map-outline" size={32} color={theme.textMuted} />
@@ -1386,7 +1388,7 @@ export default function AdminEventosScreen({ navigation }) {
           ) : (
             <View style={styles.imagePlaceholder}>
               {uploadingImage ? (
-                <ActivityIndicator color={colorMarca} />
+                <ClubSpinLoader size={40} />
               ) : (
                 <>
                   <Ionicons name="image-outline" size={32} color={theme.textMuted} />
@@ -1509,7 +1511,7 @@ export default function AdminEventosScreen({ navigation }) {
           placeholder="Buscar por nombre o DNI"
           placeholderTextColor={theme.textMuted}
         />
-        {doorSearching ? <ActivityIndicator color={colorMarca} style={{ marginTop: 8 }} /> : null}
+        {doorSearching ? <ClubSpinLoader size={40} style={{ marginTop: 8 }} /> : null}
         {doorHits
           .filter((u) => !(form.controlIngreso || []).some((p) => p._id === String(u._id)))
           .map((u) => (
@@ -1637,11 +1639,7 @@ export default function AdminEventosScreen({ navigation }) {
                   </Text>
                 ) : null}
               </View>
-              <Ionicons
-                name={open ? 'chevron-up' : 'chevron-down'}
-                size={20}
-                color={theme.textMuted}
-              />
+              <FoldableChevron open={open} color={theme.textMuted} size={20} />
             </TouchableOpacity>
             {form.tiposEntrada.length > 1 ? (
               <View style={styles.reglaActions}>
@@ -1661,7 +1659,7 @@ export default function AdminEventosScreen({ navigation }) {
                 </TouchableOpacity>
               </View>
             ) : null}
-            {open ? (
+            <Foldable open={open}>
               <View style={styles.foldBody}>
                 <Field label="Nombre" theme={theme}>
                   <TextInput
@@ -1801,7 +1799,7 @@ export default function AdminEventosScreen({ navigation }) {
                   </Text>
                 ) : null}
               </View>
-            ) : null}
+            </Foldable>
           </View>
         );
       })}
@@ -1882,11 +1880,7 @@ export default function AdminEventosScreen({ navigation }) {
                   </Text>
                 ) : null}
               </View>
-              <Ionicons
-                name={open ? 'chevron-up' : 'chevron-down'}
-                size={20}
-                color={theme.textMuted}
-              />
+              <FoldableChevron open={open} color={theme.textMuted} size={20} />
             </TouchableOpacity>
             <View style={styles.reglaActions}>
               <TouchableOpacity
@@ -1916,7 +1910,7 @@ export default function AdminEventosScreen({ navigation }) {
               </TouchableOpacity>
             </View>
 
-            {open ? (
+            <Foldable open={open}>
               <View style={styles.foldBody}>
                 <Field label="Nombre" theme={theme}>
                   <TextInput
@@ -2036,7 +2030,7 @@ export default function AdminEventosScreen({ navigation }) {
                   />
                 </Field>
               </View>
-            ) : null}
+            </Foldable>
           </View>
         );
       })}
@@ -2185,7 +2179,7 @@ export default function AdminEventosScreen({ navigation }) {
       ) : null}
 
       {loading ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={colorMarca} />
+        <ClubSpinLoader size={56} style={{ marginTop: 40 }} />
       ) : (
         <View style={{ flex: 1 }}>
           <FlatList
@@ -2630,7 +2624,7 @@ export default function AdminEventosScreen({ navigation }) {
           </View>
 
           {ordersLoading ? (
-            <ActivityIndicator style={{ marginTop: 40 }} color={colorMarca} />
+            <ClubSpinLoader size={56} style={{ marginTop: 40 }} />
           ) : (
             <FlatList
               data={filteredOrders}
@@ -2911,7 +2905,7 @@ export default function AdminEventosScreen({ navigation }) {
                         placeholderTextColor={theme.textMuted}
                         autoCapitalize="none"
                       />
-                      {buyerSearching ? <ActivityIndicator size="small" color={colorMarca} /> : null}
+                      {buyerSearching ? <ClubSpinLoader size={26} /> : null}
                     </View>
                     {pickedUser ? (
                       <View
@@ -3107,7 +3101,7 @@ export default function AdminEventosScreen({ navigation }) {
               <View style={[styles.footerBar, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
                 <View style={{ flex: 1 }}>
                   {cashQuoting ? (
-                    <ActivityIndicator color={colorMarca} />
+                    <ClubSpinLoader size={40} />
                   ) : cashQuote ? (
                     <>
                       <Text style={[styles.buyerAmount, { color: theme.text }]}>
