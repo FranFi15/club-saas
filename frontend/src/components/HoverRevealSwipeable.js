@@ -179,8 +179,6 @@ const HoverRevealSwipeable = forwardRef(function HoverRevealSwipeable(
       overshootLeft={overshootLeft}
       renderRightActions={renderRightActions}
       renderLeftActions={renderLeftActions}
-      dragOffsetFromLeft={48}
-      dragOffsetFromRight={-48}
       containerStyle={containerStyle}
       childrenContainerStyle={[
         { backgroundColor: theme?.background || '#f3f4f6' },
