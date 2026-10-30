@@ -1,4 +1,5 @@
 import asyncHandler from 'express-async-handler';
+import { isTutorOf } from '../utils/userQuery.js';
 import mongoose from 'mongoose';
 import { parsePageLimit, paginationMeta } from '../utils/pagination.js';
 import {
@@ -228,12 +229,12 @@ async function resolveAtletaIdForMember(req, res) {
             res.status(400);
             throw new Error('Indicá el atleta (atletaId).');
         }
-        const hijo = await User.findById(q).select('tutorPrincipal rol').lean();
+        const hijo = await User.findById(q).select('tutorPrincipal tutores rol').lean();
         if (!hijo || hijo.rol !== 'atleta') {
             res.status(400);
             throw new Error('Atleta no válido.');
         }
-        if (!hijo.tutorPrincipal || String(hijo.tutorPrincipal) !== String(req.user._id)) {
+        if (!isTutorOf(hijo, req.user._id)) {
             res.status(403);
             throw new Error('No tenés permiso para ver recursos de este atleta.');
         }

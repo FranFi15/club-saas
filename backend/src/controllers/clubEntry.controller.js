@@ -1,5 +1,5 @@
 import asyncHandler from 'express-async-handler';
-import { hijosDelTutorFilter } from '../utils/userQuery.js';
+import { hijosVinculadosFilter } from '../utils/userQuery.js';
 import { buildClubEntryToken, parseClubEntryToken } from '../services/clubEntryToken.service.js';
 import { markOverduePayments } from '../services/overduePayments.service.js';
 import { calendarMonthYearInTz, DEFAULT_CLUB_TIMEZONE } from '../utils/timeHelper.js';
@@ -236,7 +236,7 @@ const getMyClubEntryQr = asyncHandler(async (req, res) => {
         }
         const hijo = await User.findOne({
             _id: req.query.forUserId,
-            ...hijosDelTutorFilter(req.user._id),
+            ...hijosVinculadosFilter(req.user._id),
             rol: 'atleta',
         }).select('-password');
         if (!hijo) {

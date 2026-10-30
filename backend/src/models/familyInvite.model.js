@@ -19,7 +19,7 @@ const familyInviteSchema = new mongoose.Schema(
             index: true,
         },
         expiresAt: { type: Date, required: true, index: true },
-        /** 0 = solo atletas (mayores / sin tutor); 1 = familia con tutor. */
+        /** 0 = solo atletas (mayores / sin tutor). 1 o 2 = tutores que quedan vinculados a todos los atletas. */
         tutorCount: { type: Number, default: 1, min: 0, max: 2 },
         /** Invitar familia: todos los atletas del alta nacen como prueba. */
         esPrueba: { type: Boolean, default: false },
@@ -37,6 +37,7 @@ const familyInviteSchema = new mongoose.Schema(
         notas: { type: String, trim: true, default: '' },
         completedAt: { type: Date },
         tutorCreado: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        tutoresCreados: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
         atletasCreados: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     },
     { timestamps: true },

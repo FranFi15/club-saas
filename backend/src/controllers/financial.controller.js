@@ -34,7 +34,7 @@ import {
     roleQuery,
     userHasRole,
 } from '../constants/userRoles.js';
-import { hijosDelTutorFilter } from '../utils/userQuery.js';
+import { hijosDelTutorFilter, hijosVinculadosFilter, isTutorOf } from '../utils/userQuery.js';
 import {
     ensureBecaPlan,
     getBecaPlanIds,
@@ -1100,11 +1100,11 @@ async function assertMemberCanPayPayments(req, payments) {
         if (req.user.rol === 'tutor') {
             // El tutor también es titular de su propia cuota social.
             if (atletaId !== String(req.user._id)) {
-                const hijo = await User.findById(atletaId).select('tutorPrincipal rol roles').lean();
+                const hijo = await User.findById(atletaId).select('tutorPrincipal tutores rol roles').lean();
                 if (
                     !hijo ||
                     !userHasRole(hijo, 'atleta') ||
-                    String(hijo.tutorPrincipal) !== String(req.user._id)
+                    !isTutorOf(hijo, req.user._id)
                 ) {
                     res.status(403);
                     throw new Error('No podés pagar cuotas de este atleta.');
@@ -1552,7 +1552,7 @@ const getTutorFamilyPayments = asyncHandler(async (req, res) => {
         throw new Error('Solo disponible para tutores.');
     }
 
-    const hijos = await User.find(hijosDelTutorFilter(req.user._id))
+    const hijos = await User.find(hijosVinculadosFilter(req.user._id))
         .select('nombre apellido fechaNacimiento')
         .collation(userNameCollation)
         .sort(userNameMongoSort)
@@ -1632,11 +1632,11 @@ async function assertMemberCanViewAtletaPayments(req, atletaId) {
     if (rol === 'tutor') {
         // El tutor también es titular de su propia cuota social.
         if (target === String(req.user._id)) return;
-        const hijo = await User.findById(target).select('tutorPrincipal rol roles').lean();
+        const hijo = await User.findById(target).select('tutorPrincipal tutores rol roles').lean();
         if (!hijo || !userHasRole(hijo, 'atleta')) {
             deny(400, 'Atleta no válido.');
         }
-        if (!hijo.tutorPrincipal || String(hijo.tutorPrincipal) !== String(req.user._id)) {
+        if (!isTutorOf(hijo, req.user._id)) {
             deny(403, 'No tenés permiso para ver los pagos de este atleta.');
         }
         return;

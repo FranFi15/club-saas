@@ -1,4 +1,5 @@
 import asyncHandler from 'express-async-handler';
+import { isTutorOf } from '../utils/userQuery.js';
 import { compareByField, sortEnrollmentsByAtleta } from '../utils/listSort.js';
 import { applyFamilyDiscountToEnrollment } from '../services/familyDiscount.service.js';
 import { categorySexoError, applyCategorySexoToAthlete } from '../utils/atletaSexo.js';
@@ -306,12 +307,12 @@ const getCategoriesByAthlete = asyncHandler(async (req, res) => {
             throw new Error('Solo podés ver tus propias inscripciones.');
         }
     } else if (rol === 'tutor') {
-        const hijo = await User.findById(targetId).select('tutorPrincipal rol roles').lean();
+        const hijo = await User.findById(targetId).select('tutorPrincipal tutores rol roles').lean();
         if (!hijo || !userHasRole(hijo, 'atleta')) {
             res.status(400);
             throw new Error('Usuario no válido.');
         }
-        if (!hijo.tutorPrincipal || String(hijo.tutorPrincipal) !== String(req.user._id)) {
+        if (!isTutorOf(hijo, req.user._id)) {
             res.status(403);
             throw new Error('No tenés permiso para ver las categorías de este atleta.');
         }

@@ -1,4 +1,5 @@
 import asyncHandler from 'express-async-handler';
+import { isTutorOf } from '../utils/userQuery.js';
 import { sortPaymentsByAtleta } from '../utils/listSort.js';
 
 async function assertCategoryStaffAccess(req, res, categoriaId) {
@@ -200,8 +201,8 @@ const submitWellness = asyncHandler(async (req, res) => {
         idDestinatario = atletaId;
     } else if (req.user.rol === 'tutor' && atletaId) {
         const { User } = req.models;
-        const hijo = await User.findById(atletaId).select('rol tutorPrincipal').lean();
-        if (!hijo || hijo.rol !== 'atleta' || String(hijo.tutorPrincipal) !== String(req.user._id)) {
+        const hijo = await User.findById(atletaId).select('rol tutorPrincipal tutores').lean();
+        if (!hijo || hijo.rol !== 'atleta' || !isTutorOf(hijo, req.user._id)) {
             res.status(403);
             throw new Error('No podés cargar wellness por este atleta.');
         }
@@ -331,8 +332,8 @@ const getMyWellnessToday = asyncHandler(async (req, res) => {
 
     if (req.user.rol === 'tutor' && req.query.atletaId) {
         const { User } = req.models;
-        const hijo = await User.findById(req.query.atletaId).select('rol tutorPrincipal').lean();
-        if (!hijo || hijo.rol !== 'atleta' || String(hijo.tutorPrincipal) !== String(req.user._id)) {
+        const hijo = await User.findById(req.query.atletaId).select('rol tutorPrincipal tutores').lean();
+        if (!hijo || hijo.rol !== 'atleta' || !isTutorOf(hijo, req.user._id)) {
             res.status(403);
             throw new Error('No podés ver el wellness de este atleta.');
         }

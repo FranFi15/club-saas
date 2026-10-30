@@ -1,4 +1,4 @@
-import { hijosDelTutorFilter } from '../utils/userQuery.js';
+import { hijosVinculadosFilter, tutorIdsOf } from '../utils/userQuery.js';
 import { roleQueryMany, normalizeUserRoles } from '../constants/userRoles.js';
 
 export const ADMIN_ROLES = new Set(['admin_club', 'administrativo', 'dirigente']);
@@ -91,7 +91,7 @@ async function athleteIdsForStaff(models, staffUser) {
 
 async function staffIdsForTutor(models, tutorId) {
     const { User, Enrollment, Category } = models;
-    const hijos = await User.find(hijosDelTutorFilter(tutorId)).select('_id').lean();
+    const hijos = await User.find(hijosVinculadosFilter(tutorId)).select('_id').lean();
     if (!hijos.length) return new Set();
     const catIds = await Enrollment.find({
         atleta: { $in: hijos.map((h) => h._id) },
@@ -295,14 +295,10 @@ export async function listEligibleRecipients(models, user) {
                 ...roleQueryMany(['atleta']),
                 estado: 'activo',
             })
-                .select(`${USER_SELECT} tutorPrincipal`)
+                .select(`${USER_SELECT} tutorPrincipal tutores`)
                 .lean();
 
-            const tutorIds = [
-                ...new Set(
-                    atletas.map((a) => (a.tutorPrincipal ? idStr(a.tutorPrincipal) : null)).filter(Boolean),
-                ),
-            ];
+            const tutorIds = [...new Set(atletas.flatMap((a) => tutorIdsOf(a)))];
             if (tutorIds.length) {
                 const tutores = await User.find({
                     _id: { $in: tutorIds },

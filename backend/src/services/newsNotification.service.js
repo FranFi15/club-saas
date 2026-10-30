@@ -1,4 +1,5 @@
 import { createAppNotificationsMany } from './appNotification.service.js';
+import { tutorIdsOf } from '../utils/userQuery.js';
 
 /**
  * Resolve who should get a push when a muro noticia is published.
@@ -30,16 +31,14 @@ export async function resolveNewsRecipientUserIds(models, news, { excludeUserId 
                 categoria: { $in: catIds },
                 estado: 'activo',
             })
-                .populate('atleta', 'tutorPrincipal estado')
+                .populate('atleta', 'tutorPrincipal tutores estado')
                 .lean();
 
             for (const e of enrollments) {
                 const atleta = e.atleta;
                 if (!atleta || atleta.estado === 'inactivo') continue;
                 ids.add(String(atleta._id));
-                if (atleta.tutorPrincipal) {
-                    ids.add(String(atleta.tutorPrincipal._id || atleta.tutorPrincipal));
-                }
+                for (const tutorId of tutorIdsOf(atleta)) ids.add(tutorId);
             }
 
             const cats = await Category.find({ _id: { $in: catIds } })
@@ -58,10 +57,10 @@ export async function resolveNewsRecipientUserIds(models, news, { excludeUserId 
         userIds.forEach((id) => ids.add(id));
         if (userIds.length) {
             const athletes = await User.find({ _id: { $in: userIds }, rol: 'atleta' })
-                .select('tutorPrincipal')
+                .select('tutorPrincipal tutores')
                 .lean();
             for (const a of athletes) {
-                if (a.tutorPrincipal) ids.add(String(a.tutorPrincipal));
+                for (const tutorId of tutorIdsOf(a)) ids.add(tutorId);
             }
         }
     } else if (alcance === 'tutor') {

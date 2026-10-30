@@ -1,3 +1,5 @@
+import { tutorIdsOf } from '../utils/userQuery.js';
+
 const ESTADO_LABEL = {
     presente: 'Presente',
     tarde: 'Tarde',
@@ -39,7 +41,7 @@ export async function notifyAttendanceSaved(models, { session, asistencia, autor
     const atletaIds = Object.keys(estadoByAtleta);
 
     const athletes = await User.find({ _id: { $in: atletaIds } })
-        .select('nombre apellido tutorPrincipal')
+        .select('nombre apellido tutorPrincipal tutores')
         .lean();
 
     let catName = '';
@@ -57,8 +59,7 @@ export async function notifyAttendanceSaved(models, { session, asistencia, autor
         const aid = String(atleta._id);
         const estado = estadoByAtleta[aid] || 'ausente';
         const line = `${atleta.nombre} ${atleta.apellido}: ${ESTADO_LABEL[estado] || estado}`;
-        const tutorId = atleta.tutorPrincipal ? String(refId(atleta.tutorPrincipal)) : null;
-        if (tutorId) {
+        for (const tutorId of tutorIdsOf(atleta)) {
             if (!byTutor.has(tutorId)) byTutor.set(tutorId, []);
             byTutor.get(tutorId).push(line);
         }

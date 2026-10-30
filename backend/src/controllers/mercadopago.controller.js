@@ -1,4 +1,5 @@
 import asyncHandler from 'express-async-handler';
+import { isTutorOf } from '../utils/userQuery.js';
 import axios from 'axios';
 import crypto from 'crypto';
 import { MercadoPagoConfig, Preference, Payment as MPPayment } from 'mercadopago';
@@ -242,8 +243,8 @@ async function assertMemberOwnsCuotas(req, paymentDocs) {
             const atletaId = p.atleta?._id || p.atleta;
             // El tutor también es titular de su propia cuota social.
             if (String(atletaId) === String(req.user._id)) continue;
-            const hijo = await User.findById(atletaId).select('tutorPrincipal rol').lean();
-            if (!hijo || hijo.rol !== 'atleta' || String(hijo.tutorPrincipal) !== String(req.user._id)) {
+            const hijo = await User.findById(atletaId).select('tutorPrincipal tutores rol').lean();
+            if (!hijo || hijo.rol !== 'atleta' || !isTutorOf(hijo, req.user._id)) {
                 const err = new Error('No podés sincronizar cuotas de un atleta que no está a tu cargo.');
                 err.statusCode = 403;
                 throw err;
@@ -634,12 +635,12 @@ const createMemberPreference = asyncHandler(async (req, res) => {
     } else if (req.user.rol === 'tutor') {
         // El tutor también es titular de su propia cuota social.
         if (atletaId !== req.user._id.toString()) {
-            const hijo = await User.findById(atletaId).select('tutorPrincipal rol').lean();
+            const hijo = await User.findById(atletaId).select('tutorPrincipal tutores rol').lean();
             if (!hijo || hijo.rol !== 'atleta') {
                 res.status(400);
                 throw new Error('Atleta no válido.');
             }
-            if (!hijo.tutorPrincipal || String(hijo.tutorPrincipal) !== String(req.user._id)) {
+            if (!isTutorOf(hijo, req.user._id)) {
                 res.status(403);
                 throw new Error('No podés pagar cuotas de un atleta que no está a tu cargo.');
             }
@@ -698,7 +699,7 @@ const createMemberFamilyPreference = asyncHandler(async (req, res) => {
     const ids = [...new Set(paymentIds.map((id) => String(id)))];
     const payments = await Payment.find({ _id: { $in: ids } })
         .populate('plan', 'nombre')
-        .populate('atleta', 'nombre apellido tutorPrincipal rol');
+        .populate('atleta', 'nombre apellido tutorPrincipal tutores rol');
 
     if (payments.length !== ids.length) {
         res.status(400);
@@ -722,7 +723,7 @@ const createMemberFamilyPreference = asyncHandler(async (req, res) => {
             res.status(400);
             throw new Error('Atleta no válido.');
         }
-        if (!hijo.tutorPrincipal || String(hijo.tutorPrincipal) !== String(req.user._id)) {
+        if (!isTutorOf(hijo, req.user._id)) {
             res.status(403);
             throw new Error('No podés pagar cuotas de un atleta que no está a tu cargo.');
         }

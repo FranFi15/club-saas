@@ -2,6 +2,7 @@ import asyncHandler from 'express-async-handler';
 import mongoose from 'mongoose';
 import { COURT_DEPORTES } from '../models/courtMetric.model.js';
 import { courtNow, idOf, suspendedNow } from '../services/matchDerive.js';
+import { isTutorOf } from '../utils/userQuery.js';
 import { buildInforme, manualValue, notifyMatchReport } from '../services/matchReport.service.js';
 
 const ICONOS = ['circulo', 'x', 'cuadrado', 'triangulo', 'diamante'];
@@ -612,8 +613,8 @@ async function viewerAthleteId(req, res) {
     if (req.user.rol !== 'tutor') fail(res, 403, 'No autorizado');
     const atletaId = String(req.query.atletaId || '');
     if (!mongoose.isValidObjectId(atletaId)) fail(res, 400, 'Elegí un jugador.');
-    const hijo = await req.models.User.findById(atletaId).select('tutorPrincipal rol');
-    if (!hijo || hijo.rol !== 'atleta' || String(hijo.tutorPrincipal) !== String(req.user._id)) {
+    const hijo = await req.models.User.findById(atletaId).select('tutorPrincipal tutores rol');
+    if (!hijo || hijo.rol !== 'atleta' || !isTutorOf(hijo, req.user._id)) {
         fail(res, 403, 'No autorizado');
     }
     return hijo._id;

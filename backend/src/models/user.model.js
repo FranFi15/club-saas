@@ -23,8 +23,10 @@ const userSchema = new mongoose.Schema({
     contactoEmergencia: { type: String, trim: true },
     obraSocial: { type: String, trim: true },
     
-    // Vínculo familiar (Para el efecto dominó al borrar)
+    // Vínculo familiar (Para el efecto dominó al borrar).
+    // tutorPrincipal es el responsable de la facturación. tutores son los demás responsables que ven al mismo atleta.
     tutorPrincipal: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    tutores: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
 
     /** Solo tutores: % de descuento de esta familia (override del global del club). */
     descuentoFamiliar: { type: Number, default: null, min: 0, max: 100 },
@@ -150,6 +152,7 @@ const userSchema = new mongoose.Schema({
 // Índice de unicidad manual para email dentro de la misma base de datos del club
 userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ tutorPrincipal: 1, rol: 1 });
+userSchema.index({ tutores: 1, rol: 1 });
 userSchema.index({ rol: 1, estado: 1 });
 userSchema.index({ roles: 1, estado: 1 });
 userSchema.index({ esPrueba: 1, pruebaHasta: 1, pruebaDecision: 1 });

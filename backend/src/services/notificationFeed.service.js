@@ -1,4 +1,4 @@
-import { hijosDelTutorFilter } from '../utils/userQuery.js';
+import { hijosVinculadosFilter } from '../utils/userQuery.js';
 import { atletaCuotasEnApp } from '../utils/ageHelper.js';
 
 const CUOTA_NOTIFICATION_TIPOS = new Set(['cuota_vencida', 'cuota_proxima', 'pago_registrado']);
@@ -29,7 +29,7 @@ export async function buildNewsFeedOrConditions(user, models) {
     let targetUsuarioIds = [userId];
 
     if (userRole === 'tutor') {
-        const hijos = await User.find(hijosDelTutorFilter(userId)).select('_id');
+        const hijos = await User.find(hijosVinculadosFilter(userId)).select('_id');
         const hijosIds = hijos.map((h) => h._id);
         targetUsuarioIds = [userId, ...hijosIds];
         const inscripcionesHijos = await Enrollment.find({ atleta: { $in: hijosIds }, estado: 'activo' });
@@ -151,7 +151,7 @@ async function listResourceFeedItems(user, models, limit = 20) {
     };
 
     if (user.rol === 'tutor') {
-        const hijos = await User.find(hijosDelTutorFilter(user._id))
+        const hijos = await User.find(hijosVinculadosFilter(user._id))
             .select('nombre apellido')
             .lean();
         for (const h of hijos) {
@@ -228,7 +228,7 @@ async function listDocumentacionFeedItems(user, models) {
         return listDocsForAtleta(user._id, null, models);
     }
     if (user.rol === 'tutor') {
-        const hijos = await User.find(hijosDelTutorFilter(user._id))
+        const hijos = await User.find(hijosVinculadosFilter(user._id))
             .select('nombre apellido')
             .lean();
         const all = [];

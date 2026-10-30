@@ -120,10 +120,14 @@ const createFamilyInvite = asyncHandler(async (req, res) => {
     }
 
     let tutorCount = 1;
-    if (typeof includeTutor === 'boolean') {
+    if (tutorCountRaw !== undefined && tutorCountRaw !== null && tutorCountRaw !== '') {
+        tutorCount = Math.floor(Number(tutorCountRaw));
+    } else if (typeof includeTutor === 'boolean') {
         tutorCount = includeTutor ? 1 : 0;
-    } else if (tutorCountRaw !== undefined && tutorCountRaw !== null && tutorCountRaw !== '') {
-        tutorCount = Number(tutorCountRaw) > 0 ? 1 : 0;
+    }
+    if (!Number.isFinite(tutorCount) || tutorCount < 0 || tutorCount > 2) {
+        res.status(400);
+        throw new Error('Indicá entre 0 y 2 tutores.');
     }
 
     let trialInvite = { esPrueba: false, diasPrueba: null };
@@ -266,9 +270,10 @@ const getPublicFamilyInvite = asyncHandler(async (req, res) => {
 const redeemFamilyInvite = asyncHandler(async (req, res) => {
     const { FamilyInvite, User, Enrollment, Category } = req.models;
     const invite = await loadInviteOrThrow(FamilyInvite, req.params.token, { forRedeem: true });
-    const requiereTutor = (Number(invite.tutorCount) || 0) > 0;
+    const tutorCount = Math.min(2, Math.max(0, Number(invite.tutorCount) || 0));
+    const requiereTutor = tutorCount > 0;
 
-    const { tutor, atletas, acceptTerms } = req.body || {};
+    const { tutor, tutores: tutoresBody, atletas, acceptTerms } = req.body || {};
     if (!acceptTerms) {
         res.status(400);
         throw new Error('Tenés que aceptar los Términos y la Política de privacidad.');
@@ -278,44 +283,65 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
         throw new Error(`Debés cargar exactamente ${invite.athleteSlots.length} atleta(s).`);
     }
 
-    let tutorEmail = null;
-    if (requiereTutor) {
-        if (!tutor?.email || !tutor?.password || !tutor?.nombre || !tutor?.apellido) {
-            res.status(400);
-            throw new Error('Completá los datos del tutor (nombre, apellido, email y contraseña).');
-        }
-        if (String(tutor.password).length < 6) {
-            res.status(400);
-            throw new Error('La contraseña del tutor debe tener al menos 6 caracteres.');
-        }
-        if (!String(tutor.telefono || '').trim()) {
-            res.status(400);
-            throw new Error('Indicá el teléfono del tutor.');
-        }
-        if (!String(tutor.dni || '').trim()) {
-            res.status(400);
-            throw new Error('Indicá el DNI del tutor.');
-        }
-        if (!String(tutor.obraSocial || '').trim()) {
-            res.status(400);
-            throw new Error('Indicá la obra social del tutor.');
-        }
-        if (!String(tutor.direccion || '').trim()) {
-            res.status(400);
-            throw new Error('Indicá la dirección del tutor.');
-        }
-        if (!String(tutor.fotoPerfil || '').trim()) {
-            res.status(400);
-            throw new Error('Subí una foto del tutor (cámara o galería).');
-        }
-        tutorEmail = String(tutor.email).trim().toLowerCase();
-        if (await User.findOne({ email: tutorEmail })) {
-            res.status(400);
-            throw new Error('Ese email del tutor ya está registrado en el club.');
-        }
+    const tutoresIn = Array.isArray(tutoresBody) && tutoresBody.length
+        ? tutoresBody
+        : (tutor ? [tutor] : []);
+    if (tutoresIn.length !== tutorCount) {
+        res.status(400);
+        throw new Error(
+            tutorCount === 0
+                ? 'Esta invitación no pide tutor.'
+                : `Debés cargar exactamente ${tutorCount} tutor${tutorCount === 1 ? '' : 'es'}.`,
+        );
     }
 
-    const athleteEmails = new Set(tutorEmail ? [tutorEmail] : []);
+    const tutorPayloads = [];
+    const reservedEmails = new Set();
+    for (let i = 0; i < tutoresIn.length; i += 1) {
+        const row = tutoresIn[i];
+        const label = tutoresIn.length === 1 ? 'el tutor' : `el tutor ${i + 1}`;
+        if (!row?.email || !row?.password || !row?.nombre || !row?.apellido) {
+            res.status(400);
+            throw new Error(`Completá los datos de ${label} (nombre, apellido, email y contraseña).`);
+        }
+        if (String(row.password).length < 6) {
+            res.status(400);
+            throw new Error(`La contraseña de ${label} debe tener al menos 6 caracteres.`);
+        }
+        if (!String(row.telefono || '').trim()) {
+            res.status(400);
+            throw new Error(`Indicá el teléfono de ${label}.`);
+        }
+        if (!String(row.dni || '').trim()) {
+            res.status(400);
+            throw new Error(`Indicá el DNI de ${label}.`);
+        }
+        if (!String(row.obraSocial || '').trim()) {
+            res.status(400);
+            throw new Error(`Indicá la obra social de ${label}.`);
+        }
+        if (!String(row.direccion || '').trim()) {
+            res.status(400);
+            throw new Error(`Indicá la dirección de ${label}.`);
+        }
+        if (!String(row.fotoPerfil || '').trim()) {
+            res.status(400);
+            throw new Error(`Subí una foto de ${label} (cámara o galería).`);
+        }
+        const email = String(row.email).trim().toLowerCase();
+        if (reservedEmails.has(email)) {
+            res.status(400);
+            throw new Error(`El email de ${label} está repetido en el formulario.`);
+        }
+        reservedEmails.add(email);
+        if (await User.findOne({ email })) {
+            res.status(400);
+            throw new Error(`El email de ${label} ya está registrado en el club.`);
+        }
+        tutorPayloads.push({ ...row, email });
+    }
+
+    const athleteEmails = new Set(reservedEmails);
     const resolvedAthleteEmails = [];
     for (let i = 0; i < atletas.length; i += 1) {
         const a = atletas[i];
@@ -391,23 +417,24 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
     }
 
     const termsAt = new Date();
-    let createdTutor = null;
-    if (requiereTutor) {
-        createdTutor = await User.create({
-            nombre: String(tutor.nombre).trim(),
-            apellido: String(tutor.apellido).trim(),
-            email: tutorEmail,
-            password: tutor.password,
-            telefono: tutor.telefono ? String(tutor.telefono).trim() : undefined,
-            dni: tutor.dni ? String(tutor.dni).trim() : undefined,
-            direccion: String(tutor.direccion).trim(),
-            obraSocial: tutor.obraSocial ? String(tutor.obraSocial).trim() : undefined,
-            fotoPerfil: String(tutor.fotoPerfil).trim(),
+    const createdTutors = [];
+    for (const row of tutorPayloads) {
+        createdTutors.push(await User.create({
+            nombre: String(row.nombre).trim(),
+            apellido: String(row.apellido).trim(),
+            email: row.email,
+            password: row.password,
+            telefono: row.telefono ? String(row.telefono).trim() : undefined,
+            dni: row.dni ? String(row.dni).trim() : undefined,
+            direccion: String(row.direccion).trim(),
+            obraSocial: row.obraSocial ? String(row.obraSocial).trim() : undefined,
+            fotoPerfil: String(row.fotoPerfil).trim(),
             rol: 'tutor',
             acceptedTermsVersion: CURRENT_TERMS_VERSION,
             acceptedTermsAt: termsAt,
-        });
+        }));
     }
+    const createdTutor = createdTutors[0] || null;
 
     const createdAthletes = [];
     const enrollments = [];
@@ -443,6 +470,7 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
                 fotoPerfil: String(a.fotoPerfil || '').trim(),
                 rol: 'atleta',
                 tutorPrincipal: createdTutor?._id || undefined,
+                tutores: createdTutors.slice(1).map((t) => t._id),
                 cuotasEnApp: true,
                 esPrueba: trialFields.esPrueba,
                 pruebaHasta: trialFields.pruebaHasta || undefined,
@@ -507,8 +535,7 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
             }
         }
     } catch (e) {
-        const toDelete = [...createdAthletes.map((u) => u._id)];
-        if (createdTutor) toDelete.push(createdTutor._id);
+        const toDelete = [...createdAthletes.map((u) => u._id), ...createdTutors.map((u) => u._id)];
         await User.deleteMany({ _id: { $in: toDelete } });
         await Enrollment.deleteMany({ atleta: { $in: createdAthletes.map((u) => u._id) } });
         throw e;
@@ -517,6 +544,7 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
     invite.estado = 'completada';
     invite.completedAt = new Date();
     invite.tutorCreado = createdTutor?._id;
+    invite.tutoresCreados = createdTutors.map((u) => u._id);
     invite.atletasCreados = createdAthletes.map((u) => u._id);
     await invite.save();
 
@@ -536,6 +564,12 @@ const redeemFamilyInvite = asyncHandler(async (req, res) => {
                   apellido: createdTutor.apellido,
               }
             : null,
+        tutores: createdTutors.map((u) => ({
+            _id: u._id,
+            email: u.email,
+            nombre: u.nombre,
+            apellido: u.apellido,
+        })),
         atletas: createdAthletes.map((u) => ({
             _id: u._id,
             email: u.email,

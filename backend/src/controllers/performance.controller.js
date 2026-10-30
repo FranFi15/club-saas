@@ -1,4 +1,5 @@
 import asyncHandler from 'express-async-handler';
+import { hijosVinculadosFilter } from '../utils/userQuery.js';
 import { calcEdad } from '../utils/ageHelper.js';
 import { categorySexoFromEnrollments, resolveAtletaSexo } from '../utils/atletaSexo.js';
 import { getClubBodyFatMethod, setClubBodyFatMethod } from '../services/nutriClubSettings.service.js';
@@ -318,7 +319,7 @@ const getTutorMetricsAccess = asyncHandler(async (req, res) => {
         throw new Error('Solo disponible para tutores.');
     }
 
-    const hijos = await User.find({ tutorPrincipal: req.user._id, rol: 'atleta' }).select('_id').lean();
+    const hijos = await User.find(hijosVinculadosFilter(req.user._id)).select('_id').lean();
     const ids = hijos.map((h) => h._id);
 
     if (!ids.length) {

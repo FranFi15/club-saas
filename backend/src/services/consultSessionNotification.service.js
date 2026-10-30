@@ -1,4 +1,5 @@
 import { createAppNotification, createAppNotificationsMany } from './appNotification.service.js';
+import { tutorIdsOf } from '../utils/userQuery.js';
 
 function refId(value) {
     if (!value) return value;
@@ -29,7 +30,7 @@ function staffRoleLabel(tipo) {
     return tipo === 'consulta_nutricion' ? 'Nutricionista' : 'Psicólogo/a';
 }
 
-async function createConsultNews(models, { titulo, contenido, autorId, atletaId, tutorId }) {
+async function createConsultNews(models, { titulo, contenido, autorId, atletaId, tutorIds }) {
     const { News } = models;
     await News.create({
         titulo,
@@ -42,7 +43,8 @@ async function createConsultNews(models, { titulo, contenido, autorId, atletaId,
         targetCategorias: [],
         targetUsuarios: [atletaId],
     });
-    if (tutorId) {
+    const ids = (tutorIds || []).filter(Boolean);
+    if (ids.length) {
         await News.create({
             titulo,
             contenido,
@@ -52,7 +54,7 @@ async function createConsultNews(models, { titulo, contenido, autorId, atletaId,
             origen: 'sistema',
             targetRoles: [],
             targetCategorias: [],
-            targetUsuarios: [tutorId],
+            targetUsuarios: ids,
         });
     }
 }
@@ -78,15 +80,15 @@ export async function notifyConsultSessionCreated(models, session, staffUser) {
 
     const titulo = esNutri ? 'Nueva consulta de nutrición' : 'Nueva consulta de psicología';
 
-    const atleta = await User.findById(atletaId).select('nombre apellido tutorPrincipal').lean();
-    const tutorId = atleta?.tutorPrincipal ? refId(atleta.tutorPrincipal) : null;
+    const atleta = await User.findById(atletaId).select('nombre apellido tutorPrincipal tutores').lean();
+    const tutorIds = tutorIdsOf(atleta);
 
     await createConsultNews(models, {
         titulo,
         contenido,
         autorId: staffUser._id,
         atletaId,
-        tutorId,
+        tutorIds,
     });
 
     const pushAthlete = {
@@ -98,10 +100,9 @@ export async function notifyConsultSessionCreated(models, session, staffUser) {
     };
     await createAppNotification(models, pushAthlete);
 
-    if (tutorId) {
+    if (tutorIds.length) {
         const nombreAtleta = `${atleta?.nombre || ''} ${atleta?.apellido || ''}`.trim() || 'tu atleta';
-        await createAppNotification(models, {
-            usuario: tutorId,
+        await createAppNotificationsMany(models, tutorIds, {
             tipo: 'consulta_pendiente',
             titulo: `${titulo} · ${nombreAtleta}`,
             mensaje: `${nombreAtleta} debe confirmar asistencia: ${cuando}`,
@@ -126,7 +127,7 @@ export async function notifyConsultSessionResponded(models, session, respondedBy
     const atletaId = refId(session.atletaIndividual);
     if (!atletaId) return;
 
-    const atleta = await User.findById(atletaId).select('nombre apellido tutorPrincipal').lean();
+    const atleta = await User.findById(atletaId).select('nombre apellido tutorPrincipal tutores').lean();
     const nombreAtleta = `${atleta?.nombre || ''} ${atleta?.apellido || ''}`.trim() || 'El atleta';
     const cuando = formatConsultWhen(session);
     const rechazada = session.confirmacionAtleta?.estado === 'rechazada';
@@ -145,12 +146,12 @@ export async function notifyConsultSessionResponded(models, session, respondedBy
     const staffId = refId(session.creadoPor);
     const responderId = String(respondedByUser._id);
     const atletaIdStr = String(atletaId);
-    const tutorId = atleta?.tutorPrincipal ? String(refId(atleta.tutorPrincipal)) : null;
-
     const destinatarios = new Set();
     if (staffId) destinatarios.add(String(staffId));
     if (responderId !== atletaIdStr) destinatarios.add(atletaIdStr);
-    if (tutorId && responderId !== tutorId) destinatarios.add(tutorId);
+    for (const tutorId of tutorIdsOf(atleta)) {
+        if (responderId !== tutorId) destinatarios.add(tutorId);
+    }
 
     if (destinatarios.size) {
         await createAppNotificationsMany(models, [...destinatarios], {

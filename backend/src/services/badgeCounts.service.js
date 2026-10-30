@@ -1,4 +1,4 @@
-import { hijosDelTutorFilter } from '../utils/userQuery.js';
+import { hijosVinculadosFilter } from '../utils/userQuery.js';
 import { atletaCuotasEnApp } from '../utils/ageHelper.js';
 import { listRosterPendingForCoach } from './categoryRoster.service.js';
 import {
@@ -161,7 +161,7 @@ export async function countUnreadResources(user, models) {
     const since = user.lastSeenResourcesAt || new Date(0);
 
     if (user.rol === 'tutor') {
-        const hijos = await User.find(hijosDelTutorFilter(user._id)).select('_id').lean();
+        const hijos = await User.find(hijosVinculadosFilter(user._id)).select('_id').lean();
         if (!hijos.length) return 0;
         return countUnreadResourcesForAthleteIds(
             hijos.map((h) => h._id),
@@ -343,7 +343,7 @@ async function countPendingConsultConfirmations(user, models) {
     let atletaIds = [user._id];
 
     if (user.rol === 'tutor') {
-        const hijos = await User.find(hijosDelTutorFilter(user._id)).select('_id').lean();
+        const hijos = await User.find(hijosVinculadosFilter(user._id)).select('_id').lean();
         atletaIds = hijos.map((h) => h._id);
         if (!atletaIds.length) return 0;
     }
@@ -507,7 +507,7 @@ async function memberBadgeSummary(user, models) {
         out.tabs.comunicar = comm > 0 ? Math.min(99, comm) : 0;
         out.tabs.agenda = pendingConsultas > 0 ? Math.min(99, pendingConsultas) : 0;
     } else if (rol === 'tutor') {
-        const hijos = await User.find(hijosDelTutorFilter(user._id)).lean();
+        const hijos = await User.find(hijosVinculadosFilter(user._id)).lean();
         const hijoIds = hijos.map((h) => h._id);
         const cuotaHijoIds = hijos.filter((h) => atletaCuotasEnApp(h)).map((h) => h._id);
 

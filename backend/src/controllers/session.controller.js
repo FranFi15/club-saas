@@ -16,6 +16,7 @@ import {
 } from '../services/spaceSessionRelocation.service.js';
 import { parsePageLimit, paginationMeta } from '../utils/pagination.js';
 import { normalizeLista } from './match.controller.js';
+import { hijosVinculadosFilter, isTutorOf } from '../utils/userQuery.js';
 
 const CONSULT_SESSION_TYPES = ['consulta_nutricion', 'consulta_psicologia'];
 
@@ -390,8 +391,8 @@ async function redactPsychInformeOnSessionDocForViewer(sessionDoc, rolViewer, vi
         return;
     }
     if (rolViewer === 'tutor') {
-        const hijo = await User.findById(aid).select('tutorPrincipal').lean();
-        if (!hijo?.tutorPrincipal || String(hijo.tutorPrincipal) !== String(viewerUserId)) {
+        const hijo = await User.findById(aid).select('tutorPrincipal tutores').lean();
+        if (!isTutorOf(hijo, viewerUserId)) {
             sessionDoc.informeSesion = '';
             return;
         }
@@ -457,6 +458,8 @@ async function resolveCoachCategoriesFilter(req, res) {
 const getCoachAgenda = asyncHandler(async (req, res) => {
     const { Session } = req.models;
     const { desde, hasta, estado } = req.query;
+    const soloPartidos = req.query.tipo === 'partido';
+    const sinRango = soloPartidos && req.query.todos === '1';
 
     const { misCats, catIds, categoriaSeleccionada } = await resolveCoachCategoriesFilter(req, res);
     if (catIds.length === 0) {
@@ -487,15 +490,16 @@ const getCoachAgenda = asyncHandler(async (req, res) => {
 
     const sesiones = await Session.find({
         categoria: { $in: catIds },
-        fecha: { $gte: start, $lte: end },
+        ...(sinRango ? {} : { fecha: { $gte: start, $lte: end } }),
         ...estadoFilter,
-        ...TRAINING_SESSION_FILTER,
+        ...(soloPartidos ? { tipo: 'partido' } : TRAINING_SESSION_FILTER),
     })
         .populate('categoria', 'nombre')
         .populate('espacio', 'nombre tipo')
         .populate('espacioSuspendido', 'nombre')
         .populate('creadoPor', 'nombre apellido rol')
-        .sort({ fecha: 1, horaInicio: 1 });
+        .sort(sinRango ? { fecha: -1, horaInicio: -1 } : { fecha: 1, horaInicio: 1 })
+        .limit(sinRango ? 200 : 0);
 
     res.json({ categorias: misCats, sesiones, categoriaSeleccionada });
 });
@@ -1059,8 +1063,8 @@ const getSessionById = asyncHandler(async (req, res) => {
             res.status(403);
             throw new Error('No autorizado');
         }
-        const hijo = await User.findById(aid).select('tutorPrincipal').lean();
-        if (!hijo?.tutorPrincipal || String(hijo.tutorPrincipal) !== String(req.user._id)) {
+        const hijo = await User.findById(aid).select('tutorPrincipal tutores').lean();
+        if (!isTutorOf(hijo, req.user._id)) {
             res.status(403);
             throw new Error('No autorizado');
         }
@@ -1103,7 +1107,7 @@ const getSessionsByCategory = asyncHandler(async (req, res) => {
             { atletaIndividual: uid },
         ];
     } else if (rol === 'tutor') {
-        const hijos = await User.find({ tutorPrincipal: req.user._id, rol: 'atleta' }).select('_id').lean();
+        const hijos = await User.find(hijosVinculadosFilter(req.user._id)).select('_id').lean();
         const hijosIds = hijos.map((h) => h._id);
         filter.$or = [
             { atletaIndividual: { $exists: false } },
@@ -2106,12 +2110,12 @@ const confirmConsultAttendance = asyncHandler(async (req, res) => {
         }
     } else if (rol === 'tutor') {
         const aid = atletaIdBody ? String(atletaIdBody) : atletaIdStr;
-        const hijo = await User.findById(aid).select('tutorPrincipal rol').lean();
+        const hijo = await User.findById(aid).select('tutorPrincipal tutores rol').lean();
         if (!hijo || hijo.rol !== 'atleta') {
             res.status(400);
             throw new Error('Atleta no válido.');
         }
-        if (!hijo.tutorPrincipal || String(hijo.tutorPrincipal) !== String(req.user._id)) {
+        if (!isTutorOf(hijo, req.user._id)) {
             res.status(403);
             throw new Error('No autorizado.');
         }

@@ -1,6 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import { calcEdad, puedePagarComoAtleta, atletaCuotasEnApp } from '../utils/ageHelper.js';
-import { atletasDeTutoresFilter, hijosDelTutorFilter } from '../utils/userQuery.js';
+import { atletasDeTutoresFilter, hijosDelTutorFilter, hijosVinculadosFilter, tutorIdsOf } from '../utils/userQuery.js';
 import { syncFamilyDiscountForAthlete } from '../services/familyDiscount.service.js';
 import {
     countDocsPendientesByAthleteIds,
@@ -814,6 +814,7 @@ const deleteInactiveUser = asyncHandler(async (req, res) => {
             { $unset: { atletaIndividual: 1 } },
         )),
         safe(User.updateMany({ tutorPrincipal: uid }, { $unset: { tutorPrincipal: 1 } })),
+        safe(User.updateMany({ tutores: uid }, { $pull: { tutores: uid } })),
     ]);
 
     if (ChatConversation && ChatMessage) {
@@ -1014,12 +1015,13 @@ const getUsers = asyncHandler(async (req, res) => {
     if (tutorIds.length) {
         try {
             const hijos = await User.find(atletasDeTutoresFilter(tutorIds))
-                .select('nombre apellido rol roles fotoPerfil tutorPrincipal')
+                .select('nombre apellido rol roles fotoPerfil tutorPrincipal tutores')
                 .lean();
             for (const h of hijos) {
-                const tid = String(h.tutorPrincipal);
-                if (!familiaresByTutor[tid]) familiaresByTutor[tid] = [];
-                familiaresByTutor[tid].push(h);
+                for (const tid of tutorIdsOf(h)) {
+                    if (!familiaresByTutor[tid]) familiaresByTutor[tid] = [];
+                    familiaresByTutor[tid].push(h);
+                }
             }
         } catch (e) {
             console.error('[users] familiaresACargo:', e.message);
@@ -1069,7 +1071,7 @@ const getMe = asyncHandler(async (req, res) => {
     let pruebaPendiente = [];
     if (roles.includes('tutor') && activeRol === 'tutor') {
         pruebaPendiente = await User.find({
-            ...hijosDelTutorFilter(user._id),
+            ...hijosVinculadosFilter(user._id),
             esPrueba: true,
             pruebaDecision: 'pendiente',
         }).select('_id nombre apellido esPrueba pruebaHasta pruebaDecision');
@@ -1109,7 +1111,7 @@ const getMisHijos = asyncHandler(async (req, res) => {
         res.status(403);
         throw new Error('Solo tutores pueden consultar familiares a cargo.');
     }
-    const hijos = await User.find(hijosDelTutorFilter(req.user._id))
+    const hijos = await User.find(hijosVinculadosFilter(req.user._id))
         .select('-password')
         .collation(userNameCollation)
         .sort(userNameMongoSort);
@@ -1152,8 +1154,7 @@ const setTutorAthleteCuotasEnApp = asyncHandler(async (req, res) => {
 
     const atleta = await User.findOne({
         _id: req.params.atletaId,
-        rol: 'atleta',
-        tutorPrincipal: req.user._id,
+        ...hijosVinculadosFilter(req.user._id),
     });
 
     if (!atleta) {
@@ -1184,7 +1185,7 @@ const getTutorDashboard = asyncHandler(async (req, res) => {
         throw new Error('Solo tutores pueden usar este panel.');
     }
 
-    const hijos = await User.find(hijosDelTutorFilter(req.user._id))
+    const hijos = await User.find(hijosVinculadosFilter(req.user._id))
         .select('nombre apellido fechaNacimiento fotoPerfil')
         .collation(userNameCollation)
         .sort(userNameMongoSort)

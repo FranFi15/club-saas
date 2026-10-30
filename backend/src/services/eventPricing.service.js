@@ -1,5 +1,5 @@
 import { EVENT_MEMBER_ROLES } from '../models/clubEvent.model.js';
-import { hijosDelTutorFilter } from '../utils/userQuery.js';
+import { hijosVinculadosFilter } from '../utils/userQuery.js';
 import { normalizeTicketDni } from './eventTicketIssue.service.js';
 
 function roundMoney(n) {
@@ -104,7 +104,7 @@ export async function resolveDiscountPeople(models, buyer) {
     if (!buyer?._id && !buyer?.id) return [];
     const people = [buyer];
     if (buyer.rol === 'tutor' && models?.User) {
-        const hijos = await models.User.find(hijosDelTutorFilter(buyer._id || buyer.id))
+        const hijos = await models.User.find(hijosVinculadosFilter(buyer._id || buyer.id))
             .select('nombre apellido dni rol cuotaSocialAsignada')
             .lean();
         people.push(...hijos);
