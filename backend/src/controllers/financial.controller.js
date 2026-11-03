@@ -14,6 +14,7 @@ import { feeAutoRoles } from '../models/socialFee.model.js';
 import { markOverduePayments, clampRecargoPct } from '../services/overduePayments.service.js';
 import {
     applyFamilyDiscountAndOptionalPayments,
+    countFamilyAthletesForDiscount,
     getGlobalFamilyDiscountPct,
     setGlobalFamilyDiscountPct,
     syncAllFamilyDiscounts,
@@ -34,7 +35,7 @@ import {
     roleQuery,
     userHasRole,
 } from '../constants/userRoles.js';
-import { hijosDelTutorFilter, hijosVinculadosFilter, isTutorOf, tutorIdsOf } from '../utils/userQuery.js';
+import { hijosVinculadosFilter, isTutorOf, tutorIdsOf } from '../utils/userQuery.js';
 import {
     ensureBecaPlan,
     getBecaPlanIds,
@@ -824,7 +825,7 @@ const getSiblings = asyncHandler(async (req, res) => {
     }
 
     const tutorDocs = await User.find({ _id: { $in: pageTutorIds } })
-        .select('nombre apellido descuentoFamiliar')
+        .select('nombre apellido descuentoFamiliar rol roles estado esPrueba fotoPerfil')
         .lean();
     const tutorById = new Map(tutorDocs.map((t) => [String(t._id), t]));
 
@@ -834,6 +835,24 @@ const getSiblings = asyncHandler(async (req, res) => {
     })
         .select('nombre apellido tutorPrincipal fotoPerfil')
         .lean();
+
+    // El tutor también cuenta si tiene rol atleta (misma regla que el descuento).
+    for (const tid of pageTutorIds) {
+        const tutor = tutorById.get(String(tid));
+        if (!tutor || !userHasRole(tutor, 'atleta')) continue;
+        if (tutor.estado === 'inactivo' || tutor.esPrueba === true) continue;
+        const already = atletasConTutor.some((a) => String(a._id) === String(tid));
+        if (!already) {
+            atletasConTutor.push({
+                _id: tutor._id,
+                nombre: tutor.nombre,
+                apellido: tutor.apellido,
+                tutorPrincipal: tid,
+                fotoPerfil: tutor.fotoPerfil,
+                esTutorAtleta: true,
+            });
+        }
+    }
 
     const atletaIds = atletasConTutor.map((a) => a._id);
 
@@ -887,6 +906,7 @@ const getSiblings = asyncHandler(async (req, res) => {
             _id: a._id,
             nombre: a.nombre,
             apellido: a.apellido,
+            esTutorAtleta: a.esTutorAtleta === true || aid === tid,
             descuentoPorcentaje: insc?.descuentoPorcentaje || 0,
             motivoDescuento: insc?.motivoDescuento || '',
             cuotaMes: mesByAtleta[aid] || null,
@@ -933,14 +953,16 @@ const applySiblingDiscount = asyncHandler(async (req, res) => {
     const { tutorId, porcentaje, applyOpenPayments, mes, anio } = req.body;
     const { User } = req.models;
 
-    const hijos = await User.find(hijosDelTutorFilter(tutorId));
-    if (!hijos.length) {
+    const familyCount = await countFamilyAthletesForDiscount(req.models, tutorId);
+    if (!familyCount) {
         res.status(400);
         throw new Error('No hay atletas vinculados a esta familia.');
     }
-    if (hijos.length < 2) {
+    if (familyCount < 2) {
         res.status(400);
-        throw new Error('El descuento familiar solo aplica a familias con 2 o más atletas.');
+        throw new Error(
+            'El descuento familiar solo aplica a familias con 2 o más atletas (incluye al tutor si también es atleta).',
+        );
     }
 
     const pct = Number(String(porcentaje ?? '').trim().replace(',', '.'));
@@ -962,7 +984,7 @@ const applySiblingDiscount = asyncHandler(async (req, res) => {
     });
 
     const parts = [
-        `Descuento del ${pct}% aplicado a las inscripciones activas de la familia (${hijos.length} atleta(s)).`,
+        `Descuento del ${pct}% aplicado a las inscripciones activas de la familia (${familyCount} atleta(s)).`,
     ];
     if (result.cuotasActualizadas > 0) {
         parts.push(`${result.cuotasActualizadas} cuota(s) abierta(s) actualizada(s).`);

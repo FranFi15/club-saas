@@ -245,6 +245,7 @@ export default function FamiliasTab({
                       <UserAvatar user={h} size={36} colorMarca={cc} />
                       <Text style={{ color: theme.text, flex: 1, fontSize: 14, fontWeight: '600', marginLeft: 10 }}>
                         {formatUserName(h)}
+                        {h.esTutorAtleta ? ' · Tutor' : ''}
                       </Text>
                       {displayFinal != null && (hasDebt || cuota) ? (
                         <View style={{ alignItems: 'flex-end' }}>

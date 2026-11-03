@@ -2,7 +2,10 @@ import asyncHandler from 'express-async-handler';
 import mongoose from 'mongoose';
 import { calcEdad, puedePagarComoAtleta, atletaCuotasEnApp } from '../utils/ageHelper.js';
 import { atletasDeTutoresFilter, hijosDelTutorFilter, hijosVinculadosFilter, tutorIdsOf } from '../utils/userQuery.js';
-import { syncFamilyDiscountForAthlete } from '../services/familyDiscount.service.js';
+import {
+    syncFamilyDiscountForAthlete,
+    syncFamilyDiscountForTutor,
+} from '../services/familyDiscount.service.js';
 import {
     countDocsPendientesByAthleteIds,
     tutorAthletesAlertFlags,
@@ -172,6 +175,7 @@ const registerUser = asyncHandler(async (req, res) => {
     }
 
     const hasAtleta = roles.includes('atleta');
+    const hasTutor = roles.includes('tutor');
     const clientRol = roles.find((r) => CLIENT_USER_ROLES.includes(r));
     const staffPayrollRol = roles.find((r) => PAYROLL_STAFF_ROLES.includes(r));
     const payrollRol = hasAtleta ? 'atleta' : staffPayrollRol || primaryRol;
@@ -287,11 +291,17 @@ const registerUser = asyncHandler(async (req, res) => {
     });
 
     if (user) {
-        if (hasAtleta && user.tutorPrincipal && !user.esPrueba) {
+        if (hasAtleta && !user.esPrueba) {
             try {
                 await syncFamilyDiscountForAthlete(req.models, user._id);
             } catch (e) {
                 console.log('Descuento familiar al crear atleta:', e.message);
+            }
+        } else if (hasTutor) {
+            try {
+                await syncFamilyDiscountForTutor(req.models, user._id);
+            } catch (e) {
+                console.log('Descuento familiar al crear tutor:', e.message);
             }
         }
 
@@ -639,15 +649,21 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
     const updatedUser = await user.save();
     const updatedRoles = normalizeUserRoles(updatedUser);
 
-    if (
-        updatedRoles.includes('atleta') &&
-        updatedUser.tutorPrincipal &&
-        String(updatedUser.tutorPrincipal) !== tutorAnterior
-    ) {
+    if (updatedRoles.includes('atleta') && !updatedUser.esPrueba) {
+        const tutorChanged =
+            String(updatedUser.tutorPrincipal || '') !== String(tutorAnterior || '');
+        if (tutorChanged || updatedRoles.includes('tutor')) {
+            try {
+                await syncFamilyDiscountForAthlete(req.models, updatedUser._id);
+            } catch (e) {
+                console.log('Descuento familiar al actualizar atleta/tutor:', e.message);
+            }
+        }
+    } else if (updatedRoles.includes('tutor')) {
         try {
-            await syncFamilyDiscountForAthlete(req.models, updatedUser._id);
+            await syncFamilyDiscountForTutor(req.models, updatedUser._id);
         } catch (e) {
-            console.log('Descuento familiar al vincular tutor:', e.message);
+            console.log('Descuento familiar al actualizar tutor:', e.message);
         }
     }
 

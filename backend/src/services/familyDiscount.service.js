@@ -1,9 +1,9 @@
 /** Descuento familiar: valor global en ClubSettings y override por tutor.
- * Solo aplica con 2 o más atletas bajo el mismo tutor.
+ * Aplica con 2 o más atletas permanentes: hijos con ese tutorPrincipal,
+ * y el propio tutor si también tiene rol atleta.
  */
 
 import { roleQuery, userHasRole } from '../constants/userRoles.js';
-import { hijosDelTutorFilter } from '../utils/userQuery.js';
 import {
     countOpenPaymentsNeedingDiscountRetarget,
     retargetOpenPaymentsFromEnrollments,
@@ -40,29 +40,50 @@ export function buildMotivoDescuento(cantidadHijos, porcentaje) {
         : `Descuento familiar (${porcentaje}%)`;
 }
 
-async function countHijosDelTutor(models, tutorId) {
+function isPermanentAthleteUser(user) {
+    if (!user || !userHasRole(user, 'atleta')) return false;
+    if (user.estado === 'inactivo') return false;
+    if (user.esPrueba === true) return false;
+    return true;
+}
+
+/** Hijos vinculados + el tutor si también es atleta permanente. */
+export async function listFamilyAthletesForDiscount(models, tutorId) {
     const { User } = models;
-    // Solo hermanos permanentes (no inactivos ni de prueba) cuentan para el descuento.
-    return User.countDocuments({
+    const hijos = await User.find({
         ...roleQuery('atleta'),
         tutorPrincipal: tutorId,
         estado: { $ne: 'inactivo' },
         esPrueba: { $ne: true },
     });
+
+    const members = [...hijos];
+    const tutor = await User.findById(tutorId).select(
+        'nombre apellido fotoPerfil rol roles estado esPrueba tutorPrincipal',
+    );
+    if (tutor && isPermanentAthleteUser(tutor)) {
+        const already = members.some((h) => String(h._id) === String(tutorId));
+        if (!already) members.push(tutor);
+    }
+    return members;
+}
+
+export async function countFamilyAthletesForDiscount(models, tutorId) {
+    return (await listFamilyAthletesForDiscount(models, tutorId)).length;
 }
 
 async function clearFamilyDiscountOnEnrollments(models, tutorId) {
-    const { User, Enrollment } = models;
-    const hijos = await User.find(hijosDelTutorFilter(tutorId)).select('_id');
+    const { Enrollment } = models;
+    const members = await listFamilyAthletesForDiscount(models, tutorId);
     let actualizados = 0;
-    for (const hijo of hijos) {
+    for (const member of members) {
         const result = await Enrollment.updateMany(
-            { atleta: hijo._id, estado: 'activo', descuentoPorcentaje: { $gt: 0 } },
+            { atleta: member._id, estado: 'activo', descuentoPorcentaje: { $gt: 0 } },
             { descuentoPorcentaje: 0, motivoDescuento: '' },
         );
         actualizados += result.modifiedCount;
     }
-    return { hijos: hijos.length, actualizados };
+    return { hijos: members.length, actualizados };
 }
 
 /** Porcentaje vigente para una familia (override del tutor o global). */
@@ -78,20 +99,15 @@ export async function getFamilyDiscountPctForTutor(models, tutorId) {
 
 export async function applyDiscountToFamilyEnrollments(models, tutorId, porcentaje, { updateTutor = true } = {}) {
     const { User, Enrollment } = models;
-    const hijosPermanentes = await User.find({
-        ...roleQuery('atleta'),
-        tutorPrincipal: tutorId,
-        estado: { $ne: 'inactivo' },
-        esPrueba: { $ne: true },
-    });
+    const miembros = await listFamilyAthletesForDiscount(models, tutorId);
 
-    if (hijosPermanentes.length < MIN_ATHLETES_FOR_FAMILY_DISCOUNT) {
+    if (miembros.length < MIN_ATHLETES_FOR_FAMILY_DISCOUNT) {
         const cleared = await clearFamilyDiscountOnEnrollments(models, tutorId);
         if (updateTutor) {
             await User.findByIdAndUpdate(tutorId, { descuentoFamiliar: null });
         }
         return {
-            hijos: hijosPermanentes.length,
+            hijos: miembros.length,
             actualizados: cleared.actualizados,
             porcentaje: 0,
             skipped: true,
@@ -100,12 +116,12 @@ export async function applyDiscountToFamilyEnrollments(models, tutorId, porcenta
     }
 
     const pct = Math.min(100, Math.max(0, Number(porcentaje) || 0));
-    const motivo = buildMotivoDescuento(hijosPermanentes.length, pct);
+    const motivo = buildMotivoDescuento(miembros.length, pct);
 
     let actualizados = 0;
-    for (const hijo of hijosPermanentes) {
+    for (const member of miembros) {
         const result = await Enrollment.updateMany(
-            { atleta: hijo._id, estado: 'activo' },
+            { atleta: member._id, estado: 'activo' },
             { descuentoPorcentaje: pct, motivoDescuento: motivo },
         );
         actualizados += result.modifiedCount;
@@ -115,7 +131,7 @@ export async function applyDiscountToFamilyEnrollments(models, tutorId, porcenta
         await User.findByIdAndUpdate(tutorId, { descuentoFamiliar: pct });
     }
 
-    return { hijos: hijosPermanentes.length, actualizados, porcentaje: pct };
+    return { hijos: miembros.length, actualizados, porcentaje: pct };
 }
 
 /**
@@ -127,8 +143,8 @@ export async function syncFamilyDiscountForTutor(models, tutorId) {
     const tutor = await User.findById(tutorId).select('rol roles descuentoFamiliar');
     if (!tutor || !userHasRole(tutor, 'tutor')) return { applied: false };
 
-    const hijosCount = await countHijosDelTutor(models, tutorId);
-    if (hijosCount < MIN_ATHLETES_FOR_FAMILY_DISCOUNT) {
+    const familyCount = await countFamilyAthletesForDiscount(models, tutorId);
+    if (familyCount < MIN_ATHLETES_FOR_FAMILY_DISCOUNT) {
         await clearFamilyDiscountOnEnrollments(models, tutorId);
         return { applied: false, reason: 'familia_un_atleta' };
     }
@@ -151,13 +167,8 @@ export async function syncFamilyDiscountForTutor(models, tutorId) {
         updateTutor: false,
     });
 
-    const hijos = await User.find({
-        ...roleQuery('atleta'),
-        tutorPrincipal: tutorId,
-        estado: { $ne: 'inactivo' },
-        esPrueba: { $ne: true },
-    }).select('_id');
-    const athleteIds = hijos.map((h) => h._id);
+    const members = await listFamilyAthletesForDiscount(models, tutorId);
+    const athleteIds = members.map((h) => h._id);
     let cuotasActualizadas = 0;
     if (athleteIds.length) {
         const retarget = await retargetOpenPaymentsFromEnrollments(models, athleteIds, {
@@ -172,20 +183,41 @@ export async function syncFamilyDiscountForTutor(models, tutorId) {
 export async function syncFamilyDiscountForAthlete(models, atletaId) {
     const { User } = models;
     const atleta = await User.findById(atletaId).select('tutorPrincipal rol roles');
-    if (!atleta?.tutorPrincipal || !userHasRole(atleta, 'atleta')) return { applied: false };
-    return syncFamilyDiscountForTutor(models, atleta.tutorPrincipal);
+    if (!atleta || !userHasRole(atleta, 'atleta')) return { applied: false };
+
+    let last = { applied: false };
+    if (atleta.tutorPrincipal) {
+        last = await syncFamilyDiscountForTutor(models, atleta.tutorPrincipal);
+    }
+    if (userHasRole(atleta, 'tutor')) {
+        const asTutor = await syncFamilyDiscountForTutor(models, atleta._id);
+        if (asTutor.applied) last = asTutor;
+    }
+    return last;
 }
 
 /** Aplica el descuento familiar a una inscripción recién creada (solo familias con 2+ atletas). */
 export async function applyFamilyDiscountToEnrollment(models, atletaId, enrollment) {
     const { User } = models;
     const atleta = await User.findById(atletaId).select('tutorPrincipal rol roles');
-    if (!atleta?.tutorPrincipal || !userHasRole(atleta, 'atleta')) return enrollment;
+    if (!atleta || !userHasRole(atleta, 'atleta')) return enrollment;
 
-    await syncFamilyDiscountForTutor(models, atleta.tutorPrincipal);
+    if (atleta.tutorPrincipal) {
+        await syncFamilyDiscountForTutor(models, atleta.tutorPrincipal);
+    }
+    if (userHasRole(atleta, 'tutor')) {
+        await syncFamilyDiscountForTutor(models, atleta._id);
+    }
 
-    const hijos = await countHijosDelTutor(models, atleta.tutorPrincipal);
-    if (hijos < MIN_ATHLETES_FOR_FAMILY_DISCOUNT) {
+    const familyTutorId = atleta.tutorPrincipal
+        ? atleta.tutorPrincipal
+        : userHasRole(atleta, 'tutor')
+          ? atleta._id
+          : null;
+    if (!familyTutorId) return enrollment;
+
+    const familyCount = await countFamilyAthletesForDiscount(models, familyTutorId);
+    if (familyCount < MIN_ATHLETES_FOR_FAMILY_DISCOUNT) {
         if (enrollment.descuentoPorcentaje) {
             enrollment.descuentoPorcentaje = 0;
             enrollment.motivoDescuento = '';
@@ -194,11 +226,11 @@ export async function applyFamilyDiscountToEnrollment(models, atletaId, enrollme
         return enrollment;
     }
 
-    const pct = await getFamilyDiscountPctForTutor(models, atleta.tutorPrincipal);
+    const pct = await getFamilyDiscountPctForTutor(models, familyTutorId);
     if (pct <= 0) return enrollment;
 
     enrollment.descuentoPorcentaje = pct;
-    enrollment.motivoDescuento = buildMotivoDescuento(hijos, pct);
+    enrollment.motivoDescuento = buildMotivoDescuento(familyCount, pct);
     await enrollment.save();
     return enrollment;
 }
@@ -235,9 +267,11 @@ export async function syncAllFamilyDiscounts(
     let familiasElegibles = 0;
     let familiasActualizadas = 0;
     let inscripcionesActualizadas = 0;
+    const allFamilyAthleteIds = [];
 
-    for (const [tutorId, hijoIds] of byTutor.entries()) {
-        if (hijoIds.length < MIN_ATHLETES_FOR_FAMILY_DISCOUNT) continue;
+    for (const [tutorId] of byTutor.entries()) {
+        const members = await listFamilyAthletesForDiscount(models, tutorId);
+        if (members.length < MIN_ATHLETES_FOR_FAMILY_DISCOUNT) continue;
         familiasElegibles += 1;
 
         const pct = await getFamilyDiscountPctForTutor(models, tutorId);
@@ -251,15 +285,9 @@ export async function syncAllFamilyDiscounts(
             familiasActualizadas += 1;
             inscripcionesActualizadas += result.actualizados;
         }
-    }
-
-    // Incluir también atletas de familias que ya tenían el % en inscripción pero cuotas viejas sin dto.
-    const allFamilyAthleteIds = [];
-    for (const [tutorId, hijoIds] of byTutor.entries()) {
-        if (hijoIds.length < MIN_ATHLETES_FOR_FAMILY_DISCOUNT) continue;
-        const pct = await getFamilyDiscountPctForTutor(models, tutorId);
-        if (pct <= 0) continue;
-        allFamilyAthleteIds.push(...hijoIds);
+        for (const member of members) {
+            allFamilyAthleteIds.push(member._id);
+        }
     }
 
     const openNeeds = await countOpenPaymentsNeedingDiscountRetarget(models, allFamilyAthleteIds, {
@@ -300,9 +328,8 @@ export async function applyFamilyDiscountAndOptionalPayments(
         updateTutor,
     });
 
-    const { User } = models;
-    const hijos = await User.find(hijosDelTutorFilter(tutorId)).select('_id');
-    const athleteIds = hijos.map((h) => h._id);
+    const members = await listFamilyAthletesForDiscount(models, tutorId);
+    const athleteIds = members.map((h) => h._id);
 
     const openNeeds = await countOpenPaymentsNeedingDiscountRetarget(models, athleteIds, {
         mes,

@@ -204,57 +204,57 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
   };
 
   const buildSessionPayload = useCallback((sess, freeSpaceList, athletes, wellnessToday) => {
-    const donePre = new Set();
-    (wellnessToday || []).forEach((w) => {
-      if (w.tipo !== 'pre') return;
-      const aid = w.atleta?._id || w.atleta;
-      if (aid) donePre.add(String(aid));
-    });
+      const donePre = new Set();
+          (wellnessToday || []).forEach((w) => {
+            if (w.tipo !== 'pre') return;
+            const aid = w.atleta?._id || w.atleta;
+            if (aid) donePre.add(String(aid));
+          });
 
-    const map = {};
-    (sess.asistencia || []).forEach((row) => {
-      const id = row.atleta?._id || row.atleta;
-      if (id) map[id] = row.estado || 'ausente';
-    });
+      const map = {};
+      (sess.asistencia || []).forEach((row) => {
+        const id = row.atleta?._id || row.atleta;
+        if (id) map[id] = row.estado || 'ausente';
+      });
     const dorsals = {};
     (sess.listaBuenaFe || []).forEach((row) => {
       if (row.tipoPersona === 'staff') return;
       const id = row.usuario?._id || row.usuario;
       if (id) dorsals[String(id)] = String(row.dorsal || '').replace(/\D/g, '').slice(0, 3);
     });
-    athletes.forEach((a) => {
-      const id = a._id;
+      athletes.forEach((a) => {
+        const id = a._id;
       if (map[id] == null) map[id] = null;
-    });
-
-    const plan = sess.planEntrenamiento;
-    const ejecutados = sess.bloquesEjecutados || [];
-    let nextExecutedBlocks = [];
-    if (plan?.bloques?.length) {
-      nextExecutedBlocks = plan.bloques.map((b, i) => {
-        const ex = ejecutados[i];
-        return {
-          tituloBloque: b.tituloBloque,
-          formato: b.formato,
-          enfoque: b.enfoque,
-          duracionPlanificada: b.duracionMinutos,
-          duracionRealMinutos: ex?.duracionRealMinutos ?? 0,
-        };
       });
-    } else if (Array.isArray(ejecutados) && ejecutados.length) {
-      nextExecutedBlocks = ejecutados.map((b) => ({
-        tituloBloque: b.tituloBloque || 'Bloque',
-        formato: b.formato || '',
-        enfoque: b.enfoque || '',
-        duracionPlanificada: b.duracionPlanificada || 0,
-        duracionRealMinutos: b.duracionRealMinutos || 0,
-      }));
-    }
 
-    const defaultNombre =
-      sess.tipo === 'partido'
-        ? `Partido ${sess.categoria?.nombre || ''} ${isoCalendarDateToDisplay(sess.fecha)}`.trim()
-        : `Entreno ${sess.categoria?.nombre || ''} ${isoCalendarDateToDisplay(sess.fecha)}`.trim();
+      const plan = sess.planEntrenamiento;
+      const ejecutados = sess.bloquesEjecutados || [];
+    let nextExecutedBlocks = [];
+      if (plan?.bloques?.length) {
+      nextExecutedBlocks = plan.bloques.map((b, i) => {
+            const ex = ejecutados[i];
+            return {
+              tituloBloque: b.tituloBloque,
+              formato: b.formato,
+              enfoque: b.enfoque,
+              duracionPlanificada: b.duracionMinutos,
+              duracionRealMinutos: ex?.duracionRealMinutos ?? 0,
+            };
+      });
+      } else if (Array.isArray(ejecutados) && ejecutados.length) {
+      nextExecutedBlocks = ejecutados.map((b) => ({
+            tituloBloque: b.tituloBloque || 'Bloque',
+            formato: b.formato || '',
+            enfoque: b.enfoque || '',
+            duracionPlanificada: b.duracionPlanificada || 0,
+            duracionRealMinutos: b.duracionRealMinutos || 0,
+      }));
+      }
+
+      const defaultNombre =
+        sess.tipo === 'partido'
+          ? `Partido ${sess.categoria?.nombre || ''} ${isoCalendarDateToDisplay(sess.fecha)}`.trim()
+          : `Entreno ${sess.categoria?.nombre || ''} ${isoCalendarDateToDisplay(sess.fecha)}`.trim();
 
     return {
       session: sess,
@@ -285,7 +285,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
     if (data.preservePlanNombre) {
       setPlanNombre(data.planNombre ?? '');
       setPlanObjetivo(data.planObjetivo ?? '');
-    } else {
+      } else {
       setPlanNombre((n) => (n.trim() ? n : data.planNombre ?? ''));
       setPlanObjetivo(data.planObjetivo ?? '');
     }
@@ -1167,41 +1167,41 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
             </>
           ) : null}
           {completed && isConsultaPsicologia ? (
-            <>
-              <Text style={[styles.section, { color: theme.text, marginTop: 16 }]}>
-                Visibilidad del informe
-              </Text>
-              <Text style={[styles.hint, { color: theme.textMuted }]}>
-                Podés ocultar el texto del informe al atleta o al tutor sin reabrir la consulta.
-              </Text>
-              <View style={[styles.switchRow, { borderColor: theme.border }]}>
-                <Text style={{ color: theme.text, flex: 1 }}>Visible para el atleta</Text>
-                <Switch
-                  value={editInformeVisAtleta}
-                  onValueChange={setEditInformeVisAtleta}
-                  trackColor={{ true: `${colorMarca}88` }}
-                  disabled={past}
-                />
-              </View>
-              <View style={[styles.switchRow, { borderColor: theme.border }]}>
-                <Text style={{ color: theme.text, flex: 1 }}>Visible para el tutor</Text>
-                <Switch
-                  value={editInformeVisTutor}
-                  onValueChange={setEditInformeVisTutor}
-                  trackColor={{ true: `${colorMarca}88` }}
-                  disabled={past}
-                />
-              </View>
-              {!past ? (
-                <TouchableOpacity
-                  style={[styles.secondaryOutlineBtn, { borderColor: colorMarca, marginBottom: 8 }]}
-                  onPress={savePsychInformeVisibility}
-                  disabled={savingPsychVis}
-                >
-                  <Text style={{ color: colorMarca, fontWeight: '800' }}>
-                    {savingPsychVis ? 'Guardando…' : 'Guardar visibilidad'}
+                <>
+                  <Text style={[styles.section, { color: theme.text, marginTop: 16 }]}>
+                    Visibilidad del informe
                   </Text>
-                </TouchableOpacity>
+                  <Text style={[styles.hint, { color: theme.textMuted }]}>
+                    Podés ocultar el texto del informe al atleta o al tutor sin reabrir la consulta.
+                  </Text>
+                  <View style={[styles.switchRow, { borderColor: theme.border }]}>
+                    <Text style={{ color: theme.text, flex: 1 }}>Visible para el atleta</Text>
+                    <Switch
+                      value={editInformeVisAtleta}
+                      onValueChange={setEditInformeVisAtleta}
+                      trackColor={{ true: `${colorMarca}88` }}
+                  disabled={past}
+                    />
+                  </View>
+                  <View style={[styles.switchRow, { borderColor: theme.border }]}>
+                    <Text style={{ color: theme.text, flex: 1 }}>Visible para el tutor</Text>
+                    <Switch
+                      value={editInformeVisTutor}
+                      onValueChange={setEditInformeVisTutor}
+                      trackColor={{ true: `${colorMarca}88` }}
+                  disabled={past}
+                    />
+                  </View>
+              {!past ? (
+                  <TouchableOpacity
+                    style={[styles.secondaryOutlineBtn, { borderColor: colorMarca, marginBottom: 8 }]}
+                    onPress={savePsychInformeVisibility}
+                    disabled={savingPsychVis}
+                  >
+                    <Text style={{ color: colorMarca, fontWeight: '800' }}>
+                      {savingPsychVis ? 'Guardando…' : 'Guardar visibilidad'}
+                    </Text>
+                  </TouchableOpacity>
               ) : null}
             </>
           ) : null}
@@ -1348,14 +1348,14 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
           if (navigation.canGoBack()) navigation.goBack();
         }}
         rightAccessory={
-          <TouchableOpacity
+                  <TouchableOpacity
             onPress={() => setSessionMetaOpen(true)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             accessibilityRole="button"
             accessibilityLabel="Datos de la sesión"
           >
             <Ionicons name="ellipsis-horizontal" size={22} color="#fff" />
-          </TouchableOpacity>
+                  </TouchableOpacity>
         }
         footer={
           isPartido ? null : (
@@ -1365,8 +1365,8 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
               { key: 'entreno', label: 'Entreno' },
             ].map((t) => {
               const active = detailTab === t.key;
-              return (
-                <TouchableOpacity
+                  return (
+                    <TouchableOpacity
                   key={t.key}
                   style={[styles.headerTab, active && styles.headerTabActive]}
                   onPress={() => setDetailTab(t.key)}
@@ -1374,17 +1374,17 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                   accessibilityState={{ selected: active }}
                 >
                   <Text
-                    style={[
+                      style={[
                       styles.headerTabTxt,
                       active ? { color: colorMarca } : styles.headerTabTxtIdle,
-                    ]}
-                  >
+                      ]}
+                    >
                     {t.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
           )
         }
       />
@@ -1405,35 +1405,35 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
               <Text style={[styles.section, { color: theme.text, marginBottom: 0 }]}>Datos de la sesión</Text>
               <TouchableOpacity onPress={() => setSessionMetaOpen(false)} hitSlop={10}>
                 <Ionicons name="close" size={24} color={theme.textMuted} />
-              </TouchableOpacity>
+            </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={{ paddingBottom: 28 }} keyboardShouldPersistTaps="handled">
-              <Text style={[styles.hint, { color: theme.textMuted }]}>
-                Corregí fecha, horario o espacio si hubo un error. Con la sesión cerrada primero tenés que reabrirla.
-              </Text>
+          <Text style={[styles.hint, { color: theme.textMuted }]}>
+            Corregí fecha, horario o espacio si hubo un error. Con la sesión cerrada primero tenés que reabrirla.
+          </Text>
               {readOnly ? (
                 <View style={[styles.reopenBanner, { borderColor: '#6b7280', backgroundColor: theme.surface }]}>
                   <Ionicons name="lock-closed-outline" size={22} color="#6b7280" />
-                  <Text style={[styles.reopenBannerTxt, { color: theme.text }]}>
+              <Text style={[styles.reopenBannerTxt, { color: theme.text }]}>
                     {past
                       ? 'Esta sesión ya pasó. Solo podés ver el resumen y las estadísticas.'
                       : 'Sesión cerrada. Solo lectura del resumen.'}
-                  </Text>
-                </View>
-              ) : null}
+              </Text>
+            </View>
+          ) : null}
               {completed && !past ? (
-                <TouchableOpacity
-                  style={[styles.primaryBtn, { backgroundColor: '#b45309', marginBottom: 8 }]}
+            <TouchableOpacity
+              style={[styles.primaryBtn, { backgroundColor: '#b45309', marginBottom: 8 }]}
                   onPress={() => {
                     setSessionMetaOpen(false);
                     confirmReopenSession();
                   }}
-                  disabled={reopeningSession}
-                >
+              disabled={reopeningSession}
+            >
                   <Text style={styles.primaryBtnTxt}>
                     {reopeningSession ? 'Procesando…' : 'Reabrir sesión para corregir'}
                   </Text>
-                </TouchableOpacity>
+            </TouchableOpacity>
               ) : null}
               {!readOnly ? (
                 <>
@@ -1441,41 +1441,41 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                   <CalendarDateField
                     theme={theme}
                     colorMarca={colorMarca}
-                    value={editFecha}
+                value={editFecha}
                     onChange={setEditFecha}
                     placeholder="Elegí la fecha"
-                  />
-                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Hora inicio / fin (HH:MM)</Text>
-                  <View style={{ flexDirection: 'row', marginBottom: 12 }}>
-                    <TextInput
-                      style={[inputStyle, { flex: 1, marginRight: 8 }]}
-                      value={editHoraInicio}
-                      onChangeText={(t) => setEditHoraInicio(maskTimeHHMM(t))}
-                      placeholder="18:00"
-                      placeholderTextColor={theme.textMuted}
-                      keyboardType="number-pad"
-                      maxLength={5}
-                    />
-                    <TextInput
-                      style={[inputStyle, { flex: 1 }]}
-                      value={editHoraFin}
-                      onChangeText={(t) => setEditHoraFin(maskTimeHHMM(t))}
-                      placeholder="19:30"
-                      placeholderTextColor={theme.textMuted}
-                      keyboardType="number-pad"
-                      maxLength={5}
-                    />
-                  </View>
+              />
+              <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Hora inicio / fin (HH:MM)</Text>
+              <View style={{ flexDirection: 'row', marginBottom: 12 }}>
+                <TextInput
+                  style={[inputStyle, { flex: 1, marginRight: 8 }]}
+                  value={editHoraInicio}
+                  onChangeText={(t) => setEditHoraInicio(maskTimeHHMM(t))}
+                  placeholder="18:00"
+                  placeholderTextColor={theme.textMuted}
+                  keyboardType="number-pad"
+                  maxLength={5}
+                />
+                <TextInput
+                  style={[inputStyle, { flex: 1 }]}
+                  value={editHoraFin}
+                  onChangeText={(t) => setEditHoraFin(maskTimeHHMM(t))}
+                  placeholder="19:30"
+                  placeholderTextColor={theme.textMuted}
+                  keyboardType="number-pad"
+                  maxLength={5}
+                />
+              </View>
                   {(session.lugarExterno || '').trim() && !needsRelocation ? (
-                    <>
-                      <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Sede (partido fuera)</Text>
-                      <TextInput
-                        style={[inputStyle, { minHeight: 48, marginBottom: 12 }]}
-                        value={editLugarExterno}
-                        onChangeText={setEditLugarExterno}
-                        placeholder="Dónde se juega"
-                        placeholderTextColor={theme.textMuted}
-                        multiline
+                <>
+                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Sede (partido fuera)</Text>
+                  <TextInput
+                    style={[inputStyle, { minHeight: 48, marginBottom: 12 }]}
+                    value={editLugarExterno}
+                    onChangeText={setEditLugarExterno}
+                    placeholder="Dónde se juega"
+                    placeholderTextColor={theme.textMuted}
+                    multiline
                       />
                     </>
                   ) : needsRelocation ? (
@@ -1512,55 +1512,55 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                         placeholder="Dirección o sede"
                         placeholderTextColor={theme.textMuted}
                         multiline
-                      />
-                    </>
-                  ) : (
-                    <>
+                  />
+                </>
+              ) : (
+                <>
                       <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Espacio del club</Text>
                       {availableSpaces.length ? (
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                           {availableSpaces.map((s) => (
-                            <TouchableOpacity
-                              key={s._id}
-                              style={[
-                                styles.chipEspacio,
-                                {
-                                  borderColor: editEspacioId === s._id ? colorMarca : theme.border,
-                                  backgroundColor: editEspacioId === s._id ? colorMarca + '22' : theme.surface,
-                                },
-                              ]}
-                              onPress={() => setEditEspacioId(s._id)}
-                            >
-                              <Text style={{ color: theme.text, fontWeight: '600', fontSize: 13 }}>{s.nombre}</Text>
-                            </TouchableOpacity>
-                          ))}
-                        </ScrollView>
+                      <TouchableOpacity
+                        key={s._id}
+                        style={[
+                          styles.chipEspacio,
+                          {
+                            borderColor: editEspacioId === s._id ? colorMarca : theme.border,
+                            backgroundColor: editEspacioId === s._id ? colorMarca + '22' : theme.surface,
+                          },
+                        ]}
+                        onPress={() => setEditEspacioId(s._id)}
+                      >
+                        <Text style={{ color: theme.text, fontWeight: '600', fontSize: 13 }}>{s.nombre}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
                       ) : (
                         <Text style={{ color: theme.textMuted, fontSize: 13, marginBottom: 12, fontStyle: 'italic' }}>
                           No hay espacios libres en ese horario.
                         </Text>
                       )}
-                    </>
-                  )}
-                  <TouchableOpacity
-                    style={[styles.secondaryOutlineBtn, { borderColor: colorMarca, marginBottom: 16 }]}
-                    onPress={saveSessionMeta}
-                    disabled={savingSessionMeta}
-                  >
-                    <Text style={{ color: colorMarca, fontWeight: '800' }}>
-                      {savingSessionMeta ? 'Guardando…' : 'Guardar cambios de fecha / lugar'}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.secondaryOutlineBtn, { borderColor: '#ef4444', marginBottom: 16 }]}
+                </>
+              )}
+              <TouchableOpacity
+                style={[styles.secondaryOutlineBtn, { borderColor: colorMarca, marginBottom: 16 }]}
+                onPress={saveSessionMeta}
+                disabled={savingSessionMeta}
+              >
+                <Text style={{ color: colorMarca, fontWeight: '800' }}>
+                  {savingSessionMeta ? 'Guardando…' : 'Guardar cambios de fecha / lugar'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.secondaryOutlineBtn, { borderColor: '#ef4444', marginBottom: 16 }]}
                     onPress={() => {
                       setSessionMetaOpen(false);
                       navigation.navigate('CoachCancelSession', { sessionId, session });
                     }}
-                  >
-                    <Text style={{ color: '#ef4444', fontWeight: '800' }}>Cancelar sesión</Text>
-                  </TouchableOpacity>
-                </>
+              >
+                <Text style={{ color: '#ef4444', fontWeight: '800' }}>Cancelar sesión</Text>
+              </TouchableOpacity>
+            </>
               ) : null}
             </ScrollView>
           </View>
@@ -1947,9 +1947,9 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
 
           {entrenoMode === 'planificar' ? (
             <>
-              <Text style={[styles.hint, { color: theme.textMuted }]}>
+        <Text style={[styles.hint, { color: theme.textMuted }]}>
                 Título y minutos por bloque. Formato, enfoque y detalle van en «más opciones».
-              </Text>
+        </Text>
 
               {!readOnly ? (
                 <TouchableOpacity
@@ -1966,44 +1966,44 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                 </TouchableOpacity>
               ) : null}
 
-              {showPlanBuilder ? (
-                <>
-                  <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Nombre del plan</Text>
-                  <TextInput
-                    style={inputStyle}
-                    value={planNombre}
-                    onChangeText={setPlanNombre}
-                    placeholder="Ej. Práctica pre-partido"
-                    placeholderTextColor={theme.textMuted}
+        {showPlanBuilder ? (
+          <>
+            <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Nombre del plan</Text>
+            <TextInput
+              style={inputStyle}
+              value={planNombre}
+              onChangeText={setPlanNombre}
+              placeholder="Ej. Práctica pre-partido"
+              placeholderTextColor={theme.textMuted}
                     editable={!readOnly}
                     onFocus={ensureEntrenoInputVisible}
-                  />
+            />
                   <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Objetivo</Text>
-                  <TextInput
+            <TextInput
                     style={[inputStyle, { minHeight: 56 }]}
-                    multiline
+              multiline
                     scrollEnabled={false}
                     textAlignVertical="top"
-                    value={planObjetivo}
-                    onChangeText={setPlanObjetivo}
+              value={planObjetivo}
+              onChangeText={setPlanObjetivo}
                     placeholder="Ej. Priorizar salida limpia"
-                    placeholderTextColor={theme.textMuted}
+              placeholderTextColor={theme.textMuted}
                     editable={!readOnly}
                     onFocus={ensureEntrenoInputVisible}
-                  />
+            />
 
-                  {draftBlocks.map((d, i) => (
+            {draftBlocks.map((d, i) => (
                     <View
                       key={`draft-${i}`}
                       style={[styles.draftCard, { borderColor: theme.border, backgroundColor: theme.surface }]}
                     >
                       <View style={styles.compactRow}>
-                        <TextInput
+                <TextInput
                           style={[inputStyle, styles.compactTitle, { marginBottom: 0, flex: 1 }]}
-                          value={d.tituloBloque}
-                          onChangeText={(v) => updateDraft(i, 'tituloBloque', v)}
+                  value={d.tituloBloque}
+                  onChangeText={(v) => updateDraft(i, 'tituloBloque', v)}
                           placeholder={`Bloque ${i + 1}`}
-                          placeholderTextColor={theme.textMuted}
+                  placeholderTextColor={theme.textMuted}
                           editable={!readOnly}
                           onFocus={ensureEntrenoInputVisible}
                         />
@@ -2032,29 +2032,29 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
 
                       <Foldable open={d.moreOpen}>
                         <View style={{ marginTop: 12 }}>
-                          <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Formato</Text>
-                          <TextInput
-                            style={inputStyle}
-                            value={d.formato}
-                            onChangeText={(v) => updateDraft(i, 'formato', v)}
-                            placeholder="Ej. 5vs5, ruedas…"
-                            placeholderTextColor={theme.textMuted}
+                <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Formato</Text>
+                <TextInput
+                  style={inputStyle}
+                  value={d.formato}
+                  onChangeText={(v) => updateDraft(i, 'formato', v)}
+                  placeholder="Ej. 5vs5, ruedas…"
+                  placeholderTextColor={theme.textMuted}
                             editable={!readOnly}
                             onFocus={ensureEntrenoInputVisible}
-                          />
-                          <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Enfoque</Text>
-                          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
-                            {ENFOQUE_OPTS.map((o) => (
-                              <TouchableOpacity
-                                key={o.key}
-                                style={[
-                                  styles.chip,
-                                  {
-                                    borderColor: d.enfoque === o.key ? colorMarca : theme.border,
-                                    backgroundColor: d.enfoque === o.key ? colorMarca + '22' : 'transparent',
-                                  },
-                                ]}
-                                onPress={() => updateDraft(i, 'enfoque', o.key)}
+                />
+                <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Enfoque</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
+                  {ENFOQUE_OPTS.map((o) => (
+                    <TouchableOpacity
+                      key={o.key}
+                      style={[
+                        styles.chip,
+                        {
+                          borderColor: d.enfoque === o.key ? colorMarca : theme.border,
+                          backgroundColor: d.enfoque === o.key ? colorMarca + '22' : 'transparent',
+                        },
+                      ]}
+                      onPress={() => updateDraft(i, 'enfoque', o.key)}
                                 disabled={readOnly}
                               >
                                 <Text
@@ -2064,97 +2064,97 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                                     fontWeight: '700',
                                   }}
                                 >
-                                  {o.label}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </ScrollView>
+                        {o.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
                           <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Detalle / reglas</Text>
-                          <TextInput
+                <TextInput
                             style={[inputStyle, { minHeight: 56, marginBottom: 0 }]}
-                            multiline
+                  multiline
                             scrollEnabled={false}
                             textAlignVertical="top"
-                            value={d.descripcionDetallada}
-                            onChangeText={(v) => updateDraft(i, 'descripcionDetallada', v)}
-                            placeholder="Ej. A dos toques en campo propio"
-                            placeholderTextColor={theme.textMuted}
+                  value={d.descripcionDetallada}
+                  onChangeText={(v) => updateDraft(i, 'descripcionDetallada', v)}
+                  placeholder="Ej. A dos toques en campo propio"
+                  placeholderTextColor={theme.textMuted}
                             editable={!readOnly}
                             onFocus={ensureEntrenoInputVisible}
-                          />
+                />
                         </View>
                       </Foldable>
 
                       {draftBlocks.length > 1 && !readOnly ? (
-                        <TouchableOpacity
-                          style={styles.removeDraftBtn}
-                          onPress={() => setDraftBlocks((prev) => prev.filter((_, j) => j !== i))}
-                        >
+                  <TouchableOpacity
+                    style={styles.removeDraftBtn}
+                    onPress={() => setDraftBlocks((prev) => prev.filter((_, j) => j !== i))}
+                  >
                           <Text style={{ color: '#ef4444', fontWeight: '700' }}>Quitar</Text>
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
-                  ))}
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ))}
 
                   {!readOnly ? (
-                    <TouchableOpacity
-                      style={[styles.secondaryOutlineBtn, { borderColor: colorMarca }]}
-                      onPress={() => setDraftBlocks((prev) => [...prev, emptyDraftBlock()])}
-                    >
-                      <Text style={{ color: colorMarca, fontWeight: '800' }}>+ Agregar bloque</Text>
-                    </TouchableOpacity>
-                  ) : null}
+              <TouchableOpacity
+                style={[styles.secondaryOutlineBtn, { borderColor: colorMarca }]}
+                onPress={() => setDraftBlocks((prev) => [...prev, emptyDraftBlock()])}
+              >
+                <Text style={{ color: colorMarca, fontWeight: '800' }}>+ Agregar bloque</Text>
+              </TouchableOpacity>
+            ) : null}
 
                   {!readOnly ? (
-                    <View style={{ flexDirection: 'row', marginTop: 12 }}>
-                      {hasPlan && editingPlanDraft ? (
+              <View style={{ flexDirection: 'row', marginTop: 12 }}>
+                {hasPlan && editingPlanDraft ? (
                         <TouchableOpacity
                           style={[styles.secondaryOutlineBtn, { borderColor: theme.border, flex: 1, marginRight: 8 }]}
                           onPress={cancelEditingPlan}
                         >
                           <Text style={{ color: theme.text, fontWeight: '700' }}>Cancelar</Text>
-                        </TouchableOpacity>
-                      ) : null}
-                      <TouchableOpacity
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity
                         style={[styles.primaryBtn, { backgroundColor: colorMarca, flex: 1, marginTop: 10 }]}
-                        onPress={persistTrainingPlan}
-                        disabled={savingPlan}
-                      >
+                  onPress={persistTrainingPlan}
+                  disabled={savingPlan}
+                >
                         <Text style={styles.primaryBtnTxt}>{savingPlan ? 'Guardando…' : 'Guardar plan'}</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : null}
-                </>
-              ) : (
-                <>
-                  <View style={[styles.planBanner, { backgroundColor: colorMarca + '18', borderColor: colorMarca }]}>
-                    <Ionicons name="clipboard-outline" size={22} color={colorMarca} />
-                    <Text style={[styles.planBannerTxt, { color: theme.text }]}>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <View style={[styles.planBanner, { backgroundColor: colorMarca + '18', borderColor: colorMarca }]}>
+              <Ionicons name="clipboard-outline" size={22} color={colorMarca} />
+              <Text style={[styles.planBannerTxt, { color: theme.text }]}>
                       {plan?.nombre || 'Plan cargado'} · {plan.bloques.length} bloques ·{' '}
                       {(plan.bloques || []).reduce((a, b) => a + (Number(b.duracionMinutos) || 0), 0)} min
-                    </Text>
-                  </View>
+              </Text>
+            </View>
                   {!readOnly ? (
                     <TouchableOpacity
                       style={[styles.secondaryOutlineBtn, { borderColor: theme.border, marginBottom: 12 }]}
                       onPress={startEditingPlan}
                     >
-                      <Text style={{ color: theme.text, fontWeight: '700' }}>Modificar plan</Text>
-                    </TouchableOpacity>
-                  ) : null}
+                <Text style={{ color: theme.text, fontWeight: '700' }}>Modificar plan</Text>
+              </TouchableOpacity>
+            ) : null}
                   {(plan?.bloques || []).map((b, i) => (
                     <View key={`pv-${i}`} style={[styles.execRow, { borderColor: theme.border }]}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ color: theme.text, fontWeight: '700' }}>{b.tituloBloque}</Text>
-                        <Text style={{ color: theme.textMuted, marginTop: 4, fontSize: 13 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: theme.text, fontWeight: '700' }}>{b.tituloBloque}</Text>
+                  <Text style={{ color: theme.textMuted, marginTop: 4, fontSize: 13 }}>
                           {(b.formato || 'General') +
                             ' · ' +
                             (ENFOQUE_OPTS.find((x) => x.key === b.enfoque)?.label || b.enfoque) +
                             ` · ${b.duracionMinutos || 0} min`}
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
+                  </Text>
+                </View>
+              </View>
+            ))}
                   {!readOnly ? (
                     <TouchableOpacity
                       style={[styles.primaryBtn, { backgroundColor: colorMarca, marginTop: 16 }]}
@@ -2163,8 +2163,8 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                       <Text style={styles.primaryBtnTxt}>Ir a En vivo</Text>
                     </TouchableOpacity>
                   ) : null}
-                </>
-              )}
+          </>
+        )}
             </>
           ) : (
             <>
@@ -2185,32 +2185,32 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                   </View>
 
                   <Text style={[styles.section, { color: theme.text, marginTop: 4 }]}>Cronómetro</Text>
-                  <Text style={[styles.hint, { color: theme.textMuted }]}>
+            <Text style={[styles.hint, { color: theme.textMuted }]}>
                     Elegí el bloque e iniciá. Pausá si hace falta; al detener se cargan los minutos y pasás al siguiente. En el último bloque, Detener cierra el entrenamiento.
-                  </Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
-                    {executedBlocks.map((_, i) => (
-                      <TouchableOpacity
-                        key={`tb-${i}`}
-                        style={[
-                          styles.timerChip,
-                          {
-                            borderColor: selectedTimerIndex === i ? colorMarca : theme.border,
-                            backgroundColor: selectedTimerIndex === i ? colorMarca + '28' : theme.surface,
-                          },
-                        ]}
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
+              {executedBlocks.map((_, i) => (
+                <TouchableOpacity
+                  key={`tb-${i}`}
+                  style={[
+                    styles.timerChip,
+                    {
+                      borderColor: selectedTimerIndex === i ? colorMarca : theme.border,
+                      backgroundColor: selectedTimerIndex === i ? colorMarca + '28' : theme.surface,
+                    },
+                  ]}
                         onPress={() => !timerLocked && !readOnly && setSelectedTimerIndex(i)}
                         disabled={readOnly || timerLocked}
-                      >
-                        <Text style={{ color: theme.text, fontWeight: '800', fontSize: 13 }}>{i + 1}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                >
+                  <Text style={{ color: theme.text, fontWeight: '800', fontSize: 13 }}>{i + 1}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
 
-                  <View style={[styles.timerCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                    <Text style={[styles.timerSub, { color: theme.textMuted }]}>
-                      Bloque {selectedTimerIndex + 1}: {executedBlocks[selectedTimerIndex]?.tituloBloque}
-                    </Text>
+            <View style={[styles.timerCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Text style={[styles.timerSub, { color: theme.textMuted }]}>
+                Bloque {selectedTimerIndex + 1}: {executedBlocks[selectedTimerIndex]?.tituloBloque}
+              </Text>
                     {timerPaused ? (
                       <View style={[styles.timerPausedBadge, { backgroundColor: '#f59e0b22', borderColor: '#f59e0b' }]}>
                         <Ionicons name="pause" size={14} color="#f59e0b" />
@@ -2219,9 +2219,9 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                     ) : null}
                     <Text style={[styles.timerTxt, { color: timerPaused ? '#f59e0b' : theme.text }]}>
                       {!timerLocked
-                        ? 'Listo para iniciar'
-                        : `${String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:${String(elapsedSec % 60).padStart(2, '0')}`}
-                    </Text>
+                  ? 'Listo para iniciar'
+                  : `${String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:${String(elapsedSec % 60).padStart(2, '0')}`}
+              </Text>
                     {!readOnly ? (
                       <View style={styles.timerActions}>
                         {!timerLocked ? (
@@ -2231,10 +2231,10 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                           >
                             <Ionicons name="play" size={16} color={colorMarca} />
                             <Text style={{ color: colorMarca, fontWeight: '700', marginLeft: 6 }}>Iniciar</Text>
-                          </TouchableOpacity>
+                  </TouchableOpacity>
                         ) : null}
                         {timerRunning ? (
-                          <TouchableOpacity
+                  <TouchableOpacity
                             style={[styles.secondaryBtn, { borderColor: '#f59e0b' }]}
                             onPress={pauseTimer}
                           >
@@ -2256,7 +2256,7 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                             styles.secondaryBtn,
                             { borderColor: isLastTimerBlock ? '#0f766e' : theme.border },
                           ]}
-                          onPress={stopTimerAndAssign}
+                    onPress={stopTimerAndAssign}
                           disabled={!timerLocked}
                         >
                           <Ionicons
@@ -2273,10 +2273,10 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                           >
                             {isLastTimerBlock ? 'Finalizar' : 'Detener'}
                           </Text>
-                        </TouchableOpacity>
-                      </View>
-                    ) : null}
-                  </View>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+            </View>
 
                   <Text style={[styles.section, { color: theme.text, marginTop: 8 }]}>Tiempos reales</Text>
                   {executedBlocks.map((b, i) => (
@@ -2309,26 +2309,26 @@ export default function CoachSessionDetailScreen({ navigation, route }) {
                       style={[styles.primaryBtn, { backgroundColor: '#0f766e', marginTop: 16 }]}
                       onPress={finishTraining}
                     >
-                      <Text style={styles.primaryBtnTxt}>Finalizar entrenamiento</Text>
-                    </TouchableOpacity>
-                  ) : null}
+            <Text style={styles.primaryBtnTxt}>Finalizar entrenamiento</Text>
+          </TouchableOpacity>
+        ) : null}
 
                   <Text style={[styles.section, { color: theme.text, marginTop: 24 }]}>Resumen</Text>
-                  <View style={[styles.summary, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                    <Text style={{ color: theme.text, fontSize: 16, fontWeight: '800' }}>
+        <View style={[styles.summary, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={{ color: theme.text, fontSize: 16, fontWeight: '800' }}>
                       Total real: {totalRealMin} min · Plan: {totalPlanMin} min
-                    </Text>
-                    {executedBlocks.map((b, i) => (
-                      <Text key={`sum-${i}`} style={{ color: theme.textMuted, marginTop: 8 }}>
+          </Text>
+          {executedBlocks.map((b, i) => (
+            <Text key={`sum-${i}`} style={{ color: theme.textMuted, marginTop: 8 }}>
                         · {b.tituloBloque}: {b.duracionRealMinutos || 0} min real ({b.duracionPlanificada} min plan)
-                      </Text>
-                    ))}
-                  </View>
+            </Text>
+          ))}
+        </View>
                 </>
               )}
             </>
           )}
-        </ScrollView>
+      </ScrollView>
       )}
     </SafeAreaView>
   );

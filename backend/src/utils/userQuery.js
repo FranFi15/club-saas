@@ -35,7 +35,7 @@ export function isTutorOf(atleta, tutorId) {
     return Boolean(id) && tutorIdsOf(atleta).includes(id);
 }
 
-/** Atletas a cargo del tutor de facturación. El descuento familiar sigue contando solo estos. */
+/** Atletas a cargo del tutor de facturación. */
 export function hijosDelTutorFilter(tutorId) {
     return {
         tutorPrincipal: tutorId,

@@ -123,7 +123,7 @@ function FiltersPanel({
         <View style={styles.filterCellFull}>
           <Text style={[styles.filtersLabel, { color: theme.textMuted }]} numberOfLines={1}>
             Usuario
-          </Text>
+              </Text>
           <SearchableDropdown
             {...dropdownProps}
             data={usuarioOptions}
@@ -181,7 +181,7 @@ function FiltersPanel({
             <View style={styles.filterCell}>
               <Text style={[styles.filtersLabel, { color: theme.textMuted }]} numberOfLines={1}>
                 Categoría
-              </Text>
+                  </Text>
               <SearchableDropdown
                 {...dropdownProps}
                 data={categoryOptions}
@@ -190,8 +190,8 @@ function FiltersPanel({
                 placeholder="Categoría"
               />
             </View>
-          </>
-        ) : null}
+        </>
+      ) : null}
       </View>
     </View>
   );
@@ -358,7 +358,7 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
   );
 
   const fetchFolders = useCallback(async () => {
-    const h = await headers();
+      const h = await headers();
     const params = lockedCategoriaId ? { categoriaId: lockedCategoriaId } : undefined;
     const res = await clubApi.get('/requirements/folders', { headers: h, params });
     setFolders(res.data?.folders || []);
@@ -444,8 +444,8 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
     if (loadingMoreRef.current || loadingMoreSubmissions || !submissionsHasMore || browseLevel !== 'deliveries') return;
     loadingMoreRef.current = true;
     setLoadingMoreSubmissions(true);
-    try {
-      const h = await headers();
+      try {
+        const h = await headers();
       const res = await clubApi.get('/requirements/submissions', {
         headers: h,
         params: submissionQuery(submissionsPage + 1),
@@ -454,9 +454,9 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
       setList((prev) => [...prev, ...rows]);
       setSubmissionsPage(res.data?.page ?? submissionsPage + 1);
       setSubmissionsHasMore(Boolean(res.data?.hasMore));
-    } catch (e) {
+      } catch (e) {
       showAlert('Error', e.response?.data?.message || 'No se pudieron cargar más entregas.');
-    } finally {
+      } finally {
       loadingMoreRef.current = false;
       setLoadingMoreSubmissions(false);
     }
@@ -600,10 +600,10 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
 
     try {
       await openMediaViewer(navigation, {
-        url: item.fileUrl,
-        title,
-        viewerRoute: 'CoachMediaViewer',
-      });
+      url: item.fileUrl,
+      title,
+      viewerRoute: 'CoachMediaViewer',
+    });
     } catch (e) {
       showAlert('Error', e.message || 'No se pudo abrir el recurso.');
     }
@@ -1209,20 +1209,20 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
       ) : null}
 
       {browseLevel === 'pedidos' ? (
-        <FlatList
+      <FlatList
           data={folderPedidos}
-          keyExtractor={(item) => String(item._id)}
+        keyExtractor={(item) => String(item._id)}
           renderItem={renderPedidoItem}
           ListHeaderComponent={pedidosHeader}
           contentContainerStyle={[styles.listPad, folderPedidos.length === 0 && styles.listPadEmpty]}
-          refreshControl={
-            <RefreshControl
+        refreshControl={
+          <RefreshControl
               refreshing={refreshingPedidos}
               onRefresh={() => reloadPedidos(true)}
-              tintColor={colorMarca}
-            />
-          }
-          ListEmptyComponent={
+            tintColor={colorMarca}
+          />
+        }
+        ListEmptyComponent={
             loadingPedidos ? (
               <ClubSpinLoader size={56} style={{ marginTop: 32 }} />
             ) : (
@@ -1250,11 +1250,11 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
           ListEmptyComponent={
             showInitialLoader ? (
               <ClubSpinLoader size={56} style={{ marginTop: 32 }} />
-            ) : (
-              <Text style={[styles.empty, { color: theme.textMuted }]}>No hay entregas con estos filtros.</Text>
-            )
-          }
-        />
+          ) : (
+            <Text style={[styles.empty, { color: theme.textMuted }]}>No hay entregas con estos filtros.</Text>
+          )
+        }
+      />
       ) : null}
 
       <Modal
