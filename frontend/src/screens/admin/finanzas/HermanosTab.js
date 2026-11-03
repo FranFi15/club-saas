@@ -78,7 +78,7 @@ export default function HermanosTab({
         {siblings.length === 0 ? (
           <View style={s.empty}>
             <Ionicons name="people-outline" size={50} color={theme.icon} />
-            <Text style={[s.emptyTxt, { color: theme.text }]}>Sin familias con tutor</Text>
+            <Text style={[s.emptyTxt, { color: theme.text }]}>Sin familias con 2 o más atletas</Text>
             <Text style={[s.emptySub, { color: theme.textMuted }]}>
               Los atletas deben tener un tutor principal asignado en administración.
             </Text>

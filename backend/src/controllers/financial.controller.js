@@ -743,7 +743,8 @@ const deletePayment = asyncHandler(async (req, res) => {
     });
 });
 
-// @desc    Obtener grupos de hermanos (mismo tutorPrincipal), paginado por familia
+// @desc    Familias elegibles al descuento (2+ atletas permanentes, mismo tutorPrincipal).
+//          El tutor cuenta si también tiene rol atleta.
 // @route   GET /api/financial/siblings?mes=&anio=&page=1&limit=30&search=
 const getSiblings = asyncHandler(async (req, res) => {
     const { User, Enrollment, Payment } = req.models;
@@ -754,7 +755,12 @@ const getSiblings = asyncHandler(async (req, res) => {
 
     const globalPct = await getGlobalFamilyDiscountPct(req.models);
 
-    const athleteMatch = { ...roleQuery('atleta'), tutorPrincipal: { $ne: null } };
+    const athleteMatch = {
+        ...roleQuery('atleta'),
+        tutorPrincipal: { $ne: null },
+        estado: { $ne: 'inactivo' },
+        esPrueba: { $ne: true },
+    };
 
     if (search) {
         const tutorIds = new Set();
@@ -802,8 +808,37 @@ const getSiblings = asyncHandler(async (req, res) => {
                 _id: '$tutorPrincipal',
                 nombre: { $first: '$tutorUser.nombre' },
                 apellido: { $first: '$tutorUser.apellido' },
+                hijoCount: { $sum: 1 },
+                tutorRoles: { $first: '$tutorUser.roles' },
+                tutorRol: { $first: '$tutorUser.rol' },
+                tutorEstado: { $first: '$tutorUser.estado' },
+                tutorEsPrueba: { $first: '$tutorUser.esPrueba' },
             },
         },
+        {
+            $addFields: {
+                tutorCountsAsAthlete: {
+                    $and: [
+                        { $ne: ['$tutorEstado', 'inactivo'] },
+                        { $ne: ['$tutorEsPrueba', true] },
+                        {
+                            $or: [
+                                { $eq: ['$tutorRol', 'atleta'] },
+                                { $in: ['atleta', { $ifNull: ['$tutorRoles', []] }] },
+                            ],
+                        },
+                    ],
+                },
+            },
+        },
+        {
+            $addFields: {
+                familyCount: {
+                    $add: ['$hijoCount', { $cond: ['$tutorCountsAsAthlete', 1, 0] }],
+                },
+            },
+        },
+        { $match: { familyCount: { $gte: 2 } } },
         { $sort: { nombre: 1, apellido: 1, _id: 1 } },
     ];
 
@@ -832,6 +867,8 @@ const getSiblings = asyncHandler(async (req, res) => {
     const atletasConTutor = await User.find({
         ...roleQuery('atleta'),
         tutorPrincipal: { $in: pageTutorIds },
+        estado: { $ne: 'inactivo' },
+        esPrueba: { $ne: true },
     })
         .select('nombre apellido tutorPrincipal fotoPerfil')
         .lean();
@@ -917,7 +954,7 @@ const getSiblings = asyncHandler(async (req, res) => {
     const familias = pageTutorIds
         .map((tid) => {
             const g = grupos[String(tid)];
-            if (!g?.tutor || !g.hijos.length) return null;
+            if (!g?.tutor || g.hijos.length < 2) return null;
             g.hijos = sortUsersByName(g.hijos);
             const tutorPct = g.tutor.descuentoFamiliar;
             const fromEnrollments = Math.max(0, ...g.hijos.map((h) => h.descuentoPorcentaje || 0));

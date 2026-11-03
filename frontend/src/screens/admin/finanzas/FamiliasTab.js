@@ -518,7 +518,7 @@ export default function FamiliasTab({
     return (
       <View style={s.empty}>
         <Ionicons name="people-outline" size={50} color={theme.icon} />
-        <Text style={[s.emptyTxt, { color: theme.text }]}>Sin familias con tutor</Text>
+        <Text style={[s.emptyTxt, { color: theme.text }]}>Sin familias con 2 o más atletas</Text>
       </View>
     );
   }, [isLoading, cc, theme, filtroBusqueda]);
