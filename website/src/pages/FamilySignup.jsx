@@ -257,7 +257,7 @@ export default function FamilySignup() {
     setAtletas((prev) => prev.map((a, i) => (i === index ? { ...a, [field]: value } : a)));
   };
 
-  const requiereTutor = invite?.requiereTutor !== false;
+  const requiereTutor = (Number(invite?.tutorCount) || 0) > 0;
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -419,7 +419,7 @@ export default function FamilySignup() {
         <p className="fs-lead">
           {requiereTutor
             ? `Completá los datos de ${tutores.length} tutor${tutores.length === 1 ? '' : 'es'} y ${athleteCount} atleta${athleteCount === 1 ? '' : 's'}. Las categorías ya las eligió el club.`
-            : `Completá tus datos para registrarte. La categoría ya la eligió el club.`}
+            : `Completá tus datos para registrarte. El email es opcional: si no tenés, entrás a la app con nombre.apellido. La categoría ya la eligió el club.`}
         </p>
 
         {error ? <p className="fs-error">{error}</p> : null}
@@ -547,13 +547,15 @@ export default function FamilySignup() {
                 <span>Email</span>
                 <input
                   type="email"
+                  autoComplete="email"
                   value={atletas[index]?.email || ''}
                   onChange={(e) => updateAthlete(index, 'email', e.target.value)}
                   placeholder="Si no tiene, dejalo vacío"
                 />
                 <small className="fs-hint">
-                  Opcional si el atleta no tiene email. Entra a la app con nombre.apellido (ej.
-                  juan.perez) y la contraseña de abajo.
+                  {requiereTutor
+                    ? 'Opcional si el atleta no tiene email. Entra a la app con nombre.apellido (ej. juan.perez) y la contraseña de abajo.'
+                    : 'Opcional. Si lo dejás vacío, entrás a la app con nombre.apellido (ej. juan.perez) y la contraseña de abajo.'}
                 </small>
               </label>
               <PasswordField

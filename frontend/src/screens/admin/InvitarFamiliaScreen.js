@@ -423,7 +423,7 @@ export default function InvitarFamiliaScreen({ navigation }) {
               <Text style={[styles.sectionHint, { color: theme.textMuted }]}>
                 {includeTutor
                   ? 'Elegí disciplina y categoría de cada hijo. El tutor completa nombres y datos de contacto.'
-                  : 'Para mayores sin tutor: el atleta completa su propio alta e inicia sesión con su email.'}
+                  : 'Para mayores sin tutor: el atleta completa su propio alta. El email es opcional; si no tiene, entra con nombre.apellido.'}
               </Text>
 
               {slots.map((slot, index) => (
