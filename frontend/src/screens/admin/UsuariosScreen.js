@@ -24,6 +24,7 @@ import CustomAlert from '../../components/CustomAlert';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import ListTopFade from '../../components/ListTopFade';
 import DesignCard from '../../components/DesignCard';
+import Foldable, { FoldableChevron } from '../../components/Foldable';
 import UserFormModal from '../../components/UserFormModal';
 import UserDetailsModal from '../../components/UserDetailsModal';
 import UserAvatar from '../../components/UserAvatar';
@@ -32,6 +33,14 @@ import { USER_ROL_LABELS, USER_ROLE_FILTROS } from '../../constants/userRoles';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { sortUsersByName, formatUserName } from '../../utils/listSort';
 import { canMutateAsAdmin } from '../../constants/appRoles';
+
+function roleLabelsForUser(item) {
+  const roles = (Array.isArray(item.roles) && item.roles.length
+    ? item.roles
+    : [item.rol || item.role]
+  ).filter(Boolean);
+  return roles.map((r) => USER_ROL_LABELS[r] || r);
+}
 
 export default function UsuariosScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
@@ -78,6 +87,7 @@ export default function UsuariosScreen({ navigation }) {
   // Modales
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [isDetailsVisible, setIsDetailsVisible] = useState(false);
+  const [expandedRoles, setExpandedRoles] = useState({});
   const [selectedUser, setSelectedUser] = useState(null);
 
   const [alertConfig, setAlertConfig] = useState({
@@ -454,10 +464,18 @@ export default function UsuariosScreen({ navigation }) {
     );
   };
 
+  const toggleRolesExpanded = useCallback((userId) => {
+    setExpandedRoles((prev) => ({ ...prev, [userId]: !prev[userId] }));
+  }, []);
+
   const renderItem = ({ item }) => {
     let familyTagText = null;
     let familyIcon = null;
     const inactive = item.estado === 'inactivo';
+    const roleLabels = roleLabelsForUser(item);
+    const hasMultipleRoles = roleLabels.length > 1;
+    const rolesOpen = !!expandedRoles[item._id];
+    const primaryRoleLabel = roleLabels[0] || 'Usuario';
 
     if (item.tutorPrincipal && item.tutorPrincipal.nombre) {
       const extras = (Array.isArray(item.tutores) ? item.tutores : [])
@@ -483,38 +501,88 @@ export default function UsuariosScreen({ navigation }) {
           style={{ marginBottom: 12, opacity: inactive ? 0.72 : 1 }}
           contentStyle={styles.cardContent}
         >
-          <UserAvatar user={item} size={46} colorMarca={inactive ? '#9ca3af' : colorMarca} style={{ marginRight: 15 }} />
+          <UserAvatar user={item} size={46} colorMarca={inactive ? '#9ca3af' : colorMarca} style={styles.avatar} />
 
           <View style={styles.userInfo}>
-            <Text style={[styles.userName, { color: inactive ? theme.textMuted : theme.text }]}>
-              {formatUserName(item)}
+            <View style={styles.nameRow}>
+              <Text
+                style={[styles.userName, { color: inactive ? theme.textMuted : theme.text }]}
+                numberOfLines={2}
+              >
+                {formatUserName(item)}
+              </Text>
+              {hasMultipleRoles ? (
+                <TouchableOpacity
+                  style={[styles.roleBadge, styles.roleBadgeToggle, { backgroundColor: theme.background, borderColor: theme.border }]}
+                  onPress={() => toggleRolesExpanded(item._id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={rolesOpen ? 'Ocultar roles' : 'Ver roles'}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <Text style={[styles.roleBadgeText, { color: theme.textMuted }]} numberOfLines={1}>
+                    {rolesOpen ? 'Roles' : primaryRoleLabel}
+                  </Text>
+                  {!rolesOpen ? (
+                    <Text style={[styles.roleCountHint, { color: theme.textMuted }]}>
+                      +{roleLabels.length - 1}
+                    </Text>
+                  ) : null}
+                  <FoldableChevron open={rolesOpen} color={theme.textMuted} size={14} />
+                </TouchableOpacity>
+              ) : (
+                <View style={[styles.roleBadge, { backgroundColor: theme.background, borderColor: theme.border }]}>
+                  <Text style={[styles.roleBadgeText, { color: theme.textMuted }]} numberOfLines={1}>
+                    {primaryRoleLabel}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {hasMultipleRoles ? (
+              <Foldable open={rolesOpen}>
+                <View style={styles.rolesFold}>
+                  {roleLabels.map((label) => (
+                    <View
+                      key={`${item._id}-${label}`}
+                      style={[styles.roleChip, { backgroundColor: theme.background, borderColor: theme.border }]}
+                    >
+                      <Text style={[styles.roleChipText, { color: theme.textMuted }]} numberOfLines={1}>
+                        {label}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </Foldable>
+            ) : null}
+
+            <Text style={[styles.userEmail, { color: theme.textMuted }]} numberOfLines={1}>
+              {item.email}
             </Text>
-            <Text style={[styles.userEmail, { color: theme.textMuted }]}>{item.email}</Text>
 
             {familyTagText && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                <Ionicons name={familyIcon} size={14} color={inactive ? theme.textMuted : colorMarca} style={{ marginRight: 4 }} />
+              <View style={styles.metaRow}>
+                <Ionicons name={familyIcon} size={14} color={inactive ? theme.textMuted : colorMarca} style={styles.metaIcon} />
                 <Text
                   style={[styles.familyTag, { color: inactive ? theme.textMuted : colorMarca }]}
-                  numberOfLines={1}
+                  numberOfLines={2}
                 >
                   {familyTagText}
                 </Text>
               </View>
             )}
             {inactive ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                <Ionicons name="pause-circle-outline" size={14} color="#ef4444" style={{ marginRight: 4 }} />
+              <View style={styles.metaRow}>
+                <Ionicons name="pause-circle-outline" size={14} color="#ef4444" style={styles.metaIcon} />
                 <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '700' }}>Inactivo</Text>
               </View>
             ) : null}
             {!inactive && item.esPrueba ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+              <View style={styles.metaRow}>
                 <Ionicons
                   name="hourglass-outline"
                   size={14}
                   color={item.pruebaDecision === 'pendiente' ? '#ef4444' : '#f59e0b'}
-                  style={{ marginRight: 4 }}
+                  style={styles.metaIcon}
                 />
                 <Text
                   style={{
@@ -527,18 +595,6 @@ export default function UsuariosScreen({ navigation }) {
                 </Text>
               </View>
             ) : null}
-          </View>
-
-          <View style={[styles.roleBadge, { backgroundColor: theme.background, borderColor: theme.border }]}>
-            <Text style={[styles.roleBadgeText, { color: theme.textMuted }]} numberOfLines={2}>
-              {(Array.isArray(item.roles) && item.roles.length
-                ? item.roles
-                : [item.rol || item.role]
-              )
-                .filter(Boolean)
-                .map((r) => USER_ROL_LABELS[r] || r)
-                .join(' · ') || 'Usuario'}
-            </Text>
           </View>
         </DesignCard>
       </HoverRevealSwipeable>
@@ -680,13 +736,50 @@ const styles = StyleSheet.create({
   filtersContainer: { marginTop: 12, marginBottom: 10, paddingHorizontal: 20, zIndex: 9, position: 'relative' },
   filterRefreshing: { position: 'absolute', right: 44, top: 14 },
   body: { flex: 1, paddingHorizontal: 20 },
-  cardContent: { flexDirection: 'row', alignItems: 'center' },
-  userInfo: { flex: 1 },
-  userName: { fontSize: 16, fontWeight: 'bold', marginBottom: 2 },
+  cardContent: { flexDirection: 'row', alignItems: 'flex-start' },
+  avatar: { marginRight: 12, marginTop: 2 },
+  userInfo: { flex: 1, minWidth: 0 },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 2,
+  },
+  userName: { flex: 1, minWidth: 0, fontSize: 16, fontWeight: 'bold' },
   userEmail: { fontSize: 13 },
-  familyTag: { fontSize: 13, fontWeight: '500', flexShrink: 1 },
-  roleBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
-  roleBadgeText: { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
+  metaRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 4, minWidth: 0 },
+  metaIcon: { marginRight: 4, marginTop: 1 },
+  familyTag: { flex: 1, minWidth: 0, fontSize: 13, fontWeight: '500' },
+  roleBadge: {
+    flexShrink: 0,
+    maxWidth: 120,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  roleBadgeToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    maxWidth: 132,
+  },
+  roleBadgeText: { flexShrink: 1, fontSize: 11, fontWeight: '600', textTransform: 'capitalize' },
+  roleCountHint: { fontSize: 10, fontWeight: '700' },
+  rolesFold: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    paddingTop: 6,
+    paddingBottom: 2,
+  },
+  roleChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  roleChipText: { fontSize: 11, fontWeight: '600', textTransform: 'capitalize' },
   swipeActionsContainer: { flexDirection: 'row', marginBottom: 12, overflow: 'hidden', borderRadius: 5 },
   swipeBtn: { width: 70, justifyContent: 'center', alignItems: 'center', height: '100%' },
   emptyState: { alignItems: 'center', marginTop: 60 },

@@ -706,9 +706,11 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
     return (
       <DesignCard theme={theme} isDarkMode={isDarkMode} accent={colorMarca} contentStyle={styles.cardInner}>
         <View style={styles.cardHeader}>
-          <Text style={[styles.athName, { color: theme.text }]} numberOfLines={1}>
-            {formatUserName(a)}
-          </Text>
+          <View style={styles.cardTitleBlock}>
+            <Text style={[styles.athName, { color: theme.text }]} numberOfLines={2}>
+              {formatUserName(a)}
+            </Text>
+          </View>
           <View style={styles.tabRow}>
             {athletePanels.map((tab) => {
               const selected = panel === tab.key;
@@ -1648,13 +1650,16 @@ const styles = StyleSheet.create({
   listPad: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
   cardInner: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 12 },
   cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 8,
     marginBottom: 8,
   },
-  athName: { fontSize: 15, fontWeight: '700', flex: 1, minWidth: 0 },
-  tabRow: { flexDirection: 'row', flexWrap: 'nowrap', gap: 4, flexShrink: 0 },
+  cardTitleBlock: {
+    width: '100%',
+    minWidth: 0,
+    paddingRight: 2,
+  },
+  athName: { fontSize: 15, fontWeight: '700' },
+  tabRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   tabBtn: {
     flexDirection: 'row',
     alignItems: 'center',

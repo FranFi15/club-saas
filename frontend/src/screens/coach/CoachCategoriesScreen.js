@@ -684,8 +684,8 @@ export default function CoachCategoriesScreen({ navigation, route }) {
             return (
               <DesignCard theme={theme} isDarkMode={isDarkMode} accent={colorMarca} contentStyle={styles.cardInner}>
                 <View style={styles.cardHeader}>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.athName, { color: theme.text }]} numberOfLines={1}>
+                  <View style={styles.cardTitleBlock}>
+                    <Text style={[styles.athName, { color: theme.text }]} numberOfLines={2}>
                       {formatUserName(a)}
                     </Text>
                     {!selectedCatId && catsLabel ? (
@@ -942,14 +942,17 @@ const styles = StyleSheet.create({
   footerDone: { fontSize: 12, fontWeight: '600', marginVertical: 10 },
   cardInner: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 12 },
   cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 8,
     marginBottom: 8,
   },
+  cardTitleBlock: {
+    width: '100%',
+    minWidth: 0,
+    paddingRight: 2,
+  },
   athName: { fontSize: 15, fontWeight: '700' },
   rowSub: { fontSize: 12, marginTop: 2 },
-  tabRow: { flexDirection: 'row', flexWrap: 'nowrap', gap: 4, flexShrink: 0 },
+  tabRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   tabBtn: {
     flexDirection: 'row',
     alignItems: 'center',

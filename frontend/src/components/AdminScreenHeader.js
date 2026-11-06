@@ -7,10 +7,14 @@ import NotificationBell from './NotificationBell';
 import HeaderClubLogo, { HEADER_CLUB_LOGO_SIZE } from './HeaderClubLogo';
 import HeaderBottomFade, { HEADER_BOTTOM_FADE } from './HeaderBottomFade';
 import { statusBarStyleForColor } from '../utils/statusBarContrast';
+import { useAdminDesktopLayout } from '../hooks/useAdminDesktopLayout';
 
 const BACK_BTN_SIZE = 36;
+const DESKTOP_HEADER_HEIGHT = 72;
+const DESKTOP_HEADER_HEIGHT_WITH_TOOLBAR = 96;
+const DESKTOP_LOGO_SIZE = 44;
 
-/** Misma altura y estética que CoachScreenHeader (admin). */
+/** Misma altura y estética que CoachScreenHeader (admin). En escritorio web queda más compacto. */
 export default function AdminScreenHeader({
   theme,
   colorMarca,
@@ -29,11 +33,22 @@ export default function AdminScreenHeader({
   // Con volver: acciones + campana van juntos arriba a la derecha (evita solaparse con el título).
   const showTopToolbar = !!onBack || !!leadingAccessory;
   const insets = useSafeAreaInsets();
+  const { isDesktop } = useAdminDesktopLayout();
   const topInset = Platform.OS === 'web' ? 0 : insets.top;
   const statusBarStyle = statusBarStyleForColor(colorMarca);
   const midRightAccessory = !onBack ? rightAccessory : null;
   const showMidRight = !onBack && (showNotifications || !!midRightAccessory);
   const midRightWide = showNotifications && !!midRightAccessory;
+  const logoSize = isDesktop ? DESKTOP_LOGO_SIZE : HEADER_CLUB_LOGO_SIZE;
+  // En desktop el escudo ya está en el sidebar.
+  const renderClubLogo = showClubLogo && !isDesktop;
+  const headerHeight = isDesktop
+    ? showTopToolbar
+      ? DESKTOP_HEADER_HEIGHT_WITH_TOOLBAR
+      : DESKTOP_HEADER_HEIGHT
+    : showTopToolbar
+      ? COACH_HEADER_HEIGHT_WITH_TOOLBAR
+      : COACH_HEADER_HEIGHT;
   const toolbarRightContent =
     onBack && (rightAccessory || showNotifications) ? (
       <>
@@ -62,12 +77,13 @@ export default function AdminScreenHeader({
           styles.headerCard,
           {
             backgroundColor: colorMarca,
-            height: showTopToolbar ? COACH_HEADER_HEIGHT_WITH_TOOLBAR : COACH_HEADER_HEIGHT,
+            height: headerHeight,
           },
+          isDesktop && styles.headerCardDesktop,
         ]}
       >
         {showTopToolbar ? (
-          <View style={styles.toolbar}>
+          <View style={[styles.toolbar, isDesktop && styles.toolbarDesktop]}>
             <View style={styles.toolbarLeft}>
               {onBack ? (
                 <CoachHeaderActions>
@@ -95,22 +111,23 @@ export default function AdminScreenHeader({
           style={[
             styles.headerBody,
             styles.headerBodyCentered,
-            showClubLogo && styles.headerBodyWithLogo,
+            renderClubLogo && styles.headerBodyWithLogo,
             showMidRight && (midRightWide ? styles.headerBodyWithMidRightWide : styles.headerBodyWithMidRight),
             bottomRightAccessory && styles.headerBodyWithBottomRight,
             showTopToolbar && styles.headerBodyWithToolbar,
+            isDesktop && styles.headerBodyDesktop,
           ]}
         >
-          {showClubLogo ? <HeaderClubLogo size={HEADER_CLUB_LOGO_SIZE} /> : null}
+          {renderClubLogo ? <HeaderClubLogo size={logoSize} /> : null}
           <View style={styles.headerTextCol}>
-            <Text style={styles.headerKicker} numberOfLines={1}>
+            <Text style={[styles.headerKicker, isDesktop && styles.headerKickerDesktop]} numberOfLines={1}>
               {kicker}
             </Text>
-            <Text style={styles.headerTitle} numberOfLines={1}>
+            <Text style={[styles.headerTitle, isDesktop && styles.headerTitleDesktop]} numberOfLines={1}>
               {title}
             </Text>
             {subtitle ? (
-              <Text style={styles.headerSub} numberOfLines={subtitleLines}>
+              <Text style={[styles.headerSub, isDesktop && styles.headerSubDesktop]} numberOfLines={subtitleLines}>
                 {subtitle}
               </Text>
             ) : null}
@@ -147,12 +164,19 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingHorizontal: 16,
   },
+  headerCardDesktop: {
+    paddingHorizontal: 20,
+  },
   toolbar: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     paddingTop: 6,
     minHeight: 46,
+  },
+  toolbarDesktop: {
+    minHeight: 40,
+    paddingTop: 4,
   },
   toolbarLeft: {
     flexDirection: 'row',
@@ -232,6 +256,9 @@ const styles = StyleSheet.create({
   headerBodyWithBottomRight: {
     paddingBottom: 4,
   },
+  headerBodyDesktop: {
+    paddingVertical: 2,
+  },
   headerKicker: {
     color: 'rgba(255,255,255,0.85)',
     fontSize: 11,
@@ -240,6 +267,12 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: 2,
   },
+  headerKickerDesktop: {
+    fontSize: 10,
+    marginBottom: 1,
+  },
   headerTitle: { color: '#fff', fontSize: 17, fontWeight: 'bold', lineHeight: 21 },
+  headerTitleDesktop: { fontSize: 18, lineHeight: 22 },
   headerSub: { color: '#e5e7eb', fontSize: 13, marginTop: 2, lineHeight: 18 },
+  headerSubDesktop: { fontSize: 12, marginTop: 1, lineHeight: 16 },
 });

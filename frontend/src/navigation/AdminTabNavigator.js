@@ -1,6 +1,6 @@
-import React, { useContext, useCallback } from 'react';
+import React, { useContext, useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Platform } from 'react-native';
+import { Platform, View, StyleSheet } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { fadeStackScreenOptions } from './screenFade';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,12 +39,21 @@ import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
 import { tabBadgeText } from '../utils/tabBadgeLabel';
 import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
+import { useAdminDesktopLayout } from '../hooks/useAdminDesktopLayout';
+import AdminDesktopSidebar from '../components/AdminDesktopSidebar';
 
 const Tab = createSwipeBottomTabNavigator();
 const EstructuraStack = createNativeStackNavigator();
 const GestionStack = createNativeStackNavigator();
 const FinanzasStack = createNativeStackNavigator();
 const PerfilStack = createNativeStackNavigator();
+
+const TAB_ROOTS = {
+  Estructura: 'EstructuraHome',
+  Gestión: 'GestionMenu',
+  Finanzas: 'FinanzasHome',
+  Perfil: 'PerfilMain',
+};
 
 function EstructuraStackNavigator() {
   return (
@@ -114,7 +123,10 @@ export default function AdminTabNavigator() {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const { tab, refresh } = useBadges();
+  const { isDesktop } = useAdminDesktopLayout();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
+  const tabNavRef = useRef(null);
+  const [tabState, setTabState] = useState(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -125,37 +137,95 @@ export default function AdminTabNavigator() {
   const tabBottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 10);
   const tabBarHeight = 64 + tabBottomPad;
 
-  return (
+  const syncTabNav = useCallback((navigation) => {
+    if (!navigation) return;
+    tabNavRef.current = navigation;
+    setTabState(navigation.getState?.() ?? null);
+  }, []);
+
+  const navigateTab = useCallback((tabName, rootScreen) => {
+    const nav = tabNavRef.current;
+    if (!nav) return;
+    const state = nav.getState?.();
+    const current = state?.routes?.[state.index];
+    const alreadyHere = current?.name === tabName;
+    const root = rootScreen || TAB_ROOTS[tabName];
+    if (!alreadyHere) {
+      nav.navigate(tabName, root ? { screen: root } : undefined);
+    } else if (root) {
+      const nested = current?.state;
+      const nestedIndex = nested?.index ?? 0;
+      const nestedName = nested?.routes?.[nestedIndex]?.name;
+      if (nested && nestedIndex > 0 && nestedName !== root) {
+        nav.navigate(tabName, { screen: root });
+      }
+    }
+    requestAnimationFrame(() => syncTabNav(nav));
+  }, [syncTabNav]);
+
+  const navigateScreen = useCallback((tabName, screen) => {
+    const nav = tabNavRef.current;
+    if (!nav || !tabName || !screen) return;
+    nav.navigate(tabName, { screen });
+    requestAnimationFrame(() => syncTabNav(nav));
+  }, [syncTabNav]);
+
+  const baseOptions = buildSwipeBottomTabOptions({
+    colorMarca,
+    theme,
+    tabBarHeight,
+    tabBottomPad,
+    paddingHorizontal: 4,
+    getIcon: (name, focused, color) => {
+      let iconName = 'ellipse-outline';
+      if (name === 'Estructura') iconName = focused ? 'business' : 'business-outline';
+      if (name === 'Gestión') iconName = focused ? 'briefcase' : 'briefcase-outline';
+      if (name === 'Finanzas') iconName = focused ? 'cash' : 'cash-outline';
+      if (name === 'Perfil') iconName = focused ? 'person' : 'person-outline';
+      return <Ionicons name={iconName} size={22} color={color} />;
+    },
+    getBadge: (name) =>
+      ({
+        Estructura: tabBadgeText(tab('estructura')),
+        Gestión: tabBadgeText(tab('gestion')),
+        Finanzas: tabBadgeText(tab('finanzas')),
+      })[name],
+    getLabel: (name) =>
+      ({
+        Estructura: 'Estructura',
+        Gestión: 'Gestión',
+        Finanzas: 'Finanzas',
+        Perfil: 'Perfil',
+      })[name],
+  });
+
+  const tabs = (
     <Tab.Navigator
-      key={isDarkMode ? 'dark' : 'light'}
+      key={`${isDarkMode ? 'dark' : 'light'}-${isDesktop ? 'desk' : 'phone'}`}
       tabBarPosition="bottom"
-      screenOptions={buildSwipeBottomTabOptions({
-        colorMarca,
-        theme,
-        tabBarHeight,
-        tabBottomPad,
-        paddingHorizontal: 4,
-        getIcon: (name, focused, color) => {
-          let iconName = 'ellipse-outline';
-          if (name === 'Estructura') iconName = focused ? 'business' : 'business-outline';
-          if (name === 'Gestión') iconName = focused ? 'briefcase' : 'briefcase-outline';
-          if (name === 'Finanzas') iconName = focused ? 'cash' : 'cash-outline';
-          if (name === 'Perfil') iconName = focused ? 'person' : 'person-outline';
-          return <Ionicons name={iconName} size={22} color={color} />;
-        },
-        getBadge: (name) =>
-          ({
-            Estructura: tabBadgeText(tab('estructura')),
-            Gestión: tabBadgeText(tab('gestion')),
-            Finanzas: tabBadgeText(tab('finanzas')),
-          })[name],
-        getLabel: (name) =>
-          ({
-            Estructura: 'Estructura',
-            Gestión: 'Gestión',
-            Finanzas: 'Finanzas',
-            Perfil: 'Perfil',
-          })[name],
+      tabBar={isDesktop ? () => null : undefined}
+      screenOptions={(props) => {
+        const options = baseOptions(props);
+        if (!isDesktop) return options;
+        return {
+          ...options,
+          swipeEnabled: false,
+          tabBarStyle: {
+            ...options.tabBarStyle,
+            display: 'none',
+            height: 0,
+            minHeight: 0,
+            overflow: 'hidden',
+            opacity: 0,
+            paddingTop: 0,
+            paddingBottom: 0,
+            borderTopWidth: 0,
+          },
+        };
+      }}
+      screenListeners={({ navigation }) => ({
+        state: () => syncTabNav(navigation),
+        focus: () => syncTabNav(navigation),
       })}
     >
       <Tab.Screen
@@ -180,4 +250,30 @@ export default function AdminTabNavigator() {
       />
     </Tab.Navigator>
   );
+
+  if (!isDesktop) return tabs;
+
+  return (
+    <View style={[styles.desktopShell, { backgroundColor: theme.background }]}>
+      <AdminDesktopSidebar
+        tabState={tabState}
+        onNavigateTab={navigateTab}
+        onNavigateScreen={navigateScreen}
+      />
+      <View style={styles.desktopContent}>{tabs}</View>
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  desktopShell: {
+    flex: 1,
+    flexDirection: 'row',
+    width: '100%',
+    height: '100%',
+  },
+  desktopContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+});
