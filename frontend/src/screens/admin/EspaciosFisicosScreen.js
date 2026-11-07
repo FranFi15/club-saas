@@ -24,6 +24,8 @@ import { isoCalendarDateToDisplay, displayDateToIsoCalendar, formatJsDateToDispl
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
 import { isClubOwnerRole, canMutateAsAdmin } from '../../constants/appRoles';
+import { useAdminDesktopLayout } from '../../hooks/useAdminDesktopLayout';
+import { padCatalogData, isCatalogSpacer } from './adminCatalog';
 
 function defaultIndisponibleHastaDisplay() {
   const d = new Date();
@@ -41,8 +43,10 @@ const DIAS_ALQUILER = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'S�
 
 export default function EspaciosFisicosScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
-  const { theme, isDarkMode } = useContext(ThemeContext); 
+  const { theme, isDarkMode } = useContext(ThemeContext);
+  const { isDesktop } = useAdminDesktopLayout();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
+  const catalogColumns = isDesktop ? 3 : 1;
   const spacesCacheKey = clubData?.urlIdentifier ? `admin-espacios:${clubData.urlIdentifier}` : '';
 
   const [spaces, setSpaces] = useState(() => readScreenCache(spacesCacheKey)?.list ?? []);
@@ -468,7 +472,15 @@ export default function EspaciosFisicosScreen({ navigation }) {
     </View>
   );
 
+  const catalogSpaces = useMemo(
+    () => padCatalogData(visibleSpaces, catalogColumns),
+    [visibleSpaces, catalogColumns],
+  );
+
   const renderListItem = ({ item }) => {
+    if (isCatalogSpacer(item)) {
+      return <View style={styles.catalogCell} />;
+    }
     const statusColor = getStatusColor(item.estado);
     const card = (
       <DesignCard
@@ -476,55 +488,77 @@ export default function EspaciosFisicosScreen({ navigation }) {
         isDarkMode={isDarkMode}
         accent={statusColor}
         onPress={canChangeSpaceStatus ? () => openStatusModal(item) : undefined}
-        style={{ marginBottom: canChangeSpaceStatus || canEditSpaces ? 12 : undefined }}
+        style={
+          catalogColumns > 1
+            ? styles.catalogCard
+            : { marginBottom: canChangeSpaceStatus || canEditSpaces ? 12 : undefined }
+        }
+        stretch={catalogColumns > 1}
         contentStyle={styles.cardInner}
       >
-          <View style={[styles.avatar, { backgroundColor: colorMarca + '20' }]}>
-            {renderSpaceTypeIcon(item.tipo, 24, colorMarca)}
-          </View>
-          <View style={styles.info}>
-            <Text style={[styles.name, { color: theme.text }]}>{item.nombre}</Text>
-            <Text style={[styles.sub, { color: theme.textMuted, textTransform: 'capitalize' }]}>
-              {item.tipo}
-            </Text>
-            
-            <View style={styles.badgeRow}>
-              <View style={[styles.badge, { backgroundColor: statusColor + '20' }]}>
-                <Text style={[styles.badgeText, { color: statusColor }]} numberOfLines={1}>
-                  {item.estado}
+        <View style={[styles.avatar, { backgroundColor: colorMarca + '20' }]}>
+          {renderSpaceTypeIcon(item.tipo, 24, colorMarca)}
+        </View>
+        <View style={styles.info}>
+          <Text style={[styles.name, { color: theme.text }]} numberOfLines={2}>
+            {item.nombre}
+          </Text>
+          <Text style={[styles.sub, { color: theme.textMuted, textTransform: 'capitalize' }]} numberOfLines={1}>
+            {item.tipo}
+          </Text>
+
+          <View style={styles.badgeRow}>
+            <View style={[styles.badge, { backgroundColor: statusColor + '20' }]}>
+              <Text style={[styles.badgeText, { color: statusColor }]} numberOfLines={1}>
+                {item.estado}
+              </Text>
+            </View>
+            {item.admiteSubdivision ? (
+              <View style={[styles.badge, { backgroundColor: colorMarca + '15' }]}>
+                <Text style={[styles.badgeText, { color: colorMarca }]} numberOfLines={1}>
+                  Multi-uso
                 </Text>
               </View>
-              {item.admiteSubdivision ? (
-                <View style={[styles.badge, { backgroundColor: colorMarca + '15' }]}>
-                  <Text style={[styles.badgeText, { color: colorMarca }]} numberOfLines={1}>
-                    Multi-uso
-                  </Text>
-                </View>
-              ) : null}
-              {item.alquilerOnline?.habilitado ? (
-                <View style={[styles.badge, { backgroundColor: '#0ea5e915' }]}>
-                  <Text style={[styles.badgeText, { color: '#0284c7' }]} numberOfLines={1}>
-                    Online
-                  </Text>
-                </View>
-              ) : null}
-            </View>
+            ) : null}
+            {item.alquilerOnline?.habilitado ? (
+              <View style={[styles.badge, { backgroundColor: '#0ea5e915' }]}>
+                <Text style={[styles.badgeText, { color: '#0284c7' }]} numberOfLines={1}>
+                  Online
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          <View style={catalogColumns > 1 ? styles.metaSlot : undefined}>
             {item.indisponibleHasta && item.estado !== 'disponible' ? (
-              <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 4 }}>
+              <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 4 }} numberOfLines={1}>
                 Hasta {isoCalendarDateToDisplay(item.indisponibleHasta)}
               </Text>
             ) : null}
           </View>
-        </DesignCard>
+        </View>
+      </DesignCard>
     );
 
-    if (!canEditSpaces) return card;
-
-    return (
-      <HoverRevealSwipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>
+    const wrapped = !canEditSpaces ? (
+      card
+    ) : (
+      <HoverRevealSwipeable
+        renderRightActions={() => renderRightActions(item)}
+        overshootRight={false}
+        containerStyle={catalogColumns > 1 ? styles.catalogSwipeFill : undefined}
+      >
         {card}
       </HoverRevealSwipeable>
     );
+
+    if (catalogColumns > 1) {
+      return (
+        <View style={styles.catalogCell}>
+          <View style={styles.catalogSwipeFill}>{wrapped}</View>
+        </View>
+      );
+    }
+    return wrapped;
   };
 
   return (
@@ -565,27 +599,30 @@ export default function EspaciosFisicosScreen({ navigation }) {
           <ClubSpinLoader size={64} style={{ marginTop: 50 }} />
         ) : (
           <FlatList
-             data={visibleSpaces}
-             keyExtractor={(item) => item._id}
-             renderItem={renderListItem}
-             contentContainerStyle={{ paddingBottom: 80, paddingTop: 8 }}
-             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
-             onEndReached={onEndReached}
-             onEndReachedThreshold={onEndReachedThreshold}
-             ListFooterComponent={ListFooterComponent}
-             ListEmptyComponent={
-               <View style={styles.emptyState}>
-                 <Ionicons name="map-outline" size={60} color={theme.icon} />
-                 <Text style={[styles.emptyText, { color: theme.text }]}>
-                   {spaces.length === 0 ? 'Sin espacios' : 'Sin resultados'}
-                 </Text>
-                 <Text style={[styles.emptySubText, { color: theme.textMuted }]}>
-                   {spaces.length === 0
-                     ? 'No hay espacios físicos registrados.'
-                     : 'Probá con otro nombre o tipo.'}
-                 </Text>
-               </View>
-             }
+            key={catalogColumns > 1 ? 'espacios-catalog' : 'espacios-list'}
+            data={catalogSpaces}
+            keyExtractor={(item) => item._id}
+            renderItem={renderListItem}
+            numColumns={catalogColumns}
+            columnWrapperStyle={catalogColumns > 1 ? styles.catalogRow : undefined}
+            contentContainerStyle={{ paddingBottom: 80, paddingTop: 8 }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
+            onEndReached={onEndReached}
+            onEndReachedThreshold={onEndReachedThreshold}
+            ListFooterComponent={ListFooterComponent}
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <Ionicons name="map-outline" size={60} color={theme.icon} />
+                <Text style={[styles.emptyText, { color: theme.text }]}>
+                  {spaces.length === 0 ? 'Sin espacios' : 'Sin resultados'}
+                </Text>
+                <Text style={[styles.emptySubText, { color: theme.textMuted }]}>
+                  {spaces.length === 0
+                    ? 'No hay espacios físicos registrados.'
+                    : 'Probá con otro nombre o tipo.'}
+                </Text>
+              </View>
+            }
           />
         )}
         <ListTopFade color={theme.background} />
@@ -975,11 +1012,16 @@ const styles = StyleSheet.create({
   searchIcon: { marginRight: 10 },
   searchInput: { flex: 1, fontSize: 16 },
   body: { flex: 1, paddingHorizontal: 20 },
-  cardInner: { flexDirection: 'row', alignItems: 'center' },
+  catalogRow: { gap: 12, marginBottom: 0, alignItems: 'stretch', justifyContent: 'flex-start' },
+  catalogCell: { flex: 1, minWidth: 0, alignSelf: 'stretch' },
+  catalogSwipeFill: { flex: 1 },
+  catalogCard: { marginBottom: 12, width: '100%', flex: 1, minHeight: 112 },
+  cardInner: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   avatar: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
-  info: { flex: 1 },
+  info: { flex: 1, minWidth: 0 },
   name: { fontSize: 16, fontWeight: '600' },
   sub: { fontSize: 13, marginTop: 2 },
+  metaSlot: { minHeight: 18, justifyContent: 'flex-start' },
   badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',

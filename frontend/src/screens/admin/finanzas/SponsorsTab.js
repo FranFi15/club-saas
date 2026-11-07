@@ -27,7 +27,12 @@ import { pickAndUploadImage, pickAndUploadAttachment, openAttachmentUrl } from '
 import CustomAlert from '../../../components/CustomAlert';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
-import { useFinanzasCatalogColumns, finanzasCatalogStyles as cat } from './finanzasCatalog';
+import {
+  useFinanzasCatalogColumns,
+  finanzasCatalogStyles as cat,
+  padCatalogData,
+  isCatalogSpacer,
+} from './finanzasCatalog';
 
 const ROLE_OPTIONS = [
   { value: 'atleta', label: 'Atletas' },
@@ -333,7 +338,15 @@ export default function SponsorsTab({
     });
   };
 
+  const catalogSponsors = useMemo(
+    () => padCatalogData(visibleItems, catalogColumns),
+    [visibleItems, catalogColumns],
+  );
+
   const renderItem = ({ item }) => {
+    if (isCatalogSpacer(item)) {
+      return <View style={cat.cell} />;
+    }
     const inactive = item.activo === false;
     const pago = item.pagoMes;
     const paid = pago?.estado === 'pagado';
@@ -474,7 +487,7 @@ export default function SponsorsTab({
       ) : (
         <FlatList
           key={catalogColumns > 1 ? 'sponsors-catalog' : 'sponsors-list'}
-          data={visibleItems}
+          data={catalogSponsors}
           keyExtractor={(item) => String(item._id)}
           numColumns={catalogColumns}
           columnWrapperStyle={catalogColumns > 1 ? cat.row : undefined}

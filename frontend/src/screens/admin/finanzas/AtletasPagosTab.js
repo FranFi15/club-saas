@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useState, useRef } from 'react';
+import React, { useCallback, useContext, useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,12 @@ import UserAvatar from '../../../components/UserAvatar';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
 import { formatUserName } from '../../../utils/listSort';
-import { useFinanzasCatalogColumns, finanzasCatalogStyles as cat } from './finanzasCatalog';
+import {
+  useFinanzasCatalogColumns,
+  finanzasCatalogStyles as cat,
+  padCatalogData,
+  isCatalogSpacer,
+} from './finanzasCatalog';
 
 function AthleteActionsMenu({
   visible,
@@ -196,7 +201,15 @@ export default function AtletasPagosTab({
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const clearMenuItem = useCallback(() => setMenuItem(null), []);
 
+  const catalogAthletes = useMemo(
+    () => padCatalogData(athletes, catalogColumns),
+    [athletes, catalogColumns],
+  );
+
   const renderCard = ({ item }) => {
+    if (isCatalogSpacer(item)) {
+      return <View style={cat.cell} />;
+    }
     const { atleta, payments: cuotas } = item;
     const owed = (cuotas || []).filter((p) => ['pendiente', 'vencido'].includes(p.estado));
     const owedCount = owed.length;
@@ -434,8 +447,10 @@ export default function AtletasPagosTab({
       <FlatList
         key={catalogColumns > 1 ? 'atletas-catalog' : 'atletas-list'}
         style={styles.list}
-        data={athletes}
-        keyExtractor={(item) => String(item.atleta?._id)}
+        data={catalogAthletes}
+        keyExtractor={(item) =>
+          item.__catalogSpacer ? item._id : String(item.atleta?._id)
+        }
         renderItem={renderCard}
         numColumns={catalogColumns}
         columnWrapperStyle={catalogColumns > 1 ? cat.row : undefined}

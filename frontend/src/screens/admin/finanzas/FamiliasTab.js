@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useContext } from 'react';
+import React, { useState, useCallback, useContext, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,12 @@ import Foldable, { FoldableChevron } from '../../../components/Foldable';
 import UserAvatar from '../../../components/UserAvatar';
 import { ThemeContext } from '../../../context/ThemeContext';
 import { formatUserName } from '../../../utils/listSort';
-import { useFinanzasCatalogColumns, finanzasCatalogStyles as cat } from './finanzasCatalog';
+import {
+  useFinanzasCatalogColumns,
+  finanzasCatalogStyles as cat,
+  padCatalogData,
+  isCatalogSpacer,
+} from './finanzasCatalog';
 
 export default function FamiliasTab({
   theme,
@@ -76,8 +81,16 @@ export default function FamiliasTab({
   const sumPayments = (payments, field) =>
     (payments || []).reduce((s, p) => s + (Number(p?.[field]) || 0), 0);
 
+  const catalogSiblings = useMemo(
+    () => padCatalogData(siblings, catalogColumns),
+    [siblings, catalogColumns],
+  );
+
   const renderFamilyCard = useCallback(
     ({ item: g }) => {
+      if (isCatalogSpacer(g)) {
+        return <View style={cat.cell2} />;
+      }
       const tutorId = g.tutor._id;
       const pctActual = Number(familyDiscountDisplay(g)) || 0;
       const inputVal = discountInput[tutorId] ?? (pctActual ? String(pctActual) : '');
@@ -388,7 +401,7 @@ export default function FamiliasTab({
       );
 
       if (catalogColumns > 1) {
-        return <View style={cat.cell}>{card}</View>;
+        return <View style={cat.cell2}>{card}</View>;
       }
       return card;
     },
@@ -537,8 +550,10 @@ export default function FamiliasTab({
       <FlatList
         key={catalogColumns > 1 ? 'familias-catalog' : 'familias-list'}
         style={s.tabScroll}
-        data={siblings}
-        keyExtractor={(item) => String(item.tutor._id)}
+        data={catalogSiblings}
+        keyExtractor={(item) =>
+          item.__catalogSpacer ? item._id : String(item.tutor._id)
+        }
         renderItem={renderFamilyCard}
         numColumns={catalogColumns}
         columnWrapperStyle={catalogColumns > 1 ? cat.row : undefined}

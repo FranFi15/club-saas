@@ -34,6 +34,7 @@ import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusL
 import { sortUsersByName, formatUserName } from '../../utils/listSort';
 import { canMutateAsAdmin } from '../../constants/appRoles';
 import { useAdminDesktopLayout } from '../../hooks/useAdminDesktopLayout';
+import { padCatalogData, isCatalogSpacer } from './adminCatalog';
 
 function roleLabelsForUser(item) {
   const roles = (Array.isArray(item.roles) && item.roles.length
@@ -181,6 +182,10 @@ export default function UsuariosScreen({ navigation }) {
   const showInitialLoader = isLoading && users.length === 0;
   const isRefreshingUsers = isLoading && users.length > 0;
   const sortedUsers = useMemo(() => sortUsersByName(users), [users]);
+  const catalogUsers = useMemo(
+    () => padCatalogData(sortedUsers, catalogColumns),
+    [sortedUsers, catalogColumns],
+  );
 
   const fetchUsers = async (pageNumber = 1) => {
     if (pageNumber === 1) return;
@@ -472,6 +477,9 @@ export default function UsuariosScreen({ navigation }) {
   }, []);
 
   const renderItem = ({ item }) => {
+    if (isCatalogSpacer(item)) {
+      return <View style={styles.catalogCell} />;
+    }
     let familyTagText = null;
     let familyIcon = null;
     const inactive = item.estado === 'inactivo';
@@ -733,7 +741,7 @@ export default function UsuariosScreen({ navigation }) {
         ) : (
           <FlatList
             key={catalogColumns > 1 ? 'usuarios-catalog' : 'usuarios-list'}
-            data={sortedUsers}
+            data={catalogUsers}
             keyExtractor={(item) => item._id || Math.random().toString()}
             renderItem={renderItem}
             numColumns={catalogColumns}
@@ -814,6 +822,7 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 0,
     alignItems: 'stretch',
+    justifyContent: 'flex-start',
   },
   catalogCell: {
     flex: 1,

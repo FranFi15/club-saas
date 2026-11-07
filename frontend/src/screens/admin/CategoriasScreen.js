@@ -1,5 +1,5 @@
 // src/screens/admin/CategoriasScreen.js
-import React, { useState, useContext, useCallback, useEffect } from 'react';
+import React, { useState, useContext, useCallback, useEffect, useMemo } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, TouchableOpacity, 
   ActivityIndicator, StatusBar, TextInput, Modal,
@@ -25,6 +25,7 @@ import FormSheet from '../../components/FormSheet';
 import { displayDateToIsoCalendar, isoCalendarDateToDisplay, formatDayMonthLong } from '../../utils/dateDisplay';
 import { isClubOwnerRole } from '../../constants/appRoles';
 import { useAdminDesktopLayout } from '../../hooks/useAdminDesktopLayout';
+import { padCatalogData, isCatalogSpacer } from './adminCatalog';
 
 export default function CategoriasScreen({ navigation, route }) {
   const { clubData } = useContext(ClubContext);
@@ -277,7 +278,15 @@ export default function CategoriasScreen({ navigation, route }) {
     </View>
   );
 
+  const catalogCategories = useMemo(
+    () => padCatalogData(visibleCategories, catalogColumns),
+    [visibleCategories, catalogColumns],
+  );
+
   const renderItem = ({ item }) => {
+    if (isCatalogSpacer(item)) {
+      return <View style={styles.catalogCell} />;
+    }
     const edadLine =
       item.edadMinima || item.edadMaxima
         ? `${item.edadMinima ? `Desde ${item.edadMinima} años` : ''}${
@@ -386,7 +395,7 @@ export default function CategoriasScreen({ navigation, route }) {
         ) : (
           <FlatList
             key={catalogColumns > 1 ? 'categorias-catalog' : 'categorias-list'}
-            data={visibleCategories}
+            data={catalogCategories}
             keyExtractor={(item) => item._id}
             renderItem={renderItem}
             numColumns={catalogColumns}
@@ -622,7 +631,7 @@ export default function CategoriasScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   body: { flex: 1, paddingHorizontal: 20 },
-  catalogRow: { gap: 12, marginBottom: 0, alignItems: 'stretch' },
+  catalogRow: { gap: 12, marginBottom: 0, alignItems: 'stretch', justifyContent: 'flex-start' },
   catalogCell: { flex: 1, minWidth: 0, alignSelf: 'stretch' },
   catalogSwipeFill: { flex: 1 },
   listCard: { marginBottom: 12 },

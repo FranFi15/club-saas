@@ -1,5 +1,5 @@
 // src/screens/admin/EstructuraScreen.js
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, TouchableOpacity, 
   ActivityIndicator, StatusBar, TextInput, Modal,
@@ -25,6 +25,7 @@ import { sortByNombre } from '../../utils/listSort';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { isClubOwnerRole } from '../../constants/appRoles';
 import { useAdminDesktopLayout } from '../../hooks/useAdminDesktopLayout';
+import { padCatalogData, isCatalogSpacer } from './adminCatalog';
 
 export default function EstructuraScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
@@ -225,7 +226,15 @@ export default function EstructuraScreen({ navigation }) {
     );
   };
 
+  const catalogDisciplines = useMemo(
+    () => padCatalogData(filteredDisciplines, catalogColumns),
+    [filteredDisciplines, catalogColumns],
+  );
+
   const renderItem = ({ item }) => {
+    if (isCatalogSpacer(item)) {
+      return <View style={styles.catalogCell} />;
+    }
     const card = (
       <DesignCard
         theme={theme}
@@ -314,7 +323,7 @@ export default function EstructuraScreen({ navigation }) {
         ) : (
           <FlatList
             key={catalogColumns > 1 ? 'disciplinas-catalog' : 'disciplinas-list'}
-            data={filteredDisciplines}
+            data={catalogDisciplines}
             keyExtractor={(item) => item._id}
             renderItem={renderItem}
             numColumns={catalogColumns}
@@ -464,7 +473,7 @@ const styles = StyleSheet.create({
   searchIcon: { marginRight: 10 },
   searchInput: { flex: 1, fontSize: 16 },
   body: { flex: 1, paddingHorizontal: 20 },
-  catalogRow: { gap: 12, marginBottom: 0, alignItems: 'stretch' },
+  catalogRow: { gap: 12, marginBottom: 0, alignItems: 'stretch', justifyContent: 'flex-start' },
   catalogCell: { flex: 1, minWidth: 0, alignSelf: 'stretch' },
   catalogSwipeFill: { flex: 1 },
   listCard: { marginBottom: 12 },

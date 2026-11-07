@@ -1,5 +1,8 @@
 import { StyleSheet } from 'react-native';
 import { useAdminDesktopLayout } from '../../../hooks/useAdminDesktopLayout';
+import { padCatalogData, isCatalogSpacer } from '../adminCatalog';
+
+export { padCatalogData, isCatalogSpacer };
 
 /** Columnas del catálogo Finanzas en escritorio (Familias usa 2). */
 export function useFinanzasCatalogColumns(family = false) {
@@ -12,8 +15,14 @@ export const finanzasCatalogStyles = StyleSheet.create({
   row: {
     gap: 12,
     alignItems: 'stretch',
+    justifyContent: 'flex-start',
   },
   cell: {
+    flex: 1,
+    minWidth: 0,
+    alignSelf: 'stretch',
+  },
+  cell2: {
     flex: 1,
     minWidth: 0,
     alignSelf: 'stretch',

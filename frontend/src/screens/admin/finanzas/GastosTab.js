@@ -25,7 +25,12 @@ import { pickAndUploadAttachment, openAttachmentUrl } from './finanzasUpload';
 import CustomAlert from '../../../components/CustomAlert';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
-import { useFinanzasCatalogColumns, finanzasCatalogStyles as cat } from './finanzasCatalog';
+import {
+  useFinanzasCatalogColumns,
+  finanzasCatalogStyles as cat,
+  padCatalogData,
+  isCatalogSpacer,
+} from './finanzasCatalog';
 
 const ESTADO_FILTROS = [
   { value: 'todos', label: 'Todos' },
@@ -335,7 +340,15 @@ export default function GastosTab({
     </View>
   );
 
+  const catalogBills = useMemo(
+    () => padCatalogData(visibleBills, catalogColumns),
+    [visibleBills, catalogColumns],
+  );
+
   const renderItem = ({ item }) => {
+    if (isCatalogSpacer(item)) {
+      return <View style={cat.cell} />;
+    }
     const color = EST_COLOR[item.estado] || theme.textMuted;
     const busy = String(deletingId) === String(item._id);
     const isPaid = item.estado === 'pagado';
@@ -513,7 +526,7 @@ export default function GastosTab({
         <FlatList
           key={catalogColumns > 1 ? 'gastos-catalog' : 'gastos-list'}
           style={{ flex: 1 }}
-          data={visibleBills}
+          data={catalogBills}
           keyExtractor={(item) => String(item._id)}
           renderItem={renderItem}
           numColumns={catalogColumns}

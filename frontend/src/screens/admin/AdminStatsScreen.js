@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -17,11 +17,13 @@ import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import DesignCard from '../../components/DesignCard';
+import CoachStatsBarChart from '../../components/CoachStatsBarChart';
 import { clubApi } from '../../utils/api';
 import { getToken } from '../../utils/storage';
 import { USER_ROL_LABELS } from '../../constants/userRoles';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { enableLayoutAnimationsIfNeeded } from '../../utils/layoutAnimation';
+import { useChartLayout } from '../../utils/chartLayout';
 
 enableLayoutAnimationsIfNeeded();
 
@@ -50,6 +52,12 @@ const SEXO_ROWS = [
   { key: 'F', label: 'Femenino' },
   { key: 'sinDato', label: 'Sin dato' },
 ];
+
+const SEXO_COLORS = {
+  M: '#3b82f6',
+  F: '#ec4899',
+  sinDato: '#94a3b8',
+};
 
 const OPS_ROWS = [
   {
@@ -194,44 +202,18 @@ function StatTile({ label, value, theme, colorMarca, isDarkMode }) {
   );
 }
 
-function BarRow({ label, count, total, theme, colorMarca, showPct = true }) {
-  const denom = Math.max(total || 0, 1);
-  const pct = Math.round((count / denom) * 100);
-  const widthPct = Math.min(100, pct);
-  return (
-    <View style={styles.barRow}>
-      <View style={styles.barTop}>
-        <Text style={[styles.barLabel, { color: theme.text }]} numberOfLines={1}>
-          {label}
-        </Text>
-        <Text style={[styles.barCount, { color: theme.textMuted }]}>
-          {showPct ? `${count} · ${pct}%` : String(count)}
-        </Text>
-      </View>
-      <View style={[styles.barTrack, { backgroundColor: theme.border }]}>
-        <View
-          style={[
-            styles.barFill,
-            {
-              width: `${widthPct}%`,
-              backgroundColor: colorMarca,
-              minWidth: count > 0 ? 4 : 0,
-            },
-          ]}
-        />
-      </View>
-    </View>
-  );
-}
-
 export default function AdminStatsScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
+  const chartLayout = useChartLayout();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
+  const chartWidth = Math.max(220, chartLayout.chartWidth - 8);
+  const chartHeight = Math.min(260, chartLayout.singleChartHeight);
   const cacheKey = clubData?.urlIdentifier ? `admin-club-stats:v5:${clubData.urlIdentifier}` : '';
 
   const [stats, setStats] = useState(() => readScreenCache(cacheKey) ?? null);
   const [openId, setOpenId] = useState(null);
+  const [selectedDisciplinaId, setSelectedDisciplinaId] = useState(null);
 
   const fetchStats = useCallback(async () => {
     if (!clubData?.urlIdentifier) return null;
@@ -254,22 +236,92 @@ export default function AdminStatsScreen({ navigation }) {
 
   const onToggle = useCallback((id) => {
     LayoutAnimation.configureNext(ACCORDION_ANIM);
-    setOpenId((prev) => (prev === id ? null : id));
+    setOpenId((prev) => {
+      const next = prev === id ? null : id;
+      if (next !== 'disciplinas') setSelectedDisciplinaId(null);
+      return next;
+    });
+  }, []);
+
+  const selectedDisciplina = useMemo(() => {
+    if (!selectedDisciplinaId) return null;
+    return (stats?.porDisciplina || []).find((d) => String(d._id) === String(selectedDisciplinaId)) || null;
+  }, [stats?.porDisciplina, selectedDisciplinaId]);
+
+  const categoriaBars = useMemo(() => {
+    if (!selectedDisciplina) return [];
+    return (selectedDisciplina.categorias || []).map((c) => ({
+      key: String(c._id),
+      label: c.nombre || '—',
+      value: c.atletas || 0,
+      color: colorMarca,
+    }));
+  }, [selectedDisciplina, colorMarca]);
+
+  const onSelectDisciplina = useCallback((item) => {
+    LayoutAnimation.configureNext(ACCORDION_ANIM);
+    setSelectedDisciplinaId((prev) => (String(prev) === String(item.key) ? null : item.key));
   }, []);
 
   const resumen = stats?.resumen || {};
   const atletasTotal = resumen.atletas || 0;
-  const sexoTotal =
-    (stats?.sexo?.M || 0) + (stats?.sexo?.F || 0) + (stats?.sexo?.sinDato || 0);
-  const edadTotal = AGE_ROWS.reduce((s, r) => s + (stats?.edad?.[r.key] || 0), 0);
-  const discMax = Math.max(1, ...(stats?.porDisciplina || []).map((d) => d.atletas || 0), 1);
   const opsTotal = OPS_ROWS.reduce((s, r) => s + (stats?.operaciones?.[r.key] || 0), 0);
   const socialPorRol = stats?.cuotasSociales?.porRol || {};
-  const socialRolTotal =
-    (socialPorRol.atleta || 0) +
-    (socialPorRol.tutor || 0) +
-    (socialPorRol.socio || 0) +
-    (socialPorRol.otro || 0);
+  const disciplinaBars = useMemo(
+    () =>
+      (stats?.porDisciplina || []).map((d) => ({
+        key: String(d._id),
+        label: d.nombre || '—',
+        value: d.atletas || 0,
+        color: colorMarca,
+      })),
+    [stats?.porDisciplina, colorMarca],
+  );
+
+  const sexoBars = useMemo(
+    () =>
+      SEXO_ROWS.map((r) => ({
+        key: r.key,
+        label: r.key === 'M' ? 'Masc.' : r.key === 'F' ? 'Fem.' : 'Sin dato',
+        value: stats?.sexo?.[r.key] || 0,
+        color: SEXO_COLORS[r.key] || colorMarca,
+      })),
+    [stats?.sexo, colorMarca],
+  );
+
+  const edadBars = useMemo(
+    () =>
+      AGE_ROWS.map((r) => ({
+        key: r.key,
+        label:
+          r.key === 'lte10' ? '≤10' : r.key === 'gte19' ? '≥19' : r.key === 'sinFecha' ? 'S/F' : r.label,
+        value: stats?.edad?.[r.key] || 0,
+        color: colorMarca,
+      })),
+    [stats?.edad, colorMarca],
+  );
+
+  const profesionalesBars = useMemo(
+    () =>
+      (stats?.profesionales || []).map((p) => ({
+        key: `p-${p.rol}`,
+        label: USER_ROL_LABELS[p.rol] || p.rol,
+        value: p.count || 0,
+        color: colorMarca,
+      })),
+    [stats?.profesionales, colorMarca],
+  );
+
+  const gestionBars = useMemo(
+    () =>
+      (stats?.gestion || []).map((p) => ({
+        key: `g-${p.rol}`,
+        label: USER_ROL_LABELS[p.rol] || p.rol,
+        value: p.count || 0,
+        color: '#8b5cf6',
+      })),
+    [stats?.gestion],
+  );
 
   const renderFinanceCard = (bundle) => (
     <View
@@ -411,46 +463,39 @@ export default function AdminStatsScreen({ navigation }) {
             summary={`${stats?.porDisciplina?.length ?? 0} disciplina(s)`}
             {...accordionProps}
           >
-            {(stats?.porDisciplina || []).length === 0 ? (
+            {disciplinaBars.length === 0 ? (
               <Text style={[styles.empty, { color: theme.textMuted }]}>No hay disciplinas activas.</Text>
             ) : (
-              (stats.porDisciplina || []).map((d) => {
-                const catMax = Math.max(
-                  1,
-                  ...(d.categorias || []).map((c) => c.atletas || 0),
-                  1,
-                );
-                return (
-                  <View key={String(d._id)} style={styles.discBlock}>
-                    <BarRow
-                      label={d.nombre}
-                      count={d.atletas || 0}
-                      total={discMax}
-                      theme={theme}
-                      colorMarca={colorMarca}
-                      showPct={false}
-                    />
-                    {(d.categorias || []).length === 0 ? (
-                      <Text style={[styles.catEmpty, { color: theme.textMuted }]}>
-                        Sin categorías
-                      </Text>
+              <>
+                <Text style={[styles.chartHint, { color: theme.textMuted }]}>
+                  Tocá una disciplina para ver sus categorías
+                </Text>
+                <CoachStatsBarChart
+                  items={disciplinaBars}
+                  width={chartWidth}
+                  height={Math.max(chartHeight, 40 + disciplinaBars.length * 18)}
+                  theme={{ ...theme, primary: colorMarca }}
+                  onBarPress={onSelectDisciplina}
+                  selectedKey={selectedDisciplinaId}
+                />
+                {selectedDisciplina ? (
+                  <>
+                    <Text style={[styles.subHead, { color: theme.textMuted }]}>
+                      Categorías · {selectedDisciplina.nombre}
+                    </Text>
+                    {categoriaBars.length === 0 ? (
+                      <Text style={[styles.empty, { color: theme.textMuted }]}>Sin categorías</Text>
                     ) : (
-                      (d.categorias || []).map((c) => (
-                        <View key={String(c._id)} style={styles.catIndent}>
-                          <BarRow
-                            label={c.nombre}
-                            count={c.atletas || 0}
-                            total={catMax}
-                            theme={theme}
-                            colorMarca={colorMarca}
-                            showPct={false}
-                          />
-                        </View>
-                      ))
+                      <CoachStatsBarChart
+                        items={categoriaBars}
+                        width={chartWidth}
+                        height={Math.max(200, 40 + categoriaBars.length * 22)}
+                        theme={{ ...theme, primary: colorMarca }}
+                      />
                     )}
-                  </View>
-                );
-              })
+                  </>
+                ) : null}
+              </>
             )}
           </AccordionSection>
 
@@ -460,16 +505,12 @@ export default function AdminStatsScreen({ navigation }) {
             summary={`M ${stats?.sexo?.M ?? 0} · F ${stats?.sexo?.F ?? 0} · Sin dato ${stats?.sexo?.sinDato ?? 0}`}
             {...accordionProps}
           >
-            {SEXO_ROWS.map((r) => (
-              <BarRow
-                key={r.key}
-                label={r.label}
-                count={stats?.sexo?.[r.key] || 0}
-                total={sexoTotal || atletasTotal}
-                theme={theme}
-                colorMarca={colorMarca}
-              />
-            ))}
+            <CoachStatsBarChart
+              items={sexoBars}
+              width={chartWidth}
+              height={chartHeight}
+              theme={{ ...theme, primary: colorMarca }}
+            />
           </AccordionSection>
 
           <AccordionSection
@@ -478,16 +519,12 @@ export default function AdminStatsScreen({ navigation }) {
             summary={`${atletasTotal} atletas`}
             {...accordionProps}
           >
-            {AGE_ROWS.map((r) => (
-              <BarRow
-                key={r.key}
-                label={r.label}
-                count={stats?.edad?.[r.key] || 0}
-                total={edadTotal || atletasTotal}
-                theme={theme}
-                colorMarca={colorMarca}
-              />
-            ))}
+            <CoachStatsBarChart
+              items={edadBars}
+              width={chartWidth}
+              height={Math.max(chartHeight, 220)}
+              theme={{ ...theme, primary: colorMarca }}
+            />
           </AccordionSection>
 
           <AccordionSection
@@ -496,27 +533,27 @@ export default function AdminStatsScreen({ navigation }) {
             summary={`${resumen.profesionales ?? 0} plantel · ${resumen.gestion ?? 0} gestión`}
             {...accordionProps}
           >
-            {(stats?.profesionales || []).map((p) => (
-              <BarRow
-                key={p.rol}
-                label={USER_ROL_LABELS[p.rol] || p.rol}
-                count={p.count || 0}
-                total={Math.max(1, resumen.profesionales || 1)}
-                theme={theme}
-                colorMarca={colorMarca}
+            {profesionalesBars.length === 0 ? (
+              <Text style={[styles.empty, { color: theme.textMuted }]}>Sin profesionales cargados.</Text>
+            ) : (
+              <CoachStatsBarChart
+                items={profesionalesBars}
+                width={chartWidth}
+                height={Math.max(200, 40 + profesionalesBars.length * 22)}
+                theme={{ ...theme, primary: colorMarca }}
               />
-            ))}
+            )}
             <Text style={[styles.subHead, { color: theme.textMuted }]}>Gestión</Text>
-            {(stats?.gestion || []).map((p) => (
-              <BarRow
-                key={p.rol}
-                label={USER_ROL_LABELS[p.rol] || p.rol}
-                count={p.count || 0}
-                total={Math.max(1, resumen.gestion || 1)}
-                theme={theme}
-                colorMarca={colorMarca}
+            {gestionBars.length === 0 ? (
+              <Text style={[styles.empty, { color: theme.textMuted }]}>Sin roles de gestión.</Text>
+            ) : (
+              <CoachStatsBarChart
+                items={gestionBars}
+                width={chartWidth}
+                height={Math.max(180, 40 + gestionBars.length * 22)}
+                theme={{ ...theme, primary: '#8b5cf6' }}
               />
-            ))}
+            )}
           </AccordionSection>
 
           <AccordionSection
@@ -572,22 +609,19 @@ export default function AdminStatsScreen({ navigation }) {
             <Text style={[styles.subHead, { color: theme.textMuted }]}>
               Titulares del mes (atleta, tutor o socio)
             </Text>
-            {[
-              { key: 'atleta', label: 'Atletas' },
-              { key: 'tutor', label: 'Tutores' },
-              { key: 'socio', label: 'Socios' },
-              ...(socialPorRol.otro ? [{ key: 'otro', label: 'Otros' }] : []),
-            ].map((r) => (
-              <BarRow
-                key={r.key}
-                label={r.label}
-                count={socialPorRol[r.key] || 0}
-                total={Math.max(1, socialRolTotal)}
-                theme={theme}
-                colorMarca={colorMarca}
-                showPct={false}
-              />
-            ))}
+            <CoachStatsBarChart
+              items={[
+                { key: 'atleta', label: 'Atletas', value: socialPorRol.atleta || 0, color: colorMarca },
+                { key: 'tutor', label: 'Tutores', value: socialPorRol.tutor || 0, color: colorMarca },
+                { key: 'socio', label: 'Socios', value: socialPorRol.socio || 0, color: colorMarca },
+                ...(socialPorRol.otro
+                  ? [{ key: 'otro', label: 'Otros', value: socialPorRol.otro || 0, color: '#94a3b8' }]
+                  : []),
+              ]}
+              width={chartWidth}
+              height={200}
+              theme={{ ...theme, primary: colorMarca }}
+            />
           </AccordionSection>
         </ScrollView>
       )}
@@ -614,9 +648,7 @@ const styles = StyleSheet.create({
   accordionTitle: { fontSize: 16, fontWeight: '800' },
   accordionSummary: { fontSize: 12, marginTop: 2 },
   accordionBody: { paddingHorizontal: 14, paddingBottom: 14 },
-  discBlock: { marginBottom: 10 },
-  catIndent: { paddingLeft: 14, opacity: 0.95 },
-  catEmpty: { fontSize: 12, marginBottom: 10, paddingLeft: 14 },
+  chartHint: { fontSize: 12, marginBottom: 2, marginTop: 2 },
   subHead: { fontSize: 13, fontWeight: '700', marginTop: 10, marginBottom: 6 },
   tileGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tile: {
@@ -630,12 +662,6 @@ const styles = StyleSheet.create({
   },
   tileValue: { fontSize: 22, fontWeight: '800' },
   tileLabel: { fontSize: 12, marginTop: 4 },
-  barRow: { marginBottom: 12 },
-  barTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  barLabel: { flex: 1, fontSize: 14, fontWeight: '600' },
-  barCount: { fontSize: 12 },
-  barTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
-  barFill: { height: 8, borderRadius: 4 },
   empty: { fontSize: 14 },
   opsRow: {
     flexDirection: 'row',

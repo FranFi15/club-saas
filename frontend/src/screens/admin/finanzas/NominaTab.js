@@ -27,7 +27,12 @@ import CustomAlert from '../../../components/CustomAlert';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
 import { formatUserName } from '../../../utils/listSort';
-import { useFinanzasCatalogColumns, finanzasCatalogStyles as cat } from './finanzasCatalog';
+import {
+  useFinanzasCatalogColumns,
+  finanzasCatalogStyles as cat,
+  padCatalogData,
+  isCatalogSpacer,
+} from './finanzasCatalog';
 
 const ROL_LABEL = {
   admin_club: 'Admin',
@@ -271,7 +276,15 @@ export default function NominaTab({
     });
   };
 
+  const catalogEntries = useMemo(
+    () => padCatalogData(visibleEntries, catalogColumns),
+    [visibleEntries, catalogColumns],
+  );
+
   const renderItem = ({ item }) => {
+    if (isCatalogSpacer(item)) {
+      return <View style={cat.cell} />;
+    }
     const busy = String(deletingId) === String(item._id);
     const role = ROL_LABEL[item.staff?.rol] || item.staff?.rol || '—';
     const method = metodoPagoLabel(item.metodoPago) || '—';
@@ -416,7 +429,7 @@ export default function NominaTab({
         <FlatList
           key={catalogColumns > 1 ? 'nomina-catalog' : 'nomina-list'}
           style={{ flex: 1 }}
-          data={visibleEntries}
+          data={catalogEntries}
           keyExtractor={(item) => String(item._id)}
           renderItem={renderItem}
           numColumns={catalogColumns}
