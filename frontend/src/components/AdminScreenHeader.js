@@ -11,10 +11,9 @@ import { useAdminDesktopLayout } from '../hooks/useAdminDesktopLayout';
 
 const BACK_BTN_SIZE = 36;
 const DESKTOP_HEADER_HEIGHT = 72;
-const DESKTOP_HEADER_HEIGHT_WITH_TOOLBAR = 96;
-const DESKTOP_LOGO_SIZE = 44;
+const DESKTOP_HEADER_HEIGHT_WITH_BOTTOM = 108;
 
-/** Misma altura y estética que CoachScreenHeader (admin). En escritorio web queda más compacto. */
+/** Misma altura y estética que CoachScreenHeader (admin). En escritorio web: sin logo, volver junto al título. */
 export default function AdminScreenHeader({
   theme,
   colorMarca,
@@ -27,30 +26,112 @@ export default function AdminScreenHeader({
   rightAccessory,
   leadingAccessory,
   bottomRightAccessory,
+  /** 'right' (default) or 'center' — useful for month pickers on web. */
+  bottomAccessoryAlign = 'right',
+  /** Pantallas del sidebar: en desktop no mostramos volver. */
+  sidebarRoot = false,
   showNotifications = true,
   showClubLogo = true,
 }) {
-  // Con volver: acciones + campana van juntos arriba a la derecha (evita solaparse con el título).
-  const showTopToolbar = !!onBack || !!leadingAccessory;
   const insets = useSafeAreaInsets();
   const { isDesktop } = useAdminDesktopLayout();
   const topInset = Platform.OS === 'web' ? 0 : insets.top;
   const statusBarStyle = statusBarStyleForColor(colorMarca);
-  const midRightAccessory = !onBack ? rightAccessory : null;
-  const showMidRight = !onBack && (showNotifications || !!midRightAccessory);
+  const centerBottomAccessory = bottomAccessoryAlign === 'center' && !!bottomRightAccessory;
+  const effectiveOnBack = sidebarRoot && isDesktop ? undefined : onBack;
+
+  const backButton = effectiveOnBack ? (
+    <TouchableOpacity
+      onPress={effectiveOnBack}
+      style={styles.toolbarBtn}
+      accessibilityRole="button"
+      accessibilityLabel={backAccessibilityLabel}
+    >
+      <Ionicons name="arrow-back" size={20} color="#ffffff" />
+    </TouchableOpacity>
+  ) : null;
+
+  if (isDesktop) {
+    const headerHeight = bottomRightAccessory
+      ? DESKTOP_HEADER_HEIGHT_WITH_BOTTOM
+      : DESKTOP_HEADER_HEIGHT;
+
+    return (
+      <View
+        pointerEvents="box-none"
+        style={[
+          styles.headerWrap,
+          {
+            backgroundColor: colorMarca,
+            marginTop: -topInset,
+            paddingTop: topInset,
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.headerCard,
+            styles.headerCardDesktop,
+            { backgroundColor: colorMarca, height: headerHeight },
+          ]}
+        >
+          <View
+            style={[
+              styles.desktopRow,
+              bottomRightAccessory && styles.desktopRowWithBottom,
+            ]}
+          >
+            {backButton ? <View style={styles.desktopBackWrap}>{backButton}</View> : null}
+            {leadingAccessory ? <View style={styles.toolbarLeading}>{leadingAccessory}</View> : null}
+            <View style={styles.headerTextCol}>
+              {kicker ? (
+                <Text style={[styles.headerKicker, styles.headerKickerDesktop]} numberOfLines={1}>
+                  {kicker}
+                </Text>
+              ) : null}
+              <Text style={[styles.headerTitle, styles.headerTitleDesktop]} numberOfLines={1}>
+                {title}
+              </Text>
+              {subtitle ? (
+                <Text style={[styles.headerSub, styles.headerSubDesktop]} numberOfLines={subtitleLines}>
+                  {subtitle}
+                </Text>
+              ) : null}
+            </View>
+            {(rightAccessory || showNotifications) ? (
+              <CoachHeaderActions>
+                {rightAccessory}
+                {showNotifications ? <NotificationBell /> : null}
+              </CoachHeaderActions>
+            ) : null}
+          </View>
+
+          {bottomRightAccessory ? (
+            <View
+              style={[
+                styles.bottomRightAccessory,
+                centerBottomAccessory && styles.bottomCenterAccessory,
+              ]}
+              pointerEvents="box-none"
+            >
+              {bottomRightAccessory}
+            </View>
+          ) : null}
+        </View>
+        <HeaderBottomFade color={colorMarca} background={theme?.background} />
+      </View>
+    );
+  }
+
+  // —— Mobile layout (logo + toolbar when back) ——
+  const showTopToolbar = !!effectiveOnBack || !!leadingAccessory;
+  const midRightAccessory = !effectiveOnBack ? rightAccessory : null;
+  const showMidRight = !effectiveOnBack && (showNotifications || !!midRightAccessory);
   const midRightWide = showNotifications && !!midRightAccessory;
-  const logoSize = isDesktop ? DESKTOP_LOGO_SIZE : HEADER_CLUB_LOGO_SIZE;
-  // En desktop el escudo ya está en el sidebar.
-  const renderClubLogo = showClubLogo && !isDesktop;
-  const headerHeight = isDesktop
-    ? showTopToolbar
-      ? DESKTOP_HEADER_HEIGHT_WITH_TOOLBAR
-      : DESKTOP_HEADER_HEIGHT
-    : showTopToolbar
-      ? COACH_HEADER_HEIGHT_WITH_TOOLBAR
-      : COACH_HEADER_HEIGHT;
+  const renderClubLogo = showClubLogo;
+  const headerHeight = showTopToolbar ? COACH_HEADER_HEIGHT_WITH_TOOLBAR : COACH_HEADER_HEIGHT;
   const toolbarRightContent =
-    onBack && (rightAccessory || showNotifications) ? (
+    effectiveOnBack && (rightAccessory || showNotifications) ? (
       <>
         {rightAccessory}
         {showNotifications ? <NotificationBell /> : null}
@@ -79,24 +160,12 @@ export default function AdminScreenHeader({
             backgroundColor: colorMarca,
             height: headerHeight,
           },
-          isDesktop && styles.headerCardDesktop,
         ]}
       >
         {showTopToolbar ? (
-          <View style={[styles.toolbar, isDesktop && styles.toolbarDesktop]}>
+          <View style={styles.toolbar}>
             <View style={styles.toolbarLeft}>
-              {onBack ? (
-                <CoachHeaderActions>
-                  <TouchableOpacity
-                    onPress={onBack}
-                    style={styles.toolbarBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel={backAccessibilityLabel}
-                  >
-                    <Ionicons name="arrow-back" size={20} color="#ffffff" />
-                  </TouchableOpacity>
-                </CoachHeaderActions>
-              ) : null}
+              {backButton ? <CoachHeaderActions>{backButton}</CoachHeaderActions> : null}
               {leadingAccessory ? <View style={styles.toolbarLeading}>{leadingAccessory}</View> : null}
             </View>
             <View style={styles.toolbarRight}>
@@ -115,19 +184,18 @@ export default function AdminScreenHeader({
             showMidRight && (midRightWide ? styles.headerBodyWithMidRightWide : styles.headerBodyWithMidRight),
             bottomRightAccessory && styles.headerBodyWithBottomRight,
             showTopToolbar && styles.headerBodyWithToolbar,
-            isDesktop && styles.headerBodyDesktop,
           ]}
         >
-          {renderClubLogo ? <HeaderClubLogo size={logoSize} /> : null}
+          {renderClubLogo ? <HeaderClubLogo size={HEADER_CLUB_LOGO_SIZE} /> : null}
           <View style={styles.headerTextCol}>
-            <Text style={[styles.headerKicker, isDesktop && styles.headerKickerDesktop]} numberOfLines={1}>
+            <Text style={styles.headerKicker} numberOfLines={1}>
               {kicker}
             </Text>
-            <Text style={[styles.headerTitle, isDesktop && styles.headerTitleDesktop]} numberOfLines={1}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
               {title}
             </Text>
             {subtitle ? (
-              <Text style={[styles.headerSub, isDesktop && styles.headerSubDesktop]} numberOfLines={subtitleLines}>
+              <Text style={styles.headerSub} numberOfLines={subtitleLines}>
                 {subtitle}
               </Text>
             ) : null}
@@ -135,7 +203,13 @@ export default function AdminScreenHeader({
         </View>
 
         {bottomRightAccessory ? (
-          <View style={styles.bottomRightAccessory} pointerEvents="box-none">
+          <View
+            style={[
+              styles.bottomRightAccessory,
+              centerBottomAccessory && styles.bottomCenterAccessory,
+            ]}
+            pointerEvents="box-none"
+          >
             {bottomRightAccessory}
           </View>
         ) : null}
@@ -167,16 +241,25 @@ const styles = StyleSheet.create({
   headerCardDesktop: {
     paddingHorizontal: 20,
   },
+  desktopRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minWidth: 0,
+  },
+  desktopRowWithBottom: {
+    paddingBottom: 36,
+  },
+  desktopBackWrap: {
+    flexShrink: 0,
+  },
   toolbar: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     paddingTop: 6,
     minHeight: 46,
-  },
-  toolbarDesktop: {
-    minHeight: 40,
-    paddingTop: 4,
   },
   toolbarLeft: {
     flexDirection: 'row',
@@ -203,6 +286,14 @@ const styles = StyleSheet.create({
     bottom: 22,
     zIndex: 3,
     maxWidth: '58%',
+  },
+  bottomCenterAccessory: {
+    left: 0,
+    right: 0,
+    maxWidth: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    bottom: 14,
   },
   actionMidRight: {
     position: 'absolute',
@@ -255,9 +346,6 @@ const styles = StyleSheet.create({
   },
   headerBodyWithBottomRight: {
     paddingBottom: 4,
-  },
-  headerBodyDesktop: {
-    paddingVertical: 2,
   },
   headerKicker: {
     color: 'rgba(255,255,255,0.85)',

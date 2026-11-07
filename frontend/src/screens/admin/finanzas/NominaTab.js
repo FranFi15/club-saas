@@ -27,6 +27,7 @@ import CustomAlert from '../../../components/CustomAlert';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
 import { formatUserName } from '../../../utils/listSort';
+import { useFinanzasCatalogColumns, finanzasCatalogStyles as cat } from './finanzasCatalog';
 
 const ROL_LABEL = {
   admin_club: 'Admin',
@@ -57,6 +58,7 @@ export default function NominaTab({
   canMutate = true,
 }) {
   const { isDarkMode } = useContext(ThemeContext);
+  const catalogColumns = useFinanzasCatalogColumns(false);
   const cc = primaryColor;
   const panelBg = theme.surface || '#ffffff';
   const cacheKey = clubData?.urlIdentifier ? `finanzas-nomina:${clubData.urlIdentifier}` : '';
@@ -284,13 +286,14 @@ export default function NominaTab({
       periodDiffers ? `${MN[(item.mes || 1) - 1]} ${item.anio}` : null,
     ].filter(Boolean);
 
-    return (
+    const card = (
       <DesignCard
         theme={theme}
         isDarkMode={isDarkMode}
         accent={cc}
         contentStyle={s.financeCardInner}
-        style={{ marginBottom: 10 }}
+        style={catalogColumns > 1 ? cat.card3 : { marginBottom: 10 }}
+        stretch={catalogColumns > 1}
       >
         <View style={s.financeCardTop}>
           <UserAvatar user={item.staff} size={44} colorMarca={cc} />
@@ -304,11 +307,13 @@ export default function NominaTab({
                 {metaParts.join(' · ')}
               </Text>
             </View>
-            {!!item.notas && (
-              <Text style={[s.financeCardNotes, { color: theme.textMuted }]} numberOfLines={2}>
-                {item.notas}
-              </Text>
-            )}
+            <View style={catalogColumns > 1 ? cat.notesSlot : undefined}>
+              {!!item.notas && (
+                <Text style={[s.financeCardNotes, { color: theme.textMuted }]} numberOfLines={2}>
+                  {item.notas}
+                </Text>
+              )}
+            </View>
           </View>
           <View style={s.financeCardAmountCol}>
             <Text style={[s.financeCardAmount, { color: theme.text }]}>{fmtMoney(item.monto)}</Text>
@@ -358,6 +363,11 @@ export default function NominaTab({
         ) : null}
       </DesignCard>
     );
+
+    if (catalogColumns > 1) {
+      return <View style={cat.cell}>{card}</View>;
+    }
+    return card;
   };
 
   return (
@@ -404,10 +414,13 @@ export default function NominaTab({
         <ClubSpinLoader size={56} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
+          key={catalogColumns > 1 ? 'nomina-catalog' : 'nomina-list'}
           style={{ flex: 1 }}
           data={visibleEntries}
           keyExtractor={(item) => String(item._id)}
           renderItem={renderItem}
+          numColumns={catalogColumns}
+          columnWrapperStyle={catalogColumns > 1 ? cat.row : undefined}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cc} />}
           onEndReached={onEndReached}

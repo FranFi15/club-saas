@@ -33,6 +33,7 @@ import { USER_ROL_LABELS, USER_ROLE_FILTROS } from '../../constants/userRoles';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { sortUsersByName, formatUserName } from '../../utils/listSort';
 import { canMutateAsAdmin } from '../../constants/appRoles';
+import { useAdminDesktopLayout } from '../../hooks/useAdminDesktopLayout';
 
 function roleLabelsForUser(item) {
   const roles = (Array.isArray(item.roles) && item.roles.length
@@ -44,8 +45,10 @@ function roleLabelsForUser(item) {
 
 export default function UsuariosScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
-  const { theme, isDarkMode } = useContext(ThemeContext); 
+  const { theme, isDarkMode } = useContext(ThemeContext);
+  const { isDesktop } = useAdminDesktopLayout();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
+  const catalogColumns = isDesktop ? 3 : 1;
   
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -490,19 +493,57 @@ export default function UsuariosScreen({ navigation }) {
       familyIcon = 'people';
     }
 
-    return (
-      <HoverRevealSwipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>
+    const roleBadge = hasMultipleRoles ? (
+      <TouchableOpacity
+        style={[styles.roleBadge, styles.roleBadgeToggle, { backgroundColor: theme.background, borderColor: theme.border }]}
+        onPress={() => toggleRolesExpanded(item._id)}
+        accessibilityRole="button"
+        accessibilityLabel={rolesOpen ? 'Ocultar roles' : 'Ver roles'}
+        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+      >
+        <Text style={[styles.roleBadgeText, { color: theme.textMuted }]} numberOfLines={1}>
+          {rolesOpen ? 'Roles' : primaryRoleLabel}
+        </Text>
+        {!rolesOpen ? (
+          <Text style={[styles.roleCountHint, { color: theme.textMuted }]}>
+            +{roleLabels.length - 1}
+          </Text>
+        ) : null}
+        <FoldableChevron open={rolesOpen} color={theme.textMuted} size={14} />
+      </TouchableOpacity>
+    ) : (
+      <View style={[styles.roleBadge, { backgroundColor: theme.background, borderColor: theme.border }]}>
+        <Text style={[styles.roleBadgeText, { color: theme.textMuted }]} numberOfLines={1}>
+          {primaryRoleLabel}
+        </Text>
+      </View>
+    );
+
+    const card = (
+      <HoverRevealSwipeable
+        renderRightActions={() => renderRightActions(item)}
+        overshootRight={false}
+        containerStyle={catalogColumns > 1 ? styles.catalogSwipeFill : undefined}
+      >
         <DesignCard
           theme={theme}
           isDarkMode={isDarkMode}
           accent={inactive ? '#9ca3af' : colorMarca}
           muted={inactive}
           onPress={() => openDetailsModal(item)}
-          style={{ marginBottom: 12, opacity: inactive ? 0.72 : 1 }}
-          contentStyle={styles.cardContent}
+          style={[
+            catalogColumns > 1 ? styles.catalogCard : styles.listCard,
+            { opacity: inactive ? 0.72 : 1 },
+          ]}
+          stretch={catalogColumns > 1}
+          contentStyle={catalogColumns > 1 ? styles.cardContentCatalog : styles.cardContent}
         >
-          <UserAvatar user={item} size={46} colorMarca={inactive ? '#9ca3af' : colorMarca} style={styles.avatar} />
-
+          <UserAvatar
+            user={item}
+            size={catalogColumns > 1 ? 42 : 46}
+            colorMarca={inactive ? '#9ca3af' : colorMarca}
+            style={styles.avatar}
+          />
           <View style={styles.userInfo}>
             <View style={styles.nameRow}>
               <Text
@@ -511,32 +552,9 @@ export default function UsuariosScreen({ navigation }) {
               >
                 {formatUserName(item)}
               </Text>
-              {hasMultipleRoles ? (
-                <TouchableOpacity
-                  style={[styles.roleBadge, styles.roleBadgeToggle, { backgroundColor: theme.background, borderColor: theme.border }]}
-                  onPress={() => toggleRolesExpanded(item._id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={rolesOpen ? 'Ocultar roles' : 'Ver roles'}
-                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                >
-                  <Text style={[styles.roleBadgeText, { color: theme.textMuted }]} numberOfLines={1}>
-                    {rolesOpen ? 'Roles' : primaryRoleLabel}
-                  </Text>
-                  {!rolesOpen ? (
-                    <Text style={[styles.roleCountHint, { color: theme.textMuted }]}>
-                      +{roleLabels.length - 1}
-                    </Text>
-                  ) : null}
-                  <FoldableChevron open={rolesOpen} color={theme.textMuted} size={14} />
-                </TouchableOpacity>
-              ) : (
-                <View style={[styles.roleBadge, { backgroundColor: theme.background, borderColor: theme.border }]}>
-                  <Text style={[styles.roleBadgeText, { color: theme.textMuted }]} numberOfLines={1}>
-                    {primaryRoleLabel}
-                  </Text>
-                </View>
-              )}
+              {catalogColumns > 1 ? null : roleBadge}
             </View>
+            {catalogColumns > 1 ? <View style={styles.catalogRoleRow}>{roleBadge}</View> : null}
 
             {hasMultipleRoles ? (
               <Foldable open={rolesOpen}>
@@ -559,46 +577,98 @@ export default function UsuariosScreen({ navigation }) {
               {item.email}
             </Text>
 
-            {familyTagText && (
-              <View style={styles.metaRow}>
-                <Ionicons name={familyIcon} size={14} color={inactive ? theme.textMuted : colorMarca} style={styles.metaIcon} />
-                <Text
-                  style={[styles.familyTag, { color: inactive ? theme.textMuted : colorMarca }]}
-                  numberOfLines={2}
-                >
-                  {familyTagText}
-                </Text>
+            {catalogColumns > 1 ? (
+              <View style={styles.catalogMetaSlot}>
+                {familyTagText ? (
+                  <View style={styles.metaRow}>
+                    <Ionicons name={familyIcon} size={14} color={inactive ? theme.textMuted : colorMarca} style={styles.metaIcon} />
+                    <Text
+                      style={[styles.familyTag, { color: inactive ? theme.textMuted : colorMarca }]}
+                      numberOfLines={2}
+                    >
+                      {familyTagText}
+                    </Text>
+                  </View>
+                ) : null}
+                {inactive ? (
+                  <View style={styles.metaRow}>
+                    <Ionicons name="pause-circle-outline" size={14} color="#ef4444" style={styles.metaIcon} />
+                    <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '700' }}>Inactivo</Text>
+                  </View>
+                ) : null}
+                {!inactive && item.esPrueba ? (
+                  <View style={styles.metaRow}>
+                    <Ionicons
+                      name="hourglass-outline"
+                      size={14}
+                      color={item.pruebaDecision === 'pendiente' ? '#ef4444' : '#f59e0b'}
+                      style={styles.metaIcon}
+                    />
+                    <Text
+                      style={{
+                        color: item.pruebaDecision === 'pendiente' ? '#ef4444' : '#f59e0b',
+                        fontSize: 12,
+                        fontWeight: '700',
+                      }}
+                    >
+                      {item.pruebaDecision === 'pendiente' ? 'Prueba vencida' : 'Prueba'}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
+            ) : (
+              <>
+                {familyTagText ? (
+                  <View style={styles.metaRow}>
+                    <Ionicons name={familyIcon} size={14} color={inactive ? theme.textMuted : colorMarca} style={styles.metaIcon} />
+                    <Text
+                      style={[styles.familyTag, { color: inactive ? theme.textMuted : colorMarca }]}
+                      numberOfLines={2}
+                    >
+                      {familyTagText}
+                    </Text>
+                  </View>
+                ) : null}
+                {inactive ? (
+                  <View style={styles.metaRow}>
+                    <Ionicons name="pause-circle-outline" size={14} color="#ef4444" style={styles.metaIcon} />
+                    <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '700' }}>Inactivo</Text>
+                  </View>
+                ) : null}
+                {!inactive && item.esPrueba ? (
+                  <View style={styles.metaRow}>
+                    <Ionicons
+                      name="hourglass-outline"
+                      size={14}
+                      color={item.pruebaDecision === 'pendiente' ? '#ef4444' : '#f59e0b'}
+                      style={styles.metaIcon}
+                    />
+                    <Text
+                      style={{
+                        color: item.pruebaDecision === 'pendiente' ? '#ef4444' : '#f59e0b',
+                        fontSize: 12,
+                        fontWeight: '700',
+                      }}
+                    >
+                      {item.pruebaDecision === 'pendiente' ? 'Prueba vencida' : 'Prueba'}
+                    </Text>
+                  </View>
+                ) : null}
+              </>
             )}
-            {inactive ? (
-              <View style={styles.metaRow}>
-                <Ionicons name="pause-circle-outline" size={14} color="#ef4444" style={styles.metaIcon} />
-                <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '700' }}>Inactivo</Text>
-              </View>
-            ) : null}
-            {!inactive && item.esPrueba ? (
-              <View style={styles.metaRow}>
-                <Ionicons
-                  name="hourglass-outline"
-                  size={14}
-                  color={item.pruebaDecision === 'pendiente' ? '#ef4444' : '#f59e0b'}
-                  style={styles.metaIcon}
-                />
-                <Text
-                  style={{
-                    color: item.pruebaDecision === 'pendiente' ? '#ef4444' : '#f59e0b',
-                    fontSize: 12,
-                    fontWeight: '700',
-                  }}
-                >
-                  {item.pruebaDecision === 'pendiente' ? 'Prueba vencida' : 'Prueba'}
-                </Text>
-              </View>
-            ) : null}
           </View>
         </DesignCard>
       </HoverRevealSwipeable>
     );
+
+    if (catalogColumns > 1) {
+      return (
+        <View style={styles.catalogCell}>
+          <View style={styles.catalogSwipeFill}>{card}</View>
+        </View>
+      );
+    }
+    return card;
   };
 
   const renderFooter = () => {
@@ -616,6 +686,7 @@ export default function UsuariosScreen({ navigation }) {
         kicker="Gestión"
         title="Usuarios y familias"
         subtitle={clubData?.nombre || 'Staff, atletas y tutores'}
+        sidebarRoot
         onBack={() => navigation.goBack()}
       />
 
@@ -661,9 +732,12 @@ export default function UsuariosScreen({ navigation }) {
           <ClubSpinLoader size={64} style={{ marginTop: 50 }} />
         ) : (
           <FlatList
+            key={catalogColumns > 1 ? 'usuarios-catalog' : 'usuarios-list'}
             data={sortedUsers}
             keyExtractor={(item) => item._id || Math.random().toString()}
             renderItem={renderItem}
+            numColumns={catalogColumns}
+            columnWrapperStyle={catalogColumns > 1 ? styles.catalogRow : undefined}
             contentContainerStyle={{ paddingBottom: 80 }}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
             onEndReached={handleLoadMore}
@@ -736,7 +810,34 @@ const styles = StyleSheet.create({
   filtersContainer: { marginTop: 12, marginBottom: 10, paddingHorizontal: 20, zIndex: 9, position: 'relative' },
   filterRefreshing: { position: 'absolute', right: 44, top: 14 },
   body: { flex: 1, paddingHorizontal: 20 },
+  catalogRow: {
+    gap: 12,
+    marginBottom: 0,
+    alignItems: 'stretch',
+  },
+  catalogCell: {
+    flex: 1,
+    minWidth: 0,
+    alignSelf: 'stretch',
+  },
+  catalogSwipeFill: {
+    flex: 1,
+  },
+  listCard: { marginBottom: 12 },
+  catalogCard: {
+    marginBottom: 12,
+    width: '100%',
+    flex: 1,
+    height: 158,
+  },
   cardContent: { flexDirection: 'row', alignItems: 'flex-start' },
+  cardContentCatalog: { flexDirection: 'row', alignItems: 'flex-start', flex: 1 },
+  catalogRoleRow: { marginTop: 6, marginBottom: 2, alignSelf: 'flex-start' },
+  catalogMetaSlot: {
+    minHeight: 40,
+    marginTop: 4,
+    justifyContent: 'flex-start',
+  },
   avatar: { marginRight: 12, marginTop: 2 },
   userInfo: { flex: 1, minWidth: 0 },
   nameRow: {

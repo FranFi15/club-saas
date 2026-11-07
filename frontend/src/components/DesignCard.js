@@ -18,6 +18,8 @@ export default function DesignCard({
   contentProps,
   footer,
   muted = false,
+  /** Stretch shell to parent height (catalog grids). */
+  stretch = false,
 }) {
   const base = isDarkMode ? '#151419' : '#ffffff';
   const footerBg = isDarkMode ? '#121116' : '#f8fafc';
@@ -26,11 +28,16 @@ export default function DesignCard({
   const opacity = muted ? 0.88 : 1;
 
   const body = onPress ? (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.88} {...contentProps}>
-      <View style={[styles.body, contentStyle]}>{children}</View>
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.88}
+      style={stretch ? styles.stretchBody : undefined}
+      {...contentProps}
+    >
+      <View style={[styles.body, stretch && styles.stretchBody, contentStyle]}>{children}</View>
     </TouchableOpacity>
   ) : (
-    <View style={[styles.body, contentStyle]} {...contentProps}>
+    <View style={[styles.body, stretch && styles.stretchBody, contentStyle]} {...contentProps}>
       {children}
     </View>
   );
@@ -47,16 +54,16 @@ export default function DesignCard({
   });
 
   return (
-    <View style={[styles.pressWrap, shadow, style]}>
-      <View style={[styles.shell, { opacity }]}>
+    <View style={[styles.pressWrap, stretch && styles.pressWrapStretch, shadow, style]}>
+      <View style={[styles.shell, stretch && styles.stretchFill, { opacity }]}>
         <LinearGradient
           colors={[rimMid, rimMid, accent]}
           locations={[0, 0.72, 1]}
           start={{ x: 0, y: 1 }}
           end={{ x: 1, y: 0 }}
-          style={styles.rim}
+          style={[styles.rim, stretch && styles.stretchFill]}
         >
-          <View style={[styles.inner, { backgroundColor: base }]}>
+          <View style={[styles.inner, stretch && styles.stretchFill, { backgroundColor: base }]}>
             <LinearGradient
               colors={[wash, 'transparent', 'transparent']}
               locations={[0, 0.48, 1]}
@@ -89,6 +96,15 @@ export default function DesignCard({
 const styles = StyleSheet.create({
   pressWrap: {
     marginBottom: 14,
+  },
+  pressWrapStretch: {
+    alignSelf: 'stretch',
+  },
+  stretchFill: {
+    flex: 1,
+  },
+  stretchBody: {
+    flex: 1,
   },
   shell: {
     borderRadius: 14,

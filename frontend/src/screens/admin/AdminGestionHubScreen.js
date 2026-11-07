@@ -1,13 +1,15 @@
-import React, { useContext, useCallback, useState, useEffect, Fragment } from 'react';
+import React, { useContext, useCallback, useState, useEffect, useLayoutEffect, Fragment } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { StyleSheet, ScrollView, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import { useBadges } from '../../context/BadgeContext';
 import HubMenuCard from '../../components/HubMenuCard';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { getToken } from '../../utils/storage';
+import { useAdminDesktopLayout } from '../../hooks/useAdminDesktopLayout';
 import { isDirigenteRole, isClubOpsRole } from '../../constants/appRoles';
 import EventDoorCard from '../../components/EventDoorCard';
 import { useMercadoPagoLinked } from '../../hooks/useMercadoPagoLinked';
@@ -40,6 +42,7 @@ const DIRIGENTE_HIDDEN = new Set(['Pendientes', 'PedirDocumentacion', 'RevisarDo
 export default function AdminGestionHubScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
+  const { isDesktop } = useAdminDesktopLayout();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const { hub, refresh } = useBadges();
   const [viewerRol, setViewerRol] = useState('');
@@ -69,6 +72,21 @@ export default function AdminGestionHubScreen({ navigation }) {
         ? { ...item, subtitle: 'Vender entradas y ver compradores' }
         : item,
     );
+
+  // En escritorio el menú vive en el sidebar: no mostramos este hub.
+  useLayoutEffect(() => {
+    if (!isDesktop || !viewerRol) return;
+    const first = isDirigenteRole(viewerRol) ? 'EscanearIngreso' : 'Pendientes';
+    navigation.replace(first);
+  }, [isDesktop, viewerRol, navigation]);
+
+  if (isDesktop) {
+    return (
+      <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
+        <ClubSpinLoader size={48} style={{ marginTop: 40 }} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>

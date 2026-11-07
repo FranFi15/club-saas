@@ -8,6 +8,7 @@ import {
   Modal,
   RefreshControl,
   Switch,
+  Platform,
 } from 'react-native';
 import ClubSpinLoader from '../../../components/ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
@@ -256,8 +257,9 @@ export default function PlanesTab({
     );
   };
 
-  const renderAssignRow = (label, sublabel, planRef, onPress, indent) => (
+  const renderAssignRow = (key, label, sublabel, planRef, onPress, indent) => (
     <TouchableOpacity
+      key={key}
       style={[
         styles.assignRow,
         {
@@ -454,6 +456,7 @@ export default function PlanesTab({
 
                 {showDisciplinePlan
                   ? renderAssignRow(
+                      `${did}-disc-plan`,
                       'Plan de la disciplina',
                       'Fallback si la categoría no tiene plan',
                       discPlan,
@@ -463,8 +466,10 @@ export default function PlanesTab({
                   : null}
 
                 <Foldable open={open}>
-                  {cats.map((cat) =>
+                  <View>
+                    {cats.map((cat) =>
                       renderAssignRow(
+                        `${did}-cat-${cat._id}`,
                         cat.nombre,
                         null,
                         planLabel(cat.planDefault),
@@ -472,11 +477,12 @@ export default function PlanesTab({
                         true
                       )
                     )}
-                  {cats.length === 0 ? (
-                    <Text style={{ color: theme.textMuted, fontSize: 12, marginLeft: 14, marginBottom: 8 }}>
-                      Sin categorías en esta disciplina.
-                    </Text>
-                  ) : null}
+                    {cats.length === 0 ? (
+                      <Text style={{ color: theme.textMuted, fontSize: 12, marginLeft: 14, marginBottom: 8 }}>
+                        Sin categorías en esta disciplina.
+                      </Text>
+                    ) : null}
+                  </View>
                 </Foldable>
               </View>
             );
@@ -484,7 +490,13 @@ export default function PlanesTab({
         )}
       </ScrollView>
 
-      <Modal visible={!!assignTarget} animationType="slide" transparent>
+      <Modal
+        visible={!!assignTarget}
+        animationType="slide"
+        transparent
+        presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+        onRequestClose={() => !isSavingAssignment && setAssignTarget(null)}
+      >
         <View style={s.modalOverlay}>
           <View style={[s.modalContent, { backgroundColor: theme.surface, maxHeight: '85%' }]}>
             <View style={s.modalHeader}>

@@ -18,6 +18,7 @@ import Foldable, { FoldableChevron } from '../../../components/Foldable';
 import UserAvatar from '../../../components/UserAvatar';
 import { ThemeContext } from '../../../context/ThemeContext';
 import { formatUserName } from '../../../utils/listSort';
+import { useFinanzasCatalogColumns, finanzasCatalogStyles as cat } from './finanzasCatalog';
 
 export default function FamiliasTab({
   theme,
@@ -51,6 +52,7 @@ export default function FamiliasTab({
   canManageDiscounts = true,
 }) {
   const { isDarkMode } = useContext(ThemeContext);
+  const catalogColumns = useFinanzasCatalogColumns(true);
   const cc = primaryColor;
   const [expandedGlobalDiscount, setExpandedGlobalDiscount] = useState(false);
   const [expandedAthletes, setExpandedAthletes] = useState({});
@@ -91,13 +93,14 @@ export default function FamiliasTab({
       const totalMesFinal = sumPayments(cuotasMes, 'montoFinal');
       const totalMesDto = sumPayments(cuotasMes, 'descuentoAplicado');
 
-      return (
+      const card = (
         <DesignCard
           theme={theme}
           isDarkMode={isDarkMode}
           accent={accent}
           contentStyle={styles.familyCardInner}
-          style={{ marginBottom: 14 }}
+          style={catalogColumns > 1 ? cat.card2 : { marginBottom: 14 }}
+          stretch={catalogColumns > 1}
         >
           <View style={styles.familyHeader}>
             <View style={[s.planIcon, { backgroundColor: '#8b5cf620' }]}>
@@ -383,10 +386,16 @@ export default function FamiliasTab({
           ) : null}
         </DesignCard>
       );
+
+      if (catalogColumns > 1) {
+        return <View style={cat.cell}>{card}</View>;
+      }
+      return card;
     },
     [
       theme,
       isDarkMode,
+      catalogColumns,
       cc,
       mes,
       anio,
@@ -526,10 +535,13 @@ export default function FamiliasTab({
   return (
     <View style={s.tabPanel}>
       <FlatList
+        key={catalogColumns > 1 ? 'familias-catalog' : 'familias-list'}
         style={s.tabScroll}
         data={siblings}
         keyExtractor={(item) => String(item.tutor._id)}
         renderItem={renderFamilyCard}
+        numColumns={catalogColumns}
+        columnWrapperStyle={catalogColumns > 1 ? cat.row : undefined}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={renderListEmpty}
         contentContainerStyle={

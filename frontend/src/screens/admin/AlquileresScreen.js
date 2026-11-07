@@ -641,6 +641,7 @@ export default function AlquileresScreen({ navigation }) {
         kicker="Gestión"
         title="Reservas de canchas"
         subtitle="Alquileres externos"
+        sidebarRoot
         onBack={() => navigation.goBack()}
       />
 

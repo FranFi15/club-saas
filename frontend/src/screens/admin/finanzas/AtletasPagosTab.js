@@ -20,6 +20,7 @@ import UserAvatar from '../../../components/UserAvatar';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
 import { formatUserName } from '../../../utils/listSort';
+import { useFinanzasCatalogColumns, finanzasCatalogStyles as cat } from './finanzasCatalog';
 
 function AthleteActionsMenu({
   visible,
@@ -173,6 +174,7 @@ export default function AtletasPagosTab({
   isLoadingStats = false,
 }) {
   const { isDarkMode } = useContext(ThemeContext);
+  const catalogColumns = useFinanzasCatalogColumns(false);
   const cc = primaryColor;
   const isVencidosView = filtroEstado === 'vencido';
   const isTodosView = filtroEstado === 'todos';
@@ -210,26 +212,29 @@ export default function AtletasPagosTab({
       ),
     ];
 
-    return (
+    const card = (
       <DesignCard
         theme={theme}
         isDarkMode={isDarkMode}
         accent={statusColor}
         onPress={() => openMenu(item)}
         contentStyle={styles.cardInner}
-        style={{ marginBottom: 10 }}
+        style={catalogColumns > 1 ? cat.cardAthlete : { marginBottom: 10 }}
+        stretch={catalogColumns > 1}
       >
         <View style={styles.cardTop}>
           <UserAvatar user={atleta} size={44} colorMarca={cc} />
           <View style={styles.cardInfo}>
-            <Text style={[styles.name, { color: theme.text }]}>
+            <Text style={[styles.name, { color: theme.text }]} numberOfLines={2}>
               {formatUserName(atleta)}
             </Text>
-            {categorias.length ? (
-              <Text style={{ color: theme.textMuted, fontSize: 12 }} numberOfLines={1}>
-                {categorias.join(' · ')}
-              </Text>
-            ) : null}
+            <View style={cat.metaSlot}>
+              {categorias.length ? (
+                <Text style={{ color: theme.textMuted, fontSize: 12 }} numberOfLines={1}>
+                  {categorias.join(' · ')}
+                </Text>
+              ) : null}
+            </View>
           </View>
           <View style={styles.cardAmount}>
             <Text style={{ color: theme.text, fontWeight: '800', fontSize: 16 }}>
@@ -247,6 +252,11 @@ export default function AtletasPagosTab({
         </View>
       </DesignCard>
     );
+
+    if (catalogColumns > 1) {
+      return <View style={cat.cell}>{card}</View>;
+    }
+    return card;
   };
 
   const renderListEmpty = useCallback(() => {
@@ -422,10 +432,13 @@ export default function AtletasPagosTab({
 
       <View style={{ flex: 1 }}>
       <FlatList
+        key={catalogColumns > 1 ? 'atletas-catalog' : 'atletas-list'}
         style={styles.list}
         data={athletes}
         keyExtractor={(item) => String(item.atleta?._id)}
         renderItem={renderCard}
+        numColumns={catalogColumns}
+        columnWrapperStyle={catalogColumns > 1 ? cat.row : undefined}
         ListEmptyComponent={renderListEmpty}
         contentContainerStyle={athletes.length === 0 ? styles.listEmptyGrow : { paddingBottom: 24 }}
         keyboardShouldPersistTaps="handled"

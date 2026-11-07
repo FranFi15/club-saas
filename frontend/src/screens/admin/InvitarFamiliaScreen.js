@@ -234,6 +234,7 @@ export default function InvitarFamiliaScreen({ navigation }) {
         kicker="Usuarios"
         title="Invitar familia"
         subtitle={clubData?.nombre || 'Tu club'}
+        sidebarRoot
         onBack={() => navigation.goBack()}
       />
 

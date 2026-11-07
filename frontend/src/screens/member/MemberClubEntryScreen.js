@@ -17,11 +17,13 @@ import { useMemberOptional } from '../../context/MemberContext';
 import { getToken } from '../../utils/storage';
 import { clubApi } from '../../utils/api';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
+import AdminScreenHeader from '../../components/AdminScreenHeader';
 import UserAvatar from '../../components/UserAvatar';
 import CustomAlert from '../../components/CustomAlert';
 import { formatRolStaff } from '../staff/staffUtils';
 import { USER_ROL_LABELS } from '../../constants/userRoles';
 import { formatUserName } from '../../utils/listSort';
+import { useIsAdminDesktopShell } from '../../hooks/useAdminDesktopLayout';
 
 const REFRESH_BUFFER_MS = 5000;
 
@@ -42,6 +44,7 @@ async function clubHeaders(clubData) {
 export default function MemberClubEntryScreen({ navigation, route }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
+  const adminDesktop = useIsAdminDesktopShell();
   const memberCtx = useMemberOptional();
   const profile = memberCtx?.profile ?? null;
   const hijos = memberCtx?.hijos ?? [];
@@ -151,14 +154,24 @@ export default function MemberClubEntryScreen({ navigation, route }) {
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      <CoachScreenHeader
-        colorMarca={colorMarca}
-        theme={theme}
-        kicker="Acceso"
-        title="QR de ingreso"
-        subtitle="Mostrá este código en la entrada del club"
-        onBack={() => navigation.goBack()}
-      />
+      {adminDesktop ? (
+        <AdminScreenHeader
+          colorMarca={colorMarca}
+          theme={theme}
+          kicker="Acceso"
+          title="QR de ingreso"
+          subtitle="Mostrá este código en la entrada del club"
+        />
+      ) : (
+        <CoachScreenHeader
+          colorMarca={colorMarca}
+          theme={theme}
+          kicker="Acceso"
+          title="QR de ingreso"
+          subtitle="Mostrá este código en la entrada del club"
+          onBack={() => navigation.goBack()}
+        />
+      )}
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {viewerRol === 'tutor' && pickerOptions.length > 1 ? (

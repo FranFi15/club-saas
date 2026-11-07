@@ -25,6 +25,7 @@ import { pickAndUploadAttachment, openAttachmentUrl } from './finanzasUpload';
 import CustomAlert from '../../../components/CustomAlert';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
+import { useFinanzasCatalogColumns, finanzasCatalogStyles as cat } from './finanzasCatalog';
 
 const ESTADO_FILTROS = [
   { value: 'todos', label: 'Todos' },
@@ -52,6 +53,7 @@ export default function GastosTab({
   canMutate = true,
 }) {
   const { isDarkMode } = useContext(ThemeContext);
+  const catalogColumns = useFinanzasCatalogColumns(false);
   const cc = primaryColor;
   const cacheKey = clubData?.urlIdentifier ? `finanzas-gastos:${clubData.urlIdentifier}` : '';
 
@@ -344,13 +346,14 @@ export default function GastosTab({
       if (method) metaParts.push(method);
     }
 
-    return (
+    const card = (
       <DesignCard
         theme={theme}
         isDarkMode={isDarkMode}
         accent={color}
         contentStyle={s.financeCardInner}
-        style={{ marginBottom: 10 }}
+        style={catalogColumns > 1 ? cat.card3 : { marginBottom: 10 }}
+        stretch={catalogColumns > 1}
       >
         <View style={s.financeCardTop}>
           <View style={[s.financeCardLeading, { backgroundColor: `${color}18`, marginRight: 0 }]}>
@@ -379,11 +382,13 @@ export default function GastosTab({
                 {metaParts.join(' · ')}
               </Text>
             </View>
-            {!!item.notas && (
-              <Text style={[s.financeCardNotes, { color: theme.textMuted }]} numberOfLines={2}>
-                {item.notas}
-              </Text>
-            )}
+            <View style={catalogColumns > 1 ? cat.notesSlot : undefined}>
+              {!!item.notas && (
+                <Text style={[s.financeCardNotes, { color: theme.textMuted }]} numberOfLines={2}>
+                  {item.notas}
+                </Text>
+              )}
+            </View>
           </View>
           <View style={s.financeCardAmountCol}>
             <Text style={[s.financeCardAmount, { color: theme.text }]}>{fmtMoney(item.monto)}</Text>
@@ -455,6 +460,11 @@ export default function GastosTab({
         </View>
       </DesignCard>
     );
+
+    if (catalogColumns > 1) {
+      return <View style={cat.cell}>{card}</View>;
+    }
+    return card;
   };
 
   return (
@@ -501,10 +511,13 @@ export default function GastosTab({
         <ClubSpinLoader size={56} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
+          key={catalogColumns > 1 ? 'gastos-catalog' : 'gastos-list'}
           style={{ flex: 1 }}
           data={visibleBills}
           keyExtractor={(item) => String(item._id)}
           renderItem={renderItem}
+          numColumns={catalogColumns}
+          columnWrapperStyle={catalogColumns > 1 ? cat.row : undefined}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cc} />}
           onEndReached={onEndReached}

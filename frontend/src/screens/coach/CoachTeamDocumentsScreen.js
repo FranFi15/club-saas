@@ -23,6 +23,7 @@ import { getToken } from '../../utils/storage';
 import { clubApi } from '../../utils/api';
 import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
+import AdminScreenHeader from '../../components/AdminScreenHeader';
 import SearchableDropdown from '../../components/SearchableDropdown';
 import { sortByNombre, formatUserName } from '../../utils/listSort';
 import { detectMediaKind, mediaKindIcon, downloadMediaFile, openMediaViewer } from '../../utils/mediaUtils';
@@ -1173,14 +1174,26 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      <CoachScreenHeader
-        colorMarca={colorMarca}
-        theme={theme}
-        kicker={headerKicker}
-        title={headerTitle}
-        subtitle={clubData?.nombre || 'Tu club'}
-        onBack={handleBack}
-      />
+      {isAdminVariant ? (
+        <AdminScreenHeader
+          colorMarca={colorMarca}
+          theme={theme}
+          kicker={headerKicker}
+          title={headerTitle}
+          subtitle={clubData?.nombre || 'Tu club'}
+          sidebarRoot={browseLevel === 'folders'}
+          onBack={handleBack}
+        />
+      ) : (
+        <CoachScreenHeader
+          colorMarca={colorMarca}
+          theme={theme}
+          kicker={headerKicker}
+          title={headerTitle}
+          subtitle={clubData?.nombre || 'Tu club'}
+          onBack={handleBack}
+        />
+      )}
 
       {browseLevel === 'folders' ? (
         <FlatList

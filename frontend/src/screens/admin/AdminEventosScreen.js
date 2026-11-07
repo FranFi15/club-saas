@@ -2139,6 +2139,7 @@ export default function AdminEventosScreen({ navigation }) {
               ? 'Vendé entradas y revisá quién compró'
               : 'Quién compró entradas'
         }
+        sidebarRoot
         onBack={() => navigation.goBack()}
         rightAccessory={
           canManageEvents ? (

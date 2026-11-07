@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useCallback, useRef, useMemo } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -43,6 +43,7 @@ import { useBadges } from '../../context/BadgeContext';
 import BadgeDot from '../../components/BadgeDot';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { useAdminDesktopLayout } from '../../hooks/useAdminDesktopLayout';
 import { isClubOwnerRole, canViewOwnerAdminUI, canMutateAsAdmin } from '../../constants/appRoles';
 import { formatUserName } from '../../utils/listSort';
 
@@ -64,15 +65,44 @@ const financeHeader = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 6,
   },
+  monthRowWeb: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    minWidth: 220,
+  },
   monthNavBtn: { padding: 4 },
   monthNavText: { color: '#fff', fontSize: 13, fontWeight: '700', minWidth: 108, textAlign: 'center' },
-  menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  monthNavTextWeb: { fontSize: 14, minWidth: 128 },
+  menuHostWeb: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 100000,
+    elevation: 100000,
+  },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  menuBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+  },
   menuSheet: {
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     paddingHorizontal: 8,
     paddingTop: 10,
     paddingBottom: 28,
+    zIndex: 2,
+  },
+  menuSheetWeb: {
+    maxWidth: 420,
+    width: '100%',
+    alignSelf: 'center',
+    borderRadius: 16,
+    marginBottom: 24,
+    marginHorizontal: 16,
+    paddingBottom: 16,
   },
   menuHandle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: '#d1d5db', marginBottom: 10 },
   menuTitle: { fontSize: 16, fontWeight: '700', paddingHorizontal: 12, marginBottom: 6 },
@@ -116,8 +146,10 @@ const financeHeader = StyleSheet.create({
 });
 
 export default function FinanzasScreen({ route }) {
+  const navigation = useNavigation();
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
+  const { isWeb, isDesktop } = useAdminDesktopLayout();
   const cc = clubData?.primaryColor || '#3b82f6';
   const { hub, refresh } = useBadges();
 
@@ -135,12 +167,6 @@ export default function FinanzasScreen({ route }) {
 
   const [tab, setTab] = useState(() => route?.params?.initialTab || 'atletas');
   const pagerRef = useRef(null);
-  const openRevision = () => setTab('revision');
-  const leaveRevision = () => selectMainTab('atletas');
-  const openPlanes = () => setTab('planes');
-  const leavePlanes = () => selectMainTab('atletas');
-  const openCaja = () => setTab('caja');
-  const leaveCaja = () => selectMainTab('atletas');
   const [viewerRol, setViewerRol] = useState('');
   const canManageClubFinances = isClubOwnerRole(viewerRol);
   const canRunPeriodActions = canMutateAsAdmin(viewerRol);
@@ -158,6 +184,9 @@ export default function FinanzasScreen({ route }) {
   const selectMainTab = useCallback(
     (key) => {
       setTab(key);
+      if (route?.params?.initialTab !== key) {
+        navigation.setParams({ initialTab: key });
+      }
       const idx = visibleTabs.findIndex((t) => t.key === key);
       if (idx >= 0) {
         try {
@@ -167,8 +196,16 @@ export default function FinanzasScreen({ route }) {
         }
       }
     },
-    [visibleTabs],
+    [visibleTabs, navigation, route?.params?.initialTab],
   );
+
+  // Must update route params too — otherwise the initialTab sync effect snaps back.
+  const openRevision = useCallback(() => selectMainTab('revision'), [selectMainTab]);
+  const leaveRevision = useCallback(() => selectMainTab('atletas'), [selectMainTab]);
+  const openPlanes = useCallback(() => selectMainTab('planes'), [selectMainTab]);
+  const leavePlanes = useCallback(() => selectMainTab('atletas'), [selectMainTab]);
+  const openCaja = useCallback(() => selectMainTab('caja'), [selectMainTab]);
+  const leaveCaja = useCallback(() => selectMainTab('atletas'), [selectMainTab]);
 
   const goAdjacentTab = useCallback(
     (delta) => {
@@ -184,6 +221,27 @@ export default function FinanzasScreen({ route }) {
   const [periodBusy, setPeriodBusy] = useState(false);
   const [periodBusyLabel, setPeriodBusyLabel] = useState('Procesando…');
   const [moreOpen, setMoreOpen] = useState(false);
+  const [moreBackdropArmed, setMoreBackdropArmed] = useState(false);
+
+  const closeMoreMenu = useCallback(() => {
+    setMoreOpen(false);
+    setMoreBackdropArmed(false);
+  }, []);
+
+  const openMoreMenu = useCallback(() => {
+    setMoreBackdropArmed(false);
+    setMoreOpen(true);
+  }, []);
+
+  // Don't arm backdrop until the opening pointer/click has fully settled (web click-through).
+  useEffect(() => {
+    if (!moreOpen) {
+      setMoreBackdropArmed(false);
+      return undefined;
+    }
+    const t = setTimeout(() => setMoreBackdropArmed(true), Platform.OS === 'web' ? 450 : 120);
+    return () => clearTimeout(t);
+  }, [moreOpen]);
 
   const startPeriodBusy = (label) => {
     setPeriodBusyLabel(label || 'Procesando…');
@@ -201,8 +259,20 @@ export default function FinanzasScreen({ route }) {
 
   useEffect(() => {
     const next = route?.params?.initialTab;
-    if (next) setTab(next);
-  }, [route?.params?.initialTab]);
+    if (!next || next === tab) return;
+    setTab(next);
+    const idx = visibleTabs.findIndex((t) => t.key === next);
+    if (idx >= 0) {
+      try {
+        pagerRef.current?.setPage(idx);
+      } catch {
+        /* pager not ready */
+      }
+    }
+    // Only react to param changes from outside (sidebar). Do not depend on `tab`
+    // or local opens get overwritten by a stale initialTab.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+  }, [route?.params?.initialTab, visibleTabs]);
 
   useEffect(() => {
     if (canViewFullFinanzas) return;
@@ -251,6 +321,8 @@ export default function FinanzasScreen({ route }) {
   const showPlanesHeader = tab === 'planes';
   const showCajaHeader = tab === 'caja';
   const hideMainTabs = showRevisionHeader || showPlanesHeader || showCajaHeader;
+  // En escritorio las secciones están en el sidebar: ocultamos el switcher, no el contenido.
+  const hideTabSwitcher = hideMainTabs || isDesktop;
 
   const [athletes, setAthletes] = useState(() => readScreenCache(paymentsCacheKey)?.athletes ?? []);
   const PAYMENTS_PAGE_SIZE = 50;
@@ -1329,7 +1401,14 @@ export default function FinanzasScreen({ route }) {
   );
 
   return (
-    <SafeAreaView style={[s.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[
+        s.container,
+        { backgroundColor: theme.background },
+        isWeb && { position: 'relative', overflow: 'visible', zIndex: 0 },
+      ]}
+      edges={['top']}
+    >
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <AdminScreenHeader
         theme={theme}
@@ -1368,7 +1447,7 @@ export default function FinanzasScreen({ route }) {
           showAccionesMenu ? (
             <TouchableOpacity
               style={financeHeader.iconBtn}
-              onPress={() => setMoreOpen(true)}
+              onPress={openMoreMenu}
               accessibilityLabel="Más acciones"
             >
               <Ionicons name="ellipsis-horizontal" size={20} color="#fff" />
@@ -1390,9 +1469,10 @@ export default function FinanzasScreen({ route }) {
             </TouchableOpacity>
           ) : undefined
         }
+        bottomAccessoryAlign={isWeb ? 'center' : 'right'}
         bottomRightAccessory={
           showMonthNav ? (
-            <View style={financeHeader.monthRow}>
+            <View style={[financeHeader.monthRow, isWeb && financeHeader.monthRowWeb]}>
               <TouchableOpacity
                 style={financeHeader.monthNavBtn}
                 onPress={() => chgMonth(-1)}
@@ -1401,7 +1481,7 @@ export default function FinanzasScreen({ route }) {
               >
                 <Ionicons name="chevron-back" size={18} color="#fff" />
               </TouchableOpacity>
-              <Text style={financeHeader.monthNavText} numberOfLines={1}>
+              <Text style={[financeHeader.monthNavText, isWeb && financeHeader.monthNavTextWeb]} numberOfLines={1}>
                 {MN[mes - 1]} {anio}
               </Text>
               <TouchableOpacity
@@ -1417,162 +1497,183 @@ export default function FinanzasScreen({ route }) {
         }
       />
 
-      <Modal
-        visible={moreOpen && showAccionesMenu}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setMoreOpen(false)}
-      >
-        <Pressable style={financeHeader.menuOverlay} onPress={() => setMoreOpen(false)}>
-          <Pressable style={[financeHeader.menuSheet, { backgroundColor: theme.surface }]} onPress={(e) => e.stopPropagation()}>
-            <View style={financeHeader.menuHandle} />
-            <Text style={[financeHeader.menuTitle, { color: theme.text }]}>Acciones</Text>
-            {!showRevisionHeader ? (
-              <TouchableOpacity
-                style={financeHeader.menuItem}
-                onPress={() => {
-                  setMoreOpen(false);
-                  openRevision();
-                }}
-              >
-                <Ionicons name="document-attach-outline" size={20} color={theme.text} />
-                <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Revisión de comprobantes</Text>
-                <BadgeDot count={revisionBadge} />
-              </TouchableOpacity>
-            ) : null}
-            {canManageClubFinances && !showPlanesHeader ? (
-              <TouchableOpacity
-                style={financeHeader.menuItem}
-                onPress={() => {
-                  setMoreOpen(false);
-                  openPlanes();
-                }}
-              >
-                <Ionicons name="document-text-outline" size={20} color={theme.text} />
-                <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Cuotas y Planes</Text>
-              </TouchableOpacity>
-            ) : null}
-            {canViewFullFinanzas && !showCajaHeader ? (
-              <TouchableOpacity
-                style={financeHeader.menuItem}
-                onPress={() => {
-                  setMoreOpen(false);
-                  openCaja();
-                }}
-              >
-                <Ionicons name="cash-outline" size={20} color={theme.text} />
-                <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Caja</Text>
-              </TouchableOpacity>
-            ) : null}
-            {canRunPeriodActions && (showCuotaPeriodActions || showVencidosHeader) ? (
-              <View style={[financeHeader.menuDivider, { backgroundColor: theme.border }]} />
-            ) : null}
-            {canRunPeriodActions && showCuotaPeriodActions ? (
-              <>
-                <TouchableOpacity
-                  style={financeHeader.menuItem}
-                  disabled={periodBusy}
+      {moreOpen && showAccionesMenu
+        ? (() => {
+            const pick = (action) => {
+              setMoreBackdropArmed(false);
+              closeMoreMenu();
+              // Web: defer so the same click doesn't hit content under the menu.
+              if (Platform.OS === 'web') {
+                setTimeout(() => action?.(), 80);
+              } else {
+                action?.();
+              }
+            };
+            const accionesMenu = (
+              <View style={financeHeader.menuOverlay}>
+                <Pressable
+                  style={financeHeader.menuBackdrop}
                   onPress={() => {
-                    setMoreOpen(false);
-                    runGenerateMonth();
+                    // Always capture presses so they don't hit the ⋯ under the overlay;
+                    // only dismiss after the arm delay (avoids open-click dismiss).
+                    if (!moreBackdropArmed) return;
+                    closeMoreMenu();
                   }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cerrar acciones"
+                />
+                <View
+                  style={[
+                    financeHeader.menuSheet,
+                    isWeb && financeHeader.menuSheetWeb,
+                    { backgroundColor: theme.surface },
+                  ]}
                 >
-                  <Ionicons name="flash-outline" size={20} color={theme.text} />
-                  <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Generar cuotas del mes</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={financeHeader.menuItem}
-                  disabled={periodBusy}
-                  onPress={() => {
-                    setMoreOpen(false);
-                    runCheckOverdue();
-                  }}
-                >
-                  <Ionicons name="alert-circle-outline" size={20} color={theme.text} />
-                  <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Chequear vencidos</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={financeHeader.menuItem}
-                  disabled={periodBusy}
-                  onPress={() => {
-                    setMoreOpen(false);
-                    runAvisarMorosos();
-                  }}
-                >
-                  <Ionicons name="notifications-outline" size={20} color={theme.text} />
-                  <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Avisar morosos</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={financeHeader.menuItem}
-                  disabled={periodBusy}
-                  onPress={() => {
-                    setMoreOpen(false);
-                    runReconcileMp();
-                  }}
-                >
-                  <Ionicons name="sync-outline" size={20} color={theme.text} />
-                  <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Sincronizar Mercado Pago</Text>
-                </TouchableOpacity>
-              </>
-            ) : null}
-            {canRunPeriodActions && showVencidosHeader && !showCuotaPeriodActions ? (
-              <TouchableOpacity
-                style={financeHeader.menuItem}
-                disabled={periodBusy}
-                onPress={() => {
-                  setMoreOpen(false);
-                  runAvisarMorosos();
-                }}
+                  <View style={financeHeader.menuHandle} />
+                  <Text style={[financeHeader.menuTitle, { color: theme.text }]}>Acciones</Text>
+                  {!showRevisionHeader ? (
+                    <TouchableOpacity
+                      style={financeHeader.menuItem}
+                      onPress={() => pick(openRevision)}
+                    >
+                      <Ionicons name="document-attach-outline" size={20} color={theme.text} />
+                      <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Revisión de comprobantes</Text>
+                      <BadgeDot count={revisionBadge} />
+                    </TouchableOpacity>
+                  ) : null}
+                  {canManageClubFinances && !showPlanesHeader ? (
+                    <TouchableOpacity
+                      style={financeHeader.menuItem}
+                      onPress={() => pick(openPlanes)}
+                    >
+                      <Ionicons name="document-text-outline" size={20} color={theme.text} />
+                      <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Cuotas y Planes</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {canViewFullFinanzas && !showCajaHeader ? (
+                    <TouchableOpacity
+                      style={financeHeader.menuItem}
+                      onPress={() => pick(openCaja)}
+                    >
+                      <Ionicons name="cash-outline" size={20} color={theme.text} />
+                      <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Caja</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {canRunPeriodActions && (showCuotaPeriodActions || showVencidosHeader) ? (
+                    <View style={[financeHeader.menuDivider, { backgroundColor: theme.border }]} />
+                  ) : null}
+                  {canRunPeriodActions && showCuotaPeriodActions ? (
+                    <>
+                      <TouchableOpacity
+                        style={financeHeader.menuItem}
+                        disabled={periodBusy}
+                        onPress={() => pick(runGenerateMonth)}
+                      >
+                        <Ionicons name="flash-outline" size={20} color={theme.text} />
+                        <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Generar cuotas del mes</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={financeHeader.menuItem}
+                        disabled={periodBusy}
+                        onPress={() => pick(runCheckOverdue)}
+                      >
+                        <Ionicons name="alert-circle-outline" size={20} color={theme.text} />
+                        <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Chequear vencidos</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={financeHeader.menuItem}
+                        disabled={periodBusy}
+                        onPress={() => pick(runAvisarMorosos)}
+                      >
+                        <Ionicons name="notifications-outline" size={20} color={theme.text} />
+                        <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Avisar morosos</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={financeHeader.menuItem}
+                        disabled={periodBusy}
+                        onPress={() => pick(runReconcileMp)}
+                      >
+                        <Ionicons name="sync-outline" size={20} color={theme.text} />
+                        <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Sincronizar Mercado Pago</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : null}
+                  {canRunPeriodActions && showVencidosHeader && !showCuotaPeriodActions ? (
+                    <TouchableOpacity
+                      style={financeHeader.menuItem}
+                      disabled={periodBusy}
+                      onPress={() => pick(runAvisarMorosos)}
+                    >
+                      <Ionicons name="notifications-outline" size={20} color={theme.text} />
+                      <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Avisar morosos</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </View>
+            );
+
+            // Web: skip RN Modal (click-through / focus quirks). Native: Modal.
+            if (isWeb) {
+              return <View style={financeHeader.menuHostWeb}>{accionesMenu}</View>;
+            }
+
+            return (
+              <Modal
+                visible
+                transparent
+                animationType="fade"
+                presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
+                onRequestClose={closeMoreMenu}
               >
-                <Ionicons name="notifications-outline" size={20} color={theme.text} />
-                <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Avisar morosos</Text>
-              </TouchableOpacity>
-            ) : null}
-          </Pressable>
-        </Pressable>
-      </Modal>
+                {accionesMenu}
+              </Modal>
+            );
+          })()
+        : null}
 
       {!hideMainTabs ? (
         <>
-          <View style={[financeHeader.tabSwitcher, { borderBottomColor: theme.border }]}>
-            {mainTabIndex > 0 ? (
-              <TouchableOpacity
-                style={[financeHeader.tabArrowBtn, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }]}
-                onPress={() => goAdjacentTab(-1)}
-                accessibilityLabel="Sección anterior"
-                hitSlop={6}
-              >
-                <Ionicons name="chevron-back" size={22} color={theme.text} />
-              </TouchableOpacity>
-            ) : (
-              <View style={financeHeader.tabArrowBtn} />
-            )}
+          {hideTabSwitcher ? null : (
+            <View style={[financeHeader.tabSwitcher, { borderBottomColor: theme.border }]}>
+              {mainTabIndex > 0 ? (
+                <TouchableOpacity
+                  style={[financeHeader.tabArrowBtn, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }]}
+                  onPress={() => goAdjacentTab(-1)}
+                  accessibilityLabel="Sección anterior"
+                  hitSlop={6}
+                >
+                  <Ionicons name="chevron-back" size={22} color={theme.text} />
+                </TouchableOpacity>
+              ) : (
+                <View style={financeHeader.tabArrowBtn} />
+              )}
 
-            <View style={financeHeader.tabCenter}>
-              <Ionicons
-                name={visibleTabs[mainTabIndex]?.icon || 'ellipse-outline'}
-                size={20}
-                color={cc}
-              />
-              <Text style={[financeHeader.tabCenterLabel, { color: theme.text }]} numberOfLines={1}>
-                {visibleTabs[mainTabIndex]?.label || ''}
-              </Text>
-              <BadgeDot count={finanzasTabBadge(visibleTabs[mainTabIndex]?.key)} />
+              <View style={financeHeader.tabCenter}>
+                <Ionicons
+                  name={visibleTabs[mainTabIndex]?.icon || 'ellipse-outline'}
+                  size={20}
+                  color={cc}
+                />
+                <Text style={[financeHeader.tabCenterLabel, { color: theme.text }]} numberOfLines={1}>
+                  {visibleTabs[mainTabIndex]?.label || ''}
+                </Text>
+                <BadgeDot count={finanzasTabBadge(visibleTabs[mainTabIndex]?.key)} />
+              </View>
+
+              {mainTabIndex < visibleTabs.length - 1 ? (
+                <TouchableOpacity
+                  style={[financeHeader.tabArrowBtn, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }]}
+                  onPress={() => goAdjacentTab(1)}
+                  accessibilityLabel="Sección siguiente"
+                  hitSlop={6}
+                >
+                  <Ionicons name="chevron-forward" size={22} color={theme.text} />
+                </TouchableOpacity>
+              ) : (
+                <View style={financeHeader.tabArrowBtn} />
+              )}
             </View>
-
-            {mainTabIndex < visibleTabs.length - 1 ? (
-              <TouchableOpacity
-                style={[financeHeader.tabArrowBtn, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }]}
-                onPress={() => goAdjacentTab(1)}
-                accessibilityLabel="Sección siguiente"
-                hitSlop={6}
-              >
-                <Ionicons name="chevron-forward" size={22} color={theme.text} />
-              </TouchableOpacity>
-            ) : (
-              <View style={financeHeader.tabArrowBtn} />
-            )}
-          </View>
+          )}
 
           <PagerView
             key={visibleTabs.map((t) => t.key).join('-')}
@@ -1581,7 +1682,7 @@ export default function FinanzasScreen({ route }) {
             initialPage={mainTabIndex}
             onPageSelected={(e) => {
               const next = visibleTabs[e.nativeEvent.position];
-              if (next?.key && next.key !== tab) setTab(next.key);
+              if (next?.key && next.key !== tab) selectMainTab(next.key);
             }}
           >
             {visibleTabs.map((t) => (

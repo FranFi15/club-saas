@@ -27,6 +27,7 @@ import { pickAndUploadImage, pickAndUploadAttachment, openAttachmentUrl } from '
 import CustomAlert from '../../../components/CustomAlert';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
+import { useFinanzasCatalogColumns, finanzasCatalogStyles as cat } from './finanzasCatalog';
 
 const ROLE_OPTIONS = [
   { value: 'atleta', label: 'Atletas' },
@@ -62,6 +63,7 @@ export default function SponsorsTab({
   canMutate = true,
 }) {
   const { isDarkMode } = useContext(ThemeContext);
+  const catalogColumns = useFinanzasCatalogColumns(false);
   const cc = primaryColor;
   const periodMes = mes || new Date().getMonth() + 1;
   const periodAnio = anio || new Date().getFullYear();
@@ -337,13 +339,17 @@ export default function SponsorsTab({
     const paid = pago?.estado === 'pagado';
     const expected = pago?.monto ?? item.montoMensual;
 
-    return (
+    const card = (
       <DesignCard
         theme={theme}
         isDarkMode={isDarkMode}
         accent={inactive ? '#9ca3af' : paid ? '#10b981' : '#f59e0b'}
         muted={inactive}
-        style={{ marginBottom: 12, opacity: inactive ? 0.75 : 1 }}
+        style={[
+          catalogColumns > 1 ? cat.card3 : { marginBottom: 12 },
+          { opacity: inactive ? 0.75 : 1 },
+        ]}
+        stretch={catalogColumns > 1}
         contentStyle={styles.cardInner}
       >
         <View style={styles.cardMain}>
@@ -355,7 +361,7 @@ export default function SponsorsTab({
             </View>
           )}
           <View style={{ flex: 1 }}>
-            <Text style={[styles.name, { color: theme.text }]}>{item.nombre}</Text>
+            <Text style={[styles.name, { color: theme.text }]} numberOfLines={2}>{item.nombre}</Text>
             <Text style={{ color: cc, fontWeight: '700', marginTop: 4 }}>{fmtMoney(expected)} · {MN[periodMes - 1]}</Text>
             <View
               style={[
@@ -370,9 +376,11 @@ export default function SponsorsTab({
                 {paid ? 'Pagado' : 'Pendiente'}
               </Text>
             </View>
-            {inactive ? (
-              <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '700', marginTop: 4 }}>Inactivo</Text>
-            ) : null}
+            <View style={catalogColumns > 1 ? cat.metaSlot : undefined}>
+              {inactive ? (
+                <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '700', marginTop: 4 }}>Inactivo</Text>
+              ) : null}
+            </View>
           </View>
         </View>
 
@@ -433,6 +441,11 @@ export default function SponsorsTab({
         ) : null}
       </DesignCard>
     );
+
+    if (catalogColumns > 1) {
+      return <View style={cat.cell}>{card}</View>;
+    }
+    return card;
   };
 
   return (
@@ -460,8 +473,11 @@ export default function SponsorsTab({
         <ClubSpinLoader size={56} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
+          key={catalogColumns > 1 ? 'sponsors-catalog' : 'sponsors-list'}
           data={visibleItems}
           keyExtractor={(item) => String(item._id)}
+          numColumns={catalogColumns}
+          columnWrapperStyle={catalogColumns > 1 ? cat.row : undefined}
           contentContainerStyle={{ padding: 16, paddingBottom: canMutate ? 100 : 40 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cc} />}
           onEndReached={onEndReached}

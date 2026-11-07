@@ -1,4 +1,4 @@
-import React, { useContext, useState, useCallback, useEffect } from 'react';
+import React, { useContext, useState, useCallback, useEffect, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, StatusBar } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,11 +11,13 @@ import HubMenuCard from '../../components/HubMenuCard';
 import DesignCard from '../../components/DesignCard';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
+import { useAdminDesktopLayout } from '../../hooks/useAdminDesktopLayout';
 import { canMutateAsAdmin, isDirigenteRole } from '../../constants/appRoles';
 
 export default function EstructuraHubScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
+  const { isDesktop } = useAdminDesktopLayout();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const [viewerRol, setViewerRol] = useState('');
   // Mismo menú que admin_club; dirigente sin invitar familia ni solicitudes.
@@ -28,6 +30,12 @@ export default function EstructuraHubScreen({ navigation }) {
   useEffect(() => {
     getToken('userRol').then((r) => setViewerRol(r || ''));
   }, []);
+
+  // En escritorio el menú vive en el sidebar: no mostramos este hub.
+  useLayoutEffect(() => {
+    if (!isDesktop) return;
+    navigation.replace('Estadisticas');
+  }, [isDesktop, navigation]);
 
   const { hub, refresh } = useBadges();
   const hubCacheKey = clubData?.urlIdentifier ? `admin-estructura-hub:${clubData.urlIdentifier}` : '';
@@ -73,6 +81,14 @@ export default function EstructuraHubScreen({ navigation }) {
     if (loadingStats && counts.atletas === null) return '—';
     return String(n ?? 0);
   };
+
+  if (isDesktop) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>
+        <ClubSpinLoader size={48} style={{ marginTop: 40 }} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top']}>

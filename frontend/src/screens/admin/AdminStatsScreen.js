@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
-import CoachScreenHeader from '../../components/CoachScreenHeader';
+import AdminScreenHeader from '../../components/AdminScreenHeader';
 import DesignCard from '../../components/DesignCard';
 import { clubApi } from '../../utils/api';
 import { getToken } from '../../utils/storage';
@@ -316,12 +316,13 @@ export default function AdminStatsScreen({ navigation }) {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <CoachScreenHeader
+      <AdminScreenHeader
         colorMarca={colorMarca}
         theme={theme}
         kicker="Estructura"
         title="Estadísticas"
         subtitle={clubData?.nombre || 'Tu club'}
+        sidebarRoot
         onBack={() => navigation.goBack()}
         showNotifications={false}
       />

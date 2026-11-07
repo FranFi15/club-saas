@@ -125,6 +125,7 @@ export default function AdminPendientesScreen({ navigation }) {
         kicker="Gestión"
         title="Pendientes"
         subtitle={clubData?.nombre || 'Tu club'}
+        sidebarRoot
         onBack={() => navigation.goBack()}
       />
       {loading ? (

@@ -22,6 +22,7 @@ import { isoCalendarDateToDisplay } from '../../utils/dateDisplay';
 import { persistUserTokensFromProfile } from '../../utils/profileTokens';
 import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScreenHeader';
+import { useAdminDesktopLayout } from '../../hooks/useAdminDesktopLayout';
 import Foldable, { FoldableChevron } from '../../components/Foldable';
 import ProfileEditDataButton from '../../components/ProfileEditDataButton';
 import ProfileClubEntryButton from '../../components/ProfileClubEntryButton';
@@ -47,6 +48,7 @@ const emptyIntegration = () => ({
 export default function AdminProfileScreen({ navigation }) {
   const { clubData, setClubData, clearSession } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
+  const { isDesktop } = useAdminDesktopLayout();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const profileCacheKey = clubData?.urlIdentifier ? `admin-profile:${clubData.urlIdentifier}` : '';
 
@@ -275,6 +277,7 @@ export default function AdminProfileScreen({ navigation }) {
         title={fullName}
         subtitle={clubData?.nombre || 'Tu club'}
         heroRight={profile ? <ProfileHeaderAvatar user={profile} /> : null}
+        showClubLogo={!isDesktop}
         showNotifications={false}
         footer={
           <CoachHeaderBadge>

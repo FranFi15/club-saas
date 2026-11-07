@@ -55,9 +55,20 @@ const TAB_ROOTS = {
   Perfil: 'PerfilMain',
 };
 
+const DESKTOP_TAB_ROOTS = {
+  Estructura: 'Estadisticas',
+  Gestión: 'Pendientes',
+  Finanzas: 'FinanzasHome',
+  Perfil: 'PerfilMain',
+};
+
 function EstructuraStackNavigator() {
+  const { isDesktop } = useAdminDesktopLayout();
   return (
-    <EstructuraStack.Navigator screenOptions={fadeStackScreenOptions}>
+    <EstructuraStack.Navigator
+      initialRouteName={isDesktop ? DESKTOP_TAB_ROOTS.Estructura : 'EstructuraHome'}
+      screenOptions={fadeStackScreenOptions}
+    >
       <EstructuraStack.Screen name="EstructuraHome" component={EstructuraHubScreen} />
       <EstructuraStack.Screen name="Estadisticas" component={AdminStatsScreen} />
       <EstructuraStack.Screen name="SolicitudesInscripcion" component={AdminEnrollmentRequestsScreen} />
@@ -74,8 +85,12 @@ function EstructuraStackNavigator() {
 }
 
 function GestionStackNavigator() {
+  const { isDesktop } = useAdminDesktopLayout();
   return (
-    <GestionStack.Navigator screenOptions={fadeStackScreenOptions}>
+    <GestionStack.Navigator
+      initialRouteName={isDesktop ? DESKTOP_TAB_ROOTS.Gestión : 'GestionMenu'}
+      screenOptions={fadeStackScreenOptions}
+    >
       <GestionStack.Screen name="GestionMenu" component={AdminGestionHubScreen} />
       <GestionStack.Screen name="Pendientes" component={AdminPendientesScreen} />
       <GestionStack.Screen name="Alquileres" component={AlquileresScreen} />
@@ -143,30 +158,26 @@ export default function AdminTabNavigator() {
     setTabState(navigation.getState?.() ?? null);
   }, []);
 
-  const navigateTab = useCallback((tabName, rootScreen) => {
+  const navigateTab = useCallback((tabName, rootScreen, params) => {
     const nav = tabNavRef.current;
     if (!nav) return;
-    const state = nav.getState?.();
-    const current = state?.routes?.[state.index];
-    const alreadyHere = current?.name === tabName;
-    const root = rootScreen || TAB_ROOTS[tabName];
-    if (!alreadyHere) {
-      nav.navigate(tabName, root ? { screen: root } : undefined);
-    } else if (root) {
-      const nested = current?.state;
-      const nestedIndex = nested?.index ?? 0;
-      const nestedName = nested?.routes?.[nestedIndex]?.name;
-      if (nested && nestedIndex > 0 && nestedName !== root) {
-        nav.navigate(tabName, { screen: root });
-      }
+    const root =
+      rootScreen ||
+      (isDesktop ? DESKTOP_TAB_ROOTS[tabName] : null) ||
+      TAB_ROOTS[tabName];
+    const screenParams = params || (tabName === 'Finanzas' ? { initialTab: 'atletas' } : undefined);
+    if (!root) {
+      nav.navigate(tabName);
+    } else {
+      nav.navigate(tabName, screenParams ? { screen: root, params: screenParams } : { screen: root });
     }
     requestAnimationFrame(() => syncTabNav(nav));
-  }, [syncTabNav]);
+  }, [syncTabNav, isDesktop]);
 
-  const navigateScreen = useCallback((tabName, screen) => {
+  const navigateScreen = useCallback((tabName, screen, params) => {
     const nav = tabNavRef.current;
     if (!nav || !tabName || !screen) return;
-    nav.navigate(tabName, { screen });
+    nav.navigate(tabName, params ? { screen, params } : { screen });
     requestAnimationFrame(() => syncTabNav(nav));
   }, [syncTabNav]);
 
@@ -231,12 +242,18 @@ export default function AdminTabNavigator() {
       <Tab.Screen
         name="Estructura"
         component={EstructuraStackNavigator}
-        listeners={tabPressResetToRoot('Estructura', 'EstructuraHome')}
+        listeners={tabPressResetToRoot(
+          'Estructura',
+          isDesktop ? DESKTOP_TAB_ROOTS.Estructura : 'EstructuraHome',
+        )}
       />
       <Tab.Screen
         name="Gestión"
         component={GestionStackNavigator}
-        listeners={tabPressResetToRoot('Gestión', 'GestionMenu')}
+        listeners={tabPressResetToRoot(
+          'Gestión',
+          isDesktop ? DESKTOP_TAB_ROOTS.Gestión : 'GestionMenu',
+        )}
       />
       <Tab.Screen
         name="Finanzas"

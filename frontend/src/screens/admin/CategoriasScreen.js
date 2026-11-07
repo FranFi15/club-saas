@@ -24,12 +24,15 @@ import CalendarDateField from '../../components/CalendarDateField';
 import FormSheet from '../../components/FormSheet';
 import { displayDateToIsoCalendar, isoCalendarDateToDisplay, formatDayMonthLong } from '../../utils/dateDisplay';
 import { isClubOwnerRole } from '../../constants/appRoles';
+import { useAdminDesktopLayout } from '../../hooks/useAdminDesktopLayout';
 
 export default function CategoriasScreen({ navigation, route }) {
   const { clubData } = useContext(ClubContext);
-  const { theme, isDarkMode } = useContext(ThemeContext); 
+  const { theme, isDarkMode } = useContext(ThemeContext);
+  const { isDesktop } = useAdminDesktopLayout();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
-  
+  const catalogColumns = isDesktop ? 3 : 1;
+
   const { disciplina } = route.params;
   const categoriesCacheKey =
     clubData?.urlIdentifier && disciplina?._id
@@ -275,60 +278,93 @@ export default function CategoriasScreen({ navigation, route }) {
   );
 
   const renderItem = ({ item }) => {
+    const edadLine =
+      item.edadMinima || item.edadMaxima
+        ? `${item.edadMinima ? `Desde ${item.edadMinima} años` : ''}${
+            item.edadMinima && item.edadMaxima ? ' - ' : ''
+          }${item.edadMaxima ? `Hasta ${item.edadMaxima} años` : ''}`
+        : null;
+    const corteLine = [
+      item.edadCorteDesde ? `desde ${formatDayMonthLong(item.edadCorteDesde)}` : null,
+      item.edadCorteHasta ? `hasta ${formatDayMonthLong(item.edadCorteHasta)}` : null,
+    ]
+      .filter(Boolean)
+      .join(' ');
+
     const card = (
       <DesignCard
         theme={theme}
         isDarkMode={isDarkMode}
         accent={colorMarca}
         onPress={() => navigation.navigate('DetalleCategoria', { categoria: item })}
-        style={{ marginBottom: 12 }}
+        style={catalogColumns > 1 ? styles.catalogCard : styles.listCard}
+        stretch={catalogColumns > 1}
         contentStyle={styles.cardInner}
       >
         <View style={styles.cardContent}>
           <View style={[styles.iconBox, { backgroundColor: colorMarca + '20' }]}>
             <Ionicons name="people" size={24} color={colorMarca} />
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>{item.nombre}</Text>
-            <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 3 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.cardTitle, { color: theme.text }]} numberOfLines={2}>
+              {item.nombre}
+            </Text>
+            <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 3 }} numberOfLines={1}>
               Plan: {item.planDefault?.nombre || 'Sin plan'}
               {item.planDefault?.monto ? ` • $${Number(item.planDefault.monto).toLocaleString('es-AR')}` : ''}
             </Text>
-            <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 3 }}>
+            <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 3 }} numberOfLines={1}>
               {item.sexo === 'M' ? 'Solo varones' : item.sexo === 'F' ? 'Solo mujeres' : 'Varones y mujeres'}
             </Text>
-            {(item.edadMinima || item.edadMaxima) ? (
-              <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 2 }}>
-                {item.edadMinima ? `Desde ${item.edadMinima} años` : ''}
-                {item.edadMinima && item.edadMaxima ? ' - ' : ''}
-                {item.edadMaxima ? `Hasta ${item.edadMaxima} años` : ''}
-              </Text>
-            ) : null}
-            {(item.edadCorteDesde || item.edadCorteHasta) ? (
-              <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
-                {[
-                  item.edadCorteDesde
-                    ? `desde ${formatDayMonthLong(item.edadCorteDesde)}`
-                    : null,
-                  item.edadCorteHasta
-                    ? `hasta ${formatDayMonthLong(item.edadCorteHasta)}`
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-              </Text>
-            ) : null}
+            {catalogColumns > 1 ? (
+              <View style={styles.metaSlot}>
+                <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 2 }} numberOfLines={1}>
+                  {edadLine || ' '}
+                </Text>
+                <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }} numberOfLines={1}>
+                  {corteLine || ' '}
+                </Text>
+              </View>
+            ) : (
+              <>
+                {edadLine ? (
+                  <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 2 }} numberOfLines={1}>
+                    {edadLine}
+                  </Text>
+                ) : null}
+                {corteLine ? (
+                  <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }} numberOfLines={1}>
+                    {corteLine}
+                  </Text>
+                ) : null}
+              </>
+            )}
           </View>
         </View>
         <Ionicons name="chevron-forward" size={20} color={theme.icon} />
       </DesignCard>
     );
-    if (!canEditStructure) return card;
-    return (
-      <HoverRevealSwipeable renderRightActions={() => renderRightActions(item)} overshootRight={false}>
+
+    const wrapped = !canEditStructure ? (
+      card
+    ) : (
+      <HoverRevealSwipeable
+        renderRightActions={() => renderRightActions(item)}
+        overshootRight={false}
+        containerStyle={catalogColumns > 1 ? styles.catalogSwipeFill : undefined}
+      >
         {card}
       </HoverRevealSwipeable>
     );
+
+    if (catalogColumns > 1) {
+      return (
+        <View style={styles.catalogCell}>
+          <View style={styles.catalogSwipeFill}>{wrapped}</View>
+        </View>
+      );
+    }
+    return wrapped;
   };
 
   return (
@@ -349,9 +385,12 @@ export default function CategoriasScreen({ navigation, route }) {
           <ClubSpinLoader size={64} style={{ marginTop: 50 }} />
         ) : (
           <FlatList
+            key={catalogColumns > 1 ? 'categorias-catalog' : 'categorias-list'}
             data={visibleCategories}
             keyExtractor={(item) => item._id}
             renderItem={renderItem}
+            numColumns={catalogColumns}
+            columnWrapperStyle={catalogColumns > 1 ? styles.catalogRow : undefined}
             contentContainerStyle={{ paddingBottom: 80 }}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
             onEndReached={onEndReached}
@@ -583,8 +622,14 @@ export default function CategoriasScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   body: { flex: 1, paddingHorizontal: 20 },
-  cardInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cardContent: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  catalogRow: { gap: 12, marginBottom: 0, alignItems: 'stretch' },
+  catalogCell: { flex: 1, minWidth: 0, alignSelf: 'stretch' },
+  catalogSwipeFill: { flex: 1 },
+  listCard: { marginBottom: 12 },
+  catalogCard: { marginBottom: 12, width: '100%', flex: 1, height: 148 },
+  cardInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flex: 1 },
+  cardContent: { flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0 },
+  metaSlot: { minHeight: 36, justifyContent: 'flex-start' },
   iconBox: { padding: 10, borderRadius: 10, marginRight: 15 },
   cardTitle: { fontSize: 16, fontWeight: '600' },
   swipeActionsContainer: { flexDirection: 'row', marginBottom: 12, overflow: 'hidden', borderRadius: 5 },

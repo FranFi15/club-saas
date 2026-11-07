@@ -1013,6 +1013,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
               : 'Escaneá el QR del socio'
         }
         subtitleLines={gate === 'event' ? 2 : 1}
+        sidebarRoot
         onBack={standalone || tabRoot ? undefined : () => navigation.goBack()}
         leadingAccessory={eventFilter}
         showNotifications={!standalone && !tabRoot}

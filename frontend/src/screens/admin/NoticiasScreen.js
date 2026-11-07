@@ -556,6 +556,7 @@ export default function NoticiasScreen({ navigation, route }) {
           kicker="Gestión"
           title="Comunicaciones"
           subtitle={embeddedStaff ? (clubData?.nombre || 'Club') : 'Comunicados del club'}
+          sidebarRoot
           onBack={() => navigation.goBack()}
         />
       )}

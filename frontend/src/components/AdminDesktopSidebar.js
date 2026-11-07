@@ -4,7 +4,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
 import { ThemeContext } from '../context/ThemeContext';
 import { getToken } from '../utils/storage';
-import { canMutateAsAdmin, isDirigenteRole, isClubOpsRole } from '../constants/appRoles';
+import {
+  canMutateAsAdmin,
+  canViewOwnerAdminUI,
+  isDirigenteRole,
+  isClubOpsRole,
+} from '../constants/appRoles';
 import { useMercadoPagoLinked } from '../hooks/useMercadoPagoLinked';
 import { tabBadgeText } from '../utils/tabBadgeLabel';
 import { useBadges } from '../context/BadgeContext';
@@ -18,13 +23,20 @@ const TAB_ROOTS = {
   Perfil: 'PerfilMain',
 };
 
+/** Destinos por defecto en escritorio (los hubs ya no se muestran). */
+const DESKTOP_SECTION_DEFAULTS = {
+  Estructura: { screen: 'Estadisticas' },
+  Gestión: { screen: 'Pendientes' },
+  Finanzas: { screen: 'FinanzasHome', params: { initialTab: 'atletas' } },
+  Perfil: { screen: 'PerfilMain' },
+};
+
 function buildSections(viewerRol, mpLinked) {
   const canWrite = canMutateAsAdmin(viewerRol);
   const isDirigente = isDirigenteRole(viewerRol);
   const showAdminCards = canWrite || isDirigente;
 
   const estructuraItems = [
-    { label: 'Resumen', screen: 'EstructuraHome', icon: 'grid-outline' },
     { label: 'Estadísticas', screen: 'Estadisticas', icon: 'stats-chart-outline' },
     { label: 'Usuarios y staff', screen: 'Usuarios', icon: 'people-outline' },
     canWrite
@@ -95,6 +107,48 @@ function buildSections(viewerRol, mpLinked) {
         },
   ].filter(Boolean);
 
+  const showOwnerFinanzas = canViewOwnerAdminUI(viewerRol);
+  const finanzasItems = [
+    {
+      label: 'Usuarios',
+      screen: 'FinanzasHome',
+      params: { initialTab: 'atletas' },
+      icon: 'people-outline',
+      badgeKey: 'finanzasAtletas',
+      badgeSource: 'hub',
+    },
+    {
+      label: 'Familias',
+      screen: 'FinanzasHome',
+      params: { initialTab: 'familias' },
+      icon: 'home-outline',
+    },
+    showOwnerFinanzas
+      ? {
+          label: 'Nómina',
+          screen: 'FinanzasHome',
+          params: { initialTab: 'nomina' },
+          icon: 'wallet-outline',
+        }
+      : null,
+    showOwnerFinanzas
+      ? {
+          label: 'Gastos',
+          screen: 'FinanzasHome',
+          params: { initialTab: 'gastos' },
+          icon: 'receipt-outline',
+        }
+      : null,
+    showOwnerFinanzas
+      ? {
+          label: 'Sponsors',
+          screen: 'FinanzasHome',
+          params: { initialTab: 'sponsors' },
+          icon: 'ribbon-outline',
+        }
+      : null,
+  ].filter(Boolean);
+
   return [
     {
       tab: 'Estructura',
@@ -110,10 +164,7 @@ function buildSections(viewerRol, mpLinked) {
       icon: 'briefcase-outline',
       iconFocused: 'briefcase',
       tabBadge: 'gestion',
-      items: [
-        { label: 'Resumen', screen: 'GestionMenu', icon: 'grid-outline' },
-        ...gestionItems,
-      ],
+      items: gestionItems,
     },
     {
       tab: 'Finanzas',
@@ -121,7 +172,7 @@ function buildSections(viewerRol, mpLinked) {
       icon: 'cash-outline',
       iconFocused: 'cash',
       tabBadge: 'finanzas',
-      items: [{ label: 'Panel', screen: 'FinanzasHome', icon: 'wallet-outline' }],
+      items: finanzasItems,
     },
     {
       tab: 'Perfil',
@@ -139,7 +190,7 @@ function buildSections(viewerRol, mpLinked) {
 
 function activeRouteNames(tabState) {
   if (!tabState?.routes?.length) {
-    return { tab: 'Estructura', screen: 'EstructuraHome' };
+    return { tab: 'Estructura', screen: 'EstructuraHome', params: {} };
   }
   const tabRoute = tabState.routes[tabState.index] || tabState.routes[0];
   const nested = tabRoute.state;
@@ -147,7 +198,17 @@ function activeRouteNames(tabState) {
   return {
     tab: tabRoute.name,
     screen: nestedRoute?.name || TAB_ROOTS[tabRoute.name] || null,
+    params: nestedRoute?.params || {},
   };
+}
+
+function isSidebarItemActive(active, item) {
+  if (active.screen !== item.screen) return false;
+  if (item.params?.initialTab) {
+    const currentTab = active.params?.initialTab || 'atletas';
+    return currentTab === item.params.initialTab;
+  }
+  return !item.params;
 }
 
 function SidebarItem({
@@ -236,7 +297,7 @@ export default function AdminDesktopSidebar({ tabState, onNavigateTab, onNavigat
       ]}
     >
       <View style={[styles.brand, { borderBottomColor: theme.border }]}>
-        <View style={[styles.logoWrap, { backgroundColor: `${colorMarca}22` }]}>
+        <View style={styles.logoWrap}>
           {logoUrl ? (
             <Image source={{ uri: logoUrl }} style={styles.logoImg} resizeMode="contain" />
           ) : (
@@ -261,24 +322,41 @@ export default function AdminDesktopSidebar({ tabState, onNavigateTab, onNavigat
         {sections.map((section) => {
           const sectionActive = active.tab === section.tab;
           const tabBadge = section.tabBadge ? tabBadgeText(tab(section.tabBadge)) : undefined;
+          const hasParamChildren = section.items.some((item) => item.params);
+          const sectionHeaderActive =
+            sectionActive &&
+            active.screen === TAB_ROOTS[section.tab] &&
+            !hasParamChildren;
           return (
             <View key={section.tab} style={styles.section}>
               <SidebarItem
                 label={section.label}
                 icon={sectionActive ? section.iconFocused : section.icon}
-                active={sectionActive && active.screen === TAB_ROOTS[section.tab]}
+                active={sectionHeaderActive}
                 badge={tabBadge}
                 colorMarca={colorMarca}
                 theme={theme}
-                onPress={() => onNavigateTab?.(section.tab, TAB_ROOTS[section.tab])}
+                onPress={() => {
+                  const first = section.items[0];
+                  const fallback = DESKTOP_SECTION_DEFAULTS[section.tab];
+                  if (first) {
+                    onNavigateScreen?.(section.tab, first.screen, first.params);
+                    return;
+                  }
+                  if (fallback) {
+                    onNavigateScreen?.(section.tab, fallback.screen, fallback.params);
+                    return;
+                  }
+                  onNavigateTab?.(section.tab, TAB_ROOTS[section.tab]);
+                }}
               />
               {section.items.map((item) => {
-                const isRoot = item.screen === TAB_ROOTS[section.tab];
-                if (isRoot) return null;
-                const itemActive = sectionActive && active.screen === item.screen;
+                const isPlainRoot = item.screen === TAB_ROOTS[section.tab] && !item.params;
+                if (isPlainRoot) return null;
+                const itemActive = sectionActive && isSidebarItemActive(active, item);
                 return (
                   <SidebarItem
-                    key={`${section.tab}-${item.screen}`}
+                    key={`${section.tab}-${item.screen}-${item.params?.initialTab || item.label}`}
                     label={item.label}
                     icon={item.icon}
                     active={itemActive}
@@ -286,7 +364,7 @@ export default function AdminDesktopSidebar({ tabState, onNavigateTab, onNavigat
                     indent
                     colorMarca={colorMarca}
                     theme={theme}
-                    onPress={() => onNavigateScreen?.(section.tab, item.screen)}
+                    onPress={() => onNavigateScreen?.(section.tab, item.screen, item.params)}
                   />
                 );
               })}
@@ -316,15 +394,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   logoWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
+    width: 72,
+    height: 72,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    flexShrink: 0,
   },
-  logoImg: { width: 40, height: 40 },
-  logoLetter: { fontSize: 22, fontWeight: '800' },
+  logoImg: { width: 72, height: 72 },
+  logoLetter: { fontSize: 34, fontWeight: '800' },
   brandText: { flex: 1, minWidth: 0 },
   brandKicker: {
     fontSize: 11,

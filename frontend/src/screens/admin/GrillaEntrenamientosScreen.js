@@ -503,6 +503,7 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
         kicker="Grilla"
         title="Entrenamientos"
         subtitle={clubData?.nombre || 'Tu club'}
+        sidebarRoot
         onBack={embeddedStaff ? undefined : () => navigation.goBack()}
       />
 

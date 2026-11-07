@@ -21,6 +21,7 @@ export default function AdminRequestDocScreen({ navigation }) {
         kicker="Documentación"
         title="Pedir documentación"
         subtitle={clubData?.nombre || 'Tu club'}
+        sidebarRoot
         onBack={() => navigation.goBack()}
       />
 

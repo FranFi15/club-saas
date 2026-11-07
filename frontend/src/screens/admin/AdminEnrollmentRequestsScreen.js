@@ -197,6 +197,7 @@ export default function AdminEnrollmentRequestsScreen({ navigation }) {
         kicker="Plantel"
         title="Solicitudes"
         subtitle="Pedidos del cuerpo técnico"
+        sidebarRoot
         onBack={() => navigation.goBack()}
       />
       {showInitialLoader ? (

@@ -161,7 +161,7 @@ const HoverRevealSwipeable = forwardRef(function HoverRevealSwipeable(
     const padded = Children.map(children, withWebActionPadding);
 
     return (
-      <View style={styles.webWrap}>
+      <View style={[styles.webWrap, containerStyle]}>
         {padded}
         <View style={styles.webActionsInCard} pointerEvents="box-none">
           {left ? <WebStackedActions actions={left} /> : null}
@@ -194,6 +194,7 @@ const HoverRevealSwipeable = forwardRef(function HoverRevealSwipeable(
 const styles = StyleSheet.create({
   webWrap: {
     position: 'relative',
+    flex: 1,
   },
   webActionsInCard: {
     position: 'absolute',

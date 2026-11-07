@@ -21,10 +21,12 @@ import { getToken } from '../../utils/storage';
 import { clubApi } from '../../utils/api';
 import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
+import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { displayDateToIsoCalendar, isoCalendarDateToDisplay, maskDateDDMMAAAA } from '../../utils/dateDisplay';
 import { persistUserTokensFromProfile } from '../../utils/profileTokens';
 import ProfilePhotoField from '../../components/ProfilePhotoField';
 import { readScreenCache, useCachedFocusLoad, writeScreenCache } from '../../hooks/useCachedFocusLoad';
+import { useIsAdminDesktopShell } from '../../hooks/useAdminDesktopLayout';
 import { ADMIN_APP_ROLES, isClubOwnerRole } from '../../constants/appRoles';
 
 const SHOW_DNI_ROLES = new Set(['atleta', 'tutor']);
@@ -74,6 +76,7 @@ function profileFormFromApi(data) {
 export default function EditProfileScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
+  const adminDesktop = useIsAdminDesktopShell();
   const memberCtx = useContext(MemberContext);
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const profileCacheKey = clubData?.urlIdentifier ? `user-profile:${clubData.urlIdentifier}` : '';
@@ -267,14 +270,24 @@ export default function EditProfileScreen({ navigation }) {
         onConfirm={alertConfig.onConfirm}
       />
 
-      <CoachScreenHeader
-        colorMarca={colorMarca}
-        theme={theme}
-        kicker="Perfil"
-        title="Editar datos"
-        subtitle={canEditClubBank ? 'Datos personales y bancarios del club' : 'Datos personales de tu cuenta'}
-        onBack={() => navigation.goBack()}
-      />
+      {adminDesktop ? (
+        <AdminScreenHeader
+          colorMarca={colorMarca}
+          theme={theme}
+          kicker="Perfil"
+          title="Editar datos"
+          subtitle={canEditClubBank ? 'Datos personales y bancarios del club' : 'Datos personales de tu cuenta'}
+        />
+      ) : (
+        <CoachScreenHeader
+          colorMarca={colorMarca}
+          theme={theme}
+          kicker="Perfil"
+          title="Editar datos"
+          subtitle={canEditClubBank ? 'Datos personales y bancarios del club' : 'Datos personales de tu cuenta'}
+          onBack={() => navigation.goBack()}
+        />
+      )}
 
       {showInitialLoader ? (
         <ClubSpinLoader size={56} style={{ marginTop: 32 }} />

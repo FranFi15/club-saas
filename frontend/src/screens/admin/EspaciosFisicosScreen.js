@@ -537,6 +537,7 @@ export default function EspaciosFisicosScreen({ navigation }) {
         kicker="Infraestructura"
         title="Espacios físicos"
         subtitle="Canchas, gimnasios y salones"
+        sidebarRoot
         onBack={() => navigation.goBack()}
       />
 

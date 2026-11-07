@@ -19,6 +19,7 @@ import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
 import { useBadges } from '../../context/BadgeContext';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
+import AdminScreenHeader from '../../components/AdminScreenHeader';
 import BadgeDot from '../../components/BadgeDot';
 import UserAvatar from '../../components/UserAvatar';
 import DesignCard from '../../components/DesignCard';
@@ -34,6 +35,7 @@ import {
   rolLabel,
 } from './chatHelpers';
 import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
+import { useIsAdminDesktopShell } from '../../hooks/useAdminDesktopLayout';
 
 function conversationSearchText(item) {
   const isGroup = isGroupChatKind(item.kind);
@@ -53,6 +55,7 @@ export default function ChatInboxScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const { refresh } = useBadges();
+  const adminDesktop = useIsAdminDesktopShell();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -224,23 +227,42 @@ export default function ChatInboxScreen({ navigation }) {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <CoachScreenHeader
-        colorMarca={colorMarca}
-        theme={theme}
-        kicker="Chat"
-        title="Mensajes"
-        subtitle="Conversaciones del club"
-        onBack={() => navigation.goBack()}
-        rightAccessory={
-          <TouchableOpacity
-            onPress={() => navigation.navigate('ChatNew')}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            accessibilityLabel="Nuevo chat"
-          >
-            <Ionicons name="create-outline" size={22} color="#fff" />
-          </TouchableOpacity>
-        }
-      />
+      {adminDesktop ? (
+        <AdminScreenHeader
+          colorMarca={colorMarca}
+          theme={theme}
+          kicker="Chat"
+          title="Mensajes"
+          subtitle="Conversaciones del club"
+          rightAccessory={
+            <TouchableOpacity
+              onPress={() => navigation.navigate('ChatNew')}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Nuevo chat"
+            >
+              <Ionicons name="create-outline" size={22} color="#fff" />
+            </TouchableOpacity>
+          }
+        />
+      ) : (
+        <CoachScreenHeader
+          colorMarca={colorMarca}
+          theme={theme}
+          kicker="Chat"
+          title="Mensajes"
+          subtitle="Conversaciones del club"
+          onBack={() => navigation.goBack()}
+          rightAccessory={
+            <TouchableOpacity
+              onPress={() => navigation.navigate('ChatNew')}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Nuevo chat"
+            >
+              <Ionicons name="create-outline" size={22} color="#fff" />
+            </TouchableOpacity>
+          }
+        />
+      )}
       {isAdmin && staffGroupLoaded ? (
         <View style={[styles.staffGroupCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={{ flex: 1, marginRight: 10 }}>
