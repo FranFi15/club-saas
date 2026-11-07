@@ -101,10 +101,6 @@ export default function FamiliasTab({
       const totalDto = sumPayments(impagas, 'descuentoAplicado');
       const totalFinal = g.totalImpago || 0;
       const hasDtoOnImpagas = totalDto > 0 || (pctActual > 0 && totalOriginal > totalFinal);
-      const cuotasMes = (g.hijos || []).map((h) => h.cuotaMes).filter(Boolean);
-      const totalMesOriginal = sumPayments(cuotasMes, 'montoOriginal');
-      const totalMesFinal = sumPayments(cuotasMes, 'montoFinal');
-      const totalMesDto = sumPayments(cuotasMes, 'descuentoAplicado');
 
       const card = (
         <DesignCard
@@ -156,40 +152,6 @@ export default function FamiliasTab({
               ) : null}
             </View>
           </View>
-
-          {cuotasMes.length > 0 ? (
-            <View style={[styles.monthTotalBox, { backgroundColor: theme.background, borderColor: theme.border }]}>
-              <Text style={{ color: theme.textMuted, fontSize: 11, fontWeight: '600' }}>
-                Total {MN[mes - 1]} {anio}
-              </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 2 }}>
-                {totalMesDto > 0 && totalMesOriginal > totalMesFinal ? (
-                  <Text
-                    style={{
-                      color: theme.textMuted,
-                      fontSize: 12,
-                      textDecorationLine: 'line-through',
-                    }}
-                  >
-                    {fmtMoney(totalMesOriginal)}
-                  </Text>
-                ) : null}
-                <Text style={{ color: theme.text, fontWeight: '800', fontSize: 15 }}>
-                  {fmtMoney(totalMesFinal)}
-                </Text>
-                {totalMesDto > 0 ? (
-                  <Text style={{ color: '#f59e0b', fontSize: 11, fontWeight: '700' }}>
-                    −{fmtMoney(totalMesDto)} dto
-                    {pctActual > 0 ? ` (${pctActual}%)` : ''}
-                  </Text>
-                ) : pctActual > 0 ? (
-                  <Text style={{ color: '#8b5cf6', fontSize: 11, fontWeight: '600' }}>
-                    {pctActual}% familiar
-                  </Text>
-                ) : null}
-              </View>
-            </View>
-          ) : null}
 
           {canPayAll ? (
             <TouchableOpacity
@@ -612,13 +574,6 @@ const styles = {
     paddingBottom: 14,
   },
   familyHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  monthTotalBox: {
-    borderWidth: 1,
-    borderRadius: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 12,
-  },
   payBtnFamilia: {
     flexDirection: 'row',
     alignItems: 'center',
