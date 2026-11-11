@@ -19,7 +19,7 @@ export default function Cta() {
               Ir a la aplicación web
             </a>
             <a
-              href="https://wa.me/5492915279308"
+              href="https://wa.me/5492235366317"
               className="btn btn--outline cta__outline"
               target="_blank"
               rel="noopener noreferrer"
