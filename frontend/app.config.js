@@ -18,11 +18,11 @@ export default ({ config }) => ({
   name: 'Hermes Club App',
   slug: 'hermes-club-app',
   scheme: 'clubapp',
-  version: config.version || '1.0.20',
+  version: config.version || '1.0.21',
   ios: {
     ...config.ios,
     bundleIdentifier: IOS_BUNDLE_ID,
-    buildNumber: config.ios?.buildNumber || '23',
+    buildNumber: config.ios?.buildNumber || '24',
     associatedDomains: [`applinks:${APP_WEB_HOST}`],
     infoPlist: {
       ...config.ios?.infoPlist,
@@ -50,7 +50,7 @@ export default ({ config }) => ({
   android: {
     ...config.android,
     package: ANDROID_PACKAGE,
-    versionCode: config.android?.versionCode || 28,
+    versionCode: config.android?.versionCode || 29,
     intentFilters: [
       {
         action: 'VIEW',

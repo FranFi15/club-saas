@@ -23,7 +23,7 @@ import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import { clubHeaders } from './athleteApi';
 import MemberChildPicker from '../../components/MemberChildPicker';
-import NewsFeedPost, { formatNewsRelative } from '../../components/NewsFeedPost';
+import NewsFeedPost, { formatNewsRelative, NewsAspectImage } from '../../components/NewsFeedPost';
 import { useBadges } from '../../context/BadgeContext';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
@@ -192,7 +192,7 @@ export default function AthleteNewsScreen({ navigation }) {
                   activeOpacity={0.9}
                   onPress={() => openFullscreen(selected.imagen.url, selected.titulo)}
                 >
-                  <Image source={{ uri: selected.imagen.url }} style={styles.modalImage} resizeMode="cover" />
+                  <NewsAspectImage uri={selected.imagen.url} style={styles.modalImage} />
                   <Text style={[styles.tapHint, { color: theme.textMuted }]}>Tocá la imagen para verla en pantalla completa</Text>
                 </TouchableOpacity>
               ) : null}
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
   },
   modalMeta: { fontSize: 13, marginBottom: 12 },
   modalBody: { maxHeight: 400 },
-  modalImage: { width: '100%', height: 260, borderRadius: 12, marginBottom: 8 },
+  modalImage: { width: '100%', borderRadius: 12, marginBottom: 8, maxHeight: 360 },
   tapHint: { fontSize: 12, marginBottom: 12, textAlign: 'center' },
   modalContent: { fontSize: 16, lineHeight: 24, paddingBottom: 24 },
   fullscreenBackdrop: {

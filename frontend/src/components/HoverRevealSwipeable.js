@@ -171,6 +171,13 @@ const HoverRevealSwipeable = forwardRef(function HoverRevealSwipeable(
     );
   }
 
+  // Android: require clearer horizontal intent before swipe activates so
+  // vertical FlatList scrolls are not stolen (ReanimatedSwipeable + RN scroll).
+  const androidDrag =
+    Platform.OS === 'android'
+      ? { dragOffsetFromLeftEdge: 24, dragOffsetFromRightEdge: 24 }
+      : null;
+
   return (
     <Swipeable
       ref={swipeRef}
@@ -184,6 +191,7 @@ const HoverRevealSwipeable = forwardRef(function HoverRevealSwipeable(
         { backgroundColor: theme?.background || '#f3f4f6' },
         childrenContainerStyle,
       ]}
+      {...androidDrag}
       {...swipeableProps}
     >
       {children}

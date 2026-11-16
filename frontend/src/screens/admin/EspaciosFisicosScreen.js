@@ -1,7 +1,7 @@
 import React, { useState, useContext, useCallback, useMemo, useEffect } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, TouchableOpacity, 
-  ActivityIndicator, StatusBar, Modal, TextInput, RefreshControl, ScrollView,
+  ActivityIndicator, StatusBar, Modal, TextInput, ScrollView,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
@@ -9,6 +9,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import HoverRevealSwipeable from '../../components/HoverRevealSwipeable';
+import {
+  renderSwipeableListScroll,
+  SwipeableListRefreshControl,
+} from '../../components/swipeableListScroll';
 
 import { clubApi } from '../../utils/api';
 import { ClubContext } from '../../context/ClubContext';
@@ -606,7 +610,10 @@ export default function EspaciosFisicosScreen({ navigation }) {
             numColumns={catalogColumns}
             columnWrapperStyle={catalogColumns > 1 ? styles.catalogRow : undefined}
             contentContainerStyle={{ paddingBottom: 80, paddingTop: 8 }}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
+            renderScrollComponent={renderSwipeableListScroll}
+            refreshControl={
+              <SwipeableListRefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />
+            }
             onEndReached={onEndReached}
             onEndReachedThreshold={onEndReachedThreshold}
             ListFooterComponent={ListFooterComponent}

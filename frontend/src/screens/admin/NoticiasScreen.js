@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, Image, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import HoverRevealSwipeable from '../../components/HoverRevealSwipeable';
+import {
+  renderSwipeableListScroll,
+  SwipeableListRefreshControl,
+} from '../../components/swipeableListScroll';
 import * as ImagePicker from 'expo-image-picker';
 import { clubApi } from '../../utils/api';
 import { STAFF_NEWS_AUTHOR_ROLES, CLUB_NEWS_AUTHOR_ROLES } from '../../constants/appRoles';
@@ -21,7 +25,7 @@ import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusL
 import { useClientInfiniteScroll } from '../../hooks/useClientInfiniteScroll';
 import { useBadgesOptional } from '../../context/BadgeContext';
 import { useFocusEffect } from '@react-navigation/native';
-import NewsFeedPost from '../../components/NewsFeedPost';
+import NewsFeedPost, { NewsAspectImage } from '../../components/NewsFeedPost';
 import FormSheet from '../../components/FormSheet';
 
 const ADMIN_ALCANCE_OPTIONS = [
@@ -291,8 +295,7 @@ export default function NoticiasScreen({ navigation, route }) {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [16, 9],
+      allowsEditing: false,
       quality: 0.8,
       ...iosCompatiblePhotoOptions(),
     });
@@ -565,7 +568,8 @@ export default function NoticiasScreen({ navigation, route }) {
         {showInitialLoader ? <ClubSpinLoader size={64} style={{marginTop:50}} /> : (
           <FlatList data={visibleNews} keyExtractor={i=>i._id} renderItem={renderItem}
             contentContainerStyle={{paddingBottom:80,flexGrow:1}}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cc} />}
+            renderScrollComponent={renderSwipeableListScroll}
+            refreshControl={<SwipeableListRefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cc} />}
             onEndReached={onEndReached}
             onEndReachedThreshold={onEndReachedThreshold}
             ListFooterComponent={ListFooterComponent}
@@ -619,7 +623,7 @@ export default function NoticiasScreen({ navigation, route }) {
               <Text style={[styles.label,{color:theme.textMuted}]}>Imagen</Text>
               {formData.imagen?.url ? (
                 <View style={{marginBottom:15}}>
-                  <Image source={{uri:formData.imagen.url}} style={styles.previewImage} />
+                  <NewsAspectImage uri={formData.imagen.url} style={styles.previewImage} />
                   <TouchableOpacity style={styles.removeImageBtn} onPress={()=>setFormData({...formData,imagen:null})}>
                     <Ionicons name="close-circle" size={28} color="#ef4444" />
                   </TouchableOpacity>
@@ -910,7 +914,7 @@ const styles = StyleSheet.create({
   textArea:{height:100,paddingTop:12},
   chip:{flexDirection:'row',alignItems:'center',paddingHorizontal:12,paddingVertical:8,borderRadius:5,borderWidth:1},
   uploadBtn:{borderWidth:2,borderStyle:'dashed',borderRadius:5,height:120,justifyContent:'center',alignItems:'center',marginBottom:15},
-  previewImage:{width:'100%',height:180,borderRadius:5},
+  previewImage:{width:'100%',borderRadius:5,maxHeight:360},
   removeImageBtn:{position:'absolute',top:8,right:8},
   saveBtn:{height:50,borderRadius:5,justifyContent:'center',alignItems:'center',flexDirection:'row'},
   saveBtnText:{color:'#fff',fontSize:16,fontWeight:'bold'},

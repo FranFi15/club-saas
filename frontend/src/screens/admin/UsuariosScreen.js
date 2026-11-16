@@ -9,12 +9,15 @@ import {
   StatusBar,
   TextInput,
   Alert,
-  RefreshControl,
 } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import HoverRevealSwipeable from '../../components/HoverRevealSwipeable';
+import {
+  renderSwipeableListScroll,
+  SwipeableListRefreshControl,
+} from '../../components/swipeableListScroll';
 import { clubApi } from '../../utils/api';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext'; 
@@ -747,7 +750,10 @@ export default function UsuariosScreen({ navigation }) {
             numColumns={catalogColumns}
             columnWrapperStyle={catalogColumns > 1 ? styles.catalogRow : undefined}
             contentContainerStyle={{ paddingBottom: 80 }}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
+            renderScrollComponent={renderSwipeableListScroll}
+            refreshControl={
+              <SwipeableListRefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />
+            }
             onEndReached={handleLoadMore}
             onEndReachedThreshold={0.5}
             ListFooterComponent={renderFooter}

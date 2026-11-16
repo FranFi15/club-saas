@@ -6,13 +6,14 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
-  RefreshControl,
   Switch,
   Platform,
 } from 'react-native';
+import { ScrollView as GHScrollView } from 'react-native-gesture-handler';
 import ClubSpinLoader from '../../../components/ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
 import HoverRevealSwipeable from '../../../components/HoverRevealSwipeable';
+import { SwipeableListRefreshControl } from '../../../components/swipeableListScroll';
 import { finanzasStyles as s } from './finanzasStyles';
 import { fmtMoney, contrastOutlineBtn } from './finanzasConstants';
 import CuotaSocialSection from './CuotaSocialSection';
@@ -291,13 +292,13 @@ export default function PlanesTab({
 
   return (
     <View style={s.tabPanel}>
-      <ScrollView
+      <GHScrollView
         style={s.tabScroll}
         contentContainerStyle={{ paddingBottom: 40, paddingTop: 8 }}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           onRefresh ? (
-            <RefreshControl
+            <SwipeableListRefreshControl
               refreshing={!!refreshing}
               onRefresh={() => {
                 loadAutoGen();
@@ -488,7 +489,7 @@ export default function PlanesTab({
             );
           })
         )}
-      </ScrollView>
+      </GHScrollView>
 
       <Modal
         visible={!!assignTarget}

@@ -12,13 +12,16 @@ import {
   Modal,
   TextInput,
   ScrollView,
-  RefreshControl,
   Switch,
 } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import HoverRevealSwipeable from '../../components/HoverRevealSwipeable';
+import {
+  renderSwipeableListScroll,
+  SwipeableListRefreshControl,
+} from '../../components/swipeableListScroll';
 
 import { clubApi } from '../../utils/api';
 import { ClubContext } from '../../context/ClubContext';
@@ -1041,9 +1044,10 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
              keyExtractor={(item) => item._id}
              renderItem={renderListItem}
              contentContainerStyle={{ paddingBottom: 80, paddingTop: 10 }}
+             renderScrollComponent={renderSwipeableListScroll}
              refreshControl={
                activeTab === 'atletas' ? (
-                 <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />
+                 <SwipeableListRefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />
                ) : undefined
              }
              onEndReached={onEndReached}

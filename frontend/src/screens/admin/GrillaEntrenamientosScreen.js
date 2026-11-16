@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, 
-  ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, RefreshControl,
+  ActivityIndicator, StatusBar, Modal, TextInput, ScrollView,
   KeyboardAvoidingView, Platform, Switch,
 } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
@@ -10,6 +10,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import HoverRevealSwipeable from '../../components/HoverRevealSwipeable';
+import {
+  renderSwipeableListScroll,
+  SwipeableListRefreshControl,
+} from '../../components/swipeableListScroll';
 
 import { clubApi } from '../../utils/api';
 import { ClubContext } from '../../context/ClubContext';
@@ -613,7 +617,10 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
              keyExtractor={(item) => item._id}
              renderItem={renderListItem}
              contentContainerStyle={{ paddingBottom: 80, paddingTop: 10 }}
-             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />}
+             renderScrollComponent={renderSwipeableListScroll}
+             refreshControl={
+               <SwipeableListRefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colorMarca} />
+             }
              ListEmptyComponent={
                <View style={styles.emptyState}>
                  <Ionicons name="calendar-outline" size={60} color={theme.icon} />

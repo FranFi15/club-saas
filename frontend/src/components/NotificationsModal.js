@@ -6,10 +6,13 @@ import {
   Modal,
   TouchableOpacity,
   FlatList,
-  RefreshControl,
 } from 'react-native';
 import ClubSpinLoader from './ClubSpinLoader';
 import HoverRevealSwipeable from './HoverRevealSwipeable';
+import {
+  renderSwipeableListScroll,
+  SwipeableListRefreshControl,
+} from './swipeableListScroll';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
@@ -456,8 +459,9 @@ export default function NotificationsModal({ visible, onClose }) {
               style={[styles.listBody, { backgroundColor: listBg }]}
               data={visibleItems}
               keyExtractor={(item) => String(item.id)}
+              renderScrollComponent={renderSwipeableListScroll}
               refreshControl={
-                <RefreshControl
+                <SwipeableListRefreshControl
                   refreshing={refreshing}
                   onRefresh={() => fetchNotifications({ background: true, pull: true })}
                   tintColor={colorMarca}
