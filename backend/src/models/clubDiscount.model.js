@@ -17,6 +17,9 @@ const clubDiscountSchema = new mongoose.Schema(
         valor: { type: Number, default: 0, min: 0 },
         maxEntradasConDescuento: { type: Number, default: 1, min: 1 },
         activo: { type: Boolean, default: true },
+        /** When on, block ticket discount if overdue count ≥ maxVencidasParaDescuento. */
+        bloquearDescuentoPorVencidas: { type: Boolean, default: true },
+        maxVencidasParaDescuento: { type: Number, default: 1, min: 1, max: 36 },
     },
     { timestamps: true },
 );

@@ -367,7 +367,7 @@ export async function generateMonthlyPaymentsForTenant(
     anio,
     timezone = DEFAULT_CLUB_TIMEZONE,
 ) {
-    const { Enrollment } = models;
+    const { Enrollment, User } = models;
 
     await reconcileDisciplineBillingFlags(models);
 
@@ -387,10 +387,20 @@ export async function generateMonthlyPaymentsForTenant(
     const todasActivas = await Enrollment.countDocuments({ estado: 'activo' });
     const inscripcionesSinPlan = Math.max(0, todasActivas - inscripcionesActivas.length);
 
+    const atletaIds = [...new Set(inscripcionesActivas.map((i) => String(i.atleta)).filter(Boolean))];
+    const activos = atletaIds.length
+        ? await User.find({ _id: { $in: atletaIds }, estado: { $ne: 'inactivo' } }).select('_id').lean()
+        : [];
+    const activosSet = new Set(activos.map((u) => String(u._id)));
+
     let cuotasCreadas = 0;
     let cuotasOmitidas = 0;
 
     for (const insc of inscripcionesActivas) {
+        if (!activosSet.has(String(insc.atleta))) {
+            cuotasOmitidas++;
+            continue;
+        }
         const result = await ensurePaymentForEnrollment(models, insc, mes, anio, timezone);
         if (result.created) cuotasCreadas++;
         else cuotasOmitidas++;

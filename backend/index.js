@@ -41,6 +41,7 @@ import chatRoutes from './src/routes/chat.routes.js';
 import inboxRoutes from './src/routes/inbox.routes.js';
 import statsRoutes from './src/routes/stats.routes.js';
 import eventRoutes from './src/routes/event.routes.js';
+import loyaltyRoutes from './src/routes/loyalty.routes.js';
 
 import { startSessionGenerationCron } from './src/cron/sessionGeneration.cron.js';
 import { startPaymentGenerationCron } from './src/cron/paymentGeneration.cron.js';
@@ -48,6 +49,7 @@ import { startOverduePaymentsCron } from './src/cron/overduePayments.cron.js';
 import { startPaymentRemindersCron } from './src/cron/paymentReminders.cron.js';
 import { startTrialExpiryCron } from './src/cron/trialExpiry.cron.js';
 import { startEventHoldCron } from './src/cron/eventHolds.cron.js';
+import { startLoyaltyExpiryCron } from './src/cron/loyaltyExpiry.cron.js';
 import {
     backfillAllClubsMpSellers,
     runMpSellerBackfillOnStart,
@@ -217,6 +219,7 @@ app.use('/api/chat', resolveTenant, chatRoutes);
 app.use('/api/inbox', resolveTenant, inboxRoutes);
 app.use('/api/stats', resolveTenant, statsRoutes);
 app.use('/api/events', resolveTenant, eventRoutes);
+app.use('/api/loyalty', resolveTenant, loyaltyRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
@@ -259,6 +262,7 @@ const server = app.listen(PORT, HOST, () => {
         startPaymentRemindersCron();
         startTrialExpiryCron();
         startEventHoldCron();
+        startLoyaltyExpiryCron();
         runMpSellerBackfillOnStart();
     } catch (err) {
         captureException(err, { area: 'cron_start' });

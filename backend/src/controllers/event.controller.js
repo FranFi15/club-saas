@@ -604,6 +604,7 @@ export const adminCashSale = asyncHandler(async (req, res) => {
         estado: quote.montoTotal > 0 ? 'pagada' : 'gratis',
         medioPago: quote.montoTotal > 0 ? 'efectivo' : '',
         registradoPor: req.user._id,
+        origenPago: 'admin',
     });
 
     try {

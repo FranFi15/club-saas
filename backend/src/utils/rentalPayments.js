@@ -130,6 +130,7 @@ export function applyMercadoPagoToRental(rental, { paymentId, transactionAmount,
         monto: amount,
         concepto: historialConcepto,
         fecha: new Date(),
+        origenPago: 'mercado_pago',
         nota: `Mercado Pago MP:${pid}`,
         comprobante: pid,
     });

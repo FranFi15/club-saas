@@ -12,6 +12,8 @@ import {
 } from '../services/generateSocialFees.service.js';
 import { feeAutoRoles } from '../models/socialFee.model.js';
 import { markOverduePayments, clampRecargoPct } from '../services/overduePayments.service.js';
+import { maybeCreditOnTimeCuota } from '../services/loyalty.service.js';
+import { evaluateDebtBajaForPayments } from '../services/debtBaja.service.js';
 import {
     applyFamilyDiscountAndOptionalPayments,
     countFamilyAthletesForDiscount,
@@ -104,7 +106,16 @@ async function applyPaymentsAudienceFilter(models, filter, { categoria, discipli
 // @desc    Crear un nuevo Plan/Cuota
 // @route   POST /api/financial/plans
 const createPlan = asyncHandler(async (req, res) => {
-    const { nombre, monto, descripcion, diaVencimiento, porcentajeRecargo, esBeca } = req.body;
+    const {
+        nombre,
+        monto,
+        descripcion,
+        diaVencimiento,
+        porcentajeRecargo,
+        esBeca,
+        bajaPorVencidasActiva,
+        bajaTrasVencidas,
+    } = req.body;
     const { Plan } = req.models;
 
     const asBeca = esBeca === true || esBeca === 'true';
@@ -115,6 +126,8 @@ const createPlan = asyncHandler(async (req, res) => {
         diaVencimiento: diaVencimiento || 10,
         porcentajeRecargo: clampRecargoPct(porcentajeRecargo),
         esBeca: asBeca,
+        bajaPorVencidasActiva: Boolean(bajaPorVencidasActiva),
+        bajaTrasVencidas: Math.min(36, Math.max(1, Number(bajaTrasVencidas) || 3)),
     });
     res.status(201).json(plan);
 });
@@ -310,8 +323,18 @@ const getSocialFee = asyncHandler(async (req, res) => {
 });
 
 function applySocialFeeBody(config, body, res) {
-    const { nombre, descripcion, monto, diaVencimiento, porcentajeRecargo, activo, rolesAutoAsignacion, rolesAplicables } =
-        body || {};
+    const {
+        nombre,
+        descripcion,
+        monto,
+        diaVencimiento,
+        porcentajeRecargo,
+        activo,
+        rolesAutoAsignacion,
+        rolesAplicables,
+        bajaPorVencidasActiva,
+        bajaTrasVencidas,
+    } = body || {};
 
     if (nombre !== undefined) config.nombre = String(nombre).trim() || 'Cuota social';
     if (descripcion !== undefined) config.descripcion = String(descripcion).trim();
@@ -351,6 +374,13 @@ function applySocialFeeBody(config, body, res) {
             throw new Error('Definí un monto mayor a 0 antes de activar la cuota social.');
         }
         config.activo = on;
+    }
+
+    if (bajaPorVencidasActiva !== undefined) {
+        config.bajaPorVencidasActiva = Boolean(bajaPorVencidasActiva);
+    }
+    if (bajaTrasVencidas !== undefined) {
+        config.bajaTrasVencidas = Math.min(36, Math.max(1, Number(bajaTrasVencidas) || 3));
     }
 }
 
@@ -546,6 +576,7 @@ const getAllPayments = asyncHandler(async (req, res) => {
         .populate('plan', 'nombre monto diaVencimiento porcentajeRecargo esBeca')
         .populate('cuotaSocial', 'nombre monto diaVencimiento porcentajeRecargo')
         .populate({ path: 'categoria', select: 'nombre disciplina', populate: { path: 'disciplina', select: 'nombre' } })
+        .populate('registradoPor', 'nombre apellido')
         .lean();
 
     const byAtleta = new Map();
@@ -680,11 +711,23 @@ const getPaymentStats = asyncHandler(async (req, res) => {
 // @desc    Marcar cuotas vencidas manualmente (el cron diario hace esto automáticamente)
 // @route   POST /api/financial/payments/check-overdue
 const checkOverdue = asyncHandler(async (req, res) => {
+    const { Payment } = req.models;
+    const beforeIds = new Set(
+        (await Payment.find({ estado: 'vencido' }).select('_id').lean()).map((p) => String(p._id)),
+    );
     const modified = await markOverduePayments(req.models);
-
+    const newlyVencidas = await Payment.find({ estado: 'vencido' })
+        .select('atleta plan cuotaSocial tipo')
+        .lean();
+    const justMarked = newlyVencidas.filter((p) => !beforeIds.has(String(p._id)));
+    const bajaResults = await evaluateDebtBajaForPayments(
+        req.models,
+        justMarked.length ? justMarked : newlyVencidas,
+    );
     res.json({
         message: `Se marcaron ${modified} cuota(s) como vencidas.`,
         vencidas: modified,
+        bajas: bajaResults.filter((r) => r.bajado).length,
     });
 });
 
@@ -1380,13 +1423,20 @@ const approveTransferReviewBatch = asyncHandler(async (req, res) => {
     const now = new Date();
     const updated = [];
     for (const payment of payments) {
+        const prevEstado = payment.estado;
         payment.estado = 'pagado';
         payment.metodoPago = 'transferencia';
         payment.fechaPago = now;
         payment.motivoRechazo = '';
+        payment.registradoPor = req.user._id;
+        payment.origenPago = 'admin';
         await payment.save();
         await notifyPaymentRegistered(req, payment);
-        queuePaymentReceipt(req.models, payment._id, req.clubIdentifier);
+        voidPaymentReceipt(req.models, payment._id, req.clubIdentifier);
+        await maybeCreditOnTimeCuota(req.models, payment, {
+            prevEstado,
+            createdBy: req.user._id,
+        });
         updated.push(payment);
     }
 
@@ -1528,10 +1578,13 @@ const registerManualPayment = asyncHandler(async (req, res) => {
         throw new Error('Esta cuota ya se encuentra pagada');
     }
 
+    const prevEstado = payment.estado;
     payment.estado = 'pagado';
     payment.metodoPago = metodoPago || 'efectivo';
     payment.fechaPago = Date.now();
     payment.motivoRechazo = '';
+    payment.registradoPor = req.user._id;
+    payment.origenPago = 'admin';
     if (comprobante) payment.comprobante = comprobante;
     if (notasAdmin) payment.notasAdmin = notasAdmin;
 
@@ -1540,7 +1593,11 @@ const registerManualPayment = asyncHandler(async (req, res) => {
     await updatedPayment.populate('plan', 'nombre');
 
     await notifyPaymentRegistered(req, updatedPayment);
-    queuePaymentReceipt(req.models, updatedPayment._id, req.clubIdentifier);
+    voidPaymentReceipt(req.models, updatedPayment._id, req.clubIdentifier);
+    await maybeCreditOnTimeCuota(req.models, updatedPayment, {
+        prevEstado,
+        createdBy: req.user._id,
+    });
 
     res.json(updatedPayment);
 });
@@ -1575,13 +1632,20 @@ const registerBulkManualPayment = asyncHandler(async (req, res) => {
     let total = 0;
 
     for (const payment of payments) {
+        const prevEstado = payment.estado;
         payment.estado = 'pagado';
         payment.metodoPago = metodo;
         payment.fechaPago = now;
+        payment.registradoPor = req.user._id;
+        payment.origenPago = 'admin';
         if (notasAdmin) payment.notasAdmin = notasAdmin;
         await payment.save();
         total += payment.montoFinal || 0;
-        queuePaymentReceipt(req.models, payment._id, req.clubIdentifier);
+        voidPaymentReceipt(req.models, payment._id, req.clubIdentifier);
+        await maybeCreditOnTimeCuota(req.models, payment, {
+            prevEstado,
+            createdBy: req.user._id,
+        });
 
         try {
             const atleta = await User.findById(payment.atleta).select('tutorPrincipal tutores rol roles');
@@ -1725,7 +1789,8 @@ const getAtletaPayments = asyncHandler(async (req, res) => {
         .limit(limit)
         .populate('plan', 'nombre monto')
         .populate('cuotaSocial', 'nombre monto')
-        .populate({ path: 'categoria', select: 'nombre disciplina', populate: { path: 'disciplina', select: 'nombre' } });
+        .populate({ path: 'categoria', select: 'nombre disciplina', populate: { path: 'disciplina', select: 'nombre' } })
+        .populate('registradoPor', 'nombre apellido');
 
     const allForStats = await Payment.find({ atleta: req.params.atletaId }).select('estado montoFinal').lean();
     const totalPagado = allForStats.filter((p) => p.estado === 'pagado').reduce((s, p) => s + p.montoFinal, 0);
@@ -1877,6 +1942,12 @@ const updatePlan = asyncHandler(async (req, res) => {
     if (body.esBeca !== undefined) {
         body.esBeca = body.esBeca === true || body.esBeca === 'true';
         if (body.esBeca) body.monto = 0;
+    }
+    if (body.bajaPorVencidasActiva !== undefined) {
+        body.bajaPorVencidasActiva = body.bajaPorVencidasActiva === true || body.bajaPorVencidasActiva === 'true';
+    }
+    if (body.bajaTrasVencidas !== undefined) {
+        body.bajaTrasVencidas = Math.min(36, Math.max(1, Number(body.bajaTrasVencidas) || 3));
     }
     const plan = await Plan.findByIdAndUpdate(req.params.id, body, { returnDocument: 'after' });
     if (!plan) { res.status(404); throw new Error('Plan no encontrado'); }

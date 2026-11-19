@@ -48,7 +48,8 @@ const userSchema = new mongoose.Schema({
             'kinesiologo', // deprecated v2 — datos legacy
             'atleta', 
             'tutor',
-            'socio'
+            'socio',
+            'partner',
         ],
         required: true 
     },
@@ -73,11 +74,20 @@ const userSchema = new mongoose.Schema({
                     'atleta',
                     'tutor',
                     'socio',
+                    'partner',
                 ],
             },
         ],
         default: undefined,
     },
+
+    /** Partner operators: linked sponsor for redeem/sales. */
+    partnerSponsor: { type: mongoose.Schema.Types.ObjectId, ref: 'Sponsor', default: null },
+
+    /** Denormalized loyalty balance (only via loyalty.service). */
+    puntosLealtad: { type: Number, default: 0, min: 0 },
+    /** Admin allowlist: can redeem loyalty rewards. */
+    puedeCanjearPuntos: { type: Boolean, default: false },
     
     // Estado Administrativo/Financiero
     estado: { 

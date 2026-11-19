@@ -46,6 +46,13 @@ import {
 import { getClubStadiumModel } from '../models/clubStadium.model.js';
 import { getClubDiscountModel } from '../models/clubDiscount.model.js';
 import { getMatchSheetModel } from '../models/matchSheet.model.js';
+import {
+    getLoyaltySettingsModel,
+    getLoyaltyLedgerEntryModel,
+    getLoyaltyRewardModel,
+    getLoyaltyRedemptionModel,
+    getLoyaltyPartnerSaleModel,
+} from '../models/loyalty.model.js';
 
 export const getTenantModels = (tenantDB) => {
     // Al llamar a todas estas funciones acá, Mongoose registra TODOS los esquemas 
@@ -98,5 +105,10 @@ export const getTenantModels = (tenantDB) => {
         Stadium: getClubStadiumModel(tenantDB),
         Discount: getClubDiscountModel(tenantDB),
         MatchSheet: getMatchSheetModel(tenantDB),
+        LoyaltySettings: getLoyaltySettingsModel(tenantDB),
+        LoyaltyLedgerEntry: getLoyaltyLedgerEntryModel(tenantDB),
+        LoyaltyReward: getLoyaltyRewardModel(tenantDB),
+        LoyaltyRedemption: getLoyaltyRedemptionModel(tenantDB),
+        LoyaltyPartnerSale: getLoyaltyPartnerSaleModel(tenantDB),
     };
 };

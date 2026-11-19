@@ -62,17 +62,39 @@ function applySponsorBody(doc, body) {
     if (body.beneficios !== undefined) doc.beneficios = String(body.beneficios || '').trim();
     if (body.rolesAplicables !== undefined) doc.rolesAplicables = sanitizeRoles(body.rolesAplicables);
     if (body.cuotasSociales !== undefined) doc.cuotasSociales = sanitizeFeeIds(body.cuotasSociales);
+    if (body.usuariosPartner !== undefined) doc.usuariosPartner = sanitizeFeeIds(body.usuariosPartner);
     if (body.activo !== undefined) {
         doc.activo = body.activo === true || body.activo === 'true';
+    }
+}
+
+/** Keep User.partnerSponsor in sync with Sponsor.usuariosPartner. */
+async function syncPartnerUsers(models, sponsor) {
+    const { User } = models;
+    const ids = (sponsor.usuariosPartner || []).map((id) => String(id));
+    await User.updateMany(
+        { partnerSponsor: sponsor._id, _id: { $nin: ids } },
+        { $set: { partnerSponsor: null } },
+    );
+    if (ids.length) {
+        await User.updateMany(
+            { _id: { $in: ids } },
+            { $set: { partnerSponsor: sponsor._id } },
+        );
     }
 }
 
 function sponsorMatchesMember(sponsor, user) {
     const roles = Array.isArray(sponsor.rolesAplicables) ? sponsor.rolesAplicables : [];
     const fees = Array.isArray(sponsor.cuotasSociales) ? sponsor.cuotasSociales : [];
-    if (!roles.length && !fees.length) return false;
+    // Empty roles + empty fees → visible to everyone (all-staff benefits).
+    if (!roles.length && !fees.length) return true;
 
-    if (roles.includes(user.rol)) return true;
+    const userRoles = [
+        user.rol,
+        ...(Array.isArray(user.roles) ? user.roles : []),
+    ].filter(Boolean);
+    if (roles.some((r) => userRoles.includes(r))) return true;
 
     const assigned = user.cuotaSocialAsignada ? String(user.cuotaSocialAsignada) : '';
     if (assigned && fees.some((id) => String(id) === assigned)) return true;
@@ -240,6 +262,7 @@ const createSponsor = asyncHandler(async (req, res) => {
         throw new Error('Seleccioná al menos un tipo de usuario o una cuota social.');
     }
     await doc.save();
+    await syncPartnerUsers(req.models, doc);
 
     // Aportes solo desde el mes de alta (el que se está viendo al crear, o el actual).
     const now = new Date();
@@ -288,6 +311,7 @@ const updateSponsor = asyncHandler(async (req, res) => {
         throw new Error('Seleccioná al menos un tipo de usuario o una cuota social.');
     }
     await doc.save();
+    await syncPartnerUsers(req.models, doc);
 
     // Si cambió el monto, actualizá pagos pendientes del mes en curso.
     if (doc.montoMensual !== prevMonto) {
@@ -409,9 +433,10 @@ const getMySponsorBenefits = asyncHandler(async (req, res) => {
     const { Sponsor } = req.models;
     const user = req.user;
 
-    if (!SPONSOR_MEMBER_ROLES.includes(user.rol)) {
+    // Beneficios visibles para cualquier usuario activo (staff incluido).
+    if (user.estado === 'inactivo') {
         res.status(403);
-        throw new Error('Solo atletas, socios o tutores pueden ver beneficios.');
+        throw new Error('Usuario inactivo.');
     }
 
     const moroso = await memberIsMoroso(req.models, user);

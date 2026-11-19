@@ -32,7 +32,7 @@ function round2(n) {
  * @route GET /api/financial/caja?mes=&anio=
  */
 const getCaja = asyncHandler(async (req, res) => {
-    const { Payment, SponsorPayment, Rental, ClubEvent, EventTicketOrder, PayrollEntry, Bill } =
+    const { Payment, SponsorPayment, Rental, ClubEvent, EventTicketOrder, PayrollEntry, Bill, Category } =
         req.models;
 
     const { mes, anio } = parsePeriod(req.query.mes, req.query.anio);
@@ -54,7 +54,7 @@ const getCaja = asyncHandler(async (req, res) => {
             { $match: paymentMatch },
             {
                 $group: {
-                    _id: null,
+                    _id: { tipo: { $ifNull: ['$tipo', 'entrenamiento'] }, categoria: '$categoria' },
                     facturado: { $sum: { $ifNull: ['$montoFinal', 0] } },
                     cobrado: {
                         $sum: {
@@ -142,8 +142,36 @@ const getCaja = asyncHandler(async (req, res) => {
         eventosOrdenes = eventosAgg?.ordenes || 0;
     }
 
-    const cuotasFacturado = round2(cuotasRows[0]?.facturado);
-    const cuotasCobrado = round2(cuotasRows[0]?.cobrado);
+    const catIds = [...new Set(cuotasRows.map((r) => r._id?.categoria).filter(Boolean).map(String))];
+    const catDocs = catIds.length
+        ? await req.models.Category.find({ _id: { $in: catIds } }).select('nombre').lean()
+        : [];
+    const catName = new Map(catDocs.map((c) => [String(c._id), c.nombre]));
+
+    const byTipo = { entrenamiento: { facturado: 0, cobrado: 0 }, social: { facturado: 0, cobrado: 0 } };
+    const porCategoria = [];
+    for (const row of cuotasRows) {
+        const tipo = row._id?.tipo === 'social' ? 'social' : 'entrenamiento';
+        byTipo[tipo].facturado += Number(row.facturado) || 0;
+        byTipo[tipo].cobrado += Number(row.cobrado) || 0;
+        if (tipo === 'entrenamiento') {
+            const cid = row._id?.categoria ? String(row._id.categoria) : null;
+            porCategoria.push({
+                categoriaId: cid,
+                categoriaNombre: cid ? catName.get(cid) || 'Sin nombre' : 'Sin categoría',
+                facturado: round2(row.facturado),
+                cobrado: round2(row.cobrado),
+                pendiente: round2(Math.max(0, (Number(row.facturado) || 0) - (Number(row.cobrado) || 0))),
+            });
+        }
+    }
+    for (const k of Object.keys(byTipo)) {
+        byTipo[k].facturado = round2(byTipo[k].facturado);
+        byTipo[k].cobrado = round2(byTipo[k].cobrado);
+        byTipo[k].pendiente = round2(Math.max(0, byTipo[k].facturado - byTipo[k].cobrado));
+    }
+    const cuotasFacturado = round2(byTipo.entrenamiento.facturado + byTipo.social.facturado);
+    const cuotasCobrado = round2(byTipo.entrenamiento.cobrado + byTipo.social.cobrado);
     const cuotasPendiente = round2(Math.max(0, cuotasFacturado - cuotasCobrado));
 
     const sponsorsEsperado = round2(sponsorsRows[0]?.esperado);
@@ -176,6 +204,8 @@ const getCaja = asyncHandler(async (req, res) => {
                 facturado: cuotasFacturado,
                 cobrado: cuotasCobrado,
                 pendiente: cuotasPendiente,
+                porTipo: byTipo,
+                porCategoria,
             },
             sponsors: {
                 esperado: sponsorsEsperado,

@@ -13,7 +13,10 @@ const planSchema = new mongoose.Schema({
      * Asignar este plan a la inscripción que factura la disciplina.
      */
     esBeca: { type: Boolean, default: false },
-    activo: { type: Boolean, default: true }
+    activo: { type: Boolean, default: true },
+    /** Auto-baja when user has ≥ N vencidas of this plan. */
+    bajaPorVencidasActiva: { type: Boolean, default: false },
+    bajaTrasVencidas: { type: Number, default: 3, min: 1, max: 36 },
 }, { timestamps: true });
 
 // 2. DESPUÉS DECLARAMOS EL PAGO
@@ -57,6 +60,13 @@ const paymentSchema = new mongoose.Schema({
     enviadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     /** Agrupa cuotas pagadas con un mismo comprobante de transferencia. */
     transferGrupoId: { type: String },
+    /** Who marked the payment as paid (null if mercado_pago / sistema). */
+    registradoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    origenPago: {
+        type: String,
+        enum: ['admin', 'sistema', 'mercado_pago', null],
+        default: null,
+    },
 }, { timestamps: true });
 
 // Índice para optimizar consultas de vencimiento

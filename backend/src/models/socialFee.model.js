@@ -27,6 +27,9 @@ const socialFeeSchema = new mongoose.Schema(
         rolesAutoAsignacion: { type: [String], default: [] },
         /** @deprecated Prefer rolesAutoAsignacion — kept for legacy reads. */
         rolesAplicables: { type: [String], default: undefined },
+        /** Auto-baja when user has ≥ N vencidas of this social fee. */
+        bajaPorVencidasActiva: { type: Boolean, default: false },
+        bajaTrasVencidas: { type: Number, default: 3, min: 1, max: 36 },
     },
     { timestamps: true },
 );

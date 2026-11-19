@@ -17,11 +17,27 @@ function idInList(id, list) {
 }
 
 /**
- * @returns {Promise<{ rol: string|null, cuotaSocialId: string|null, planIds: string[], tieneVencidos: boolean }>}
+ * @returns {Promise<{
+ *   rol: string|null,
+ *   cuotaSocialId: string|null,
+ *   planIds: string[],
+ *   vencidosCount: number,
+ *   vencidosByPlan: Record<string, number>,
+ *   vencidosByFee: Record<string, number>,
+ *   tieneVencidos: boolean
+ * }>}
  */
 export async function resolveBuyerContext(models, user) {
     if (!user) {
-        return { rol: null, cuotaSocialId: null, planIds: [], tieneVencidos: false };
+        return {
+            rol: null,
+            cuotaSocialId: null,
+            planIds: [],
+            vencidosCount: 0,
+            vencidosByPlan: {},
+            vencidosByFee: {},
+            tieneVencidos: false,
+        };
     }
 
     const userId = user._id || user.id;
@@ -31,9 +47,11 @@ export async function resolveBuyerContext(models, user) {
         : null;
 
     const { Enrollment, Payment } = models;
-    const [enrollments, vencidosCount] = await Promise.all([
+    const [enrollments, vencidos] = await Promise.all([
         Enrollment.find({ atleta: userId, estado: 'activo' }).select('plan').lean(),
-        Payment.countDocuments({ atleta: userId, estado: 'vencido' }),
+        Payment.find({ atleta: userId, estado: 'vencido' })
+            .select('tipo plan cuotaSocial')
+            .lean(),
     ]);
 
     const planIds = [
@@ -44,12 +62,50 @@ export async function resolveBuyerContext(models, user) {
         ),
     ];
 
+    const vencidosByPlan = {};
+    const vencidosByFee = {};
+    for (const p of vencidos) {
+        if (p.tipo === 'entrenamiento' && p.plan) {
+            const k = String(p.plan);
+            vencidosByPlan[k] = (vencidosByPlan[k] || 0) + 1;
+        } else if (p.tipo === 'social' && p.cuotaSocial) {
+            const k = String(p.cuotaSocial);
+            vencidosByFee[k] = (vencidosByFee[k] || 0) + 1;
+        }
+    }
+
+    const vencidosCount = vencidos.length;
     return {
         rol,
         cuotaSocialId,
         planIds,
+        vencidosCount,
+        vencidosByPlan,
+        vencidosByFee,
         tieneVencidos: vencidosCount > 0,
     };
+}
+
+function relevantVencidasForRule(rule, context) {
+    const planIds = Array.isArray(rule?.planes) ? rule.planes : [];
+    const feeIds = Array.isArray(rule?.cuotasSociales) ? rule.cuotasSociales : [];
+    if (!planIds.length && !feeIds.length) {
+        return Number(context?.vencidosCount) || 0;
+    }
+    let count = 0;
+    for (const p of planIds) {
+        count += Number(context?.vencidosByPlan?.[String(p?._id ?? p)]) || 0;
+    }
+    for (const f of feeIds) {
+        count += Number(context?.vencidosByFee?.[String(f?._id ?? f)]) || 0;
+    }
+    return count;
+}
+
+function ruleBlocksForDebt(rule, context) {
+    if (rule?.bloquearDescuentoPorVencidas === false) return false;
+    const max = Math.max(1, Math.floor(Number(rule?.maxVencidasParaDescuento) || 1));
+    return relevantVencidasForRule(rule, context) >= max;
 }
 
 /**
@@ -57,11 +113,11 @@ export async function resolveBuyerContext(models, user) {
  */
 export function matchRule(event, context) {
     if (!context?.rol || !EVENT_MEMBER_ROLES.includes(context.rol)) return null;
-    if (context.tieneVencidos) return null;
 
     const rules = Array.isArray(event?.reglasDescuento) ? event.reglasDescuento : [];
     for (const rule of rules) {
         if (!rule?.activo) continue;
+        if (ruleBlocksForDebt(rule, context)) continue;
 
         const roles = Array.isArray(rule.roles) ? rule.roles : [];
         if (roles.length && !roles.includes(context.rol)) continue;
@@ -237,12 +293,22 @@ export function quoteEventTickets({ event, tipoEntradaId, cantidad, holders, eli
         if (!person) {
             return { precio: listPrice, precioLista: listPrice, conDescuento: false, titular };
         }
-        if (person.context?.tieneVencidos && person.context?.rol) {
-            descuentoBloqueadoPorDeuda = true;
-            return { precio: listPrice, precioLista: listPrice, conDescuento: false, titular, bloqueadoPorDeuda: true };
+        const ctx = person.context || {};
+        const rule = matchRule(event, ctx);
+        if (!rule) {
+            const wouldMatchIgnoringDebt = matchRule(event, { ...ctx, vencidosCount: 0, tieneVencidos: false });
+            if (wouldMatchIgnoringDebt && ruleBlocksForDebt(wouldMatchIgnoringDebt, ctx)) {
+                descuentoBloqueadoPorDeuda = true;
+                return {
+                    precio: listPrice,
+                    precioLista: listPrice,
+                    conDescuento: false,
+                    titular,
+                    bloqueadoPorDeuda: true,
+                };
+            }
+            return { precio: listPrice, precioLista: listPrice, conDescuento: false, titular };
         }
-        const rule = matchRule(event, person.context || {});
-        if (!rule) return { precio: listPrice, precioLista: listPrice, conDescuento: false, titular };
         const maxDesc = Math.max(1, Math.floor(Number(rule.maxEntradasConDescuento) || 1));
         const used = usedByPerson.get(person.userId) || 0;
         if (used >= maxDesc) return { precio: listPrice, precioLista: listPrice, conDescuento: false, titular };

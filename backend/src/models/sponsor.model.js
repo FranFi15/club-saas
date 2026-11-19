@@ -1,7 +1,21 @@
 import mongoose from 'mongoose';
 
-/** Roles de cliente que pueden ver beneficios de sponsors. */
-export const SPONSOR_MEMBER_ROLES = ['atleta', 'tutor', 'socio'];
+/** Roles que pueden ver beneficios de sponsors (ampliado a staff + clientes). */
+export const SPONSOR_MEMBER_ROLES = [
+    'admin_club',
+    'dirigente',
+    'administrativo',
+    'control_ingreso',
+    'colaborador',
+    'profe',
+    'preparador_fisico',
+    'nutricionista',
+    'psicologo',
+    'atleta',
+    'tutor',
+    'socio',
+    'partner',
+];
 
 /**
  * Sponsors del club: aporte mensual + beneficios para miembros al día
@@ -16,10 +30,12 @@ const sponsorSchema = new mongoose.Schema(
         montoMensual: { type: Number, default: 0, min: 0 },
         /** Texto libre de beneficios (líneas separadas por salto). */
         beneficios: { type: String, trim: true, default: '' },
-        /** Roles alcanzados (atleta / tutor / socio). */
-        rolesAplicables: [{ type: String, enum: SPONSOR_MEMBER_ROLES }],
+        /** Roles alcanzados (vacío = todos los roles activos). */
+        rolesAplicables: [{ type: String }],
         /** Tipos de cuota social alcanzados. */
         cuotasSociales: [{ type: mongoose.Schema.Types.ObjectId, ref: 'SocialFee' }],
+        /** Partner operator users bound to this sponsor. */
+        usuariosPartner: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
         activo: { type: Boolean, default: true },
         /** Primer mes con control de aportes (no se generan pagos en meses anteriores). */
         desdeMes: { type: Number, min: 1, max: 12 },

@@ -12,6 +12,7 @@ export const ASSIGNABLE_USER_ROLES = [
     'atleta',
     'tutor',
     'socio',
+    'partner',
 ];
 
 /** Roles de cliente del club (pagan cuotas, no gestionan). */

@@ -2,6 +2,7 @@ import axios from 'axios';
 import { amountsMatch } from '../utils/mpWebhookSignature.js';
 import { applyMercadoPagoToRental } from '../utils/rentalPayments.js';
 import { queuePaymentReceipt } from './paymentReceipt.service.js';
+import { maybeCreditOnTimeCuota } from './loyalty.service.js';
 
 export function parseExternalRef(externalRef) {
     if (!externalRef || typeof externalRef !== 'string') return { tipo: null, dbId: null, extra: null };
@@ -72,6 +73,8 @@ export async function applyApprovedMercadoPagoPayment(models, paymentData) {
     }
 
     if (tipo === 'cuota' && dbId) {
+        const before = await Payment.findById(dbId).select('estado').lean();
+        const prevEstado = before?.estado;
         const updated = await Payment.findOneAndUpdate(
             {
                 _id: dbId,
@@ -83,6 +86,8 @@ export async function applyApprovedMercadoPagoPayment(models, paymentData) {
                     metodoPago: 'mercado_pago',
                     fechaPago: new Date(),
                     comprobante: paymentId,
+                    origenPago: 'mercado_pago',
+                    registradoPor: null,
                 },
             },
             { new: true },
@@ -103,6 +108,7 @@ export async function applyApprovedMercadoPagoPayment(models, paymentData) {
                 status: 'applied',
             });
             queuePaymentReceipt(models, updated._id);
+            await maybeCreditOnTimeCuota(models, updated, { prevEstado });
             return { applied: true, tipo: 'cuota', ids };
         }
 
@@ -167,6 +173,7 @@ export async function applyApprovedMercadoPagoPayment(models, paymentData) {
         }
 
         const ids = pending.map((c) => String(c._id));
+        const prevById = new Map(pending.map((c) => [String(c._id), c.estado]));
         await Payment.updateMany(
             { _id: { $in: pending.map((c) => c._id) } },
             {
@@ -175,6 +182,8 @@ export async function applyApprovedMercadoPagoPayment(models, paymentData) {
                     metodoPago: 'mercado_pago',
                     fechaPago: new Date(),
                     comprobante: paymentId,
+                    origenPago: 'mercado_pago',
+                    registradoPor: null,
                 },
             },
         );
@@ -185,8 +194,9 @@ export async function applyApprovedMercadoPagoPayment(models, paymentData) {
             appliedIds: ids,
             status: 'applied',
         });
-        for (const id of ids) {
-            queuePaymentReceipt(models, id);
+        for (const c of pending) {
+            queuePaymentReceipt(models, c._id);
+            await maybeCreditOnTimeCuota(models, c, { prevEstado: prevById.get(String(c._id)) });
         }
         return { applied: true, tipo: 'cuotas_bulk', ids };
     }
@@ -290,6 +300,8 @@ export async function applyApprovedMercadoPagoPayment(models, paymentData) {
         }
         order.estado = 'pagada';
         order.mpPaymentId = paymentId;
+        order.origenPago = 'mercado_pago';
+        order.registradoPor = null;
         await order.save();
         const { issueTicketsForOrder } = await import('./eventTicketIssue.service.js');
         await issueTicketsForOrder(models, order);

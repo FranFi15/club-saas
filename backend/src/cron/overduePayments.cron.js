@@ -4,6 +4,7 @@ import { getTenantDB } from '../config/db.js';
 import { getTenantModels } from '../utils/tenantModels.js';
 import { markOverduePayments } from '../services/overduePayments.service.js';
 import { sendCuotaReminders } from '../services/cuotaReminders.service.js';
+import { evaluateDebtBajaForPayments } from '../services/debtBaja.service.js';
 import { parseLocalHourEnv, shouldRunClubCron } from '../utils/clubCronTime.js';
 import { DEFAULT_CLUB_TIMEZONE, normalizeClubTimezone } from '../utils/timeHelper.js';
 
@@ -52,11 +53,18 @@ export function startOverduePaymentsCron() {
                 const cs = String(t.connectionStringDB).replace(/([^:]\/)\/+/g, '$1');
                 const tenantDB = await getTenantDB(t.urlIdentifier, cs);
                 const models = getTenantModels(tenantDB);
+                const before = await models.Payment.find({ estado: 'vencido' }).select('_id').lean();
+                const beforeIds = new Set(before.map((p) => String(p._id)));
                 const modified = await markOverduePayments(models);
                 totalMarcadas += modified;
                 ran += 1;
                 if (modified > 0) {
                     console.log(`[cron-overdue] ${t.urlIdentifier}: ${modified} cuota(s) marcada(s) como vencida(s).`);
+                    const allVencidas = await models.Payment.find({ estado: 'vencido' })
+                        .select('atleta plan cuotaSocial tipo')
+                        .lean();
+                    const justMarked = allVencidas.filter((p) => !beforeIds.has(String(p._id)));
+                    await evaluateDebtBajaForPayments(models, justMarked);
                 }
                 const { enviados } = await sendCuotaReminders(models, { timezone });
                 totalReminders += enviados;

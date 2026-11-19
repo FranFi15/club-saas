@@ -9,6 +9,10 @@ function normalizeDiscount(body) {
         err.statusCode = 400;
         throw err;
     }
+    const bloquear =
+        body?.bloquearDescuentoPorVencidas === undefined
+            ? true
+            : body.bloquearDescuentoPorVencidas === true || body.bloquearDescuentoPorVencidas === 'true';
     return {
         nombre,
         roles: Array.isArray(body?.roles) ? body.roles.filter((rol) => MEMBER_ROLES.includes(rol)) : [],
@@ -18,6 +22,11 @@ function normalizeDiscount(body) {
         valor: Math.max(0, Number(body?.valor) || 0),
         maxEntradasConDescuento: Math.max(1, Math.floor(Number(body?.maxEntradasConDescuento) || 1)),
         activo: body?.activo !== false,
+        bloquearDescuentoPorVencidas: bloquear,
+        maxVencidasParaDescuento: Math.min(
+            36,
+            Math.max(1, Math.floor(Number(body?.maxVencidasParaDescuento) || 1)),
+        ),
     };
 }
 

@@ -112,6 +112,7 @@ const createRental = asyncHandler(async (req, res) => {
             concepto: señaNum >= totalNum ? 'pago_total' : 'seña_inicial',
             fecha: new Date(),
             registradoPor: req.user?._id,
+            origenPago: 'admin',
         });
     }
 
@@ -242,6 +243,7 @@ const payRentalBalance = asyncHandler(async (req, res) => {
         concepto: 'pago_saldo',
         fecha: new Date(),
         registradoPor: req.user?._id,
+        origenPago: 'admin',
         nota: req.body?.nota || '',
     });
     rental.señaPagada = Number(rental.montoTotal) || 0;

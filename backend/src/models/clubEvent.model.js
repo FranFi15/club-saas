@@ -30,6 +30,9 @@ const reglaDescuentoSchema = new mongoose.Schema(
         valor: { type: Number, default: 0, min: 0 },
         maxEntradasConDescuento: { type: Number, default: 1, min: 1 },
         activo: { type: Boolean, default: true },
+        /** When on, block discount if overdue count ≥ maxVencidasParaDescuento. */
+        bloquearDescuentoPorVencidas: { type: Boolean, default: true },
+        maxVencidasParaDescuento: { type: Number, default: 1, min: 1, max: 36 },
     },
     { _id: true },
 );
@@ -136,6 +139,11 @@ const eventTicketOrderSchema = new mongoose.Schema(
             default: '',
         },
         registradoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+        origenPago: {
+            type: String,
+            enum: ['admin', 'sistema', 'mercado_pago', null],
+            default: null,
+        },
         holdUntil: { type: Date },
         mpPreferenceId: { type: String, default: '' },
         mpPaymentId: { type: String, default: '' },
