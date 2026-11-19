@@ -24,8 +24,8 @@ const paymentSchema = new mongoose.Schema({
     // Titular de la cuota. Para cuotas sociales puede ser atleta, tutor o socio.
     atleta: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     /**
-     * 'entrenamiento' = cuota de plan por inscripción; 'social' = cuota social del club.
-     * Las cuotas previas a la cuota social no tienen el campo: se consideran entrenamiento.
+     * 'entrenamiento' = cuota deportiva (plan por inscripción); 'social' = cuota social del club.
+     * Las cuotas previas a la cuota social no tienen el campo: se consideran deportivas (entrenamiento).
      */
     tipo: { type: String, enum: ['entrenamiento', 'social'], default: 'entrenamiento' },
     plan: { type: mongoose.Schema.Types.ObjectId, ref: 'Plan' },

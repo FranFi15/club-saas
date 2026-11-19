@@ -52,7 +52,10 @@ const loyaltyRewardSchema = new mongoose.Schema(
         sponsor: { type: mongoose.Schema.Types.ObjectId, ref: 'Sponsor', required: true },
         titulo: { type: String, required: true, trim: true },
         descripcion: { type: String, trim: true, default: '' },
+        fotoUrl: { type: String, trim: true, default: '' },
         costoPuntos: { type: Number, required: true, min: 1 },
+        /** Roles that may redeem this discount (empty = use sponsor.rolesCanjeCreditos). */
+        rolesCanje: [{ type: String }],
         tipo: {
             type: String,
             enum: ['porcentaje', 'monto_fijo', 'texto'],

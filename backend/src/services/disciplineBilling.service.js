@@ -149,7 +149,7 @@ export async function resolveNewEnrollmentBilling(
         billingConflict: {
             code: 'DISCIPLINE_BILLING_CHOICE',
             message:
-                'El atleta ya tiene cuota de entrenamiento en esta disciplina. Elegí si mantener la actual o usar el plan de esta categoría.',
+                'El atleta ya tiene cuota deportiva en esta disciplina. Elegí si mantener la actual o usar el plan de esta categoría.',
             disciplina: {
                 _id: disciplinaId,
                 nombre: category.disciplina?.nombre,

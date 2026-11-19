@@ -32,6 +32,11 @@ const sponsorSchema = new mongoose.Schema(
         beneficios: { type: String, trim: true, default: '' },
         /** Roles alcanzados (vacío = todos los roles activos). */
         rolesAplicables: [{ type: String }],
+        /**
+         * Roles que pueden canjear créditos en este sponsor.
+         * Vacío = nadie puede canjear (hay que elegir roles).
+         */
+        rolesCanjeCreditos: [{ type: String }],
         /** Tipos de cuota social alcanzados. */
         cuotasSociales: [{ type: mongoose.Schema.Types.ObjectId, ref: 'SocialFee' }],
         /** Partner operator users bound to this sponsor. */

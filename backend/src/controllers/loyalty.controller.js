@@ -31,8 +31,10 @@ function serializeReward(r, settings) {
         sponsor: r.sponsor,
         titulo: r.titulo,
         descripcion: r.descripcion || '',
+        fotoUrl: r.fotoUrl || '',
         costoPuntos: costo,
         equivalentePesos: costo * valorPunto,
+        rolesCanje: Array.isArray(r.rolesCanje) ? r.rolesCanje : [],
         tipo: r.tipo,
         valor: r.valor,
         activo: r.activo,
@@ -71,18 +73,40 @@ const getMyLoyalty = asyncHandler(async (req, res) => {
         return res.json({ enabled: false, settings: serializeSettings(settings), balance: 0 });
     }
     const user = await req.models.User.findById(req.user._id)
-        .select('puntosLealtad puedeCanjearPuntos')
+        .select('puntosLealtad puedeCanjearPuntos rol roles')
         .lean();
     const next = await nextExpiryForUser(req.models, req.user._id);
     const ledger = await req.models.LoyaltyLedgerEntry.find({ user: req.user._id })
         .sort({ createdAt: -1 })
         .limit(30)
         .lean();
+
+    const userRoles = [
+        user?.rol,
+        ...(Array.isArray(user?.roles) ? user.roles : []),
+    ].filter(Boolean);
+    const [sponsors, rewards] = await Promise.all([
+        req.models.Sponsor.find({
+            activo: true,
+            rolesCanjeCreditos: { $in: userRoles },
+        })
+            .select('_id')
+            .lean(),
+        req.models.LoyaltyReward.find({
+            activo: true,
+            rolesCanje: { $in: userRoles },
+        })
+            .select('_id')
+            .limit(1)
+            .lean(),
+    ]);
+    const puedeCanjearPuntos = sponsors.length > 0 || rewards.length > 0;
+
     res.json({
         enabled: true,
         settings: serializeSettings(settings),
         balance: user?.puntosLealtad || 0,
-        puedeCanjearPuntos: !!user?.puedeCanjearPuntos,
+        puedeCanjearPuntos,
         nextExpiry: next
             ? { expiresAt: next.expiresAt, remaining: next.remaining }
             : null,
@@ -98,14 +122,28 @@ const listRewards = asyncHandler(async (req, res) => {
     if (req.query.sponsor) filter.sponsor = req.query.sponsor;
 
     const rewards = await req.models.LoyaltyReward.find(filter)
-        .populate('sponsor', 'nombre fotoUrl')
+        .populate('sponsor', 'nombre fotoUrl rolesCanjeCreditos activo')
         .sort({ createdAt: -1 })
         .lean();
+
+    const userRoles = [
+        req.user?.rol,
+        ...(Array.isArray(req.user?.roles) ? req.user.roles : []),
+    ].filter(Boolean);
+
+    const visible = rewards.filter((r) => {
+        if (!r.sponsor || r.sponsor.activo === false) return false;
+        const fromReward = Array.isArray(r.rolesCanje) ? r.rolesCanje : [];
+        const fromSponsor = Array.isArray(r.sponsor.rolesCanjeCreditos) ? r.sponsor.rolesCanjeCreditos : [];
+        const allowed = fromReward.length ? fromReward : fromSponsor;
+        if (!allowed.length) return false;
+        return userRoles.some((role) => allowed.includes(role));
+    });
 
     res.json({
         enabled: true,
         settings: serializeSettings(settings),
-        rewards: rewards.map((r) => serializeReward(r, settings)),
+        rewards: visible.map((r) => serializeReward(r, settings)),
     });
 });
 
@@ -136,10 +174,15 @@ const createReward = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Sponsor no encontrado.');
     }
+    const rolesCanje = Array.isArray(req.body?.rolesCanje)
+        ? [...new Set(req.body.rolesCanje.map(String).filter(Boolean))]
+        : [];
     const doc = await req.models.LoyaltyReward.create({
         sponsor,
         titulo: String(titulo).trim(),
         descripcion: String(descripcion || '').trim(),
+        fotoUrl: String(req.body?.fotoUrl || '').trim(),
+        rolesCanje,
         costoPuntos: Math.max(1, Math.floor(Number(costoPuntos) || 1)),
         tipo: tipo || 'porcentaje',
         valor: Number(valor) || 0,
@@ -161,6 +204,12 @@ const updateReward = asyncHandler(async (req, res) => {
     const b = req.body || {};
     if (b.titulo != null) doc.titulo = String(b.titulo).trim();
     if (b.descripcion != null) doc.descripcion = String(b.descripcion).trim();
+    if (b.fotoUrl != null) doc.fotoUrl = String(b.fotoUrl || '').trim();
+    if (b.rolesCanje != null) {
+        doc.rolesCanje = Array.isArray(b.rolesCanje)
+            ? [...new Set(b.rolesCanje.map(String).filter(Boolean))]
+            : [];
+    }
     if (b.costoPuntos != null) doc.costoPuntos = Math.max(1, Math.floor(Number(b.costoPuntos) || 1));
     if (b.tipo != null) doc.tipo = b.tipo;
     if (b.valor != null) doc.valor = Number(b.valor) || 0;

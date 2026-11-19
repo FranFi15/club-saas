@@ -227,11 +227,26 @@ function nonce() {
     return crypto.randomBytes(16).toString('hex');
 }
 
+function userRolesList(user) {
+    return [
+        user?.rol,
+        ...(Array.isArray(user?.roles) ? user.roles : []),
+    ].filter(Boolean);
+}
+
+function userCanRedeemReward(user, reward, sponsor) {
+    const fromReward = Array.isArray(reward?.rolesCanje) ? reward.rolesCanje : [];
+    const fromSponsor = Array.isArray(sponsor?.rolesCanjeCreditos) ? sponsor.rolesCanjeCreditos : [];
+    const allowed = fromReward.length ? fromReward : fromSponsor;
+    if (!allowed.length) return false;
+    return userRolesList(user).some((r) => allowed.includes(r));
+}
+
 export async function redeemReward(models, { userId, rewardId }) {
     const settings = await requireLoyaltyEnabled(models);
-    const { User, LoyaltyReward, LoyaltyRedemption } = models;
+    const { User, LoyaltyReward, LoyaltyRedemption, Sponsor } = models;
 
-    const user = await User.findById(userId).select('puedeCanjearPuntos puntosLealtad estado');
+    const user = await User.findById(userId).select('puedeCanjearPuntos puntosLealtad estado rol roles');
     if (!user) {
         const err = new Error('Usuario no encontrado.');
         err.statusCode = 404;
@@ -242,16 +257,23 @@ export async function redeemReward(models, { userId, rewardId }) {
         err.statusCode = 403;
         throw err;
     }
-    if (!user.puedeCanjearPuntos) {
-        const err = new Error('No tenés permiso para canjear créditos.');
-        err.statusCode = 403;
-        throw err;
-    }
 
     const reward = await LoyaltyReward.findById(rewardId);
     if (!reward || !reward.activo) {
         const err = new Error('Beneficio no disponible.');
         err.statusCode = 404;
+        throw err;
+    }
+
+    const sponsor = await Sponsor.findById(reward.sponsor).select('rolesCanjeCreditos nombre activo');
+    if (!sponsor || sponsor.activo === false) {
+        const err = new Error('Sponsor no disponible.');
+        err.statusCode = 400;
+        throw err;
+    }
+    if (!userCanRedeemReward(user, reward, sponsor)) {
+        const err = new Error('Tu rol no puede canjear este beneficio.');
+        err.statusCode = 403;
         throw err;
     }
     if (reward.vigenciaHasta && reward.vigenciaHasta < new Date()) {

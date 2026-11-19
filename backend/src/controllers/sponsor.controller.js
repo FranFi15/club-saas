@@ -61,6 +61,7 @@ function applySponsorBody(doc, body) {
     if (body.montoMensual !== undefined) doc.montoMensual = parseMoney(body.montoMensual);
     if (body.beneficios !== undefined) doc.beneficios = String(body.beneficios || '').trim();
     if (body.rolesAplicables !== undefined) doc.rolesAplicables = sanitizeRoles(body.rolesAplicables);
+    if (body.rolesCanjeCreditos !== undefined) doc.rolesCanjeCreditos = sanitizeRoles(body.rolesCanjeCreditos);
     if (body.cuotasSociales !== undefined) doc.cuotasSociales = sanitizeFeeIds(body.cuotasSociales);
     if (body.usuariosPartner !== undefined) doc.usuariosPartner = sanitizeFeeIds(body.usuariosPartner);
     if (body.activo !== undefined) {
@@ -236,15 +237,77 @@ const listSponsors = asyncHandler(async (req, res) => {
     });
 });
 
+function parseRewardsPayload(raw) {
+    if (!Array.isArray(raw)) return [];
+    return raw
+        .map((r) => {
+            const titulo = String(r?.titulo || '').trim();
+            const costoPuntos = Math.max(1, Math.floor(Number(r?.costoPuntos) || 0));
+            const rolesCanje = Array.isArray(r?.rolesCanje)
+                ? [...new Set(r.rolesCanje.map(String).filter((x) => SPONSOR_MEMBER_ROLES.includes(x)))]
+                : [];
+            if (!titulo || !costoPuntos) return null;
+            return {
+                titulo,
+                descripcion: String(r?.descripcion || '').trim(),
+                fotoUrl: String(r?.fotoUrl || '').trim(),
+                costoPuntos,
+                rolesCanje,
+                tipo: ['porcentaje', 'monto_fijo', 'texto'].includes(r?.tipo) ? r.tipo : 'texto',
+                valor: Number(r?.valor) || 0,
+            };
+        })
+        .filter(Boolean);
+}
+
+async function createPartnerForSponsor(models, sponsor, { email, password, nombre }) {
+    const { User } = models;
+    const emailNorm = String(email || '').trim().toLowerCase();
+    const pass = String(password || '');
+    if (!emailNorm) {
+        const err = new Error('El email del partner es obligatorio.');
+        err.statusCode = 400;
+        throw err;
+    }
+    if (pass.length < 6) {
+        const err = new Error('La contraseña del partner debe tener al menos 6 caracteres.');
+        err.statusCode = 400;
+        throw err;
+    }
+    const exists = await User.findOne({ email: emailNorm }).select('_id').lean();
+    if (exists) {
+        const err = new Error('Ya existe un usuario con ese email en el club.');
+        err.statusCode = 400;
+        throw err;
+    }
+    const parts = String(nombre || sponsor.nombre || 'Partner').trim().split(/\s+/);
+    const partner = await User.create({
+        nombre: parts[0] || 'Partner',
+        apellido: parts.slice(1).join(' ') || 'Sponsor',
+        email: emailNorm,
+        password: pass,
+        rol: 'partner',
+        roles: ['partner'],
+        partnerSponsor: sponsor._id,
+        estado: 'activo',
+    });
+    return partner;
+}
+
 // @desc    Crear sponsor
 // @route   POST /api/financial/sponsors
 const createSponsor = asyncHandler(async (req, res) => {
-    const { Sponsor, SponsorPayment } = req.models;
+    const { Sponsor, SponsorPayment, LoyaltyReward } = req.models;
     const nombre = String(req.body?.nombre || '').trim();
     if (!nombre) {
         res.status(400);
         throw new Error('El nombre del sponsor es obligatorio.');
     }
+
+    const rewardsIn = parseRewardsPayload(req.body?.rewards);
+    const partnerEmail = req.body?.partnerEmail;
+    const partnerPassword = req.body?.partnerPassword;
+    const wantsPartner = Boolean(String(partnerEmail || '').trim() || String(partnerPassword || '').trim());
 
     const doc = new Sponsor({
         nombre,
@@ -254,15 +317,62 @@ const createSponsor = asyncHandler(async (req, res) => {
         beneficios: '',
         rolesAplicables: [],
         cuotasSociales: [],
+        rolesCanjeCreditos: [],
         activo: true,
     });
     applySponsorBody(doc, req.body);
+
+    // Union of discount roles → audience for static benefits + sponsor-level canje fallback.
+    if (rewardsIn.length) {
+        const unionRoles = [...new Set(rewardsIn.flatMap((r) => r.rolesCanje))];
+        if (unionRoles.length) {
+            if (!doc.rolesAplicables.length) doc.rolesAplicables = unionRoles;
+            if (!doc.rolesCanjeCreditos.length) doc.rolesCanjeCreditos = unionRoles;
+        }
+    }
+
     if (!doc.rolesAplicables.length && !doc.cuotasSociales.length) {
         res.status(400);
-        throw new Error('Seleccioná al menos un tipo de usuario o una cuota social.');
+        throw new Error('Seleccioná al menos un tipo de usuario, una cuota social o roles en un descuento.');
     }
+
+    if (wantsPartner && (!String(partnerEmail || '').trim() || !String(partnerPassword || '').trim())) {
+        res.status(400);
+        throw new Error('Completá email y contraseña del partner.');
+    }
+
     await doc.save();
-    await syncPartnerUsers(req.models, doc);
+
+    let partner = null;
+    if (wantsPartner) {
+        partner = await createPartnerForSponsor(req.models, doc, {
+            email: partnerEmail,
+            password: partnerPassword,
+            nombre,
+        });
+        doc.usuariosPartner = [partner._id];
+        await doc.save();
+    } else {
+        await syncPartnerUsers(req.models, doc);
+    }
+
+    const createdRewards = [];
+    if (rewardsIn.length && LoyaltyReward) {
+        for (const r of rewardsIn) {
+            const reward = await LoyaltyReward.create({
+                sponsor: doc._id,
+                titulo: r.titulo,
+                descripcion: r.descripcion,
+                fotoUrl: r.fotoUrl,
+                costoPuntos: r.costoPuntos,
+                rolesCanje: r.rolesCanje,
+                tipo: r.tipo,
+                valor: r.valor,
+                activo: true,
+            });
+            createdRewards.push(reward);
+        }
+    }
 
     // Aportes solo desde el mes de alta (el que se está viendo al crear, o el actual).
     const now = new Date();
@@ -291,7 +401,13 @@ const createSponsor = asyncHandler(async (req, res) => {
     await doc.populate('cuotasSociales', 'nombre monto activo');
     res.status(201).json({
         sponsor: { ...doc.toObject(), pagoMes: serializePago(pagoMes) },
-        message: 'Sponsor creado.',
+        partner: partner
+            ? { _id: partner._id, email: partner.email, rol: partner.rol, nombre: partner.nombre }
+            : null,
+        rewards: createdRewards,
+        message: partner
+            ? `Sponsor creado con partner ${partner.email}.`
+            : 'Sponsor creado.',
     });
 });
 

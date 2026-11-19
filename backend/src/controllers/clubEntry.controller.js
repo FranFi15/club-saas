@@ -87,7 +87,7 @@ async function buildMemberBillingSnapshot(models, member, timezone = DEFAULT_CLU
         nombre:
             p.tipo === 'social'
                 ? p.cuotaSocial?.nombre || 'Cuota social'
-                : p.plan?.nombre || 'Cuota entrenamiento',
+                : p.plan?.nombre || 'Cuota deportiva',
     }));
 
     const vencidas = await Payment.find({ atleta: userId, estado: 'vencido' })
@@ -129,7 +129,7 @@ async function buildMemberBillingSnapshot(models, member, timezone = DEFAULT_CLU
         planSummary:
             planes.length === 0
                 ? member.rol === 'atleta'
-                    ? 'Sin plan de entrenamiento'
+                    ? 'Sin cuota deportiva'
                     : null
                 : planes.map((p) => `${p.label} ($${formatMoney(p.planMonto)})`).join(' · '),
         socialSummary: !CLIENT_BILLING_ROLES.includes(member.rol)

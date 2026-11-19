@@ -54,7 +54,7 @@ function resolveDestinatarios(atleta) {
 
 function conceptoCuota(cuota) {
     if (cuota.tipo === 'social') return cuota.cuotaSocial?.nombre || 'cuota social';
-    return cuota.plan?.nombre || 'plan';
+    return cuota.plan?.nombre || 'cuota deportiva';
 }
 
 function sufijoTitular(cuota, destinatario) {
