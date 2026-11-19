@@ -1,7 +1,10 @@
 import mongoose from 'mongoose';
 
-/** Roles que pueden ver beneficios de sponsors (ampliado a staff + clientes). */
-export const SPONSOR_MEMBER_ROLES = [
+/** Clientes del club (cuotas / app de socio). */
+export const SPONSOR_CLIENT_ROLES = ['atleta', 'tutor', 'socio'];
+
+/** Personal del club (UI “Staff”): gestión, operación y cuerpo técnico. */
+export const SPONSOR_STAFF_ROLES = [
     'admin_club',
     'dirigente',
     'administrativo',
@@ -9,13 +12,40 @@ export const SPONSOR_MEMBER_ROLES = [
     'colaborador',
     'profe',
     'preparador_fisico',
-    'nutricionista',
     'psicologo',
-    'atleta',
-    'tutor',
-    'socio',
+    'nutricionista',
+];
+
+/** Roles que pueden ver beneficios de sponsors (ampliado a staff + clientes). */
+export const SPONSOR_MEMBER_ROLES = [
+    ...SPONSOR_STAFF_ROLES,
+    ...SPONSOR_CLIENT_ROLES,
     'partner',
 ];
+
+/**
+ * Expand UI tokens (`todos`, `staff`) into concrete role strings.
+ * Unknown values are dropped.
+ */
+export function expandSponsorRoles(rolesIn) {
+    if (!Array.isArray(rolesIn)) return [];
+    const out = new Set();
+    for (const raw of rolesIn) {
+        const r = String(raw || '').trim();
+        if (!r) continue;
+        if (r === 'todos') {
+            SPONSOR_CLIENT_ROLES.forEach((x) => out.add(x));
+            SPONSOR_STAFF_ROLES.forEach((x) => out.add(x));
+            continue;
+        }
+        if (r === 'staff') {
+            SPONSOR_STAFF_ROLES.forEach((x) => out.add(x));
+            continue;
+        }
+        if (SPONSOR_MEMBER_ROLES.includes(r)) out.add(r);
+    }
+    return [...out];
+}
 
 /**
  * Sponsors del club: aporte mensual + beneficios para miembros al día

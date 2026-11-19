@@ -1,5 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import { normalizeUserRoles, userHasRole } from '../constants/userRoles.js';
+import { expandSponsorRoles } from '../models/sponsor.model.js';
 import {
     getOrCreateLoyaltySettings,
     requireLoyaltyEnabled,
@@ -23,6 +24,13 @@ function serializeSettings(s) {
     };
 }
 
+const FOTO_ASPECTS = ['16:9', '4:3', '1:1', '3:4'];
+
+function normalizeFotoAspect(value) {
+    const v = String(value || '').trim();
+    return FOTO_ASPECTS.includes(v) ? v : '16:9';
+}
+
 function serializeReward(r, settings) {
     const costo = Number(r.costoPuntos) || 0;
     const valorPunto = Number(settings?.valorPuntoPesos) || 0;
@@ -32,6 +40,7 @@ function serializeReward(r, settings) {
         titulo: r.titulo,
         descripcion: r.descripcion || '',
         fotoUrl: r.fotoUrl || '',
+        fotoAspect: normalizeFotoAspect(r.fotoAspect),
         costoPuntos: costo,
         equivalentePesos: costo * valorPunto,
         rolesCanje: Array.isArray(r.rolesCanje) ? r.rolesCanje : [],
@@ -174,14 +183,13 @@ const createReward = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error('Sponsor no encontrado.');
     }
-    const rolesCanje = Array.isArray(req.body?.rolesCanje)
-        ? [...new Set(req.body.rolesCanje.map(String).filter(Boolean))]
-        : [];
+    const rolesCanje = expandSponsorRoles(req.body?.rolesCanje);
     const doc = await req.models.LoyaltyReward.create({
         sponsor,
         titulo: String(titulo).trim(),
         descripcion: String(descripcion || '').trim(),
         fotoUrl: String(req.body?.fotoUrl || '').trim(),
+        fotoAspect: normalizeFotoAspect(req.body?.fotoAspect),
         rolesCanje,
         costoPuntos: Math.max(1, Math.floor(Number(costoPuntos) || 1)),
         tipo: tipo || 'porcentaje',
@@ -205,10 +213,9 @@ const updateReward = asyncHandler(async (req, res) => {
     if (b.titulo != null) doc.titulo = String(b.titulo).trim();
     if (b.descripcion != null) doc.descripcion = String(b.descripcion).trim();
     if (b.fotoUrl != null) doc.fotoUrl = String(b.fotoUrl || '').trim();
+    if (b.fotoAspect != null) doc.fotoAspect = normalizeFotoAspect(b.fotoAspect);
     if (b.rolesCanje != null) {
-        doc.rolesCanje = Array.isArray(b.rolesCanje)
-            ? [...new Set(b.rolesCanje.map(String).filter(Boolean))]
-            : [];
+        doc.rolesCanje = expandSponsorRoles(b.rolesCanje);
     }
     if (b.costoPuntos != null) doc.costoPuntos = Math.max(1, Math.floor(Number(b.costoPuntos) || 1));
     if (b.tipo != null) doc.tipo = b.tipo;

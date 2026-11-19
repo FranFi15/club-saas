@@ -1,6 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import mongoose from 'mongoose';
-import { SPONSOR_MEMBER_ROLES } from '../models/sponsor.model.js';
+import { expandSponsorRoles } from '../models/sponsor.model.js';
 import { SPONSOR_PAYMENT_METODOS } from '../models/sponsorPayment.model.js';
 import { markOverduePayments } from '../services/overduePayments.service.js';
 
@@ -31,8 +31,7 @@ function parsePeriod(mes, anio) {
 }
 
 function sanitizeRoles(rolesIn) {
-    if (!Array.isArray(rolesIn)) return [];
-    return [...new Set(rolesIn.map(String).filter((r) => SPONSOR_MEMBER_ROLES.includes(r)))];
+    return expandSponsorRoles(rolesIn);
 }
 
 function sanitizeFeeIds(idsIn) {
@@ -237,20 +236,22 @@ const listSponsors = asyncHandler(async (req, res) => {
     });
 });
 
+const REWARD_FOTO_ASPECTS = ['16:9', '4:3', '1:1', '3:4'];
+
 function parseRewardsPayload(raw) {
     if (!Array.isArray(raw)) return [];
     return raw
         .map((r) => {
             const titulo = String(r?.titulo || '').trim();
             const costoPuntos = Math.max(1, Math.floor(Number(r?.costoPuntos) || 0));
-            const rolesCanje = Array.isArray(r?.rolesCanje)
-                ? [...new Set(r.rolesCanje.map(String).filter((x) => SPONSOR_MEMBER_ROLES.includes(x)))]
-                : [];
+            const rolesCanje = expandSponsorRoles(r?.rolesCanje);
             if (!titulo || !costoPuntos) return null;
+            const aspectRaw = String(r?.fotoAspect || '').trim();
             return {
                 titulo,
                 descripcion: String(r?.descripcion || '').trim(),
                 fotoUrl: String(r?.fotoUrl || '').trim(),
+                fotoAspect: REWARD_FOTO_ASPECTS.includes(aspectRaw) ? aspectRaw : '16:9',
                 costoPuntos,
                 rolesCanje,
                 tipo: ['porcentaje', 'monto_fijo', 'texto'].includes(r?.tipo) ? r.tipo : 'texto',
@@ -341,61 +342,91 @@ const createSponsor = asyncHandler(async (req, res) => {
         throw new Error('Completá email y contraseña del partner.');
     }
 
-    await doc.save();
-
-    let partner = null;
+    // Validate partner email before inserting the sponsor so a failed/duplicate
+    // create cannot leave orphan sponsor cards (common with double-submit).
     if (wantsPartner) {
-        partner = await createPartnerForSponsor(req.models, doc, {
-            email: partnerEmail,
-            password: partnerPassword,
-            nombre,
-        });
-        doc.usuariosPartner = [partner._id];
-        await doc.save();
-    } else {
-        await syncPartnerUsers(req.models, doc);
-    }
-
-    const createdRewards = [];
-    if (rewardsIn.length && LoyaltyReward) {
-        for (const r of rewardsIn) {
-            const reward = await LoyaltyReward.create({
-                sponsor: doc._id,
-                titulo: r.titulo,
-                descripcion: r.descripcion,
-                fotoUrl: r.fotoUrl,
-                costoPuntos: r.costoPuntos,
-                rolesCanje: r.rolesCanje,
-                tipo: r.tipo,
-                valor: r.valor,
-                activo: true,
-            });
-            createdRewards.push(reward);
+        const emailNorm = String(partnerEmail || '').trim().toLowerCase();
+        if (String(partnerPassword || '').length < 6) {
+            res.status(400);
+            throw new Error('La contraseña del partner debe tener al menos 6 caracteres.');
+        }
+        const exists = await req.models.User.findOne({ email: emailNorm }).select('_id').lean();
+        if (exists) {
+            res.status(400);
+            throw new Error('Ya existe un usuario con ese email en el club.');
         }
     }
 
-    // Aportes solo desde el mes de alta (el que se está viendo al crear, o el actual).
-    const now = new Date();
-    let mes = now.getMonth() + 1;
-    let anio = now.getFullYear();
-    if (req.body?.mes != null && req.body?.anio != null) {
-        ({ mes, anio } = parsePeriod(req.body.mes, req.body.anio));
-    }
-    doc.desdeMes = mes;
-    doc.desdeAnio = anio;
     await doc.save();
 
+    let partner = null;
+    const createdRewards = [];
     let pagoMes = null;
+
     try {
-        pagoMes = await SponsorPayment.create({
-            sponsor: doc._id,
-            mes,
-            anio,
-            monto: doc.montoMensual || 0,
-            estado: 'pendiente',
-        });
-    } catch {
-        pagoMes = await SponsorPayment.findOne({ sponsor: doc._id, mes, anio });
+        if (wantsPartner) {
+            partner = await createPartnerForSponsor(req.models, doc, {
+                email: partnerEmail,
+                password: partnerPassword,
+                nombre,
+            });
+            doc.usuariosPartner = [partner._id];
+            await doc.save();
+        } else {
+            await syncPartnerUsers(req.models, doc);
+        }
+
+        if (rewardsIn.length && LoyaltyReward) {
+            for (const r of rewardsIn) {
+                const reward = await LoyaltyReward.create({
+                    sponsor: doc._id,
+                    titulo: r.titulo,
+                    descripcion: r.descripcion,
+                    fotoUrl: r.fotoUrl,
+                    fotoAspect: r.fotoAspect || '16:9',
+                    costoPuntos: r.costoPuntos,
+                    rolesCanje: r.rolesCanje,
+                    tipo: r.tipo,
+                    valor: r.valor,
+                    activo: true,
+                });
+                createdRewards.push(reward);
+            }
+        }
+
+        // Aportes solo desde el mes de alta (el que se está viendo al crear, o el actual).
+        const now = new Date();
+        let mes = now.getMonth() + 1;
+        let anio = now.getFullYear();
+        if (req.body?.mes != null && req.body?.anio != null) {
+            ({ mes, anio } = parsePeriod(req.body.mes, req.body.anio));
+        }
+        doc.desdeMes = mes;
+        doc.desdeAnio = anio;
+        await doc.save();
+
+        try {
+            pagoMes = await SponsorPayment.create({
+                sponsor: doc._id,
+                mes,
+                anio,
+                monto: doc.montoMensual || 0,
+                estado: 'pendiente',
+            });
+        } catch {
+            pagoMes = await SponsorPayment.findOne({ sponsor: doc._id, mes, anio });
+        }
+    } catch (err) {
+        // Roll back partial create so retries / double taps don't stack cards.
+        try {
+            if (LoyaltyReward) await LoyaltyReward.deleteMany({ sponsor: doc._id });
+            await SponsorPayment.deleteMany({ sponsor: doc._id });
+            if (partner?._id) await req.models.User.deleteOne({ _id: partner._id });
+            await Sponsor.deleteOne({ _id: doc._id });
+        } catch {
+            /* best-effort cleanup */
+        }
+        throw err;
     }
 
     await doc.populate('cuotasSociales', 'nombre monto activo');

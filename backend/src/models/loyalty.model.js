@@ -53,6 +53,12 @@ const loyaltyRewardSchema = new mongoose.Schema(
         titulo: { type: String, required: true, trim: true },
         descripcion: { type: String, trim: true, default: '' },
         fotoUrl: { type: String, trim: true, default: '' },
+        /** Display crop for member cards: 16:9 | 4:3 | 1:1 | 3:4 */
+        fotoAspect: {
+            type: String,
+            enum: ['16:9', '4:3', '1:1', '3:4'],
+            default: '16:9',
+        },
         costoPuntos: { type: Number, required: true, min: 1 },
         /** Roles that may redeem this discount (empty = use sponsor.rolesCanjeCreditos). */
         rolesCanje: [{ type: String }],
