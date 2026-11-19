@@ -48,6 +48,19 @@ export function expandSponsorRoles(rolesIn) {
 }
 
 /**
+ * Roles that may redeem a reward. Expands legacy `staff` / `todos` tokens.
+ * Prefer per-reward rolesCanje; fall back to sponsor.rolesCanjeCreditos.
+ */
+export function resolveCanjeRoles(reward, sponsor) {
+    const fromReward = Array.isArray(reward?.rolesCanje) ? reward.rolesCanje : [];
+    const fromSponsor = Array.isArray(sponsor?.rolesCanjeCreditos)
+        ? sponsor.rolesCanjeCreditos
+        : [];
+    const raw = fromReward.length ? fromReward : fromSponsor;
+    return expandSponsorRoles(raw);
+}
+
+/**
  * Sponsors del club: aporte mensual + beneficios para miembros al día
  * según rol y/o tipo de cuota social.
  */

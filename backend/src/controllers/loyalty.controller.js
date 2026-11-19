@@ -1,6 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import { normalizeUserRoles, userHasRole } from '../constants/userRoles.js';
-import { expandSponsorRoles } from '../models/sponsor.model.js';
+import { expandSponsorRoles, resolveCanjeRoles } from '../models/sponsor.model.js';
 import {
     getOrCreateLoyaltySettings,
     requireLoyaltyEnabled,
@@ -43,7 +43,7 @@ function serializeReward(r, settings) {
         fotoAspect: normalizeFotoAspect(r.fotoAspect),
         costoPuntos: costo,
         equivalentePesos: costo * valorPunto,
-        rolesCanje: Array.isArray(r.rolesCanje) ? r.rolesCanje : [],
+        rolesCanje: expandSponsorRoles(Array.isArray(r.rolesCanje) ? r.rolesCanje : []),
         tipo: r.tipo,
         valor: r.valor,
         activo: r.activo,
@@ -90,26 +90,25 @@ const getMyLoyalty = asyncHandler(async (req, res) => {
         .limit(30)
         .lean();
 
-    const userRoles = [
-        user?.rol,
-        ...(Array.isArray(user?.roles) ? user.roles : []),
-    ].filter(Boolean);
-    const [sponsors, rewards] = await Promise.all([
-        req.models.Sponsor.find({
-            activo: true,
-            rolesCanjeCreditos: { $in: userRoles },
-        })
-            .select('_id')
-            .lean(),
-        req.models.LoyaltyReward.find({
-            activo: true,
-            rolesCanje: { $in: userRoles },
-        })
-            .select('_id')
-            .limit(1)
+    const userRoles = normalizeUserRoles(user);
+    // Expand legacy staff/todos tokens in JS — Mongo $in cannot match those aliases.
+    const [sponsors, rewardDocs] = await Promise.all([
+        req.models.Sponsor.find({ activo: true }).select('rolesCanjeCreditos').lean(),
+        req.models.LoyaltyReward.find({ activo: true })
+            .populate('sponsor', 'rolesCanjeCreditos activo')
+            .select('rolesCanje sponsor')
             .lean(),
     ]);
-    const puedeCanjearPuntos = sponsors.length > 0 || rewards.length > 0;
+    const sponsorOk = sponsors.some((s) => {
+        const allowed = expandSponsorRoles(s.rolesCanjeCreditos);
+        return userRoles.some((role) => allowed.includes(role));
+    });
+    const rewardOk = rewardDocs.some((r) => {
+        if (!r.sponsor || r.sponsor.activo === false) return false;
+        const allowed = resolveCanjeRoles(r, r.sponsor);
+        return userRoles.some((role) => allowed.includes(role));
+    });
+    const puedeCanjearPuntos = sponsorOk || rewardOk;
 
     res.json({
         enabled: true,
@@ -135,16 +134,11 @@ const listRewards = asyncHandler(async (req, res) => {
         .sort({ createdAt: -1 })
         .lean();
 
-    const userRoles = [
-        req.user?.rol,
-        ...(Array.isArray(req.user?.roles) ? req.user.roles : []),
-    ].filter(Boolean);
+    const userRoles = normalizeUserRoles(req.user);
 
     const visible = rewards.filter((r) => {
         if (!r.sponsor || r.sponsor.activo === false) return false;
-        const fromReward = Array.isArray(r.rolesCanje) ? r.rolesCanje : [];
-        const fromSponsor = Array.isArray(r.sponsor.rolesCanjeCreditos) ? r.sponsor.rolesCanjeCreditos : [];
-        const allowed = fromReward.length ? fromReward : fromSponsor;
+        const allowed = resolveCanjeRoles(r, r.sponsor);
         if (!allowed.length) return false;
         return userRoles.some((role) => allowed.includes(role));
     });

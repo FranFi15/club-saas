@@ -1,4 +1,6 @@
 import crypto from 'crypto';
+import { resolveCanjeRoles } from '../models/sponsor.model.js';
+import { normalizeUserRoles } from '../constants/userRoles.js';
 
 const REDEEM_TTL_MS = 30 * 60 * 1000;
 
@@ -227,19 +229,10 @@ function nonce() {
     return crypto.randomBytes(16).toString('hex');
 }
 
-function userRolesList(user) {
-    return [
-        user?.rol,
-        ...(Array.isArray(user?.roles) ? user.roles : []),
-    ].filter(Boolean);
-}
-
 function userCanRedeemReward(user, reward, sponsor) {
-    const fromReward = Array.isArray(reward?.rolesCanje) ? reward.rolesCanje : [];
-    const fromSponsor = Array.isArray(sponsor?.rolesCanjeCreditos) ? sponsor.rolesCanjeCreditos : [];
-    const allowed = fromReward.length ? fromReward : fromSponsor;
+    const allowed = resolveCanjeRoles(reward, sponsor);
     if (!allowed.length) return false;
-    return userRolesList(user).some((r) => allowed.includes(r));
+    return normalizeUserRoles(user).some((r) => allowed.includes(r));
 }
 
 export async function redeemReward(models, { userId, rewardId }) {
