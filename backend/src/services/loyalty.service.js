@@ -235,6 +235,20 @@ function userCanRedeemReward(user, reward, sponsor) {
     return normalizeUserRoles(user).some((r) => allowed.includes(r));
 }
 
+/** Points locked by pending canjes that charge on partner confirm. */
+export async function reservedPendingPoints(models, userId) {
+    const now = new Date();
+    const rows = await models.LoyaltyRedemption.find({
+        user: userId,
+        estado: 'pendiente',
+        chargeOnConfirm: true,
+        expiresAt: { $gt: now },
+    })
+        .select('puntosGastados')
+        .lean();
+    return rows.reduce((sum, r) => sum + roundPts(r.puntosGastados), 0);
+}
+
 export async function redeemReward(models, { userId, rewardId }) {
     const settings = await requireLoyaltyEnabled(models);
     const { User, LoyaltyReward, LoyaltyRedemption, Sponsor } = models;
@@ -281,19 +295,19 @@ export async function redeemReward(models, { userId, rewardId }) {
     }
 
     const cost = roundPts(reward.costoPuntos);
-    await debitPoints(models, {
-        userId,
-        amount: cost,
-        reason: 'canje',
-        ref: `redeem-pending:${userId}:${rewardId}:${Date.now()}`,
-        note: reward.titulo,
-    });
-
-    if (reward.stock != null) {
-        reward.stock = Math.max(0, reward.stock - 1);
-        await reward.save();
+    const balance = roundPts(user.puntosLealtad);
+    const reserved = await reservedPendingPoints(models, userId);
+    if (balance - reserved < cost) {
+        const err = new Error(
+            reserved > 0
+                ? `Créditos insuficientes (tenés ${balance}, con ${reserved} reservados en canjes pendientes).`
+                : 'Créditos insuficientes.',
+        );
+        err.statusCode = 400;
+        throw err;
     }
 
+    // Do not debit yet — credits are charged when the partner confirms the code.
     const codigo = shortCode();
     const tokenNonce = nonce();
     const expiresAt = new Date(Date.now() + REDEEM_TTL_MS);
@@ -306,6 +320,7 @@ export async function redeemReward(models, { userId, rewardId }) {
         codigo,
         tokenNonce,
         estado: 'pendiente',
+        chargeOnConfirm: true,
         expiresAt,
         snapshotTitulo: reward.titulo,
         snapshotTipo: reward.tipo,
@@ -338,6 +353,33 @@ export async function markRedemptionUsed(models, {
         const err = new Error('El código expiró.');
         err.statusCode = 400;
         throw err;
+    }
+
+    // New flow: charge credits only when the partner redeems.
+    // Legacy pending (chargeOnConfirm !== true) already debited on create.
+    if (redemption.chargeOnConfirm === true) {
+        try {
+            await debitPoints(models, {
+                userId: redemption.user,
+                amount: redemption.puntosGastados,
+                reason: 'canje',
+                ref: `redeem:${redemption._id}`,
+                createdBy: validatorId,
+                note: redemption.snapshotTitulo || 'Canje validado',
+            });
+        } catch (e) {
+            // Idempotent retry if ledger row already exists for this redemption.
+            const dup =
+                e?.code === 11000 ||
+                String(e?.message || '').toLowerCase().includes('duplicate');
+            if (!dup) throw e;
+        }
+
+        const reward = await models.LoyaltyReward.findById(redemption.reward);
+        if (reward && reward.stock != null) {
+            reward.stock = Math.max(0, reward.stock - 1);
+            await reward.save();
+        }
     }
 
     redemption.estado = 'usado';

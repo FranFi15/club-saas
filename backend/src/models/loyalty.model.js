@@ -90,6 +90,11 @@ const loyaltyRedemptionSchema = new mongoose.Schema(
             enum: ['pendiente', 'usado', 'anulado', 'expirado'],
             default: 'pendiente',
         },
+        /**
+         * true = credits debit when partner confirms (new flow).
+         * missing/false = legacy canjes that already debited on create.
+         */
+        chargeOnConfirm: { type: Boolean, default: true },
         expiresAt: { type: Date, required: true },
         usadoEn: { type: Date, default: null },
         validadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

@@ -10,6 +10,7 @@ import {
     markRedemptionUsed,
     nextExpiryForUser,
     expireLoyaltyPoints,
+    reservedPendingPoints,
 } from '../services/loyalty.service.js';
 
 function serializeSettings(s) {
@@ -109,11 +110,15 @@ const getMyLoyalty = asyncHandler(async (req, res) => {
         return userRoles.some((role) => allowed.includes(role));
     });
     const puedeCanjearPuntos = sponsorOk || rewardOk;
+    const balance = Number(user?.puntosLealtad) || 0;
+    const reserved = await reservedPendingPoints(req.models, req.user._id);
 
     res.json({
         enabled: true,
         settings: serializeSettings(settings),
-        balance: user?.puntosLealtad || 0,
+        balance,
+        reservedPendiente: reserved,
+        disponible: Math.max(0, balance - reserved),
         puedeCanjearPuntos,
         nextExpiry: next
             ? { expiresAt: next.expiresAt, remaining: next.remaining }
