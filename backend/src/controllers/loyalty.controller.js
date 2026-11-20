@@ -212,12 +212,12 @@ const listRewards = asyncHandler(async (req, res) => {
     const settings = await getOrCreateLoyaltySettings(req.models);
     if (!settings.enabled) return res.json({ enabled: false, rewards: [] });
 
-    // Solo canjes con créditos; los de costo 0 van a Beneficios (my-benefits).
-    const filter = { activo: true, costoPuntos: { $gte: 1 } };
+    // Incluye canjes con créditos y beneficios libres (costo 0).
+    const filter = { activo: true };
     if (req.query.sponsor) filter.sponsor = req.query.sponsor;
 
     const rewards = await req.models.LoyaltyReward.find(filter)
-        .populate('sponsor', 'nombre fotoUrl rolesCanjeCreditos activo')
+        .populate('sponsor', 'nombre fotoUrl rolesCanjeCreditos rolesAplicables activo')
         .sort({ createdAt: -1 })
         .lean();
 
@@ -226,8 +226,13 @@ const listRewards = asyncHandler(async (req, res) => {
     const visible = rewards.filter((r) => {
         if (!r.sponsor || r.sponsor.activo === false) return false;
         const allowed = resolveCanjeRoles(r, r.sponsor);
-        if (!allowed.length) return false;
-        return userRoles.some((role) => allowed.includes(role));
+        if (allowed.length) return userRoles.some((role) => allowed.includes(role));
+        // Beneficio libre sin roles de canje: visible si matchea rolesAplicables del sponsor (o todos).
+        const cost = Number(r.costoPuntos) || 0;
+        if (cost > 0) return false;
+        const audience = expandSponsorRoles(r.sponsor.rolesAplicables || []);
+        if (!audience.length) return true;
+        return userRoles.some((role) => audience.includes(role));
     });
 
     res.json({
