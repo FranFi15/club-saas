@@ -331,7 +331,6 @@ export async function redeemReward(models, { userId, rewardId }) {
         redemption,
         settings,
         qrValue: `gpsports:reward:${tokenNonce}`,
-        equivalentePesos: cost * (Number(settings.valorPuntoPesos) || 0),
     };
 }
 

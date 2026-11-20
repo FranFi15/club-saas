@@ -1,5 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import { getBecaPlanIds, excludeBecaPaymentsFilter } from '../services/becaPlan.service.js';
+import { ensureSponsorPaymentsForMonth } from './sponsor.controller.js';
 
 function parsePeriod(mes, anio) {
     const m = Number(mes);
@@ -37,6 +38,9 @@ const getCaja = asyncHandler(async (req, res) => {
 
     const { mes, anio } = parsePeriod(req.query.mes, req.query.anio);
     const { from, to } = monthDateRange(mes, anio);
+
+    // Alinea filas de sponsors (mensual vs anual) antes de sumar ingresos esperados/cobrados.
+    await ensureSponsorPaymentsForMonth(req.models, mes, anio);
 
     const becaPlanIds = await getBecaPlanIds(req.models);
     const becaExclude = excludeBecaPaymentsFilter(becaPlanIds);

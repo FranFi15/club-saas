@@ -4,7 +4,8 @@ export const SPONSOR_PAYMENT_ESTADOS = ['pendiente', 'pagado'];
 export const SPONSOR_PAYMENT_METODOS = ['efectivo', 'transferencia', 'mercado_pago', 'otro'];
 
 /**
- * Aporte mensual de un sponsor al club (control de cobro mes a mes).
+ * Aporte de un sponsor al club.
+ * Mensual: una fila por mes. Anual: una sola fila por año (mes = vencimiento).
  */
 const sponsorPaymentSchema = new mongoose.Schema(
     {

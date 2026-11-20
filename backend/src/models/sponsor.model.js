@@ -60,8 +60,10 @@ export function resolveCanjeRoles(reward, sponsor) {
     return expandSponsorRoles(raw);
 }
 
+export const SPONSOR_APORTE_FRECUENCIAS = ['mensual', 'anual'];
+
 /**
- * Sponsors del club: aporte mensual + beneficios para miembros al día
+ * Sponsors del club: aporte (mensual o anual) + beneficios para miembros al día
  * según rol y/o tipo de cuota social.
  */
 const sponsorSchema = new mongoose.Schema(
@@ -70,7 +72,14 @@ const sponsorSchema = new mongoose.Schema(
         /** CUIT / registro / razón social corta. */
         registro: { type: String, trim: true, default: '' },
         fotoUrl: { type: String, trim: true, default: '' },
+        /** Monto del aporte (mensual o anual según frecuenciaAporte). */
         montoMensual: { type: Number, default: 0, min: 0 },
+        /** Cómo se cobra el aporte al club. */
+        frecuenciaAporte: {
+            type: String,
+            enum: SPONSOR_APORTE_FRECUENCIAS,
+            default: 'mensual',
+        },
         /** Texto libre de beneficios (líneas separadas por salto). */
         beneficios: { type: String, trim: true, default: '' },
         /** Roles alcanzados (vacío = todos los roles activos). */

@@ -1,6 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import mongoose from 'mongoose';
-import { expandSponsorRoles } from '../models/sponsor.model.js';
+import { expandSponsorRoles, SPONSOR_APORTE_FRECUENCIAS } from '../models/sponsor.model.js';
 import { SPONSOR_PAYMENT_METODOS } from '../models/sponsorPayment.model.js';
 import { markOverduePayments } from '../services/overduePayments.service.js';
 
@@ -58,6 +58,15 @@ function applySponsorBody(doc, body) {
     if (body.registro !== undefined) doc.registro = String(body.registro || '').trim();
     if (body.fotoUrl !== undefined) doc.fotoUrl = String(body.fotoUrl || '').trim();
     if (body.montoMensual !== undefined) doc.montoMensual = parseMoney(body.montoMensual);
+    if (body.frecuenciaAporte !== undefined) {
+        const freq = String(body.frecuenciaAporte || 'mensual').trim().toLowerCase();
+        if (!SPONSOR_APORTE_FRECUENCIAS.includes(freq)) {
+            const err = new Error('Frecuencia de aporte inválida (mensual o anual).');
+            err.statusCode = 400;
+            throw err;
+        }
+        doc.frecuenciaAporte = freq;
+    }
     if (body.beneficios !== undefined) doc.beneficios = String(body.beneficios || '').trim();
     if (body.rolesAplicables !== undefined) doc.rolesAplicables = sanitizeRoles(body.rolesAplicables);
     if (body.rolesCanjeCreditos !== undefined) doc.rolesCanjeCreditos = sanitizeRoles(body.rolesCanjeCreditos);
@@ -163,29 +172,79 @@ function sponsorActiveInPeriod(sponsor, mes, anio) {
     return periodKey(mes, anio) >= periodKey(start.mes, start.anio);
 }
 
+function sponsorFrecuencia(sponsor) {
+    return sponsor?.frecuenciaAporte === 'anual' ? 'anual' : 'mensual';
+}
+
+/** Mes del vencimiento anual (alta del sponsor, o enero). */
+function annualDueMes(sponsor) {
+    const m = Number(sponsor?.desdeMes);
+    return Number.isInteger(m) && m >= 1 && m <= 12 ? m : 1;
+}
+
 /** Crea filas pendientes del mes solo para sponsors vigentes desde ese mes. */
 async function ensureSponsorPaymentsForMonth(models, mes, anio) {
     const { Sponsor, SponsorPayment } = models;
     const sponsors = await Sponsor.find({ activo: true })
-        .select('_id montoMensual desdeMes desdeAnio createdAt')
+        .select('_id montoMensual frecuenciaAporte desdeMes desdeAnio createdAt')
         .lean();
     if (!sponsors.length) return;
 
     const eligible = sponsors.filter((s) => sponsorActiveInPeriod(s, mes, anio));
     if (!eligible.length) return;
 
-    const existing = await SponsorPayment.find({ mes, anio }).select('sponsor').lean();
-    const have = new Set(existing.map((e) => String(e.sponsor)));
+    const existingMonth = await SponsorPayment.find({ mes, anio }).select('sponsor').lean();
+    const haveMonth = new Set(existingMonth.map((e) => String(e.sponsor)));
 
-    const toInsert = eligible
-        .filter((s) => !have.has(String(s._id)))
-        .map((s) => ({
+    const annualSponsors = eligible.filter((s) => sponsorFrecuencia(s) === 'anual');
+    const annualIds = annualSponsors.map((s) => s._id);
+
+    // Quitar pendientes mensuales viejos de sponsors anuales (evita “pendiente” y Caja en meses que no corresponden).
+    if (annualSponsors.length) {
+        for (const s of annualSponsors) {
+            const dueMes = annualDueMes(s);
+            await SponsorPayment.deleteMany({
+                sponsor: s._id,
+                anio,
+                estado: 'pendiente',
+                mes: { $ne: dueMes },
+            });
+        }
+    }
+
+    const yearPayments = annualIds.length
+        ? await SponsorPayment.find({ sponsor: { $in: annualIds }, anio }).select('sponsor').lean()
+        : [];
+    const haveYear = new Set(yearPayments.map((e) => String(e.sponsor)));
+
+    const toInsert = [];
+    for (const s of eligible) {
+        const sid = String(s._id);
+        const monto = Number(s.montoMensual) || 0;
+        if (sponsorFrecuencia(s) === 'anual') {
+            // One row per year, booked on the due month — never create monthly pendientes.
+            if (haveYear.has(sid)) continue;
+            const dueMes = annualDueMes(s);
+            if (periodKey(mes, anio) < periodKey(dueMes, anio)) continue;
+            toInsert.push({
+                sponsor: s._id,
+                mes: dueMes,
+                anio,
+                monto,
+                estado: 'pendiente',
+            });
+            haveYear.add(sid);
+            continue;
+        }
+        if (haveMonth.has(sid)) continue;
+        toInsert.push({
             sponsor: s._id,
             mes,
             anio,
-            monto: Number(s.montoMensual) || 0,
+            monto,
             estado: 'pendiente',
-        }));
+        });
+    }
 
     if (toInsert.length) {
         try {
@@ -217,9 +276,29 @@ const listSponsors = asyncHandler(async (req, res) => {
         .lean();
 
     let pagoBySponsor = new Map();
+    let yearPagoBySponsor = new Map();
     if (period) {
         const pagos = await SponsorPayment.find({ mes: period.mes, anio: period.anio }).lean();
         pagoBySponsor = new Map(pagos.map((p) => [String(p.sponsor), p]));
+
+        const annualIds = sponsors
+            .filter((s) => sponsorFrecuencia(s) === 'anual')
+            .map((s) => s._id);
+        if (annualIds.length) {
+            const yearPagos = await SponsorPayment.find({
+                sponsor: { $in: annualIds },
+                anio: period.anio,
+            })
+                .sort({ estado: -1, mes: 1 })
+                .lean();
+            for (const p of yearPagos) {
+                const key = String(p.sponsor);
+                const prev = yearPagoBySponsor.get(key);
+                if (!prev || (prev.estado !== 'pagado' && p.estado === 'pagado')) {
+                    yearPagoBySponsor.set(key, p);
+                }
+            }
+        }
     }
 
     const visible = period
@@ -229,10 +308,21 @@ const listSponsors = asyncHandler(async (req, res) => {
     res.json({
         mes: period?.mes ?? null,
         anio: period?.anio ?? null,
-        sponsors: visible.map((s) => ({
-            ...s,
-            pagoMes: period ? serializePago(pagoBySponsor.get(String(s._id))) : null,
-        })),
+        sponsors: visible.map((s) => {
+            const sid = String(s._id);
+            let pago = null;
+            if (period) {
+                pago =
+                    sponsorFrecuencia(s) === 'anual'
+                        ? yearPagoBySponsor.get(sid) || null
+                        : pagoBySponsor.get(sid) || null;
+            }
+            return {
+                ...s,
+                frecuenciaAporte: sponsorFrecuencia(s),
+                pagoMes: period ? serializePago(pago) : null,
+            };
+        }),
     });
 });
 
@@ -315,6 +405,7 @@ const createSponsor = asyncHandler(async (req, res) => {
         registro: '',
         fotoUrl: '',
         montoMensual: 0,
+        frecuenciaAporte: 'mensual',
         beneficios: '',
         rolesAplicables: [],
         cuotasSociales: [],
@@ -452,6 +543,7 @@ const updateSponsor = asyncHandler(async (req, res) => {
         throw new Error('Sponsor no encontrado.');
     }
     const prevMonto = doc.montoMensual;
+    const prevFreq = sponsorFrecuencia(doc);
     applySponsorBody(doc, req.body);
     if (!doc.rolesAplicables.length && !doc.cuotasSociales.length) {
         res.status(400);
@@ -460,18 +552,42 @@ const updateSponsor = asyncHandler(async (req, res) => {
     await doc.save();
     await syncPartnerUsers(req.models, doc);
 
-    // Si cambió el monto, actualizá pagos pendientes del mes en curso.
+    // Si pasó a anual, borrá pendientes mensuales extras (dejá como máximo 1 por año).
+    if (prevFreq !== 'anual' && sponsorFrecuencia(doc) === 'anual') {
+        const year = new Date().getFullYear();
+        const yearRows = await SponsorPayment.find({
+            sponsor: doc._id,
+            anio: year,
+            estado: 'pendiente',
+        })
+            .sort({ mes: 1 })
+            .select('_id')
+            .lean();
+        if (yearRows.length > 1) {
+            await SponsorPayment.deleteMany({
+                _id: { $in: yearRows.slice(1).map((r) => r._id) },
+            });
+        }
+        await SponsorPayment.deleteMany({
+            sponsor: doc._id,
+            estado: 'pendiente',
+            anio: { $ne: year },
+        });
+    }
+
+    // Si cambió el monto, actualizá pagos pendientes abiertos.
     if (doc.montoMensual !== prevMonto) {
         const now = new Date();
-        await SponsorPayment.updateMany(
-            {
-                sponsor: doc._id,
-                estado: 'pendiente',
-                mes: now.getMonth() + 1,
-                anio: now.getFullYear(),
-            },
-            { $set: { monto: doc.montoMensual } },
-        );
+        const filter =
+            sponsorFrecuencia(doc) === 'anual'
+                ? { sponsor: doc._id, estado: 'pendiente', anio: now.getFullYear() }
+                : {
+                      sponsor: doc._id,
+                      estado: 'pendiente',
+                      mes: now.getMonth() + 1,
+                      anio: now.getFullYear(),
+                  };
+        await SponsorPayment.updateMany(filter, { $set: { monto: doc.montoMensual } });
     }
 
     await doc.populate('cuotasSociales', 'nombre monto activo');
@@ -508,11 +624,16 @@ const paySponsorMonth = asyncHandler(async (req, res) => {
     }
     await ensureSponsorPaymentsForMonth(req.models, mes, anio);
 
-    let pago = await SponsorPayment.findOne({ sponsor: sponsor._id, mes, anio });
+    const isAnnual = sponsorFrecuencia(sponsor) === 'anual';
+    let pago = isAnnual
+        ? await SponsorPayment.findOne({ sponsor: sponsor._id, anio, estado: 'pagado' })
+            || await SponsorPayment.findOne({ sponsor: sponsor._id, anio })
+        : await SponsorPayment.findOne({ sponsor: sponsor._id, mes, anio });
     if (!pago) {
+        const dueMes = isAnnual ? annualDueMes(sponsor) : mes;
         pago = await SponsorPayment.create({
             sponsor: sponsor._id,
-            mes,
+            mes: dueMes,
             anio,
             monto: sponsor.montoMensual || 0,
             estado: 'pendiente',
@@ -546,7 +667,7 @@ const paySponsorMonth = asyncHandler(async (req, res) => {
     await pago.save();
 
     res.json({
-        message: 'Pago del sponsor confirmado.',
+        message: isAnnual ? 'Aporte anual del sponsor confirmado.' : 'Pago del sponsor confirmado.',
         pago: serializePago(pago),
     });
 });
@@ -555,16 +676,20 @@ const paySponsorMonth = asyncHandler(async (req, res) => {
 // @route   PATCH /api/financial/sponsors/:id/unpay-month
 const unpaySponsorMonth = asyncHandler(async (req, res) => {
     const { Sponsor, SponsorPayment } = req.models;
-    const sponsor = await Sponsor.findById(req.params.id).select('_id');
+    const sponsor = await Sponsor.findById(req.params.id).select('_id frecuenciaAporte desdeMes');
     if (!sponsor) {
         res.status(404);
         throw new Error('Sponsor no encontrado.');
     }
     const { mes, anio } = parsePeriod(req.body?.mes, req.body?.anio);
-    const pago = await SponsorPayment.findOne({ sponsor: sponsor._id, mes, anio });
+    const pago =
+        sponsorFrecuencia(sponsor) === 'anual'
+            ? await SponsorPayment.findOne({ sponsor: sponsor._id, anio, estado: 'pagado' })
+                || await SponsorPayment.findOne({ sponsor: sponsor._id, anio })
+            : await SponsorPayment.findOne({ sponsor: sponsor._id, mes, anio });
     if (!pago) {
         res.status(404);
-        throw new Error('No hay registro de pago para ese mes.');
+        throw new Error('No hay registro de pago para ese período.');
     }
     pago.estado = 'pendiente';
     pago.fechaPago = undefined;
@@ -617,4 +742,5 @@ export {
     paySponsorMonth,
     unpaySponsorMonth,
     getMySponsorBenefits,
+    ensureSponsorPaymentsForMonth,
 };

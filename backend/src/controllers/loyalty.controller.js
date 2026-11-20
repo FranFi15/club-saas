@@ -1,6 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import { normalizeUserRoles, userHasRole } from '../constants/userRoles.js';
 import { expandSponsorRoles, resolveCanjeRoles } from '../models/sponsor.model.js';
+import { createAppNotification } from '../services/appNotification.service.js';
 import {
     getOrCreateLoyaltySettings,
     requireLoyaltyEnabled,
@@ -13,14 +14,74 @@ import {
     reservedPendingPoints,
 } from '../services/loyalty.service.js';
 
-function serializeSettings(s) {
-    if (!s) return null;
+const LEDGER_REASON_LABEL = {
+    cuota_al_dia: 'Cuota al día',
+    ajuste_admin: 'Ajuste del club',
+    venta_partner: 'Compra en comercio',
+    canje: 'Canje validado',
+    reversa: 'Reversa',
+    expiracion: 'Vencimiento',
+};
+
+function serializeLedgerEntry(e) {
+    const delta = Number(e.delta) || 0;
     return {
+        _id: e._id,
+        delta,
+        balanceAfter: e.balanceAfter,
+        reason: e.reason,
+        reasonLabel: LEDGER_REASON_LABEL[e.reason] || e.reason || 'Movimiento',
+        note: e.note || '',
+        createdAt: e.createdAt,
+    };
+}
+
+async function notifyCanjeUsed(models, redemption) {
+    try {
+        const pts = Math.max(0, Math.floor(Number(redemption.puntosGastados) || 0));
+        const beneficio = redemption.snapshotTitulo || 'beneficio';
+        await createAppNotification(models, {
+            usuario: redemption.user,
+            tipo: 'creditos_canje',
+            titulo: 'Canje validado',
+            mensaje: pts
+                ? `Se usó tu canje “${beneficio}” (−${pts} créditos).`
+                : `Se validó tu canje “${beneficio}”.`,
+            referencia: redemption._id,
+        });
+    } catch (e) {
+        console.warn('[loyalty] notify canje:', e.message);
+    }
+}
+
+async function notifyCreditsEarned(models, { userId, puntos, saleId, sponsorNombre }) {
+    try {
+        const pts = Math.max(0, Math.floor(Number(puntos) || 0));
+        if (!pts) return;
+        const where = sponsorNombre ? ` en ${sponsorNombre}` : '';
+        await createAppNotification(models, {
+            usuario: userId,
+            tipo: 'creditos_ganados',
+            titulo: 'Créditos ganados',
+            mensaje: `Sumaste ${pts} créditos por tu compra${where}.`,
+            referencia: saleId,
+        });
+    } catch (e) {
+        console.warn('[loyalty] notify credits:', e.message);
+    }
+}
+
+function serializeSettings(s, { includeAdminRates = false } = {}) {
+    if (!s) return null;
+    const base = {
         enabled: !!s.enabled,
         nombrePuntos: s.nombrePuntos || 'Créditos',
-        valorPuntoPesos: Number(s.valorPuntoPesos) || 0,
         diasVigenciaPuntos: Number(s.diasVigenciaPuntos) || 90,
         puntosPorCuotaAlDia: Number(s.puntosPorCuotaAlDia) || 0,
+    };
+    if (!includeAdminRates) return base;
+    return {
+        ...base,
         puntosPorPesoVentaPartner: Number(s.puntosPorPesoVentaPartner) || 0,
     };
 }
@@ -32,9 +93,8 @@ function normalizeFotoAspect(value) {
     return FOTO_ASPECTS.includes(v) ? v : '16:9';
 }
 
-function serializeReward(r, settings) {
+function serializeReward(r) {
     const costo = Number(r.costoPuntos) || 0;
-    const valorPunto = Number(settings?.valorPuntoPesos) || 0;
     return {
         _id: r._id,
         sponsor: r.sponsor,
@@ -43,7 +103,6 @@ function serializeReward(r, settings) {
         fotoUrl: r.fotoUrl || '',
         fotoAspect: normalizeFotoAspect(r.fotoAspect),
         costoPuntos: costo,
-        equivalentePesos: costo * valorPunto,
         rolesCanje: expandSponsorRoles(Array.isArray(r.rolesCanje) ? r.rolesCanje : []),
         tipo: r.tipo,
         valor: r.valor,
@@ -55,7 +114,7 @@ function serializeReward(r, settings) {
 
 const getSettings = asyncHandler(async (req, res) => {
     const settings = await getOrCreateLoyaltySettings(req.models);
-    res.json({ settings: serializeSettings(settings) });
+    res.json({ settings: serializeSettings(settings, { includeAdminRates: true }) });
 });
 
 const updateSettings = asyncHandler(async (req, res) => {
@@ -63,7 +122,6 @@ const updateSettings = asyncHandler(async (req, res) => {
     const b = req.body || {};
     if (b.enabled !== undefined) settings.enabled = Boolean(b.enabled);
     if (b.nombrePuntos != null) settings.nombrePuntos = String(b.nombrePuntos).trim() || 'Créditos';
-    if (b.valorPuntoPesos != null) settings.valorPuntoPesos = Math.max(0, Number(b.valorPuntoPesos) || 0);
     if (b.diasVigenciaPuntos != null) {
         settings.diasVigenciaPuntos = Math.min(3650, Math.max(1, Number(b.diasVigenciaPuntos) || 90));
     }
@@ -74,7 +132,10 @@ const updateSettings = asyncHandler(async (req, res) => {
         settings.puntosPorPesoVentaPartner = Math.max(0, Number(b.puntosPorPesoVentaPartner) || 0);
     }
     await settings.save();
-    res.json({ settings: serializeSettings(settings), message: 'Configuración actualizada.' });
+    res.json({
+        settings: serializeSettings(settings, { includeAdminRates: true }),
+        message: 'Configuración actualizada.',
+    });
 });
 
 const getMyLoyalty = asyncHandler(async (req, res) => {
@@ -86,10 +147,21 @@ const getMyLoyalty = asyncHandler(async (req, res) => {
         .select('puntosLealtad puedeCanjearPuntos rol roles')
         .lean();
     const next = await nextExpiryForUser(req.models, req.user._id);
-    const ledger = await req.models.LoyaltyLedgerEntry.find({ user: req.user._id })
-        .sort({ createdAt: -1 })
-        .limit(30)
-        .lean();
+    const [ledgerRaw, pendingRaw] = await Promise.all([
+        req.models.LoyaltyLedgerEntry.find({ user: req.user._id })
+            .sort({ createdAt: -1 })
+            .limit(50)
+            .lean(),
+        req.models.LoyaltyRedemption.find({
+            user: req.user._id,
+            estado: 'pendiente',
+            expiresAt: { $gt: new Date() },
+        })
+            .select('codigo snapshotTitulo puntosGastados expiresAt createdAt chargeOnConfirm')
+            .sort({ createdAt: -1 })
+            .limit(20)
+            .lean(),
+    ]);
 
     const userRoles = normalizeUserRoles(user);
     // Expand legacy staff/todos tokens in JS — Mongo $in cannot match those aliases.
@@ -123,7 +195,16 @@ const getMyLoyalty = asyncHandler(async (req, res) => {
         nextExpiry: next
             ? { expiresAt: next.expiresAt, remaining: next.remaining }
             : null,
-        ledger,
+        ledger: ledgerRaw.map(serializeLedgerEntry),
+        pendingCanjes: pendingRaw.map((p) => ({
+            _id: p._id,
+            codigo: p.codigo,
+            titulo: p.snapshotTitulo || 'Canje',
+            puntos: p.puntosGastados,
+            expiresAt: p.expiresAt,
+            createdAt: p.createdAt,
+            reservado: p.chargeOnConfirm === true,
+        })),
     });
 });
 
@@ -151,7 +232,7 @@ const listRewards = asyncHandler(async (req, res) => {
     res.json({
         enabled: true,
         settings: serializeSettings(settings),
-        rewards: visible.map((r) => serializeReward(r, settings)),
+        rewards: visible.map((r) => serializeReward(r)),
     });
 });
 
@@ -166,7 +247,7 @@ const adminListRewards = asyncHandler(async (req, res) => {
         .lean();
     res.json({
         settings: serializeSettings(settings),
-        rewards: rewards.map((r) => serializeReward(r, settings)),
+        rewards: rewards.map((r) => serializeReward(r)),
     });
 });
 
@@ -198,7 +279,7 @@ const createReward = asyncHandler(async (req, res) => {
         activo: true,
     });
     const settings = await getOrCreateLoyaltySettings(req.models);
-    res.status(201).json({ reward: serializeReward(doc, settings), message: 'Beneficio creado.' });
+    res.status(201).json({ reward: serializeReward(doc), message: 'Beneficio creado.' });
 });
 
 const updateReward = asyncHandler(async (req, res) => {
@@ -228,7 +309,7 @@ const updateReward = asyncHandler(async (req, res) => {
     }
     await doc.save();
     const settings = await getOrCreateLoyaltySettings(req.models);
-    res.json({ reward: serializeReward(doc, settings), message: 'Beneficio actualizado.' });
+    res.json({ reward: serializeReward(doc), message: 'Beneficio actualizado.' });
 });
 
 const deleteReward = asyncHandler(async (req, res) => {
@@ -320,7 +401,6 @@ const redeem = asyncHandler(async (req, res) => {
         qrValue: result.qrValue,
         codigo: result.redemption.codigo,
         expiresAt: result.redemption.expiresAt,
-        equivalentePesos: result.equivalentePesos,
         settings: serializeSettings(result.settings),
     });
 });
@@ -418,6 +498,9 @@ const partnerScanConfirm = asyncHandler(async (req, res) => {
         redemption,
         validatorId: req.user._id,
     });
+    if (!result.already) {
+        await notifyCanjeUsed(req.models, result.redemption);
+    }
     res.json({
         already: result.already,
         redemption: result.redemption,
@@ -446,6 +529,9 @@ const partnerRedeemByCode = asyncHandler(async (req, res) => {
         redemption,
         validatorId: req.user._id,
     });
+    if (!result.already) {
+        await notifyCanjeUsed(req.models, result.redemption);
+    }
     res.json({
         already: result.already,
         redemption: result.redemption,
@@ -483,6 +569,13 @@ const partnerReportSale = asyncHandler(async (req, res) => {
             note: note || 'Venta partner',
             settings,
         });
+        const sponsor = await req.models.Sponsor.findById(sponsorId).select('nombre').lean();
+        await notifyCreditsEarned(req.models, {
+            userId,
+            puntos,
+            saleId: sale._id,
+            sponsorNombre: sponsor?.nombre || '',
+        });
     }
     res.status(201).json({ sale, entry, message: puntos ? `Se otorgaron ${puntos} créditos.` : 'Venta registrada (0 créditos).' });
 });
@@ -495,7 +588,7 @@ const partnerListRewards = asyncHandler(async (req, res) => {
         .lean();
     res.json({
         settings: serializeSettings(settings),
-        rewards: rewards.map((r) => serializeReward(r, settings)),
+        rewards: rewards.map((r) => serializeReward(r)),
     });
 });
 
