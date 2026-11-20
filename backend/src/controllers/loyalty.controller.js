@@ -167,7 +167,7 @@ const getMyLoyalty = asyncHandler(async (req, res) => {
     // Expand legacy staff/todos tokens in JS — Mongo $in cannot match those aliases.
     const [sponsors, rewardDocs] = await Promise.all([
         req.models.Sponsor.find({ activo: true }).select('rolesCanjeCreditos').lean(),
-        req.models.LoyaltyReward.find({ activo: true })
+        req.models.LoyaltyReward.find({ activo: true, costoPuntos: { $gte: 1 } })
             .populate('sponsor', 'rolesCanjeCreditos activo')
             .select('rolesCanje sponsor')
             .lean(),
@@ -212,7 +212,8 @@ const listRewards = asyncHandler(async (req, res) => {
     const settings = await getOrCreateLoyaltySettings(req.models);
     if (!settings.enabled) return res.json({ enabled: false, rewards: [] });
 
-    const filter = { activo: true };
+    // Solo canjes con créditos; los de costo 0 van a Beneficios (my-benefits).
+    const filter = { activo: true, costoPuntos: { $gte: 1 } };
     if (req.query.sponsor) filter.sponsor = req.query.sponsor;
 
     const rewards = await req.models.LoyaltyReward.find(filter)
@@ -252,11 +253,14 @@ const adminListRewards = asyncHandler(async (req, res) => {
 });
 
 const createReward = asyncHandler(async (req, res) => {
-    await requireLoyaltyEnabled(req.models);
     const { sponsor, titulo, descripcion, costoPuntos, tipo, valor, stock, vigenciaHasta } = req.body || {};
-    if (!sponsor || !titulo || !costoPuntos) {
+    const cost = Math.max(0, Math.floor(Number(costoPuntos) || 0));
+    if (!sponsor || !titulo) {
         res.status(400);
-        throw new Error('Sponsor, título y costo en créditos son obligatorios.');
+        throw new Error('Sponsor y título son obligatorios.');
+    }
+    if (cost > 0) {
+        await requireLoyaltyEnabled(req.models);
     }
     const exists = await req.models.Sponsor.findById(sponsor).select('_id');
     if (!exists) {
@@ -264,6 +268,10 @@ const createReward = asyncHandler(async (req, res) => {
         throw new Error('Sponsor no encontrado.');
     }
     const rolesCanje = expandSponsorRoles(req.body?.rolesCanje);
+    if (!rolesCanje.length) {
+        res.status(400);
+        throw new Error('Seleccioná al menos un tipo de usuario para el descuento.');
+    }
     const doc = await req.models.LoyaltyReward.create({
         sponsor,
         titulo: String(titulo).trim(),
@@ -271,25 +279,28 @@ const createReward = asyncHandler(async (req, res) => {
         fotoUrl: String(req.body?.fotoUrl || '').trim(),
         fotoAspect: normalizeFotoAspect(req.body?.fotoAspect),
         rolesCanje,
-        costoPuntos: Math.max(1, Math.floor(Number(costoPuntos) || 1)),
+        costoPuntos: cost,
         tipo: tipo || 'porcentaje',
         valor: Number(valor) || 0,
         stock: stock == null || stock === '' ? null : Math.max(0, Math.floor(Number(stock))),
         vigenciaHasta: vigenciaHasta ? new Date(vigenciaHasta) : null,
         activo: true,
     });
-    const settings = await getOrCreateLoyaltySettings(req.models);
     res.status(201).json({ reward: serializeReward(doc), message: 'Beneficio creado.' });
 });
 
 const updateReward = asyncHandler(async (req, res) => {
-    await requireLoyaltyEnabled(req.models);
     const doc = await req.models.LoyaltyReward.findById(req.params.id);
     if (!doc) {
         res.status(404);
         throw new Error('Beneficio no encontrado.');
     }
     const b = req.body || {};
+    const nextCost =
+        b.costoPuntos != null ? Math.max(0, Math.floor(Number(b.costoPuntos) || 0)) : doc.costoPuntos;
+    if (nextCost > 0) {
+        await requireLoyaltyEnabled(req.models);
+    }
     if (b.titulo != null) doc.titulo = String(b.titulo).trim();
     if (b.descripcion != null) doc.descripcion = String(b.descripcion).trim();
     if (b.fotoUrl != null) doc.fotoUrl = String(b.fotoUrl || '').trim();
@@ -297,7 +308,7 @@ const updateReward = asyncHandler(async (req, res) => {
     if (b.rolesCanje != null) {
         doc.rolesCanje = expandSponsorRoles(b.rolesCanje);
     }
-    if (b.costoPuntos != null) doc.costoPuntos = Math.max(1, Math.floor(Number(b.costoPuntos) || 1));
+    if (b.costoPuntos != null) doc.costoPuntos = nextCost;
     if (b.tipo != null) doc.tipo = b.tipo;
     if (b.valor != null) doc.valor = Number(b.valor) || 0;
     if (b.activo != null) doc.activo = Boolean(b.activo);
@@ -308,7 +319,6 @@ const updateReward = asyncHandler(async (req, res) => {
         doc.vigenciaHasta = b.vigenciaHasta ? new Date(b.vigenciaHasta) : null;
     }
     await doc.save();
-    const settings = await getOrCreateLoyaltySettings(req.models);
     res.json({ reward: serializeReward(doc), message: 'Beneficio actualizado.' });
 });
 

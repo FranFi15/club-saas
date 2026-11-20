@@ -295,6 +295,11 @@ export async function redeemReward(models, { userId, rewardId }) {
     }
 
     const cost = roundPts(reward.costoPuntos);
+    if (cost < 1) {
+        const err = new Error('Este beneficio no se canjea con créditos; está en Beneficios.');
+        err.statusCode = 400;
+        throw err;
+    }
     const balance = roundPts(user.puntosLealtad);
     const reserved = await reservedPendingPoints(models, userId);
     if (balance - reserved < cost) {

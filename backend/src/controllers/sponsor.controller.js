@@ -1,6 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import mongoose from 'mongoose';
-import { expandSponsorRoles, SPONSOR_APORTE_FRECUENCIAS } from '../models/sponsor.model.js';
+import { normalizeUserRoles } from '../constants/userRoles.js';
+import { expandSponsorRoles, resolveCanjeRoles, SPONSOR_APORTE_FRECUENCIAS } from '../models/sponsor.model.js';
 import { SPONSOR_PAYMENT_METODOS } from '../models/sponsorPayment.model.js';
 import { markOverduePayments } from '../services/overduePayments.service.js';
 
@@ -125,13 +126,14 @@ async function memberIsMoroso(models, user) {
     return count > 0;
 }
 
-function publicSponsor(s) {
+function publicSponsor(s, freeDiscounts = []) {
     return {
         _id: s._id,
         nombre: s.nombre,
         registro: s.registro || '',
         fotoUrl: s.fotoUrl || '',
         beneficios: s.beneficios || '',
+        descuentosLibres: freeDiscounts,
     };
 }
 
@@ -333,9 +335,9 @@ function parseRewardsPayload(raw) {
     return raw
         .map((r) => {
             const titulo = String(r?.titulo || '').trim();
-            const costoPuntos = Math.max(1, Math.floor(Number(r?.costoPuntos) || 0));
+            const costoPuntos = Math.max(0, Math.floor(Number(r?.costoPuntos) || 0));
             const rolesCanje = expandSponsorRoles(r?.rolesCanje);
-            if (!titulo || !costoPuntos) return null;
+            if (!titulo) return null;
             const aspectRaw = String(r?.fotoAspect || '').trim();
             return {
                 titulo,
@@ -399,6 +401,17 @@ const createSponsor = asyncHandler(async (req, res) => {
     const partnerEmail = req.body?.partnerEmail;
     const partnerPassword = req.body?.partnerPassword;
     const wantsPartner = Boolean(String(partnerEmail || '').trim() || String(partnerPassword || '').trim());
+    const creditRewards = rewardsIn.filter((r) => r.costoPuntos > 0);
+    if (creditRewards.length) {
+        const { LoyaltySettings } = req.models;
+        const settings = LoyaltySettings
+            ? await LoyaltySettings.findOne({ singletonKey: 'default' }).select('enabled').lean()
+            : null;
+        if (!settings?.enabled) {
+            res.status(400);
+            throw new Error('Activá Créditos del club para crear descuentos canjeables.');
+        }
+    }
 
     const doc = new Sponsor({
         nombre,
@@ -702,7 +715,7 @@ const unpaySponsorMonth = asyncHandler(async (req, res) => {
 // @desc    Beneficios visibles para el miembro (si no es moroso)
 // @route   GET /api/financial/sponsors/my-benefits
 const getMySponsorBenefits = asyncHandler(async (req, res) => {
-    const { Sponsor } = req.models;
+    const { Sponsor, LoyaltyReward } = req.models;
     const user = req.user;
 
     // Beneficios visibles para cualquier usuario activo (staff incluido).
@@ -722,15 +735,47 @@ const getMySponsorBenefits = asyncHandler(async (req, res) => {
     }
 
     const all = await Sponsor.find({ activo: true })
-        .select('nombre registro fotoUrl beneficios rolesAplicables cuotasSociales')
+        .select('nombre registro fotoUrl beneficios rolesAplicables cuotasSociales rolesCanjeCreditos')
         .lean();
 
-    const matched = all.filter((s) => sponsorMatchesMember(s, user)).map(publicSponsor);
+    const matched = all.filter((s) => sponsorMatchesMember(s, user));
+    const matchedIds = matched.map((s) => s._id);
+
+    let freeBySponsor = new Map();
+    if (matchedIds.length && LoyaltyReward) {
+        const freeRewards = await LoyaltyReward.find({
+            sponsor: { $in: matchedIds },
+            activo: true,
+            costoPuntos: 0,
+        })
+            .select('sponsor titulo descripcion fotoUrl fotoAspect rolesCanje tipo valor')
+            .sort({ createdAt: -1 })
+            .lean();
+        const userRoles = normalizeUserRoles(user);
+        const sponsorById = new Map(matched.map((s) => [String(s._id), s]));
+        for (const r of freeRewards) {
+            const sid = String(r.sponsor);
+            const sponsor = sponsorById.get(sid);
+            const allowed = resolveCanjeRoles(r, sponsor);
+            // Sin roles en el descuento → visible para quien ya matchea el sponsor.
+            if (allowed.length && !userRoles.some((role) => allowed.includes(role))) continue;
+            if (!freeBySponsor.has(sid)) freeBySponsor.set(sid, []);
+            freeBySponsor.get(sid).push({
+                _id: r._id,
+                titulo: r.titulo,
+                descripcion: r.descripcion || '',
+                fotoUrl: r.fotoUrl || '',
+                fotoAspect: r.fotoAspect || '16:9',
+                tipo: r.tipo,
+                valor: r.valor,
+            });
+        }
+    }
 
     res.json({
         eligible: true,
         moroso: false,
-        sponsors: matched,
+        sponsors: matched.map((s) => publicSponsor(s, freeBySponsor.get(String(s._id)) || [])),
     });
 });
 

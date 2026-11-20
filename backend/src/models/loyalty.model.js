@@ -59,7 +59,8 @@ const loyaltyRewardSchema = new mongoose.Schema(
             enum: ['16:9', '4:3', '1:1', '3:4'],
             default: '16:9',
         },
-        costoPuntos: { type: Number, required: true, min: 1 },
+        /** 0 = beneficio libre (sin canje de créditos). >= 1 = canjeable con créditos. */
+        costoPuntos: { type: Number, required: true, min: 0, default: 0 },
         /** Roles that may redeem this discount (empty = use sponsor.rolesCanjeCreditos). */
         rolesCanje: [{ type: String }],
         tipo: {
