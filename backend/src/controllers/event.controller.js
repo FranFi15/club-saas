@@ -330,9 +330,10 @@ function parseControlIngresoRaw(raw) {
                 accesoId = String(item.acceso?._id || item.acceso);
             }
         }
-        if (!mongoose.Types.ObjectId.isValid(usuarioId) || seen.has(usuarioId)) continue;
+        if (!isStrictObjectId(usuarioId) || seen.has(usuarioId)) continue;
         seen.add(usuarioId);
-        if (accesoId && !mongoose.Types.ObjectId.isValid(accesoId)) accesoId = null;
+        // Keep clientKeys (acc-…) and ObjectIds — resolveDoorAssignments maps them via keyToId.
+        if (!accesoId || accesoId === 'null' || accesoId === 'undefined') accesoId = null;
         out.push({ usuario: usuarioId, acceso: accesoId });
         if (out.length >= 40) break;
     }
