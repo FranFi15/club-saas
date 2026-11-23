@@ -360,8 +360,8 @@ async function resolveDoorAssignments(User, raw, keyToId = new Map()) {
             }
         }
         out.push({
-            usuario: String(row.usuario),
-            acceso: acceso ? String(acceso) : null,
+            usuario: new mongoose.Types.ObjectId(row.usuario),
+            acceso: acceso ? new mongoose.Types.ObjectId(acceso) : null,
         });
     }
     return out;
@@ -1184,9 +1184,14 @@ export const listScanTargets = asyncHandler(async (req, res) => {
         fechaInicio: { $gte: windowStart, $lte: windowEnd },
     };
     if (!isClubOwnerUser(req.user)) {
+        const uid = req.user._id;
+        const uidStr = String(uid);
+        // Match legacy bare ObjectIds and assignment docs (ObjectId or string usuario).
         filter.$or = [
-            { controlIngreso: req.user._id },
-            { 'controlIngreso.usuario': req.user._id },
+            { controlIngreso: uid },
+            { controlIngreso: uidStr },
+            { 'controlIngreso.usuario': uid },
+            { 'controlIngreso.usuario': uidStr },
         ];
     }
     const events = await ClubEvent.find(filter)
