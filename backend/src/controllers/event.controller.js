@@ -164,14 +164,17 @@ function normalizeAccesos(raw) {
 /** Apply accesos to the event doc and return Map(clientKey|_id → real _id). */
 function applyAccesosToEvent(event, rawAccesos) {
     const normalized = normalizeAccesos(rawAccesos);
-    event.accesos = normalized.map(({ nombre, activo, _id }) => ({
-        ...(_id ? { _id } : {}),
-        nombre,
-        activo,
-    }));
+    event.accesos = normalized.map(({ nombre, activo, _id }) => {
+        const id =
+            _id && mongoose.Types.ObjectId.isValid(String(_id))
+                ? new mongoose.Types.ObjectId(String(_id))
+                : new mongoose.Types.ObjectId();
+        return { _id: id, nombre, activo };
+    });
     const keyToId = new Map();
     (event.accesos || []).forEach((acceso, index) => {
         const id = String(acceso._id);
+        if (!mongoose.Types.ObjectId.isValid(id)) return;
         keyToId.set(id, id);
         const clientKey = normalized[index]?.clientKey;
         if (clientKey) keyToId.set(String(clientKey), id);
@@ -182,7 +185,9 @@ function applyAccesosToEvent(event, rawAccesos) {
 function resolveAccesoRef(raw, keyToId) {
     const key = String(raw?._id || raw || '').trim();
     if (!key) return null;
-    return keyToId.get(key) || (mongoose.Types.ObjectId.isValid(key) && keyToId.has(key) ? key : null);
+    const mapped = keyToId.get(key);
+    if (mapped && mongoose.Types.ObjectId.isValid(mapped)) return mapped;
+    return null;
 }
 
 function normalizeTipoAccesosPermitidos(raw, keyToId) {
