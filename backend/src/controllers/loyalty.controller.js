@@ -2,6 +2,7 @@ import asyncHandler from 'express-async-handler';
 import { normalizeUserRoles, userHasRole } from '../constants/userRoles.js';
 import { expandSponsorRoles, resolveCanjeRoles } from '../models/sponsor.model.js';
 import { createAppNotification } from '../services/appNotification.service.js';
+import { normalizeTicketDni } from '../services/eventTicketIssue.service.js';
 import {
     getOrCreateLoyaltySettings,
     requireLoyaltyEnabled,
@@ -13,6 +14,39 @@ import {
     expireLoyaltyPoints,
     reservedPendingPoints,
 } from '../services/loyalty.service.js';
+
+function dniLookupClauses(dni) {
+    const spaced = dni.split('').join('\\D*');
+    const clauses = [
+        { dni },
+        { dni: new RegExp(`^\\D*${spaced}\\D*$`) },
+    ];
+    if (dni.length === 7 || dni.length === 8) {
+        const core = dni.padStart(8, '0').split('').join('\\D*');
+        clauses.push({ dni: new RegExp(`^\\D*\\d{2}\\D*${core}\\D*\\d\\D*$`) });
+    }
+    return clauses;
+}
+
+async function findMemberByDni(User, rawDni) {
+    const dni = normalizeTicketDni(rawDni);
+    if (dni.length < 6 || dni.length > 10) return null;
+    return User.findOne({ $or: dniLookupClauses(dni) })
+        .select('_id nombre apellido dni email estado rol roles puntosLealtad')
+        .lean();
+}
+
+function serializePartnerMember(user) {
+    if (!user) return null;
+    return {
+        _id: user._id,
+        nombre: user.nombre || '',
+        apellido: user.apellido || '',
+        dni: user.dni || '',
+        estado: user.estado || '',
+        puntosLealtad: Number(user.puntosLealtad) || 0,
+    };
+}
 
 const LEDGER_REASON_LABEL = {
     cuota_al_dia: 'Cuota al día',
@@ -367,6 +401,21 @@ const adjustPoints = asyncHandler(async (req, res) => {
             note: note || 'Ajuste admin',
         });
     }
+    try {
+        const abs = Math.abs(amount);
+        await createAppNotification(req.models, {
+            usuario: userId,
+            tipo: 'creditos_ajuste',
+            titulo: amount > 0 ? 'Créditos sumados' : 'Créditos descontados',
+            mensaje:
+                amount > 0
+                    ? `El club te sumó ${abs} crédito${abs === 1 ? '' : 's'}.`
+                    : `El club descontó ${abs} crédito${abs === 1 ? '' : 's'}.`,
+            referencia: entry?._id || null,
+        });
+    } catch (e) {
+        console.warn('[loyalty] notify adjust:', e.message);
+    }
     const user = await req.models.User.findById(userId).select('puntosLealtad puedeCanjearPuntos nombre apellido');
     res.json({
         entry,
@@ -554,15 +603,50 @@ const partnerRedeemByCode = asyncHandler(async (req, res) => {
     });
 });
 
+const partnerLookupMember = asyncHandler(async (req, res) => {
+    await requireLoyaltyEnabled(req.models);
+    await partnerSponsorId(req);
+    const dni = String(req.query.dni || req.body?.dni || '').trim();
+    if (!dni) {
+        res.status(400);
+        throw new Error('Ingresá un DNI.');
+    }
+    const user = await findMemberByDni(req.models.User, dni);
+    if (!user) {
+        res.status(404);
+        throw new Error('No se encontró un socio con ese DNI.');
+    }
+    if (userHasRole(user, 'partner')) {
+        res.status(400);
+        throw new Error('Ese DNI pertenece a una cuenta partner.');
+    }
+    res.json({ user: serializePartnerMember(user) });
+});
+
 const partnerReportSale = asyncHandler(async (req, res) => {
     const settings = await requireLoyaltyEnabled(req.models);
     const sponsorId = await partnerSponsorId(req);
-    const { userId, monto, note } = req.body || {};
+    const { dni, monto, note } = req.body || {};
     const amount = Number(monto);
-    if (!userId || !Number.isFinite(amount) || amount < 0) {
+    if (!Number.isFinite(amount) || amount < 0) {
         res.status(400);
-        throw new Error('Indicá usuario y monto válido.');
+        throw new Error('Indicá un monto válido.');
     }
+    const dniRaw = String(dni || '').trim();
+    if (!dniRaw) {
+        res.status(400);
+        throw new Error('Indicá el DNI del socio.');
+    }
+    const member = await findMemberByDni(req.models.User, dniRaw);
+    if (!member) {
+        res.status(404);
+        throw new Error('No se encontró un socio con ese DNI.');
+    }
+    if (userHasRole(member, 'partner')) {
+        res.status(400);
+        throw new Error('Ese DNI pertenece a una cuenta partner.');
+    }
+    const userId = member._id;
     const rate = Number(settings.puntosPorPesoVentaPartner) || 0;
     const puntos = Math.floor(amount * rate);
     const sale = await req.models.LoyaltyPartnerSale.create({
@@ -592,7 +676,12 @@ const partnerReportSale = asyncHandler(async (req, res) => {
             sponsorNombre: sponsor?.nombre || '',
         });
     }
-    res.status(201).json({ sale, entry, message: puntos ? `Se otorgaron ${puntos} créditos.` : 'Venta registrada (0 créditos).' });
+    res.status(201).json({
+        sale,
+        entry,
+        user: serializePartnerMember(member),
+        message: puntos ? `Se otorgaron ${puntos} créditos.` : 'Venta registrada (0 créditos).',
+    });
 });
 
 const partnerListRewards = asyncHandler(async (req, res) => {
@@ -641,6 +730,7 @@ export {
     partnerScan,
     partnerScanConfirm,
     partnerRedeemByCode,
+    partnerLookupMember,
     partnerReportSale,
     partnerListRewards,
     runExpire,

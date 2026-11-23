@@ -16,6 +16,7 @@ import {
     partnerScan,
     partnerScanConfirm,
     partnerRedeemByCode,
+    partnerLookupMember,
     partnerReportSale,
     partnerListRewards,
     runExpire,
@@ -45,6 +46,7 @@ router.get('/partner/rewards', protect, authorize('partner'), partnerListRewards
 router.post('/partner/scan', protect, authorize('partner'), partnerScan);
 router.post('/partner/scan/confirm', protect, authorize('partner'), partnerScanConfirm);
 router.post('/partner/redeem-by-code', protect, authorize('partner'), partnerRedeemByCode);
+router.get('/partner/lookup', protect, authorize('partner'), partnerLookupMember);
 router.post('/partner/sales', protect, authorize('partner'), partnerReportSale);
 
 export default router;

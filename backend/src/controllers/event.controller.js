@@ -137,7 +137,68 @@ function applySectionCupos(tipos, secciones) {
     }
 }
 
-function normalizeTipos(raw) {
+function normalizeAccesos(raw) {
+    if (!Array.isArray(raw)) return [];
+    const out = [];
+    const seenNames = new Set();
+    for (const item of raw) {
+        const nombre = String(item?.nombre || '').trim();
+        if (!nombre) continue;
+        const key = nombre.toLowerCase();
+        if (seenNames.has(key)) continue;
+        seenNames.add(key);
+        const clientKey = String(item.clientKey || item.localKey || item._id || '').trim();
+        out.push({
+            ...(item._id && mongoose.Types.ObjectId.isValid(String(item._id))
+                ? { _id: item._id }
+                : {}),
+            nombre,
+            activo: item?.activo !== false,
+            clientKey,
+        });
+        if (out.length >= 40) break;
+    }
+    return out;
+}
+
+/** Apply accesos to the event doc and return Map(clientKey|_id → real _id). */
+function applyAccesosToEvent(event, rawAccesos) {
+    const normalized = normalizeAccesos(rawAccesos);
+    event.accesos = normalized.map(({ nombre, activo, _id }) => ({
+        ...(_id ? { _id } : {}),
+        nombre,
+        activo,
+    }));
+    const keyToId = new Map();
+    (event.accesos || []).forEach((acceso, index) => {
+        const id = String(acceso._id);
+        keyToId.set(id, id);
+        const clientKey = normalized[index]?.clientKey;
+        if (clientKey) keyToId.set(String(clientKey), id);
+    });
+    return keyToId;
+}
+
+function resolveAccesoRef(raw, keyToId) {
+    const key = String(raw?._id || raw || '').trim();
+    if (!key) return null;
+    return keyToId.get(key) || (mongoose.Types.ObjectId.isValid(key) && keyToId.has(key) ? key : null);
+}
+
+function normalizeTipoAccesosPermitidos(raw, keyToId) {
+    if (!Array.isArray(raw) || !keyToId?.size) return [];
+    const out = [];
+    const seen = new Set();
+    for (const item of raw) {
+        const id = resolveAccesoRef(item, keyToId);
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        out.push(id);
+    }
+    return out;
+}
+
+function normalizeTipos(raw, keyToId = new Map()) {
     if (!Array.isArray(raw)) return [];
     return raw.map((t) => ({
         ...(t._id ? { _id: t._id } : {}),
@@ -146,6 +207,7 @@ function normalizeTipos(raw) {
         cupo: Math.max(0, Math.floor(Number(t.cupo) || 0)),
         vendidas: Math.max(0, Math.floor(Number(t.vendidas) || 0)),
         activo: t.activo !== false,
+        accesosPermitidos: normalizeTipoAccesosPermitidos(t.accesosPermitidos, keyToId),
     }));
 }
 
@@ -231,57 +293,163 @@ async function buildCheckoutResponse(models, clubIdentifier, order, event) {
 
 // ─── Admin ───────────────────────────────────────────────────────────────────
 
-function normalizeDoorIds(raw) {
-    if (!Array.isArray(raw)) return [];
-    const ids = [];
-    const seen = new Set();
-    for (const item of raw) {
-        const id = String(item?._id || item || '').trim();
-        if (!mongoose.Types.ObjectId.isValid(id) || seen.has(id)) continue;
-        seen.add(id);
-        ids.push(id);
-        if (ids.length >= 40) break;
-    }
-    return ids;
+function eventHasAccesos(event) {
+    return (event?.accesos || []).some((a) => a && a.activo !== false);
 }
 
-async function resolveDoorUsers(User, raw) {
-    const ids = normalizeDoorIds(raw);
-    if (!ids.length) return [];
+/** Normalize legacy ObjectId rows and { usuario, acceso } into a common shape. */
+function parseControlIngresoRaw(raw) {
+    if (!Array.isArray(raw)) return [];
+    const out = [];
+    const seen = new Set();
+    for (const item of raw) {
+        if (item == null) continue;
+        let usuarioId = '';
+        let accesoId = null;
+        if (typeof item === 'object' && item.usuario != null) {
+            usuarioId = String(item.usuario?._id || item.usuario);
+            accesoId = item.acceso != null ? String(item.acceso?._id || item.acceso) : null;
+        } else if (typeof item === 'object' && item._id && (item.nombre != null || item.apellido != null || item.rol != null)) {
+            usuarioId = String(item._id);
+            accesoId = item.acceso != null ? String(item.acceso?._id || item.acceso) : null;
+        } else {
+            usuarioId = String(item?._id || item);
+            if (typeof item === 'object' && item.acceso != null) {
+                accesoId = String(item.acceso?._id || item.acceso);
+            }
+        }
+        if (!mongoose.Types.ObjectId.isValid(usuarioId) || seen.has(usuarioId)) continue;
+        seen.add(usuarioId);
+        if (accesoId && !mongoose.Types.ObjectId.isValid(accesoId)) accesoId = null;
+        out.push({ usuario: usuarioId, acceso: accesoId });
+        if (out.length >= 40) break;
+    }
+    return out;
+}
+
+async function resolveDoorAssignments(User, raw, keyToId = new Map()) {
+    const parsed = parseControlIngresoRaw(raw);
+    if (!parsed.length) return [];
+    const hasGates = keyToId.size > 0;
+    const ids = parsed.map((p) => p.usuario);
     const users = await User.find({ _id: { $in: ids }, estado: { $ne: 'inactivo' } }).select('_id');
     const ok = new Set(users.map((u) => String(u._id)));
-    return ids.filter((id) => ok.has(id));
+    const out = [];
+    for (const row of parsed) {
+        if (!ok.has(row.usuario)) continue;
+        let acceso = null;
+        if (hasGates) {
+            acceso = resolveAccesoRef(row.acceso, keyToId);
+            if (!acceso) {
+                const err = new Error('Asigná un acceso válido a cada persona de control de ingreso.');
+                err.statusCode = 400;
+                throw err;
+            }
+        }
+        out.push({
+            usuario: new mongoose.Types.ObjectId(row.usuario),
+            acceso: acceso ? new mongoose.Types.ObjectId(acceso) : null,
+        });
+    }
+    return out;
+}
+
+async function hydrateControlIngreso(User, event) {
+    const rows = parseControlIngresoRaw(event?.controlIngreso);
+    if (!rows.length) return [];
+    const users = await User.find({ _id: { $in: rows.map((r) => r.usuario) } })
+        .select('nombre apellido rol')
+        .lean();
+    const byId = new Map(users.map((u) => [String(u._id), u]));
+    const accesoById = new Map(
+        (event?.accesos || []).map((a) => [String(a._id), a]),
+    );
+    return rows
+        .map((row) => {
+            const u = byId.get(row.usuario);
+            if (!u) return null;
+            const acceso = row.acceso ? accesoById.get(row.acceso) : null;
+            return {
+                _id: String(u._id),
+                usuario: String(u._id),
+                nombre: u.nombre || '',
+                apellido: u.apellido || '',
+                rol: u.rol || '',
+                acceso: row.acceso || null,
+                accesoNombre: acceso?.nombre || '',
+            };
+        })
+        .filter(Boolean);
+}
+
+function serializeAdminEvent(event, controlIngresoHydrated) {
+    return {
+        ...event,
+        controlIngreso: controlIngresoHydrated,
+    };
 }
 
 function isClubOwnerUser(user) {
     return user?.rol === 'admin_club' || (user?.roles || []).includes('admin_club');
 }
 
+function controlIngresoUserIds(event) {
+    return parseControlIngresoRaw(event?.controlIngreso).map((r) => r.usuario);
+}
+
 function userCanScanEvent(user, event) {
     if (!event || event.estado !== 'publicado') return false;
     if (isClubOwnerUser(user)) return true;
-    return (event.controlIngreso || []).some((id) => String(id?._id || id) === String(user?._id));
+    const uid = String(user?._id || '');
+    return controlIngresoUserIds(event).includes(uid);
+}
+
+function staffAccesoForEvent(user, event) {
+    const uid = String(user?._id || '');
+    const row = parseControlIngresoRaw(event?.controlIngreso).find((r) => r.usuario === uid);
+    if (!row) return null;
+    if (!eventHasAccesos(event)) return { accesoId: null, accesoNombre: '' };
+    const acceso = (event.accesos || []).find(
+        (a) => String(a._id) === String(row.acceso) && a.activo !== false,
+    );
+    if (!acceso) return null;
+    return { accesoId: String(acceso._id), accesoNombre: acceso.nombre || '' };
+}
+
+function ticketPresencia(ticket, gatesEnabled) {
+    if (ticket?.presencia === 'dentro' || ticket?.presencia === 'fuera') return ticket.presencia;
+    if (gatesEnabled && ticket?.estado === 'usada') return 'dentro';
+    return 'fuera';
+}
+
+function tipoAllowsAcceso(event, tipoEntradaId, accesoId) {
+    const tipo = (event.tiposEntrada || []).find((t) => String(t._id) === String(tipoEntradaId));
+    if (!tipo) return false;
+    const allowed = (tipo.accesosPermitidos || []).map((id) => String(id));
+    if (!allowed.length) return true; // empty = all active accesos
+    return allowed.includes(String(accesoId));
 }
 
 export const listAdminEvents = asyncHandler(async (req, res) => {
     const { ClubEvent } = req.models;
-    const events = await ClubEvent.find()
-        .sort({ fechaInicio: -1 })
-        .populate('controlIngreso', 'nombre apellido rol')
-        .lean();
-    res.json(events);
+    const events = await ClubEvent.find().sort({ fechaInicio: -1 }).lean();
+    const out = [];
+    for (const ev of events) {
+        const controlIngreso = await hydrateControlIngreso(req.models.User, ev);
+        out.push(serializeAdminEvent(ev, controlIngreso));
+    }
+    res.json(out);
 });
 
 export const getAdminEvent = asyncHandler(async (req, res) => {
     const { ClubEvent } = req.models;
-    const event = await ClubEvent.findById(req.params.id)
-        .populate('controlIngreso', 'nombre apellido rol')
-        .lean();
+    const event = await ClubEvent.findById(req.params.id).lean();
     if (!event) {
         res.status(404);
         throw new Error('Evento no encontrado.');
     }
-    res.json(event);
+    const controlIngreso = await hydrateControlIngreso(req.models.User, event);
+    res.json(serializeAdminEvent(event, controlIngreso));
 });
 
 export const createEvent = asyncHandler(async (req, res) => {
@@ -296,6 +464,7 @@ export const createEvent = asyncHandler(async (req, res) => {
         fechaInicio,
         fechaFin,
         tiposEntrada,
+        accesos,
         secciones,
         reglasDescuento,
         controlIngreso,
@@ -319,16 +488,26 @@ export const createEvent = asyncHandler(async (req, res) => {
         fechaInicio: new Date(fechaInicio),
         fechaFin: fechaFin ? new Date(fechaFin) : undefined,
         slug,
-        tiposEntrada: normalizeTipos(tiposEntrada),
+        accesos: [],
+        tiposEntrada: [],
         reglasDescuento: normalizeReglas(reglasDescuento),
-        controlIngreso: await resolveDoorUsers(req.models.User, controlIngreso),
+        controlIngreso: [],
         estado: ['borrador', 'publicado'].includes(estado) ? estado : 'borrador',
         creadoPor: req.user._id,
     });
+    const keyToId = applyAccesosToEvent(event, accesos);
+    event.tiposEntrada = normalizeTipos(tiposEntrada, keyToId);
     event.secciones = normalizeSecciones(secciones, event.tiposEntrada);
     applySectionCupos(event.tiposEntrada, event.secciones);
+    event.controlIngreso = await resolveDoorAssignments(
+        req.models.User,
+        controlIngreso,
+        keyToId,
+    );
     await event.save();
-    res.status(201).json(event);
+    const lean = event.toObject();
+    const hydrated = await hydrateControlIngreso(req.models.User, lean);
+    res.status(201).json(serializeAdminEvent(lean, hydrated));
 });
 
 export const updateEvent = asyncHandler(async (req, res) => {
@@ -355,8 +534,14 @@ export const updateEvent = asyncHandler(async (req, res) => {
     if (b.estado && ['borrador', 'publicado', 'cancelado', 'finalizado'].includes(b.estado)) {
         event.estado = b.estado;
     }
+    let keyToId = new Map(
+        (event.accesos || []).map((a) => [String(a._id), String(a._id)]),
+    );
+    if (b.accesos != null) {
+        keyToId = applyAccesosToEvent(event, b.accesos);
+    }
     if (b.tiposEntrada != null) {
-        const next = normalizeTipos(b.tiposEntrada);
+        const next = normalizeTipos(b.tiposEntrada, keyToId);
         // Preserve vendidas from existing tipos when same _id
         for (const t of next) {
             if (!t._id) continue;
@@ -364,6 +549,13 @@ export const updateEvent = asyncHandler(async (req, res) => {
             if (prev) t.vendidas = prev.vendidas;
         }
         event.tiposEntrada = next;
+    } else if (b.accesos != null) {
+        // Drop allow-list ids that no longer exist.
+        for (const t of event.tiposEntrada || []) {
+            t.accesosPermitidos = (t.accesosPermitidos || [])
+                .map((id) => keyToId.get(String(id)))
+                .filter(Boolean);
+        }
     }
     if (b.secciones != null) {
         event.secciones = normalizeSecciones(b.secciones, event.tiposEntrada);
@@ -373,14 +565,33 @@ export const updateEvent = asyncHandler(async (req, res) => {
         event.reglasDescuento = normalizeReglas(b.reglasDescuento);
     }
     if (b.controlIngreso != null) {
-        event.controlIngreso = await resolveDoorUsers(req.models.User, b.controlIngreso);
+        event.controlIngreso = await resolveDoorAssignments(
+            req.models.User,
+            b.controlIngreso,
+            keyToId,
+        );
+    } else if (b.accesos != null && eventHasAccesos(event)) {
+        // Keep staff only if their acceso still exists.
+        const kept = parseControlIngresoRaw(event.controlIngreso)
+            .map((row) => ({
+                usuario: row.usuario,
+                acceso: row.acceso ? keyToId.get(String(row.acceso)) || null : null,
+            }))
+            .filter((row) => row.acceso);
+        event.controlIngreso = await resolveDoorAssignments(
+            req.models.User,
+            kept,
+            keyToId,
+        );
     }
     if (b.slug != null && String(b.slug).trim()) {
         event.slug = await uniqueSlug(ClubEvent, b.slug, event._id);
     }
 
     await event.save();
-    res.json(event);
+    const lean = event.toObject();
+    const hydrated = await hydrateControlIngreso(req.models.User, lean);
+    res.json(serializeAdminEvent(lean, hydrated));
 });
 
 export const deleteEvent = asyncHandler(async (req, res) => {
@@ -947,13 +1158,30 @@ export const listScanTargets = asyncHandler(async (req, res) => {
         fechaInicio: { $gte: windowStart, $lte: windowEnd },
     };
     if (!isClubOwnerUser(req.user)) {
-        filter.controlIngreso = req.user._id;
+        filter.$or = [
+            { controlIngreso: req.user._id },
+            { 'controlIngreso.usuario': req.user._id },
+        ];
     }
     const events = await ClubEvent.find(filter)
-        .select('titulo fechaInicio lugar')
+        .select('titulo fechaInicio lugar accesos controlIngreso')
         .sort({ fechaInicio: 1 })
         .lean();
-    res.json(events);
+    res.json(
+        events.map((ev) => {
+            const assignment = staffAccesoForEvent(req.user, ev);
+            const gates = eventHasAccesos(ev);
+            return {
+                _id: ev._id,
+                titulo: ev.titulo,
+                fechaInicio: ev.fechaInicio,
+                lugar: ev.lugar,
+                hasAccesos: gates,
+                accesoId: assignment?.accesoId || null,
+                accesoNombre: assignment?.accesoNombre || '',
+            };
+        }),
+    );
 });
 
 function ticketHolder(ticket) {
@@ -966,6 +1194,7 @@ function ticketHolder(ticket) {
 }
 
 function ticketScanBody(ticket, event, extras = {}) {
+    const gates = eventHasAccesos(event);
     return {
         ok: true,
         entryType: 'event',
@@ -977,12 +1206,14 @@ function ticketScanBody(ticket, event, extras = {}) {
             comprador: ticket.compradorSnapshot,
             usadoEn: ticket.usadoEn || null,
             estado: ticket.estado,
+            presencia: ticketPresencia(ticket, gates),
         },
         evento: {
             _id: event?._id,
             titulo: event?.titulo,
             fechaInicio: event?.fechaInicio,
             lugar: event?.lugar,
+            hasAccesos: gates,
         },
         ...extras,
     };
@@ -1002,7 +1233,9 @@ async function loadTicketForDoor(req) {
         throw err;
     }
 
-    const doorEvent = await ClubEvent.findById(eventoId).select('estado controlIngreso titulo fechaInicio lugar');
+    const doorEvent = await ClubEvent.findById(eventoId).select(
+        'estado controlIngreso titulo fechaInicio lugar accesos tiposEntrada',
+    );
     if (!doorEvent || doorEvent.estado !== 'publicado') {
         const err = new Error('Evento no encontrado.');
         err.statusCode = 404;
@@ -1012,6 +1245,30 @@ async function loadTicketForDoor(req) {
         const err = new Error('No tenés acceso al control de ingreso de este evento.');
         err.statusCode = 403;
         throw err;
+    }
+
+    const gates = eventHasAccesos(doorEvent);
+    let staffGate = { accesoId: null, accesoNombre: '' };
+    if (gates) {
+        if (isClubOwnerUser(req.user)) {
+            // Owner may scan any gate if they also have an assignment; otherwise first active acceso.
+            staffGate = staffAccesoForEvent(req.user, doorEvent) || {
+                accesoId: String(doorEvent.accesos.find((a) => a.activo !== false)?._id || ''),
+                accesoNombre: doorEvent.accesos.find((a) => a.activo !== false)?.nombre || '',
+            };
+            if (!staffGate.accesoId) {
+                const err = new Error('El evento no tiene accesos activos.');
+                err.statusCode = 400;
+                throw err;
+            }
+        } else {
+            staffGate = staffAccesoForEvent(req.user, doorEvent);
+            if (!staffGate?.accesoId) {
+                const err = new Error('No tenés un acceso asignado para este evento.');
+                err.statusCode = 403;
+                throw err;
+            }
+        }
     }
 
     let parsed;
@@ -1044,10 +1301,10 @@ async function loadTicketForDoor(req) {
         err.statusCode = 400;
         throw err;
     }
-    return { ticket, event: doorEvent };
+    return { ticket, event: doorEvent, staffGate, gates };
 }
 
-async function writeDoorLog(req, ticket, event, decision) {
+async function writeDoorLog(req, ticket, event, decision, staffGate = null) {
     const { EventDoorLog } = req.models;
     const holder = ticketHolder(ticket);
     return EventDoorLog.create({
@@ -1057,6 +1314,8 @@ async function writeDoorLog(req, ticket, event, decision) {
         scannedBy: req.user._id,
         codigo: ticket.codigo,
         tipoEntradaNombre: ticket.tipoEntradaNombre,
+        acceso: staffGate?.accesoId || null,
+        accesoNombre: staffGate?.accesoNombre || '',
         titular: {
             nombre: holder.nombre || '',
             apellido: holder.apellido || '',
@@ -1073,34 +1332,90 @@ export const scanEventTicket = asyncHandler(async (req, res) => {
         res.status(e.statusCode || 400);
         throw new Error(e.message || 'QR inválido.');
     }
-    const { ticket, event } = loaded;
+    const { ticket, event, staffGate, gates } = loaded;
 
     if (ticket.estado === 'anulada') {
         res.status(400);
         throw new Error('Entrada anulada.');
     }
-    if (ticket.estado === 'usada') {
+
+    const gateExtras = {
+        accesoId: staffGate?.accesoId || null,
+        accesoNombre: staffGate?.accesoNombre || '',
+    };
+
+    if (!gates) {
+        if (ticket.estado === 'usada') {
+            return res.json(ticketScanBody(ticket, event, {
+                needsDecision: false,
+                alreadyUsed: true,
+                message: 'Este ticket ya se usó',
+                decision: 'entro',
+                ...gateExtras,
+            }));
+        }
         return res.json(ticketScanBody(ticket, event, {
-            needsDecision: false,
-            alreadyUsed: true,
-            message: 'Este ticket ya se usó',
-            decision: 'entro',
+            needsDecision: true,
+            alreadyUsed: false,
+            allowedAction: 'entro',
+            gateAllowed: true,
+            message: null,
+            decision: null,
+            ...gateExtras,
+        }));
+    }
+
+    const presencia = ticketPresencia(ticket, true);
+    const gateAllowed = tipoAllowsAcceso(event, ticket.tipoEntrada, staffGate.accesoId);
+
+    if (presencia === 'dentro') {
+        return res.json(ticketScanBody(ticket, event, {
+            needsDecision: true,
+            alreadyUsed: false,
+            allowedAction: 'salio',
+            gateAllowed: true,
+            message: 'La persona está dentro. Registrá la salida para poder volver a entrar.',
+            decision: null,
+            ...gateExtras,
+        }));
+    }
+
+    if (!gateAllowed) {
+        return res.json(ticketScanBody(ticket, event, {
+            needsDecision: true,
+            alreadyUsed: false,
+            allowedAction: null,
+            gateAllowed: false,
+            message: `Esta entrada no puede pasar por ${staffGate.accesoNombre || 'este acceso'}.`,
+            decision: null,
+            ...gateExtras,
         }));
     }
 
     res.json(ticketScanBody(ticket, event, {
         needsDecision: true,
         alreadyUsed: false,
+        allowedAction: 'entro',
+        gateAllowed: true,
         message: null,
         decision: null,
+        ...gateExtras,
     }));
 });
 
 export const confirmEventTicketScan = asyncHandler(async (req, res) => {
-    const decision = req.body?.decision === 'no_entro' ? 'no_entro' : req.body?.decision === 'entro' ? 'entro' : '';
+    const rawDecision = String(req.body?.decision || '');
+    const decision =
+        rawDecision === 'no_entro'
+            ? 'no_entro'
+            : rawDecision === 'entro'
+                ? 'entro'
+                : rawDecision === 'salio'
+                    ? 'salio'
+                    : '';
     if (!decision) {
         res.status(400);
-        throw new Error('Elegí si entró o no entró.');
+        throw new Error('Elegí la decisión de la puerta.');
     }
 
     let loaded;
@@ -1110,35 +1425,106 @@ export const confirmEventTicketScan = asyncHandler(async (req, res) => {
         res.status(e.statusCode || 400);
         throw new Error(e.message || 'QR inválido.');
     }
-    const { ticket, event } = loaded;
+    const { ticket, event, staffGate, gates } = loaded;
+    const gateExtras = {
+        accesoId: staffGate?.accesoId || null,
+        accesoNombre: staffGate?.accesoNombre || '',
+    };
 
     if (ticket.estado === 'anulada') {
         res.status(400);
         throw new Error('Entrada anulada.');
     }
-    if (ticket.estado === 'usada') {
+
+    if (!gates) {
+        if (ticket.estado === 'usada') {
+            return res.json(ticketScanBody(ticket, event, {
+                needsDecision: false,
+                alreadyUsed: true,
+                message: 'Este ticket ya se usó',
+                decision: 'entro',
+                ...gateExtras,
+            }));
+        }
+        if (decision === 'salio') {
+            res.status(400);
+            throw new Error('Este evento no usa control de salida.');
+        }
+        if (decision === 'entro') {
+            ticket.estado = 'usada';
+            ticket.presencia = 'dentro';
+            ticket.usadoEn = new Date();
+            ticket.escaneadoPor = req.user._id;
+            await ticket.save();
+        }
+        const log = await writeDoorLog(req, ticket, event, decision, staffGate);
         return res.json(ticketScanBody(ticket, event, {
             needsDecision: false,
-            alreadyUsed: true,
-            message: 'Este ticket ya se usó',
-            decision: 'entro',
+            alreadyUsed: false,
+            message: decision === 'entro' ? 'Entró' : 'No entró',
+            decision,
+            scannedAt: log.scannedAt,
+            ...gateExtras,
+        }));
+    }
+
+    const presencia = ticketPresencia(ticket, true);
+    const gateAllowed = tipoAllowsAcceso(event, ticket.tipoEntrada, staffGate.accesoId);
+
+    if (decision === 'salio') {
+        if (presencia !== 'dentro') {
+            res.status(400);
+            throw new Error('Esta entrada no figura dentro del evento.');
+        }
+        ticket.presencia = 'fuera';
+        if (ticket.estado === 'usada') ticket.estado = 'valida';
+        ticket.escaneadoPor = req.user._id;
+        await ticket.save();
+        const log = await writeDoorLog(req, ticket, event, 'salio', staffGate);
+        return res.json(ticketScanBody(ticket, event, {
+            needsDecision: false,
+            alreadyUsed: false,
+            message: 'Salió',
+            decision: 'salio',
+            scannedAt: log.scannedAt,
+            ...gateExtras,
         }));
     }
 
     if (decision === 'entro') {
-        ticket.estado = 'usada';
+        if (presencia === 'dentro') {
+            res.status(400);
+            throw new Error('La persona ya está dentro. Registrá la salida primero.');
+        }
+        if (!gateAllowed) {
+            res.status(400);
+            throw new Error(`Esta entrada no puede pasar por ${staffGate.accesoNombre || 'este acceso'}.`);
+        }
+        ticket.presencia = 'dentro';
+        ticket.estado = 'valida';
         ticket.usadoEn = new Date();
         ticket.escaneadoPor = req.user._id;
         await ticket.save();
+        const log = await writeDoorLog(req, ticket, event, 'entro', staffGate);
+        return res.json(ticketScanBody(ticket, event, {
+            needsDecision: false,
+            alreadyUsed: false,
+            message: 'Entró',
+            decision: 'entro',
+            scannedAt: log.scannedAt,
+            ...gateExtras,
+        }));
     }
 
-    const log = await writeDoorLog(req, ticket, event, decision);
+    // no_entro
+    const log = await writeDoorLog(req, ticket, event, 'no_entro', staffGate);
     res.json(ticketScanBody(ticket, event, {
         needsDecision: false,
         alreadyUsed: false,
-        message: decision === 'entro' ? 'Entró' : 'No entró',
-        decision,
+        message: 'No entró',
+        decision: 'no_entro',
         scannedAt: log.scannedAt,
+        ...gateExtras,
     }));
 });
 
@@ -1149,7 +1535,7 @@ export const listEventDoorLog = asyncHandler(async (req, res) => {
         res.status(400);
         throw new Error('Falta el evento.');
     }
-    const doorEvent = await ClubEvent.findById(eventoId).select('estado controlIngreso');
+    const doorEvent = await ClubEvent.findById(eventoId).select('estado controlIngreso accesos');
     if (!doorEvent) {
         res.status(404);
         throw new Error('Evento no encontrado.');
@@ -1168,6 +1554,8 @@ export const listEventDoorLog = asyncHandler(async (req, res) => {
         scannedAt: row.scannedAt,
         codigo: row.codigo,
         tipoEntradaNombre: row.tipoEntradaNombre,
+        acceso: row.acceso || null,
+        accesoNombre: row.accesoNombre || '',
         titular: row.titular || {},
     })));
 });

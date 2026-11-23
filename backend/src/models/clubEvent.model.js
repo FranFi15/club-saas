@@ -2,6 +2,14 @@ import mongoose from 'mongoose';
 
 const MEMBER_ROLES = ['atleta', 'tutor', 'socio'];
 
+const accesoSchema = new mongoose.Schema(
+    {
+        nombre: { type: String, required: true, trim: true },
+        activo: { type: Boolean, default: true },
+    },
+    { _id: true },
+);
+
 const tipoEntradaSchema = new mongoose.Schema(
     {
         nombre: { type: String, required: true, trim: true },
@@ -10,6 +18,8 @@ const tipoEntradaSchema = new mongoose.Schema(
         cupo: { type: Number, required: true, min: 0 },
         vendidas: { type: Number, default: 0, min: 0 },
         activo: { type: Boolean, default: true },
+        /** Empty = all active event accesos when the event has gates. */
+        accesosPermitidos: [{ type: mongoose.Schema.Types.ObjectId }],
     },
     { _id: true },
 );
@@ -55,6 +65,7 @@ const clubEventSchema = new mongoose.Schema(
         },
         slug: { type: String, required: true, trim: true, lowercase: true },
         tiposEntrada: [tipoEntradaSchema],
+        accesos: [accesoSchema],
         secciones: [
             {
                 nombre: { type: String, required: true, trim: true },
@@ -71,8 +82,11 @@ const clubEventSchema = new mongoose.Schema(
             },
         ],
         reglasDescuento: [reglaDescuentoSchema],
-        /** Usuarios que ven el escáner de este evento. El ingreso de socios no usa esta lista. */
-        controlIngreso: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+        /**
+         * Door staff as Mixed so legacy bare User ObjectIds still load.
+         * Canonical shape: { usuario: ObjectId, acceso: ObjectId|null }.
+         */
+        controlIngreso: { type: [mongoose.Schema.Types.Mixed], default: [] },
         creadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     },
     { timestamps: true },
@@ -80,9 +94,17 @@ const clubEventSchema = new mongoose.Schema(
 
 clubEventSchema.index({ slug: 1 }, { unique: true });
 clubEventSchema.index({ estado: 1, fechaInicio: 1 });
+clubEventSchema.index({ 'controlIngreso.usuario': 1 });
 
-export const getClubEventModel = (tenantDB) =>
-    tenantDB.models.ClubEvent || tenantDB.model('ClubEvent', clubEventSchema);
+export const getClubEventModel = (tenantDB) => {
+    const existing = tenantDB.models.ClubEvent;
+    if (existing) {
+        if (existing.schema.path('accesos')) return existing;
+        delete tenantDB.models.ClubEvent;
+        if (tenantDB.modelSchemas) delete tenantDB.modelSchemas.ClubEvent;
+    }
+    return tenantDB.model('ClubEvent', clubEventSchema);
+};
 
 const compradorSchema = new mongoose.Schema(
     {
@@ -172,6 +194,12 @@ const eventTicketSchema = new mongoose.Schema(
             enum: ['valida', 'usada', 'anulada'],
             default: 'valida',
         },
+        /** Outside/inside for events with accesos (enter/exit). */
+        presencia: {
+            type: String,
+            enum: ['fuera', 'dentro'],
+            default: 'fuera',
+        },
         precioCobrado: { type: Number, default: 0, min: 0 },
         usadoEn: { type: Date },
         escaneadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -201,18 +229,27 @@ eventTicketSchema.index({ codigo: 1 }, { unique: true });
 eventTicketSchema.index({ evento: 1, estado: 1 });
 eventTicketSchema.index({ orden: 1 });
 
-export const getEventTicketModel = (tenantDB) =>
-    tenantDB.models.EventTicket || tenantDB.model('EventTicket', eventTicketSchema);
+export const getEventTicketModel = (tenantDB) => {
+    const existing = tenantDB.models.EventTicket;
+    if (existing) {
+        if (existing.schema.path('presencia')) return existing;
+        delete tenantDB.models.EventTicket;
+        if (tenantDB.modelSchemas) delete tenantDB.modelSchemas.EventTicket;
+    }
+    return tenantDB.model('EventTicket', eventTicketSchema);
+};
 
 const eventDoorLogSchema = new mongoose.Schema(
     {
         evento: { type: mongoose.Schema.Types.ObjectId, ref: 'ClubEvent', required: true, index: true },
         ticket: { type: mongoose.Schema.Types.ObjectId, ref: 'EventTicket', required: true, index: true },
-        decision: { type: String, enum: ['entro', 'no_entro'], required: true },
+        decision: { type: String, enum: ['entro', 'salio', 'no_entro'], required: true },
         scannedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
         scannedAt: { type: Date, default: Date.now, index: true },
         codigo: { type: String, trim: true, default: '' },
         tipoEntradaNombre: { type: String, trim: true, default: '' },
+        acceso: { type: mongoose.Schema.Types.ObjectId, default: null },
+        accesoNombre: { type: String, trim: true, default: '' },
         titular: {
             nombre: { type: String, trim: true, default: '' },
             apellido: { type: String, trim: true, default: '' },
@@ -224,7 +261,18 @@ const eventDoorLogSchema = new mongoose.Schema(
 
 eventDoorLogSchema.index({ evento: 1, scannedAt: -1 });
 
-export const getEventDoorLogModel = (tenantDB) =>
-    tenantDB.models.EventDoorLog || tenantDB.model('EventDoorLog', eventDoorLogSchema);
+export const getEventDoorLogModel = (tenantDB) => {
+    const existing = tenantDB.models.EventDoorLog;
+    if (existing) {
+        const tipoPath = existing.schema.path('decision');
+        const enums = tipoPath?.enumValues || tipoPath?.options?.enum || [];
+        if (Array.isArray(enums) && enums.includes('salio') && existing.schema.path('acceso')) {
+            return existing;
+        }
+        delete tenantDB.models.EventDoorLog;
+        if (tenantDB.modelSchemas) delete tenantDB.modelSchemas.EventDoorLog;
+    }
+    return tenantDB.model('EventDoorLog', eventDoorLogSchema);
+};
 
 export { MEMBER_ROLES as EVENT_MEMBER_ROLES };

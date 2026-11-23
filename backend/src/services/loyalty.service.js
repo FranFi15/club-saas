@@ -1,6 +1,21 @@
 import crypto from 'crypto';
 import { resolveCanjeRoles } from '../models/sponsor.model.js';
 import { normalizeUserRoles } from '../constants/userRoles.js';
+import { createAppNotification } from './appNotification.service.js';
+
+async function notifyLoyaltyCredits(models, { userId, tipo, titulo, mensaje, referencia = null }) {
+    try {
+        await createAppNotification(models, {
+            usuario: userId,
+            tipo,
+            titulo,
+            mensaje,
+            referencia,
+        });
+    } catch (e) {
+        console.warn('[loyalty] notify:', e.message);
+    }
+}
 
 const REDEEM_TTL_MS = 30 * 60 * 1000;
 
@@ -194,7 +209,7 @@ export async function expireLoyaltyPoints(models) {
         const next = Math.max(0, roundPts(user.puntosLealtad) - amt);
         user.puntosLealtad = next;
         await user.save();
-        await LoyaltyLedgerEntry.create({
+        const entry = await LoyaltyLedgerEntry.create({
             user: uid,
             delta: -amt,
             balanceAfter: next,
@@ -202,7 +217,14 @@ export async function expireLoyaltyPoints(models) {
             ref: `exp:${uid}:${now.toISOString().slice(0, 10)}`,
             note: 'Vencimiento automático',
             remaining: 0,
-        }).catch(() => {});
+        }).catch(() => null);
+        await notifyLoyaltyCredits(models, {
+            userId: uid,
+            tipo: 'creditos_expiracion',
+            titulo: 'Créditos vencidos',
+            mensaje: `Vencieron ${amt} crédito${amt === 1 ? '' : 's'}.`,
+            referencia: entry?._id || null,
+        });
     }
 
     return { expiredUsers: byUser.size, points };
@@ -405,15 +427,32 @@ export async function maybeCreditOnTimeCuota(models, payment, { prevEstado, crea
         if (pts <= 0) return null;
         const userId = payment.atleta || payment.user;
         if (!userId) return null;
-        return creditPoints(models, {
+        const ref = `cuota:${payment._id}`;
+        const already = await models.LoyaltyLedgerEntry.findOne({
+            reason: 'cuota_al_dia',
+            ref,
+        })
+            .select('_id')
+            .lean();
+        const entry = await creditPoints(models, {
             userId,
             amount: pts,
             reason: 'cuota_al_dia',
-            ref: `cuota:${payment._id}`,
+            ref,
             createdBy,
             note: 'Pago al día',
             settings,
         });
+        if (entry && !already) {
+            await notifyLoyaltyCredits(models, {
+                userId,
+                tipo: 'creditos_cuota',
+                titulo: 'Créditos ganados',
+                mensaje: `Sumaste ${pts} créditos por pagar tu cuota al día.`,
+                referencia: payment._id,
+            });
+        }
+        return entry;
     } catch (e) {
         console.warn('[loyalty] cuota credit:', e.message);
         return null;

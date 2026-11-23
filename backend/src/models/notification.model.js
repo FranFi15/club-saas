@@ -23,6 +23,9 @@ const notificationSchema = new mongoose.Schema({
             'partido_informe',
             'creditos_canje',
             'creditos_ganados',
+            'creditos_ajuste',
+            'creditos_cuota',
+            'creditos_expiracion',
         ],
         default: 'general',
     },
@@ -40,7 +43,14 @@ export const getNotificationModel = (tenantDB) => {
     if (existing) {
         const tipoPath = existing.schema.path('tipo');
         const enums = tipoPath?.enumValues || tipoPath?.options?.enum || [];
-        if (Array.isArray(enums) && enums.includes('creditos_canje') && enums.includes('creditos_ganados')) {
+        if (
+            Array.isArray(enums)
+            && enums.includes('creditos_canje')
+            && enums.includes('creditos_ganados')
+            && enums.includes('creditos_ajuste')
+            && enums.includes('creditos_cuota')
+            && enums.includes('creditos_expiracion')
+        ) {
             return existing;
         }
         delete tenantDB.models.Notification;
