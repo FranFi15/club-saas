@@ -137,6 +137,10 @@ function applySectionCupos(tipos, secciones) {
     }
 }
 
+function isStrictObjectId(value) {
+    return /^[a-fA-F0-9]{24}$/.test(String(value || '').trim());
+}
+
 function normalizeAccesos(raw) {
     if (!Array.isArray(raw)) return [];
     const out = [];
@@ -147,11 +151,10 @@ function normalizeAccesos(raw) {
         const key = nombre.toLowerCase();
         if (seenNames.has(key)) continue;
         seenNames.add(key);
-        const clientKey = String(item.clientKey || item.localKey || item._id || '').trim();
+        const clientKey = String(item.clientKey || item.localKey || '').trim()
+            || (isStrictObjectId(item._id) ? String(item._id) : '');
         out.push({
-            ...(item._id && mongoose.Types.ObjectId.isValid(String(item._id))
-                ? { _id: item._id }
-                : {}),
+            ...(isStrictObjectId(item._id) ? { _id: String(item._id) } : {}),
             nombre,
             activo: item?.activo !== false,
             clientKey,
@@ -165,16 +168,15 @@ function normalizeAccesos(raw) {
 function applyAccesosToEvent(event, rawAccesos) {
     const normalized = normalizeAccesos(rawAccesos);
     event.accesos = normalized.map(({ nombre, activo, _id }) => {
-        const id =
-            _id && mongoose.Types.ObjectId.isValid(String(_id))
-                ? new mongoose.Types.ObjectId(String(_id))
-                : new mongoose.Types.ObjectId();
+        const id = isStrictObjectId(_id)
+            ? new mongoose.Types.ObjectId(String(_id))
+            : new mongoose.Types.ObjectId();
         return { _id: id, nombre, activo };
     });
     const keyToId = new Map();
     (event.accesos || []).forEach((acceso, index) => {
         const id = String(acceso._id);
-        if (!mongoose.Types.ObjectId.isValid(id)) return;
+        if (!isStrictObjectId(id)) return;
         keyToId.set(id, id);
         const clientKey = normalized[index]?.clientKey;
         if (clientKey) keyToId.set(String(clientKey), id);
@@ -186,7 +188,7 @@ function resolveAccesoRef(raw, keyToId) {
     const key = String(raw?._id || raw || '').trim();
     if (!key) return null;
     const mapped = keyToId.get(key);
-    if (mapped && mongoose.Types.ObjectId.isValid(mapped)) return mapped;
+    if (mapped && isStrictObjectId(mapped)) return mapped;
     return null;
 }
 
@@ -205,15 +207,20 @@ function normalizeTipoAccesosPermitidos(raw, keyToId) {
 
 function normalizeTipos(raw, keyToId = new Map()) {
     if (!Array.isArray(raw)) return [];
-    return raw.map((t) => ({
-        ...(t._id ? { _id: t._id } : {}),
-        nombre: String(t.nombre || '').trim(),
-        precio: Math.max(0, Number(t.precio) || 0),
-        cupo: Math.max(0, Math.floor(Number(t.cupo) || 0)),
-        vendidas: Math.max(0, Math.floor(Number(t.vendidas) || 0)),
-        activo: t.activo !== false,
-        accesosPermitidos: normalizeTipoAccesosPermitidos(t.accesosPermitidos, keyToId),
-    }));
+    return raw.map((t) => {
+        const hasId = isStrictObjectId(t._id);
+        return {
+            _id: hasId ? new mongoose.Types.ObjectId(String(t._id)) : new mongoose.Types.ObjectId(),
+            nombre: String(t.nombre || '').trim() || 'General',
+            precio: Math.max(0, Number(t.precio) || 0),
+            cupo: Math.max(0, Math.floor(Number(t.cupo) || 0)),
+            vendidas: Math.max(0, Math.floor(Number(t.vendidas) || 0)),
+            activo: t.activo !== false,
+            accesosPermitidos: normalizeTipoAccesosPermitidos(t.accesosPermitidos, keyToId)
+                .filter((id) => isStrictObjectId(id))
+                .map((id) => new mongoose.Types.ObjectId(String(id))),
+        };
+    });
 }
 
 function normalizeReglas(raw) {
@@ -352,8 +359,8 @@ async function resolveDoorAssignments(User, raw, keyToId = new Map()) {
             }
         }
         out.push({
-            usuario: new mongoose.Types.ObjectId(row.usuario),
-            acceso: acceso ? new mongoose.Types.ObjectId(acceso) : null,
+            usuario: String(row.usuario),
+            acceso: acceso ? String(acceso) : null,
         });
     }
     return out;
@@ -509,7 +516,13 @@ export const createEvent = asyncHandler(async (req, res) => {
         controlIngreso,
         keyToId,
     );
-    await event.save();
+    event.markModified('controlIngreso');
+    try {
+        await event.save();
+    } catch (err) {
+        console.error('[events] create save failed:', err?.name, err?.message, err?.errors);
+        throw err;
+    }
     const lean = event.toObject();
     const hydrated = await hydrateControlIngreso(req.models.User, lean);
     res.status(201).json(serializeAdminEvent(lean, hydrated));
@@ -575,6 +588,7 @@ export const updateEvent = asyncHandler(async (req, res) => {
             b.controlIngreso,
             keyToId,
         );
+        event.markModified('controlIngreso');
     } else if (b.accesos != null && eventHasAccesos(event)) {
         // Keep staff only if their acceso still exists.
         const kept = parseControlIngresoRaw(event.controlIngreso)
@@ -588,12 +602,18 @@ export const updateEvent = asyncHandler(async (req, res) => {
             kept,
             keyToId,
         );
+        event.markModified('controlIngreso');
     }
     if (b.slug != null && String(b.slug).trim()) {
         event.slug = await uniqueSlug(ClubEvent, b.slug, event._id);
     }
 
-    await event.save();
+    try {
+        await event.save();
+    } catch (err) {
+        console.error('[events] update save failed:', err?.name, err?.message, err?.errors);
+        throw err;
+    }
     const lean = event.toObject();
     const hydrated = await hydrateControlIngreso(req.models.User, lean);
     res.json(serializeAdminEvent(lean, hydrated));
