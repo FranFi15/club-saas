@@ -24,6 +24,7 @@ import { fmtMoney, contrastOutlineBtn } from './finanzasConstants';
 import DesignCard from '../../../components/DesignCard';
 import { ThemeContext } from '../../../context/ThemeContext';
 import { sortUsersByName, formatUserName } from '../../../utils/listSort';
+import { copyText } from '../../../utils/copyText';
 
 const ROLES_APLICABLES = [
   { value: 'atleta', label: 'Atletas' },
@@ -71,6 +72,8 @@ export default function CuotaSocialSection({
   const [formMonto, setFormMonto] = useState('');
   const [formDiaVenc, setFormDiaVenc] = useState('10');
   const [formRecargo, setFormRecargo] = useState('0');
+  const [formBajaActiva, setFormBajaActiva] = useState(false);
+  const [formBajaN, setFormBajaN] = useState('3');
   const [formRoles, setFormRoles] = useState([]);
 
   const [assignFee, setAssignFee] = useState(null);
@@ -81,9 +84,64 @@ export default function CuotaSocialSection({
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignSaving, setAssignSaving] = useState(false);
 
+  const [altaEnabled, setAltaEnabled] = useState(false);
+  const [altaPublicUrl, setAltaPublicUrl] = useState('');
+  const [altaFeeHint, setAltaFeeHint] = useState(null);
+  const [altaLoading, setAltaLoading] = useState(true);
+  const [altaSaving, setAltaSaving] = useState(false);
+
   const applyFees = useCallback((data) => {
     setFees(data.fees ?? []);
   }, []);
+
+  const loadAltaSettings = useCallback(async () => {
+    setAltaLoading(true);
+    try {
+      const headers = await getHeaders();
+      const { data } = await clubApi.get('/socio-alta/settings', { headers });
+      setAltaEnabled(data?.altaSocioPublicaEnabled === true);
+      setAltaPublicUrl(data?.publicUrl || '');
+      setAltaFeeHint(data?.fee || null);
+    } catch {
+      setAltaEnabled(false);
+      setAltaPublicUrl('');
+      setAltaFeeHint(null);
+    } finally {
+      setAltaLoading(false);
+    }
+  }, [getHeaders]);
+
+  useEffect(() => {
+    loadAltaSettings();
+  }, [loadAltaSettings]);
+
+  const toggleAltaPublica = async (next) => {
+    if (!canEdit || altaSaving) return;
+    const prev = altaEnabled;
+    setAltaEnabled(next);
+    setAltaSaving(true);
+    try {
+      const headers = await getHeaders();
+      const { data } = await clubApi.patch(
+        '/socio-alta/settings',
+        { altaSocioPublicaEnabled: next },
+        { headers },
+      );
+      setAltaEnabled(data?.altaSocioPublicaEnabled === true);
+      setAltaPublicUrl(data?.publicUrl || '');
+      setAltaFeeHint(data?.fee || null);
+      showAlert(
+        'Listo',
+        data?.message ||
+          (next ? 'Alta pública de socios activada.' : 'Alta pública de socios desactivada.'),
+      );
+    } catch (e) {
+      setAltaEnabled(prev);
+      showAlert('Error', e.response?.data?.message || 'No se pudo actualizar.');
+    } finally {
+      setAltaSaving(false);
+    }
+  };
 
   const fetchFees = useCallback(async () => {
     const headers = await getHeaders();
@@ -108,6 +166,8 @@ export default function CuotaSocialSection({
     setFormMonto('');
     setFormDiaVenc('10');
     setFormRecargo('0');
+    setFormBajaActiva(false);
+    setFormBajaN('3');
     setFormRoles([]);
     setModalOpen(true);
   };
@@ -119,6 +179,8 @@ export default function CuotaSocialSection({
     setFormMonto(fee?.monto != null ? String(fee.monto) : '');
     setFormDiaVenc(String(fee?.diaVencimiento ?? 10));
     setFormRecargo(String(fee?.porcentajeRecargo ?? 0));
+    setFormBajaActiva(!!fee?.bajaPorVencidasActiva);
+    setFormBajaN(String(fee?.bajaTrasVencidas ?? 3));
     setFormRoles(feeRoles(fee));
     setModalOpen(true);
   };
@@ -148,6 +210,8 @@ export default function CuotaSocialSection({
       diaVencimiento: dia,
       porcentajeRecargo: parseInt(formRecargo, 10) || 0,
       rolesAutoAsignacion: formRoles,
+      bajaPorVencidasActiva: formBajaActiva,
+      bajaTrasVencidas: Math.min(36, Math.max(1, parseInt(formBajaN, 10) || 3)),
     };
     if (!editingFee?._id && monto > 0) {
       body.activo = true;
@@ -285,6 +349,64 @@ export default function CuotaSocialSection({
           Varios tipos. Cada persona tiene uno solo. Podés auto-asignar por rol o elegir usuarios.
         </Text>
       </View>
+
+      <DesignCard
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent={cc}
+        contentStyle={{ paddingVertical: 12 }}
+        style={{ marginBottom: 14 }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: theme.text, fontWeight: '700', fontSize: 14 }}>
+              Alta pública de socios
+            </Text>
+            <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 4, lineHeight: 17 }}>
+              Formulario web + pago de la primera cuota social. Requiere un tipo activo con auto-asignación a Socios y Mercado Pago.
+            </Text>
+            {altaFeeHint ? (
+              <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 4 }}>
+                Cuota: {altaFeeHint.nombre} · {fmtMoney(altaFeeHint.monto)}
+              </Text>
+            ) : !altaLoading ? (
+              <Text style={{ color: '#b45309', fontSize: 12, marginTop: 4 }}>
+                Falta un tipo de cuota social activo para el rol socio.
+              </Text>
+            ) : null}
+          </View>
+          {canEdit ? (
+            <Switch
+              value={altaEnabled}
+              onValueChange={toggleAltaPublica}
+              disabled={altaLoading || altaSaving}
+              trackColor={{ false: theme.border, true: `${cc}88` }}
+              thumbColor={altaEnabled ? cc : '#f4f3f4'}
+            />
+          ) : (
+            <Text style={{ color: theme.textMuted, fontSize: 12 }}>
+              {altaEnabled ? 'Activa' : 'Off'}
+            </Text>
+          )}
+        </View>
+        {altaEnabled && altaPublicUrl ? (
+          <TouchableOpacity
+            style={{ marginTop: 10 }}
+            onPress={async () => {
+              try {
+                await copyText(altaPublicUrl);
+                showAlert('Copiado', 'Enlace de alta pública copiado al portapapeles.');
+              } catch {
+                showAlert('Enlace público', altaPublicUrl);
+              }
+            }}
+          >
+            <Text style={{ color: cc, fontWeight: '700', fontSize: 13 }} numberOfLines={2}>
+              Copiar enlace: {altaPublicUrl}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+      </DesignCard>
 
       <View style={styles.toolbar}>
         {canEdit ? (
@@ -501,6 +623,33 @@ export default function CuotaSocialSection({
                   );
                 })}
               </View>
+
+              <View style={styles.switchRow}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={{ color: theme.text, fontWeight: '700' }}>Dar de baja por vencidas</Text>
+                  <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
+                    Contador solo de esta cuota social.
+                  </Text>
+                </View>
+                <Switch
+                  value={formBajaActiva}
+                  onValueChange={setFormBajaActiva}
+                  trackColor={{ true: cc }}
+                />
+              </View>
+              {formBajaActiva ? (
+                <>
+                  <Text style={[styles.label, { color: theme.textMuted }]}>N° de vencidas para baja</Text>
+                  <TextInput
+                    style={[styles.input, { color: theme.text, borderColor: theme.border }]}
+                    value={formBajaN}
+                    onChangeText={setFormBajaN}
+                    keyboardType="number-pad"
+                    placeholder="3"
+                    placeholderTextColor={theme.textMuted}
+                  />
+                </>
+              ) : null}
 
               <Text style={[styles.label, { color: theme.textMuted }]}>Descripción</Text>
               <TextInput

@@ -1,5 +1,6 @@
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 import { isClubMercadoPagoLinked } from './mercadoPagoClub.service.js';
+import { buildMpWebhookNotificationUrl } from '../utils/mpNotificationUrl.js';
 
 function primaryFrontendUrl() {
     const raw = String(process.env.FRONTEND_URL || '')
@@ -8,15 +9,6 @@ function primaryFrontendUrl() {
         .replace(/^["']|["']$/g, '')
         .replace(/\/$/, '');
     return raw || '';
-}
-
-function webhookNotificationUrl(clubIdentifier) {
-    const base =
-        process.env.PUBLIC_API_URL?.replace(/\/$/, '') ||
-        process.env.BACKEND_URL?.replace(/\/$/, '') ||
-        '';
-    if (!base || !clubIdentifier) return undefined;
-    return `${base}/api/mercadopago/webhook?club=${encodeURIComponent(clubIdentifier)}`;
 }
 
 async function resolveAccessToken(models) {
@@ -84,7 +76,7 @@ export async function createEventOrderMpPreference(
         },
         auto_return: 'approved',
     };
-    const notificationUrl = webhookNotificationUrl(clubIdentifier);
+    const notificationUrl = buildMpWebhookNotificationUrl(clubIdentifier);
     if (notificationUrl) body.notification_url = notificationUrl;
 
     const response = await preference.create({ body });

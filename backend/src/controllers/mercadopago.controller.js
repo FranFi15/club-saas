@@ -26,6 +26,7 @@ import {
     searchApprovedMpPaymentByExternalRef,
     reconcileClubMercadoPagoPayments,
 } from '../services/mercadoPagoApply.service.js';
+import { buildMpWebhookNotificationUrl } from '../utils/mpNotificationUrl.js';
 
 const MP_TOKEN_URL = 'https://api.mercadopago.com/oauth/token';
 const MP_AUTH_BASE = 'https://auth.mercadopago.com/authorization';
@@ -258,10 +259,7 @@ async function assertMemberOwnsCuotas(req, paymentDocs) {
 }
 
 function webhookNotificationUrl(clubIdentifier) {
-    const base =
-        process.env.PUBLIC_API_URL?.replace(/\/$/, '') || process.env.BACKEND_URL?.replace(/\/$/, '') || '';
-    if (!base || !clubIdentifier) return undefined;
-    return `${base}/api/mercadopago/webhook?club=${encodeURIComponent(clubIdentifier)}`;
+    return buildMpWebhookNotificationUrl(clubIdentifier);
 }
 
 // @route   POST /api/mercadopago/oauth/start (admin club)

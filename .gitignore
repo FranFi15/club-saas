@@ -34,3 +34,6 @@ yarn-error.*
 
 # Vite
 superfront/dist/
+
+# Tesseract language packs (downloaded at runtime)
+*.traineddata

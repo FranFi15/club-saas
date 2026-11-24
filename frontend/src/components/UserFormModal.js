@@ -99,6 +99,7 @@ export default function UserFormModal({
   const [formData, setFormData] = useState({
     nombre: '', apellido: '', email: '', password: '', 
     dni: '', telefono: '', direccion: '', obraSocial: '', rol: 'atleta', roles: ['atleta'], tutorPrincipal: null, fechaNacimiento: '', fotoPerfil: '',
+    dniFotoFrente: '', dniFotoDorso: '',
     cuotasEnApp: true, sexo: '', exentoCuotaSocial: false, cuotaSocialAsignada: null,
     esPrueba: false, diasPrueba: '15', enNomina: false, sueldoNomina: '', esBecado: false,
   });
@@ -159,6 +160,8 @@ export default function UserFormModal({
         rol: primary,
         roles: initialRoles,
         fotoPerfil: initialData.fotoPerfil || '',
+        dniFotoFrente: initialData.dniFotoFrente || '',
+        dniFotoDorso: initialData.dniFotoDorso || '',
         fechaNacimiento: (() => {
           if (!initialData.fechaNacimiento) return '';
           const ymd = String(initialData.fechaNacimiento).split('T')[0];
@@ -191,6 +194,7 @@ export default function UserFormModal({
     } else {
       setFormData({
         nombre: '', apellido: '', email: '', password: '', dni: '', telefono: '', direccion: '', obraSocial: '', rol: 'atleta', roles: ['atleta'], fechaNacimiento: '', fotoPerfil: '',
+        dniFotoFrente: '', dniFotoDorso: '',
         cuotasEnApp: true, sexo: '', exentoCuotaSocial: false, cuotaSocialAsignada: null,
         esPrueba: false, diasPrueba: '15', enNomina: false, sueldoNomina: '', esBecado: false,
       });
@@ -483,6 +487,49 @@ export default function UserFormModal({
                 </View>
               </View>
 
+              {(isClubOwnerRole(viewerRol) || viewerRol === 'administrativo') ? (
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={[styles.label, { color: theme.textMuted }]}>Fotos del DNI (solo admin)</Text>
+                  <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8, lineHeight: 17 }}>
+                    Encuadrá el documento con zoom para que se lean bien los datos.
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap' }}>
+                    <View style={{ flex: 1, minWidth: 140 }}>
+                      <ProfilePhotoField
+                        value={formData.dniFotoFrente}
+                        onChange={(url) => handleChange('dniFotoFrente', url)}
+                        clubData={clubData}
+                        colorMarca={colorMarca}
+                        theme={theme}
+                        nombre="DNI"
+                        apellido="frente"
+                        size={72}
+                        label="Frente"
+                        aspect={[86, 54]}
+                        cropBeforeUpload
+                        cropTitle="Ajustá el frente del DNI"
+                      />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 140 }}>
+                      <ProfilePhotoField
+                        value={formData.dniFotoDorso}
+                        onChange={(url) => handleChange('dniFotoDorso', url)}
+                        clubData={clubData}
+                        colorMarca={colorMarca}
+                        theme={theme}
+                        nombre="DNI"
+                        apellido="dorso"
+                        size={72}
+                        label="Dorso"
+                        aspect={[86, 54]}
+                        cropBeforeUpload
+                        cropTitle="Ajustá el dorso del DNI"
+                      />
+                    </View>
+                  </View>
+                </View>
+              ) : null}
+
               <Text style={[styles.label, { color: theme.textMuted }]}>Dirección</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
@@ -774,7 +821,7 @@ export default function UserFormModal({
                   <View style={{ flex: 1, paddingRight: 12 }}>
                     <Text style={[styles.switchTitle, { color: theme.text }]}>Plan beca</Text>
                     <Text style={[styles.switchHint, { color: theme.textMuted }]}>
-                      Al inscribirlo en una categoría usa el plan Beca, no el de la categoría. No genera cuota de entrenamiento.
+                      Al inscribirlo en una categoría usa el plan Beca, no el de la categoría. No genera cuota deportiva.
                     </Text>
                   </View>
                   <Switch

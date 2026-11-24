@@ -1,0 +1,102 @@
+.dni-crop-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(15, 23, 42, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.dni-crop-sheet {
+  width: min(100%, 420px);
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.25rem 1.15rem 1.15rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+.dni-crop-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.dni-crop-hint {
+  margin: 0 0 1rem;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.dni-crop-frame {
+  position: relative;
+  margin: 0 auto;
+  overflow: hidden;
+  background: #0f172a;
+  border-radius: 8px;
+  border: 2px solid #1e293b;
+  touch-action: none;
+  cursor: grab;
+  display: grid;
+  place-items: center;
+}
+
+.dni-crop-frame:active {
+  cursor: grabbing;
+}
+
+.dni-crop-loading {
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.dni-crop-zoom {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.dni-crop-zoom input[type='range'] {
+  flex: 1;
+  accent-color: #1a3a5c;
+}
+
+.dni-crop-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.dni-crop-btn {
+  flex: 1;
+  height: 44px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  border: none;
+  cursor: pointer;
+}
+
+.dni-crop-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.dni-crop-btn--ghost {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.dni-crop-btn--primary {
+  background: #1a3a5c;
+  color: #fff;
+}
+
+.dni-crop-btn--primary:hover:not(:disabled) {
+  background: #152e49;
+}

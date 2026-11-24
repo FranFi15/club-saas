@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import UserAvatar from './UserAvatar';
+import WebImageCropModal from './WebImageCropModal';
 import { uploadFileToClub, imageFromPickerAsset, iosCompatiblePhotoOptions } from '../utils/uploadMedia';
 
 /**
  * Selector y vista previa de foto de perfil (sube a Cloudinary vía /api/upload).
+ * With `cropBeforeUpload`, opens pan/zoom crop (useful for DNI) before upload.
  */
 export default function ProfilePhotoField({
   value = '',
@@ -18,33 +20,76 @@ export default function ProfilePhotoField({
   apellido = '',
   size = 96,
   label = 'Foto de perfil',
+  /** null = no forced crop; default square for profile. */
+  aspect = [1, 1],
+  /** Use WebImageCropModal (pan/zoom) instead of system crop. */
+  cropBeforeUpload = false,
+  cropTitle = 'Ajustar imagen',
 }) {
   const [uploading, setUploading] = useState(false);
+  const [cropUri, setCropUri] = useState(null);
 
-  const pickAndUpload = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') return;
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.85,
-      ...iosCompatiblePhotoOptions(),
-    });
-
-    if (result.canceled || !result.assets?.[0]) return;
-
+  const uploadUri = async (uri, filename, mime) => {
     setUploading(true);
     try {
-      const asset = result.assets[0];
-      const uri = asset.uri;
-      const { filename, mime } = imageFromPickerAsset(asset, uri);
       const { url } = await uploadFileToClub(clubData, uri, filename, mime);
       onChange?.(url);
     } catch (e) {
       console.log('Profile photo upload error', e);
     } finally {
+      setUploading(false);
+    }
+  };
+
+  const pickAndUpload = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') return;
+
+    const useCropModal = cropBeforeUpload || (Platform.OS === 'web' && aspect != null);
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: !useCropModal && aspect != null,
+      ...(!useCropModal && aspect != null ? { aspect } : {}),
+      quality: 0.92,
+      ...iosCompatiblePhotoOptions(),
+    });
+
+    if (result.canceled || !result.assets?.[0]) return;
+
+    const asset = result.assets[0];
+    if (useCropModal) {
+      setCropUri(asset.uri);
+      return;
+    }
+
+    const uri = asset.uri;
+    const { filename, mime } = imageFromPickerAsset(asset, uri);
+    await uploadUri(uri, filename, mime);
+  };
+
+  const onCropConfirm = async (fileOrMeta) => {
+    setCropUri(null);
+    setUploading(true);
+    try {
+      if (Platform.OS === 'web' && fileOrMeta instanceof Blob) {
+        const file =
+          fileOrMeta instanceof File
+            ? fileOrMeta
+            : new File([fileOrMeta], `crop-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        const objectUrl = URL.createObjectURL(file);
+        try {
+          const { url } = await uploadFileToClub(clubData, objectUrl, file.name, file.type);
+          onChange?.(url);
+        } finally {
+          URL.revokeObjectURL(objectUrl);
+        }
+        return;
+      }
+      const uri = fileOrMeta?.uri;
+      if (!uri) return;
+      await uploadUri(uri, fileOrMeta.filename || `crop-${Date.now()}.jpg`, fileOrMeta.mime || 'image/jpeg');
+    } catch (e) {
+      console.log('Profile photo crop upload error', e);
       setUploading(false);
     }
   };
@@ -84,6 +129,16 @@ export default function ProfilePhotoField({
           ) : null}
         </View>
       </View>
+
+      <WebImageCropModal
+        visible={Boolean(cropUri)}
+        imageUri={cropUri}
+        aspect={aspect && aspect[0] && aspect[1] ? aspect : [1, 1]}
+        colorMarca={colorMarca}
+        title={cropTitle}
+        onCancel={() => setCropUri(null)}
+        onConfirm={onCropConfirm}
+      />
     </View>
   );
 }

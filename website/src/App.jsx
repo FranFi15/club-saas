@@ -5,11 +5,17 @@ import Pricing from './components/Pricing';
 import Cta from './components/Cta';
 import Footer from './components/Footer';
 import FamilySignup from './pages/FamilySignup';
+import SocioSignup from './pages/SocioSignup';
 import PublicEvents from './pages/PublicEvents';
 
 function isFamilySignupPath() {
   if (typeof window === 'undefined') return false;
   return window.location.pathname.replace(/\/$/, '') === '/alta-familia';
+}
+
+function isSocioSignupPath() {
+  if (typeof window === 'undefined') return false;
+  return window.location.pathname.replace(/\/$/, '') === '/alta-socio';
 }
 
 function isPublicEventsPath() {
@@ -21,6 +27,9 @@ function isPublicEventsPath() {
 export default function App() {
   if (isFamilySignupPath()) {
     return <FamilySignup />;
+  }
+  if (isSocioSignupPath()) {
+    return <SocioSignup />;
   }
   if (isPublicEventsPath()) {
     return <PublicEvents />;
