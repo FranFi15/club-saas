@@ -49,7 +49,7 @@ async function markProcessed(models, payload) {
  * Aplica un pago aprobado de MP a cuotas/alquiler (atómico + idempotente).
  * El pago debe venir de la API de MP con el token del club.
  */
-export async function applyApprovedMercadoPagoPayment(models, paymentData) {
+export async function applyApprovedMercadoPagoPayment(models, paymentData, meta = {}) {
     if (!paymentData || paymentData.status !== 'approved') {
         return { applied: false, reason: 'not_approved' };
     }
@@ -248,6 +248,42 @@ export async function applyApprovedMercadoPagoPayment(models, paymentData) {
         return { applied: false, reason: result.reason || 'rental_not_applied' };
     }
 
+    if (tipo === 'socioalta' && dbId) {
+        const { fulfillSocioAltaById } = await import('./socioAltaFulfill.service.js');
+        const result = await fulfillSocioAltaById(models, dbId, {
+            mpPaymentId: paymentId,
+            clubIdentifier: meta.clubIdentifier || '',
+            clubNombre: meta.clubNombre || '',
+            clubTimezone: meta.clubTimezone,
+        });
+        if (result.applied || result.idempotent) {
+            const ids = result.userId ? [String(result.userId)] : [String(dbId)];
+            await markProcessed(models, {
+                mpPaymentId: paymentId,
+                externalReference: externalRef,
+                tipo: 'socioalta',
+                appliedIds: ids,
+                status: 'applied',
+                reason: result.reason || '',
+            });
+            return {
+                applied: !!result.applied,
+                reason: result.reason || (result.applied ? 'ok' : 'already_applied'),
+                idempotent: !!result.idempotent,
+                ids,
+                tipo: 'socioalta',
+            };
+        }
+        await markProcessed(models, {
+            mpPaymentId: paymentId,
+            externalReference: externalRef,
+            tipo: 'socioalta',
+            status: 'skipped',
+            reason: result.reason || 'not_applied',
+        });
+        return { applied: false, reason: result.reason || 'not_applied' };
+    }
+
     if (tipo === 'evento' && dbId) {
         if (!EventTicketOrder) {
             await markProcessed(models, {
@@ -374,7 +410,7 @@ export async function reconcileClubMercadoPagoPayments(models, accessToken, opti
     const recent = await searchRecentApprovedMpPayments(accessToken, { days, limit: 100 });
     for (const paymentData of recent) {
         const ref = paymentData?.external_reference || '';
-        if (!/^(cuota_|cuotas_bulk_|alquiler_|evento_)/.test(ref)) continue;
+        if (!/^(cuota_|cuotas_bulk_|alquiler_|evento_|socioalta_)/.test(ref)) continue;
         inspectedMp.add(String(paymentData.id));
         const result = await applyApprovedMercadoPagoPayment(models, paymentData);
         if (result.applied) {

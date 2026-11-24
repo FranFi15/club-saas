@@ -16,6 +16,10 @@ const userSchema = new mongoose.Schema({
     },
     password: { type: String, required: true },
     fotoPerfil: { type: String, default: '' },
+
+    /** Fotos del DNI — solo visibles/editables por admin_club / administrativo. */
+    dniFotoFrente: { type: String, default: '' },
+    dniFotoDorso: { type: String, default: '' },
     
     // --- DATOS DE PERFIL Y CONTACTO (Para el Autoservicio) ---
     telefono: { type: String, trim: true },

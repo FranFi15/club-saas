@@ -53,6 +53,7 @@ import {
     getLoyaltyRedemptionModel,
     getLoyaltyPartnerSaleModel,
 } from '../models/loyalty.model.js';
+import { getSocioAltaPendingModel } from '../models/socioAltaPending.model.js';
 
 export const getTenantModels = (tenantDB) => {
     // Al llamar a todas estas funciones acá, Mongoose registra TODOS los esquemas 
@@ -110,5 +111,6 @@ export const getTenantModels = (tenantDB) => {
         LoyaltyReward: getLoyaltyRewardModel(tenantDB),
         LoyaltyRedemption: getLoyaltyRedemptionModel(tenantDB),
         LoyaltyPartnerSale: getLoyaltyPartnerSaleModel(tenantDB),
+        SocioAltaPending: getSocioAltaPendingModel(tenantDB),
     };
 };

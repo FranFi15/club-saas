@@ -43,6 +43,12 @@ const clubSettingsSchema = new mongoose.Schema(
          * (administración, control de ingreso, colaboradores y cuerpo técnico).
          */
         chatGrupalStaffEnabled: { type: Boolean, default: false },
+
+        /**
+         * Alta pública de socios (website /alta-socio?club=…).
+         * Requiere cuota social activa con auto-asignación a rol socio + Mercado Pago.
+         */
+        altaSocioPublicaEnabled: { type: Boolean, default: false },
     },
     { timestamps: true }
 );

@@ -962,7 +962,10 @@ const webhookReceiver = asyncHandler(async (req, res) => {
     try {
         const accessToken = await resolveAccessToken(req.models, req.clubIdentifier);
         const paymentData = await fetchMpPaymentById(accessToken, paymentId);
-        const result = await applyApprovedMercadoPagoPayment(req.models, paymentData);
+        const result = await applyApprovedMercadoPagoPayment(req.models, paymentData, {
+            clubIdentifier: req.clubIdentifier || '',
+            clubTimezone: req.clubTimezone,
+        });
         if (result.applied) {
             console.log(`✅ Pago procesado: ${paymentData.external_reference}`);
         }

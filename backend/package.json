@@ -45,6 +45,7 @@
     "pdfkit": "^0.19.1",
     "resend": "^4.8.0",
     "safer-buffer": "^2.1.2",
+    "tesseract.js": "^5.1.1",
     "xss-clean": "^0.1.4"
   },
   "devDependencies": {

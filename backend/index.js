@@ -42,6 +42,7 @@ import inboxRoutes from './src/routes/inbox.routes.js';
 import statsRoutes from './src/routes/stats.routes.js';
 import eventRoutes from './src/routes/event.routes.js';
 import loyaltyRoutes from './src/routes/loyalty.routes.js';
+import socioAltaRoutes from './src/routes/socioAlta.routes.js';
 
 import { startSessionGenerationCron } from './src/cron/sessionGeneration.cron.js';
 import { startPaymentGenerationCron } from './src/cron/paymentGeneration.cron.js';
@@ -220,6 +221,7 @@ app.use('/api/inbox', resolveTenant, inboxRoutes);
 app.use('/api/stats', resolveTenant, statsRoutes);
 app.use('/api/events', resolveTenant, eventRoutes);
 app.use('/api/loyalty', resolveTenant, loyaltyRoutes);
+app.use('/api/socio-alta', resolveTenant, socioAltaRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

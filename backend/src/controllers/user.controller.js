@@ -26,6 +26,7 @@ import { syncStaffGroupChatSafe } from '../services/staffGroupChat.service.js';
 import { PAYROLL_STAFF_ROLES } from '../models/payroll.model.js';
 import { userNameCollation, userNameMongoSort } from '../utils/listSort.js';
 import { parsePageLimit } from '../utils/pagination.js';
+import { canAccessDniPhotos, stripDniPhotos } from '../utils/dniPhotos.js';
 import {
     parseTrialCreateFields,
     convertTrialAthleteToPermanent,
@@ -135,6 +136,8 @@ const registerUser = asyncHandler(async (req, res) => {
         rol,
         roles: rolesBody,
         fotoPerfil,
+        dniFotoFrente,
+        dniFotoDorso,
         tutorPrincipal,
         fechaNacimiento,
         telefono,
@@ -265,6 +268,8 @@ const registerUser = asyncHandler(async (req, res) => {
         tutorPrincipal: tutorLinks.tutorPrincipal,
         tutores: tutorLinks.tutores,
         fotoPerfil: fotoPerfil || '',
+        dniFotoFrente: canAccessDniPhotos(req.user) ? String(dniFotoFrente || '').trim() : '',
+        dniFotoDorso: canAccessDniPhotos(req.user) ? String(dniFotoDorso || '').trim() : '',
         fechaNacimiento: fechaNacimiento || undefined,
         telefono: telefono != null ? String(telefono).trim() : undefined,
         direccion: direccion != null ? String(direccion).trim() : undefined,
@@ -440,6 +445,7 @@ const updateMyProfile = asyncHandler(async (req, res) => {
     if (fotoPerfil !== undefined) {
         user.fotoPerfil = String(fotoPerfil).trim();
     }
+    // DNI photos are admin-only — ignore if self-service tries to set them.
 
     if (password) {
         if (String(password).length < 6) {
@@ -456,8 +462,7 @@ const updateMyProfile = asyncHandler(async (req, res) => {
         ? String(updatedUser.email).split('@')[0]
         : updatedUser.email;
     res.json({
-        ...updatedUser.toObject(),
-        password: undefined,
+        ...stripDniPhotos(updatedUser.toObject()),
         edad,
         loginHint,
         emailGenerado: isAthleteInternalEmail(updatedUser.email, req.clubIdentifier),
@@ -512,6 +517,14 @@ const updateUserAsAdmin = asyncHandler(async (req, res) => {
     const tutorAnterior = user.tutorPrincipal ? String(user.tutorPrincipal) : null;
     if (req.body.fotoPerfil !== undefined) {
         user.fotoPerfil = String(req.body.fotoPerfil).trim();
+    }
+    if (canAccessDniPhotos(req.user)) {
+        if (req.body.dniFotoFrente !== undefined) {
+            user.dniFotoFrente = String(req.body.dniFotoFrente || '').trim();
+        }
+        if (req.body.dniFotoDorso !== undefined) {
+            user.dniFotoDorso = String(req.body.dniFotoDorso || '').trim();
+        }
     }
     
     const rolesAnteriores = normalizeUserRoles(user);
@@ -1114,14 +1127,16 @@ const getUsers = asyncHandler(async (req, res) => {
         }
     }
 
+    const allowDni = canAccessDniPhotos(req.user);
     const usersWithFamily = users.map((u) => {
         const rs = normalizeUserRoles(u);
         const esTutorDe =
             rs.includes('tutor') || rs.includes('admin_club')
                 ? familiaresByTutor[String(u._id)] || []
                 : [];
+        const plain = allowDni ? u.toObject() : stripDniPhotos(u.toObject());
         return {
-            ...u.toObject(),
+            ...plain,
             roles: rs,
             familiaresACargo: esTutorDe,
         };
@@ -1174,8 +1189,12 @@ const getMe = asyncHandler(async (req, res) => {
         }
     }
 
+    const mePayload = canAccessDniPhotos(req.user)
+        ? user.toObject()
+        : stripDniPhotos(user.toObject());
     res.json({
-        ...user.toObject(),
+        ...mePayload,
+        password: undefined,
         rol: activeRol,
         roles,
         edad,
@@ -1185,7 +1204,10 @@ const getMe = asyncHandler(async (req, res) => {
         emailGenerado: isAthleteInternalEmail(user.email, req.clubIdentifier),
         cuotasEnApp: roles.includes('atleta') ? cuotasHabilitadas : undefined,
         puedePagarEnApp,
-        pruebaPendiente: pruebaPendiente.map((a) => (a.toObject ? a.toObject() : a)),
+        pruebaPendiente: pruebaPendiente.map((a) => {
+            const plain = a.toObject ? a.toObject() : a;
+            return canAccessDniPhotos(req.user) ? plain : stripDniPhotos(plain);
+        }),
     });
 });
 
