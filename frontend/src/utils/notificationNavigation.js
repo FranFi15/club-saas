@@ -87,6 +87,20 @@ export function getNotificationTarget(item, { rol, cuotasEnApp, isTutor }) {
     return staffResourceTarget(rol);
   }
 
+  if (tipo === 'socio_alta') {
+    if (rol === 'admin_club' || rol === 'administrativo') {
+      return {
+        tab: 'Estructura',
+        screen: 'SociosAlta',
+        params: {
+          initialSegment: 'nuevos',
+          highlightId: item?.referencia || undefined,
+        },
+      };
+    }
+    return null;
+  }
+
   if (tipo === 'documentacion_entregada') {
     const equipo = staffEquipoTab(rol);
     if (equipo) {

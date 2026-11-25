@@ -186,6 +186,16 @@ export default function EstructuraHubScreen({ navigation }) {
               onPress={() => navigation.navigate('InvitarFamilia')}
             />
           ) : null}
+          {canInviteFamily ? (
+            <HubMenuCard
+              title="Socios"
+              subtitle="Alta pública, revisión de nuevos y listado de socios"
+              icon="id-card"
+              theme={theme}
+              colorMarca={colorMarca}
+              onPress={() => navigation.navigate('SociosAlta')}
+            />
+          ) : null}
           {canSeeEstructuraDeportiva ? (
             <HubMenuCard
               title="Estructura deportiva"

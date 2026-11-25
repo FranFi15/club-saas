@@ -43,6 +43,9 @@ function buildSections(viewerRol, mpLinked) {
     canWrite
       ? { label: 'Invitar familia', screen: 'InvitarFamilia', icon: 'link-outline' }
       : null,
+    canWrite
+      ? { label: 'Socios', screen: 'SociosAlta', icon: 'id-card-outline' }
+      : null,
     showAdminCards
       ? { label: 'Estructura deportiva', screen: 'EstructuraDeportiva', icon: 'trophy-outline' }
       : null,

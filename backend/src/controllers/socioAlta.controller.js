@@ -236,7 +236,7 @@ export const getSocioAltaSettings = asyncHandler(async (req, res) => {
     });
 });
 
-// @route PATCH /api/socio-alta/settings (admin)
+// @route PATCH /api/socio-alta/settings (admin_club only)
 export const patchSocioAltaSettings = asyncHandler(async (req, res) => {
     const raw = req.body?.altaSocioPublicaEnabled;
     if (raw === undefined) {
@@ -262,6 +262,88 @@ export const patchSocioAltaSettings = asyncHandler(async (req, res) => {
             ? { _id: fee._id, nombre: fee.nombre, monto: Number(fee.monto) || 0 }
             : null,
         message: value ? 'Alta pública de socios activada.' : 'Alta pública de socios desactivada.',
+    });
+});
+
+function serializeAltaRow(doc) {
+    const lean = doc?.toObject ? doc.toObject() : doc;
+    if (!lean) return null;
+    const user = lean.userId && typeof lean.userId === 'object' ? lean.userId : null;
+    return {
+        _id: lean._id,
+        nombre: lean.nombre,
+        apellido: lean.apellido,
+        email: lean.email,
+        dni: lean.dni,
+        telefono: lean.telefono || '',
+        direccion: lean.direccion || '',
+        fechaNacimiento: lean.fechaNacimiento || null,
+        sexo: lean.sexo || '',
+        dniFotoFrente: lean.dniFotoFrente || '',
+        dniFotoDorso: lean.dniFotoDorso || '',
+        monto: Number(lean.monto) || 0,
+        estado: lean.estado,
+        mpPaymentId: lean.mpPaymentId || '',
+        createdAt: lean.createdAt,
+        updatedAt: lean.updatedAt,
+        revisadoAt: lean.revisadoAt || null,
+        revisadoPor: lean.revisadoPor || null,
+        userId: user
+            ? {
+                  _id: user._id,
+                  nombre: user.nombre,
+                  apellido: user.apellido,
+                  email: user.email,
+                  dni: user.dni,
+                  fotoPerfil: user.fotoPerfil || '',
+                  telefono: user.telefono || '',
+                  estado: user.estado,
+                  dniFotoFrente: user.dniFotoFrente || lean.dniFotoFrente || '',
+                  dniFotoDorso: user.dniFotoDorso || lean.dniFotoDorso || '',
+              }
+            : lean.userId || null,
+    };
+}
+
+// @route GET /api/socio-alta/altas (admin) — altas públicas pagadas para revisar
+export const listSocioAltas = asyncHandler(async (req, res) => {
+    const { SocioAltaPending } = req.models;
+    const filter = { estado: 'pagado' };
+    const revisado = String(req.query.revisado || '').toLowerCase();
+    if (revisado === 'false' || revisado === '0' || revisado === 'pendiente') {
+        filter.revisadoAt = null;
+    } else if (revisado === 'true' || revisado === '1') {
+        filter.revisadoAt = { $ne: null };
+    }
+    const rows = await SocioAltaPending.find(filter)
+        .populate('userId', 'nombre apellido email dni fotoPerfil telefono estado dniFotoFrente dniFotoDorso')
+        .sort({ createdAt: -1 })
+        .limit(100)
+        .lean();
+    res.json(rows.map(serializeAltaRow));
+});
+
+// @route PATCH /api/socio-alta/altas/:id/revisar (admin)
+export const markSocioAltaRevisada = asyncHandler(async (req, res) => {
+    const { SocioAltaPending } = req.models;
+    const pending = await SocioAltaPending.findById(req.params.id);
+    if (!pending) {
+        res.status(404);
+        throw new Error('Alta no encontrada.');
+    }
+    if (pending.estado !== 'pagado') {
+        res.status(400);
+        throw new Error('Solo se pueden revisar altas ya pagadas.');
+    }
+    pending.revisadoAt = new Date();
+    pending.revisadoPor = req.user?._id || null;
+    await pending.save();
+    const populated = await SocioAltaPending.findById(pending._id)
+        .populate('userId', 'nombre apellido email dni fotoPerfil telefono estado dniFotoFrente dniFotoDorso')
+        .lean();
+    res.json({
+        ...serializeAltaRow(populated),
+        message: 'Alta marcada como revisada.',
     });
 });
 

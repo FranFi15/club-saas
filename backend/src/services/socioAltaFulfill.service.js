@@ -2,6 +2,8 @@ import crypto from 'crypto';
 import { calendarMonthYearInTz, DEFAULT_CLUB_TIMEZONE, zonedWallTimeToDate } from '../utils/timeHelper.js';
 import { sendEmail, isEmailConfigured } from './email.service.js';
 import { syncAthleteCountToSuper } from './athleteQuota.service.js';
+import { createAppNotificationsMany } from './appNotification.service.js';
+import { roleQueryMany } from '../constants/userRoles.js';
 
 function generateTempPassword(length = 10) {
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
@@ -179,6 +181,28 @@ export async function fulfillSocioAltaPending(
         clubIdentifier,
         tempPassword,
     });
+
+    try {
+        const admins = await User.find({
+            ...roleQueryMany(['admin_club', 'administrativo']),
+            estado: { $ne: 'inactivo' },
+        })
+            .select('_id')
+            .lean();
+        const nombreCompleto = `${pending.nombre || ''} ${pending.apellido || ''}`.trim() || email;
+        await createAppNotificationsMany(
+            models,
+            admins.map((a) => a._id),
+            {
+                tipo: 'socio_alta',
+                titulo: 'Nuevo socio aprobado',
+                mensaje: `${nombreCompleto} completó el alta pública y ya está activo.`,
+                referencia: pending._id,
+            },
+        );
+    } catch (e) {
+        console.warn('[socio-alta] push admins:', e.message);
+    }
 
     return {
         applied: true,

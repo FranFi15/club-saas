@@ -5,6 +5,8 @@ import {
     submitPublicSocioAlta,
     getSocioAltaSettings,
     patchSocioAltaSettings,
+    listSocioAltas,
+    markSocioAltaRevisada,
 } from '../controllers/socioAlta.controller.js';
 import { upload } from '../config/cloudinary.js';
 import { protect, authorize } from '../middlewares/auth.middleware.js';
@@ -27,14 +29,27 @@ router.post('/public/submit', submitPublicSocioAlta);
 router.get(
     '/settings',
     protect,
-    authorize('admin_club', 'administrativo'),
+    authorize('admin_club'),
     getSocioAltaSettings,
 );
 router.patch(
     '/settings',
     protect,
-    authorize('admin_club', 'administrativo'),
+    authorize('admin_club'),
     patchSocioAltaSettings,
+);
+
+router.get(
+    '/altas',
+    protect,
+    authorize('admin_club', 'administrativo'),
+    listSocioAltas,
+);
+router.patch(
+    '/altas/:id/revisar',
+    protect,
+    authorize('admin_club', 'administrativo'),
+    markSocioAltaRevisada,
 );
 
 export default router;

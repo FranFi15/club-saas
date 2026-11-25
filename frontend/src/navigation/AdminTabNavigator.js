@@ -16,6 +16,7 @@ import DetalleCategoriaScreen from '../screens/admin/DetalleCategoriaScreen';
 import CoachSessionStatsScreen from '../screens/coach/CoachSessionStatsScreen';
 import UsuariosScreen from '../screens/admin/UsuariosScreen';
 import InvitarFamiliaScreen from '../screens/admin/InvitarFamiliaScreen';
+import SociosAltaScreen from '../screens/admin/SociosAltaScreen';
 import EspaciosFisicosScreen from '../screens/admin/EspaciosFisicosScreen';
 import GrillaEntrenamientosScreen from '../screens/admin/GrillaEntrenamientosScreen';
 import AdminEnrollmentRequestsScreen from '../screens/admin/AdminEnrollmentRequestsScreen';
@@ -75,6 +76,7 @@ function EstructuraStackNavigator() {
       <EstructuraStack.Screen name="SolicitudesInscripcion" component={AdminEnrollmentRequestsScreen} />
       <EstructuraStack.Screen name="Usuarios" component={UsuariosScreen} />
       <EstructuraStack.Screen name="InvitarFamilia" component={InvitarFamiliaScreen} />
+      <EstructuraStack.Screen name="SociosAlta" component={SociosAltaScreen} />
       <EstructuraStack.Screen name="EstructuraDeportiva" component={EstructuraScreen} />
       <EstructuraStack.Screen name="Categorias" component={CategoriasScreen} />
       <EstructuraStack.Screen name="DetalleCategoria" component={DetalleCategoriaScreen} />

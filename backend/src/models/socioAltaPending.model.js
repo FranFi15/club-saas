@@ -24,6 +24,8 @@ const socioAltaPendingSchema = new mongoose.Schema(
         mpPaymentId: { type: String, default: '' },
         userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
         expiresAt: { type: Date, required: true, index: true },
+        revisadoAt: { type: Date, default: null },
+        revisadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
         ocrMeta: {
             matchedDni: { type: Boolean, default: false },
             matchedName: { type: Boolean, default: false },
