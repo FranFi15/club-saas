@@ -116,7 +116,7 @@ function DniPhotoField({ label, value, club, onChange, cropTitle }) {
               Quitar
             </button>
           ) : null}
-          <p className="fs-hint">Después vas a poder encuadrar y hacer zoom del documento.</p>
+          <p className="fs-hint">Después vas a poder encuadrar y acercar el documento.</p>
         </div>
       </div>
       {localError ? <p className="fs-error fs-error--inline">{localError}</p> : null}
@@ -266,7 +266,7 @@ export default function SocioSignup() {
     return (
       <div className="fs-page">
         <div className="fs-card fs-card--center">
-          <p className="fs-lead">Cargando alta de socio…</p>
+          <p className="fs-lead">Preparando tu inscripción…</p>
         </div>
       </div>
     );
@@ -278,21 +278,22 @@ export default function SocioSignup() {
         <div className="fs-card fs-card--center">
           <p className="fs-eyebrow">{clubNombre || club}</p>
           <h1 className="fs-title">
-            {status === 'ok' ? 'Pago recibido' : 'Pago en proceso'}
+            {status === 'ok' ? '¡Bienvenido al club!' : 'Estamos confirmando tu pago'}
           </h1>
           <p className="fs-lead">
             {status === 'ok'
-              ? 'Si el pago se acreditó, te enviamos un email con tu acceso (email y contraseña temporal). Revisá también spam.'
-              : 'Cuando Mercado Pago confirme el pago, activamos tu cuenta y te enviamos el email con el acceso.'}
+              ? 'Tu cuota quedó registrada. Te enviamos un email con el usuario y una contraseña temporal para entrar a la app. Si no lo ves, revisá spam o promociones.'
+              : 'En cuanto Mercado Pago confirme el pago, activamos tu cuenta de socio y te mandamos el email con el acceso.'}
           </p>
           <p className="fs-lead">
-            Después entrá a la app con el código del club <strong>{club}</strong>
+            Para ingresar usá el código del club <strong>{club}</strong>
             {APP_URL ? (
               <>
                 {' '}
-                · <a href={APP_URL}>{APP_URL}</a>
+                en <a href={APP_URL}>{APP_URL}</a>
               </>
             ) : null}
+            .
           </p>
         </div>
       </div>
@@ -304,8 +305,11 @@ export default function SocioSignup() {
       <div className="fs-page">
         <div className="fs-card fs-card--center">
           <p className="fs-eyebrow">{clubNombre || club}</p>
-          <h1 className="fs-title">Alta de socio</h1>
-          <p className="fs-error">{error || 'El alta pública no está disponible.'}</p>
+          <h1 className="fs-title">Inscripción de socios</h1>
+          <p className="fs-error">
+            {error ||
+              'Por ahora no podés inscribirte por acá. Escribile al club para que te indiquen cómo asociarte.'}
+          </p>
         </div>
       </div>
     );
@@ -316,18 +320,18 @@ export default function SocioSignup() {
   return (
     <div className="fs-page">
       <div className="fs-card">
-        <p className="fs-eyebrow">{clubNombre || club}</p>
-        <h1 className="fs-title">Hacete socio</h1>
+        <p className="fs-eyebrow">Sumate a {clubNombre || 'tu club'}</p>
+        <h1 className="fs-title">Bienvenido, hacete socio</h1>
         <p className="fs-lead">
-          Completá tus datos y las fotos del DNI. Para confirmar el alta pagás la primera cuota
-          social
+          En unos minutos vas a formar parte de {clubNombre || 'el club'}. Completá tus datos,
+          subí fotos claras de tu DNI y pagá la primera cuota social
           {fee ? (
             <>
               {' '}
               (<strong>{fee.nombre}</strong>: ${formatMoney(fee.monto)})
             </>
           ) : null}
-          . Después te llega un email con el acceso.
+          . Al confirmarse el pago te llega un email con tu acceso a la app.
         </p>
 
         {error ? <p className="fs-error">{error}</p> : null}
@@ -406,10 +410,10 @@ export default function SocioSignup() {
           </div>
 
           <div className="fs-section">
-            <h2 className="fs-section-title">DNI frente y dorso</h2>
+            <h2 className="fs-section-title">Tu DNI</h2>
             <p className="fs-lead" style={{ marginBottom: '0.75rem' }}>
-              Las fotos se verifican con el número de DNI que ingresaste. Encuadrá el documento
-              completo (frente y dorso) con zoom para que se lean bien los datos.
+              Necesitamos el frente y el dorso. Encuadrá el documento completo (podés hacer zoom)
+              para que coincida con el número que cargaste arriba.
             </p>
             <div className="fs-grid">
               <DniPhotoField
@@ -450,8 +454,8 @@ export default function SocioSignup() {
 
           <button className="fs-btn" type="submit" disabled={submitting}>
             {submitting
-              ? 'Validando DNI y preparando pago…'
-              : `Pagar $${formatMoney(fee?.monto)} y crear cuenta`}
+              ? 'Validando tu DNI y preparando el pago…'
+              : `Pagar $${formatMoney(fee?.monto)} y asociarme`}
           </button>
         </form>
       </div>
