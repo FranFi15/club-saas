@@ -117,13 +117,13 @@ export default function PastCuotasModal({
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={[styles.hint, { color: theme.textMuted }]}>
               Cargá meses ya cerrados que el atleta debía antes de usar la app. Quedan vencidas para cobrarlas acá.
-              Si dejás el monto vacío, se usa el plan o la cuota social actual.
+              Si dejás el monto vacío, se usa la cuota deportiva o la cuota social actual.
             </Text>
             {monthRow('Desde', desde, setDesde)}
             {monthRow('Hasta', hasta, setHasta)}
 
             <View style={[styles.switchRow, { borderColor: theme.border }]}>
-              <Text style={[styles.switchLabel, { color: theme.text, flex: 1 }]}>Cuota de plan</Text>
+              <Text style={[styles.switchLabel, { color: theme.text, flex: 1 }]}>Cuota deportiva</Text>
               <Switch
                 value={incluirPlan}
                 onValueChange={setIncluirPlan}
@@ -134,7 +134,7 @@ export default function PastCuotasModal({
             {incluirPlan ? (
               <TextInput
                 style={[styles.input, { borderColor: theme.border, color: theme.text, backgroundColor: theme.background }]}
-                placeholder="Monto del plan (opcional)"
+                placeholder="Monto de la cuota deportiva (opcional)"
                 placeholderTextColor={theme.textMuted}
                 keyboardType="decimal-pad"
                 value={montoPlan}

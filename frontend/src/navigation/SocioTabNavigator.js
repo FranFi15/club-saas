@@ -13,6 +13,7 @@ import MemberClubEntryScreen from '../screens/member/MemberClubEntryScreen';
 import MemberMediaViewerScreen from '../screens/member/MemberMediaViewerScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import SocioProfileScreen from '../screens/socio/SocioProfileScreen';
+import SocioCanjesBeneficiosScreen from '../screens/socio/SocioCanjesBeneficiosScreen';
 import MemberAlquilerScreen from '../screens/member/MemberAlquilerScreen';
 import ChatInboxScreen from '../screens/chat/ChatInboxScreen';
 import ChatThreadScreen from '../screens/chat/ChatThreadScreen';
@@ -91,7 +92,7 @@ function SocioTabs() {
         paddingTop: 6,
         getIcon: (name, focused, color) => {
           const map = {
-            SocioCuotas: focused ? 'wallet' : 'wallet-outline',
+            SocioCanjes: focused ? 'gift' : 'gift-outline',
             SocioNoticias: focused ? 'newspaper' : 'newspaper-outline',
             SocioQr: focused ? 'qr-code' : 'qr-code-outline',
             SocioEventos: focused ? 'scan' : 'scan-outline',
@@ -102,13 +103,12 @@ function SocioTabs() {
         },
         getBadge: (name) =>
           ({
-            SocioCuotas: tabBadgeText(tab('cuotas')),
             SocioNoticias: tabBadgeText(tab('noticias')),
-            SocioProfile: tabBadgeText(tab('chat')),
+            SocioProfile: tabBadgeText(tab('chat')) || tabBadgeText(tab('cuotas')),
           })[name],
         getLabel: (name) =>
           ({
-            SocioCuotas: 'Cuota',
+            SocioCanjes: 'Beneficios',
             SocioNoticias: 'Noticias',
             SocioQr: 'Mi QR',
             SocioEventos: 'Puerta',
@@ -117,7 +117,7 @@ function SocioTabs() {
           })[name],
       })}
     >
-      <Tab.Screen name="SocioCuotas" component={MemberPaymentsScreen} />
+      <Tab.Screen name="SocioCanjes" component={SocioCanjesBeneficiosScreen} options={{ title: 'Beneficios' }} />
       <Tab.Screen
         name="SocioNoticias"
         component={SocioNewsStack}

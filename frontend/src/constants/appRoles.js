@@ -90,6 +90,7 @@ export const CLUB_ENTRY_QR_ROLES = [
 
 export function resolveMainNavigator(rol) {
   if (!rol) return 'MemberPlaceholder';
+  if (rol === 'partner') return 'PartnerHome';
   if (isScannerOnlyAdminRole(rol)) return 'ControlIngresoHome';
   if (isColaboradorRole(rol)) return 'ColaboradorHome';
   if (ADMIN_APP_ROLES.includes(rol)) return 'AdminHome';

@@ -18,15 +18,18 @@ import { clubApi } from '../../utils/api';
 import { isoCalendarDateToDisplay } from '../../utils/dateDisplay';
 import { persistUserTokensFromProfile } from '../../utils/profileTokens';
 import { formatRolStaff } from './staffUtils';
-import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScreenHeader';
+import CoachScreenHeader from '../../components/CoachScreenHeader';
 import ProfileEditDataButton from '../../components/ProfileEditDataButton';
 import ProfileClubEntryButton from '../../components/ProfileClubEntryButton';
 import ProfileLogoutButton from '../../components/ProfileLogoutButton';
 import ProfileSwitchRoleButton from '../../components/ProfileSwitchRoleButton';
 import ProfileNotificationToggle from '../../components/ProfileNotificationToggle';
 import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
+import ProfileHeaderCredits from '../../components/ProfileHeaderCredits';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import ProfileInfoRow, { profileCardStyles } from '../../components/ProfileInfoRow';
+import ProfileBenefitsSection from '../../components/ProfileBenefitsSection';
+import ProfileLoyaltySection from '../../components/ProfileLoyaltySection';
 import { formatUserName } from '../../utils/listSort';
 
 export default function StaffProfileScreen({ navigation }) {
@@ -96,15 +99,10 @@ export default function StaffProfileScreen({ navigation }) {
         theme={theme}
         kicker="Perfil"
         title={fullName}
-        subtitle={clubData?.nombre || 'Tu club'}
+        subtitle={rol ? formatRolStaff(rol) : 'Staff'}
         heroRight={profile ? <ProfileHeaderAvatar user={profile} /> : null}
         showNotifications={false}
-        footer={
-          <CoachHeaderBadge>
-            <Ionicons name="person-outline" size={16} color="#fff" />
-            <Text style={styles.heroBadgeTxt}>{rol ? formatRolStaff(rol) : 'Staff'}</Text>
-          </CoachHeaderBadge>
-        }
+        footer={<ProfileHeaderCredits clubData={clubData} />}
       />
 
       <ScrollView
@@ -127,6 +125,9 @@ export default function StaffProfileScreen({ navigation }) {
             <ProfileInfoRow icon="mail-outline" label="Email" value={profile?.email} theme={theme} isLast />
           </View>
         )}
+
+        <ProfileBenefitsSection clubData={clubData} theme={theme} colorMarca={colorMarca} />
+        <ProfileLoyaltySection clubData={clubData} theme={theme} colorMarca={colorMarca} />
 
         <ProfileClubEntryButton
           theme={theme}

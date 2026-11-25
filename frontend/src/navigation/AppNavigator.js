@@ -15,6 +15,7 @@ import SelectRoleScreen from '../screens/SelectRoleScreen';
 import MemberPlaceholderScreen from '../screens/staff/MemberPlaceholderScreen';
 import AdminTabNavigator from './AdminTabNavigator';
 import ControlIngresoNavigator from './ControlIngresoNavigator';
+import PartnerNavigator from './PartnerNavigator';
 import ColaboradorTabNavigator from './ColaboradorTabNavigator';
 import StaffTabNavigator from './StaffTabNavigator';
 import CoachTabNavigator from './CoachTabNavigator';
@@ -70,6 +71,7 @@ export default function AppNavigator() {
         <Stack.Screen name="TermsAcceptance" component={TermsAcceptanceScreen} />
         <Stack.Screen name="AdminHome" component={AdminTabNavigator} />
         <Stack.Screen name="ControlIngresoHome" component={ControlIngresoNavigator} />
+        <Stack.Screen name="PartnerHome" component={PartnerNavigator} />
         <Stack.Screen name="ColaboradorHome" component={ColaboradorTabNavigator} />
         <Stack.Screen name="StaffHome" component={StaffTabNavigator} />
         <Stack.Screen name="CoachHome" component={CoachTabNavigator} />

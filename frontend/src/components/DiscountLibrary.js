@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   Alert,
+  Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../utils/api';
@@ -34,6 +35,8 @@ const emptyDraft = () => ({
   modo: 'porcentaje',
   valor: '0',
   maxEntradasConDescuento: '1',
+  bloquearDescuentoPorVencidas: true,
+  maxVencidasParaDescuento: '1',
 });
 
 function toggle(list, id) {
@@ -58,6 +61,8 @@ function fromDiscount(discount) {
     modo: discount.modo || 'porcentaje',
     valor: String(discount.valor ?? 0),
     maxEntradasConDescuento: String(discount.maxEntradasConDescuento ?? 1),
+    bloquearDescuentoPorVencidas: discount.bloquearDescuentoPorVencidas !== false,
+    maxVencidasParaDescuento: String(discount.maxVencidasParaDescuento ?? 1),
   };
 }
 
@@ -129,6 +134,8 @@ export default function DiscountLibrary({
         modo: draft.modo,
         valor: Number(draft.valor) || 0,
         maxEntradasConDescuento: Math.max(1, parseInt(draft.maxEntradasConDescuento, 10) || 1),
+        bloquearDescuentoPorVencidas: draft.bloquearDescuentoPorVencidas !== false,
+        maxVencidasParaDescuento: Math.max(1, parseInt(draft.maxVencidasParaDescuento, 10) || 1),
       };
       const { data } = draft._id
         ? await clubApi.patch(`/events/admin/discounts/${draft._id}`, payload, { headers })
@@ -332,6 +339,34 @@ export default function DiscountLibrary({
             onChangeText={(maxEntradasConDescuento) => setDraft((prev) => ({ ...prev, maxEntradasConDescuento }))}
             keyboardType="number-pad"
           />
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, marginBottom: 8 }}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={{ color: theme.text, fontWeight: '700' }}>Bloquear descuento por deuda</Text>
+              <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
+                Si está activo, se pierde el descuento al llegar a N vencidas (planes/cuotas del descuento).
+              </Text>
+            </View>
+            <Switch
+              value={draft.bloquearDescuentoPorVencidas !== false}
+              onValueChange={(bloquearDescuentoPorVencidas) =>
+                setDraft((prev) => ({ ...prev, bloquearDescuentoPorVencidas }))
+              }
+              trackColor={{ true: colorMarca }}
+            />
+          </View>
+          {draft.bloquearDescuentoPorVencidas !== false ? (
+            <>
+              <Text style={[styles.label, { color: theme.textMuted }]}>N° de vencidas permitidas</Text>
+              <TextInput
+                style={inputStyle}
+                value={draft.maxVencidasParaDescuento}
+                onChangeText={(maxVencidasParaDescuento) =>
+                  setDraft((prev) => ({ ...prev, maxVencidasParaDescuento }))
+                }
+                keyboardType="number-pad"
+              />
+            </>
+          ) : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <TouchableOpacity
             onPress={save}

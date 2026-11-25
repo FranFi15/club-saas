@@ -18,16 +18,18 @@ import { getToken } from '../../utils/storage';
 import { clubApi } from '../../utils/api';
 import { MIN_AGE_SELF_PAY } from '../../utils/ageHelper';
 import { isoCalendarDateToDisplay } from '../../utils/dateDisplay';
-import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScreenHeader';
+import CoachScreenHeader from '../../components/CoachScreenHeader';
 import ProfileEditDataButton from '../../components/ProfileEditDataButton';
 import ProfileClubEntryButton from '../../components/ProfileClubEntryButton';
 import ProfileLogoutButton from '../../components/ProfileLogoutButton';
 import ProfileSwitchRoleButton from '../../components/ProfileSwitchRoleButton';
 import ProfileNotificationToggle from '../../components/ProfileNotificationToggle';
 import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
+import ProfileHeaderCredits from '../../components/ProfileHeaderCredits';
 import ProfileInfoRow, { profileCardStyles } from '../../components/ProfileInfoRow';
 import ProfileLinkRow from '../../components/ProfileLinkRow';
 import ProfileBenefitsSection from '../../components/ProfileBenefitsSection';
+import ProfileLoyaltySection from '../../components/ProfileLoyaltySection';
 import TrialDecisionCard from '../../components/TrialDecisionCard';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { useBadges } from '../../context/BadgeContext';
@@ -119,15 +121,10 @@ export default function AthleteProfileScreen({ navigation }) {
         theme={theme}
         kicker="Perfil"
         title={fullName}
-        subtitle={clubData?.nombre || 'Tu club'}
+        subtitle="Atleta"
         heroRight={<ProfileHeaderAvatar user={avatarUser} />}
         showNotifications={false}
-        footer={
-          <CoachHeaderBadge>
-            <Ionicons name="barbell-outline" size={16} color="#fff" />
-            <Text style={styles.heroBadgeTxt}>Atleta</Text>
-          </CoachHeaderBadge>
-        }
+        footer={<ProfileHeaderCredits clubData={clubData} />}
       />
 
       <ScrollView
@@ -196,6 +193,7 @@ export default function AthleteProfileScreen({ navigation }) {
         </View>
 
         <ProfileBenefitsSection clubData={clubData} theme={theme} colorMarca={colorMarca} />
+        <ProfileLoyaltySection clubData={clubData} theme={theme} colorMarca={colorMarca} />
 
         {cuotasEnApp ? (
           <View style={[profileCardStyles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>

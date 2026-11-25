@@ -278,7 +278,7 @@ export default function PlanesTab({
       </View>
       <View style={styles.assignPlanWrap}>
         <Text style={[styles.assignPlan, { color: planRef ? cc : theme.textMuted }]} numberOfLines={1}>
-          {planRef?.nombre || 'Sin plan'}
+          {planRef?.nombre || 'Sin cuota deportiva'}
         </Text>
         {planRef?.monto != null ? (
           <Text style={{ color: theme.textMuted, fontSize: 11 }}>{fmtMoney(planRef.monto)}</Text>
@@ -348,7 +348,7 @@ export default function PlanesTab({
         />
 
         <View style={{ marginTop: 24, marginBottom: 10 }}>
-          <Text style={[s.sectionTitle, { color: theme.text, marginBottom: 4 }]}>Cuotas y Planes</Text>
+          <Text style={[s.sectionTitle, { color: theme.text, marginBottom: 4 }]}>Cuotas deportivas</Text>
           <Text style={[s.sectionSub, { color: theme.textMuted, marginBottom: 0 }]}>
             Creá y editá los montos. Luego asignalos a cada disciplina o categoría.
           </Text>
@@ -361,7 +361,7 @@ export default function PlanesTab({
               onPress={onCreatePlan}
             >
               <Ionicons name="add" size={16} color={theme.text} />
-              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>Nuevo plan</Text>
+              <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>Nueva cuota deportiva</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -388,9 +388,9 @@ export default function PlanesTab({
         ) : filteredPlans.length === 0 ? (
           <View style={s.empty}>
             <Ionicons name="document-text-outline" size={50} color={theme.icon} />
-            <Text style={[s.emptyTxt, { color: theme.text }]}>{planSearch ? 'Sin resultados' : 'Sin planes'}</Text>
+            <Text style={[s.emptyTxt, { color: theme.text }]}>{planSearch ? 'Sin resultados' : 'Sin cuotas deportivas'}</Text>
             <Text style={[s.emptySub, { color: theme.textMuted }]}>
-              {planSearch ? 'Probá otro nombre.' : 'Creá el primero con “Nuevo plan”.'}
+              {planSearch ? 'Probá otro nombre.' : 'Creá la primera con “Nueva cuota deportiva”.'}
             </Text>
           </View>
         ) : (
@@ -399,7 +399,7 @@ export default function PlanesTab({
 
         <Text style={[s.sectionTitle, { color: theme.text, marginTop: 24 }]}>Asignación</Text>
         <Text style={[s.sectionSub, { color: theme.textMuted, marginBottom: 10 }]}>
-          Al inscribir un atleta se usa el plan de la categoría; si no tiene, el de la disciplina.
+          Al inscribir un atleta se usa la cuota deportiva de la categoría; si no tiene, la de la disciplina.
         </Text>
 
         <View
@@ -411,7 +411,7 @@ export default function PlanesTab({
           <Ionicons name="search" size={18} color={theme.icon} style={{ marginRight: 8 }} />
           <TextInput
             style={[styles.searchInput, { color: theme.text }]}
-            placeholder="Buscar disciplina, categoría o plan..."
+            placeholder="Buscar disciplina, categoría o cuota deportiva..."
             placeholderTextColor={theme.textMuted}
             value={assignSearch}
             onChangeText={setAssignSearch}
@@ -434,7 +434,7 @@ export default function PlanesTab({
           <View style={[s.empty, { marginTop: 16 }]}>
             <Ionicons name="search-outline" size={40} color={theme.icon} />
             <Text style={[s.emptyTxt, { color: theme.text, marginTop: 8 }]}>Sin resultados</Text>
-            <Text style={[s.emptySub, { color: theme.textMuted }]}>Probá otro nombre de disciplina, categoría o plan.</Text>
+            <Text style={[s.emptySub, { color: theme.textMuted }]}>Probá otro nombre de disciplina, categoría o cuota.</Text>
           </View>
         ) : (
           filteredAssignment.map(({ disc, cats, showDisciplinePlan, autoExpand }) => {
@@ -458,8 +458,8 @@ export default function PlanesTab({
                 {showDisciplinePlan
                   ? renderAssignRow(
                       `${did}-disc-plan`,
-                      'Plan de la disciplina',
-                      'Fallback si la categoría no tiene plan',
+                      'Cuota deportiva de la disciplina',
+                      'Fallback si la categoría no tiene cuota deportiva',
                       discPlan,
                       () => openAssign({ type: 'discipline', id: disc._id, label: disc.nombre }),
                       false
@@ -502,7 +502,7 @@ export default function PlanesTab({
           <View style={[s.modalContent, { backgroundColor: theme.surface, maxHeight: '85%' }]}>
             <View style={s.modalHeader}>
               <Text style={[s.modalTitle, { color: theme.text, flex: 1 }]} numberOfLines={2}>
-                Plan · {assignTarget?.label || ''}
+                Cuota deportiva · {assignTarget?.label || ''}
               </Text>
               <TouchableOpacity onPress={() => setAssignTarget(null)} disabled={isSavingAssignment}>
                 <Ionicons name="close" size={28} color={theme.icon} />
@@ -510,7 +510,7 @@ export default function PlanesTab({
             </View>
 
             <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 420 }}>
-              {[{ _id: null, nombre: 'Sin plan', monto: 0 }, ...activePlans].map((p, idx) => {
+              {[{ _id: null, nombre: 'Sin cuota deportiva', monto: 0 }, ...activePlans].map((p, idx) => {
                 const selId = currentPlanId();
                 const isSel = (p._id || null) === (selId || null);
                 return (

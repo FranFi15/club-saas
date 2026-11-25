@@ -169,7 +169,7 @@ export default function PaymentHistoryModal({
     const plan =
       payment.tipo === 'social'
         ? payment.cuotaSocial?.nombre || 'Cuota social'
-        : payment.plan?.nombre || 'Cuota';
+        : payment.plan?.nombre || 'Cuota deportiva';
     const paidNote =
       payment.estado === 'pagado'
         ? '\n\nEsta cuota ya figura como pagada. Se borrará del historial igual.'
@@ -199,7 +199,7 @@ export default function PaymentHistoryModal({
     const planLabel =
       p.tipo === 'social'
         ? p.cuotaSocial?.nombre || 'Cuota social'
-        : p.plan?.nombre || 'Sin plan';
+        : p.plan?.nombre || 'Cuota deportiva';
 
     return (
       <DesignCard
@@ -223,6 +223,18 @@ export default function PaymentHistoryModal({
                 Pagado: {new Date(p.fechaPago).toLocaleDateString('es-AR')}
               </Text>
             ) : null}
+            {(() => {
+              if (p.estado !== 'pagado') return null;
+              let audit = null;
+              if (p.origenPago === 'mercado_pago') audit = 'Registrado: Mercado Pago';
+              else if (p.origenPago === 'sistema') audit = 'Registrado: sistema';
+              else if (p.registradoPor) {
+                audit = `Registrado por ${[p.registradoPor.nombre, p.registradoPor.apellido].filter(Boolean).join(' ')}`;
+              } else if (p.origenPago === 'admin') audit = 'Registrado por admin';
+              return audit ? (
+                <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 2 }}>{audit}</Text>
+              ) : null;
+            })()}
             {showMetodo ? (
               <View style={styles.metodoRow}>
                 <Ionicons name={metodoPagoIcon(p.metodoPago)} size={12} color={theme.textMuted} />

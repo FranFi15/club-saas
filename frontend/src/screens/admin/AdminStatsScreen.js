@@ -592,7 +592,7 @@ export default function AdminStatsScreen({ navigation }) {
 
           <AccordionSection
             id="finanzas"
-            title="Cuotas de entrenamiento"
+            title="Cuotas deportivas"
             summary={`${stats?.finanzas?.porcentajeCobranza ?? 0}% cobranza · ${stats?.finanzas?.vencidosGlobal ?? 0} vencidas`}
             {...accordionProps}
           >

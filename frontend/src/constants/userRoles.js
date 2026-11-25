@@ -12,6 +12,7 @@ export const USER_ROL_LABELS = {
   colaborador: 'Colaborador',
   admin_club: 'Admin club',
   dirigente: 'Dirigente',
+  partner: 'Partner / sponsor',
 };
 
 export const USER_FILTER_ROLES = [

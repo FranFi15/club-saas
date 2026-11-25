@@ -19,7 +19,7 @@ import { getToken } from '../../utils/storage';
 import { clubApi } from '../../utils/api';
 import { clubHeaders } from '../athlete/athleteApi';
 import { MIN_AGE_SELF_PAY } from '../../utils/ageHelper';
-import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScreenHeader';
+import CoachScreenHeader from '../../components/CoachScreenHeader';
 import Foldable, { FoldableChevron } from '../../components/Foldable';
 import ProfileEditDataButton from '../../components/ProfileEditDataButton';
 import ProfileClubEntryButton from '../../components/ProfileClubEntryButton';
@@ -27,8 +27,10 @@ import ProfileLogoutButton from '../../components/ProfileLogoutButton';
 import ProfileSwitchRoleButton from '../../components/ProfileSwitchRoleButton';
 import ProfileNotificationToggle from '../../components/ProfileNotificationToggle';
 import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
+import ProfileHeaderCredits from '../../components/ProfileHeaderCredits';
 import ProfileLinkRow from '../../components/ProfileLinkRow';
 import ProfileBenefitsSection from '../../components/ProfileBenefitsSection';
+import ProfileLoyaltySection from '../../components/ProfileLoyaltySection';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { useBadges } from '../../context/BadgeContext';
 import { tabBadgeText } from '../../utils/tabBadgeLabel';
@@ -121,15 +123,10 @@ export default function TutorProfileScreen({ navigation }) {
         theme={theme}
         kicker="Cuenta"
         title={fullName}
-        subtitle={clubData?.nombre || 'Tu club'}
+        subtitle="Tutor"
         heroRight={profile ? <ProfileHeaderAvatar user={profile} /> : null}
         showNotifications={false}
-        footer={
-          <CoachHeaderBadge>
-            <Ionicons name="people-outline" size={16} color="#fff" />
-            <Text style={styles.heroBadgeTxt}>Tutor</Text>
-          </CoachHeaderBadge>
-        }
+        footer={<ProfileHeaderCredits clubData={clubData} />}
       />
 
       <ScrollView
@@ -168,6 +165,7 @@ export default function TutorProfileScreen({ navigation }) {
         </View>
 
         <ProfileBenefitsSection clubData={clubData} theme={theme} colorMarca={colorMarca} />
+        <ProfileLoyaltySection clubData={clubData} theme={theme} colorMarca={colorMarca} />
 
         <View style={styles.actions}>
           <View style={[styles.linkCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>

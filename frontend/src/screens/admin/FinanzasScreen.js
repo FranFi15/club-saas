@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PagerView from '../../components/AppPagerView';
@@ -421,6 +422,8 @@ export default function FinanzasScreen({ route }) {
   const [planDescripcion, setPlanDescripcion] = useState('');
   const [planDiaVenc, setPlanDiaVenc] = useState('10');
   const [planRecargoPct, setPlanRecargoPct] = useState('0');
+  const [planBajaActiva, setPlanBajaActiva] = useState(false);
+  const [planBajaN, setPlanBajaN] = useState('3');
   const [isSavingPlan, setIsSavingPlan] = useState(false);
 
   const [alertConfig, setAlertConfig] = useState({
@@ -716,6 +719,8 @@ export default function FinanzasScreen({ route }) {
         ? String(plan.porcentajeRecargo)
         : '0'
     );
+    setPlanBajaActiva(!!plan?.bajaPorVencidasActiva);
+    setPlanBajaN(String(plan?.bajaTrasVencidas ?? 3));
     setPlanFormVisible(true);
   };
 
@@ -724,7 +729,7 @@ export default function FinanzasScreen({ route }) {
     const monto = parseFloat(String(planMonto).replace(',', '.'));
     const dia = parseInt(planDiaVenc, 10);
     const recargo = parseInt(planRecargoPct, 10);
-    if (!nombre) return showAlert('Error', 'Poné un nombre para el plan.');
+    if (!nombre) return showAlert('Error', 'Poné un nombre para la cuota deportiva.');
     if (isNaN(monto) || monto < 0) return showAlert('Error', 'Revisá el monto.');
     if (isNaN(dia) || dia < 1 || dia > 28) return showAlert('Error', 'El día de vencimiento tiene que estar entre 1 y 28.');
     if (isNaN(recargo) || recargo < 0 || recargo > 100) {
@@ -734,19 +739,22 @@ export default function FinanzasScreen({ route }) {
     setIsSavingPlan(true);
     try {
       const h = await getHeaders();
+      const bajaN = Math.min(36, Math.max(1, parseInt(planBajaN, 10) || 3));
       const body = {
         nombre,
         monto,
         descripcion: planDescripcion.trim() || undefined,
         diaVencimiento: dia,
         porcentajeRecargo: recargo,
+        bajaPorVencidasActiva: planBajaActiva,
+        bajaTrasVencidas: bajaN,
       };
       if (editingPlan?._id) {
         await clubApi.put(`/financial/plans/${editingPlan._id}`, body, { headers: h });
-        showAlert('Éxito', 'Plan actualizado.');
+        showAlert('Éxito', 'Cuota deportiva actualizada.');
       } else {
         await clubApi.post('/financial/plans', body, { headers: h });
-        showAlert('Éxito', 'Plan creado.');
+        showAlert('Éxito', 'Cuota deportiva creada.');
       }
       setPlanFormVisible(false);
       fetchPlans();
@@ -760,7 +768,7 @@ export default function FinanzasScreen({ route }) {
   const deletePlan = (plan) => {
     setAlertConfig({
       visible: true,
-      title: 'Eliminar plan',
+      title: 'Eliminar cuota deportiva',
       message: `¿Eliminamos "${plan.nombre}"? Solo se puede si no tiene cuotas ni inscripciones asociadas.`,
       showCancel: true,
       isDanger: true,
@@ -770,7 +778,7 @@ export default function FinanzasScreen({ route }) {
         try {
           const h = await getHeaders();
           await clubApi.delete(`/financial/plans/${plan._id}`, { headers: h });
-          showAlert('Listo', 'Plan eliminado.');
+          showAlert('Listo', 'Cuota deportiva eliminada.');
           fetchPlans();
         } catch (e) {
           showAlert('Error', e.response?.data?.message || 'No se pudo eliminar.');
@@ -784,7 +792,7 @@ export default function FinanzasScreen({ route }) {
     try {
       const h = await getHeaders();
       await clubApi.patch(`/financial/plans/${plan._id}/reactivate`, {}, { headers: h });
-      showAlert('Listo', 'Plan reactivado.');
+      showAlert('Listo', 'Cuota deportiva reactivada.');
       fetchPlans();
     } catch (e) {
       showAlert('Error', e.response?.data?.message || 'No se pudo reactivar.');
@@ -806,7 +814,7 @@ export default function FinanzasScreen({ route }) {
       } else {
         await clubApi.put(`/categories/${targetId}`, body, { headers: h });
       }
-      showAlert('Éxito', 'Plan asignado.');
+      showAlert('Éxito', 'Cuota deportiva asignada.');
       await fetchStructure();
     } catch (e) {
       showAlert('Error', e.response?.data?.message || 'No se pudo asignar el plan.');
@@ -1212,7 +1220,7 @@ export default function FinanzasScreen({ route }) {
           stopPeriodBusy();
           showAlert(
             'Listo',
-            `Creadas: ${st.cuotasCreadas || 0}. Omitidas: ${st.cuotasOmitidas || 0}. Sin plan: ${st.inscripcionesSinPlan || 0}.`,
+            `Creadas: ${st.cuotasCreadas || 0}. Omitidas: ${st.cuotasOmitidas || 0}. Sin cuota deportiva: ${st.inscripcionesSinPlan || 0}.`,
           );
         } catch (e) {
           stopPeriodBusy();
@@ -1418,7 +1426,7 @@ export default function FinanzasScreen({ route }) {
           showRevisionHeader
             ? 'Revisión'
             : showPlanesHeader
-              ? 'Cuotas y Planes'
+              ? 'Cuotas deportivas'
               : showCajaHeader
                 ? 'Caja'
                 : 'Pagos'
@@ -1427,7 +1435,7 @@ export default function FinanzasScreen({ route }) {
           showRevisionHeader
             ? 'Comprobantes pendientes'
             : showPlanesHeader
-              ? 'Planes y cuota social'
+              ? 'Cuota deportiva y cuota social'
               : showCajaHeader
                 ? `${MN[mes - 1]} ${anio}`
                 : showVencidosHeader
@@ -1547,7 +1555,7 @@ export default function FinanzasScreen({ route }) {
                       onPress={() => pick(openPlanes)}
                     >
                       <Ionicons name="document-text-outline" size={20} color={theme.text} />
-                      <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Cuotas y Planes</Text>
+                      <Text style={[financeHeader.menuItemTxt, { color: theme.text }]}>Cuotas deportivas</Text>
                     </TouchableOpacity>
                   ) : null}
                   {canViewFullFinanzas && !showCajaHeader ? (
@@ -1953,7 +1961,7 @@ export default function FinanzasScreen({ route }) {
       <FormSheet
         visible={planFormVisible}
         onClose={() => setPlanFormVisible(false)}
-        title={editingPlan ? 'Editar plan' : 'Nuevo plan'}
+        title={editingPlan ? 'Editar cuota deportiva' : 'Nueva cuota deportiva'}
         theme={theme}
         isDarkMode={isDarkMode}
       >
@@ -1961,7 +1969,7 @@ export default function FinanzasScreen({ route }) {
               <Text style={[s.label, { color: theme.textMuted }]}>Nombre</Text>
               <TextInput
                 style={[s.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
-                placeholder="Ej: Cuota mensual U19"
+                placeholder="Ej: Cuota deportiva U19"
                 placeholderTextColor={theme.textMuted}
                 value={planNombre}
                 onChangeText={setPlanNombre}
@@ -2020,6 +2028,41 @@ export default function FinanzasScreen({ route }) {
                 onChangeText={setPlanDescripcion}
               />
 
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 10,
+                  marginTop: 4,
+                }}
+              >
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={{ color: theme.text, fontWeight: '700' }}>Dar de baja por vencidas</Text>
+                  <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
+                    Si el socio acumula N cuotas deportivas vencidas de este tipo, pasa a inactivo.
+                  </Text>
+                </View>
+                <Switch
+                  value={planBajaActiva}
+                  onValueChange={setPlanBajaActiva}
+                  trackColor={{ true: cc }}
+                />
+              </View>
+              {planBajaActiva ? (
+                <>
+                  <Text style={[s.label, { color: theme.textMuted }]}>N° de vencidas para baja</Text>
+                  <TextInput
+                    style={[s.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                    keyboardType="number-pad"
+                    value={planBajaN}
+                    onChangeText={setPlanBajaN}
+                    placeholder="3"
+                    placeholderTextColor={theme.textMuted}
+                  />
+                </>
+              ) : null}
+
               <TouchableOpacity
                 style={[s.saveBtn, { backgroundColor: cc, opacity: isSavingPlan ? 0.6 : 1 }]}
                 onPress={savePlan}
@@ -2028,7 +2071,7 @@ export default function FinanzasScreen({ route }) {
                 {isSavingPlan ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={s.saveBtnTxt}>{editingPlan ? 'Guardar cambios' : 'Crear plan'}</Text>
+                  <Text style={s.saveBtnTxt}>{editingPlan ? 'Guardar cambios' : 'Crear cuota deportiva'}</Text>
                 )}
               </TouchableOpacity>
       </FormSheet>

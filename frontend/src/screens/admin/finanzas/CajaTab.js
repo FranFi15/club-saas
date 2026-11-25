@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
+  TouchableOpacity,
 } from 'react-native';
 import ClubSpinLoader from '../../../components/ClubSpinLoader';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +17,16 @@ import { finanzasStyles as s } from './finanzasStyles';
 
 const EMPTY = {
   ingresos: {
-    cuotas: { facturado: 0, cobrado: 0, pendiente: 0 },
+    cuotas: {
+      facturado: 0,
+      cobrado: 0,
+      pendiente: 0,
+      porTipo: {
+        entrenamiento: { facturado: 0, cobrado: 0, pendiente: 0 },
+        social: { facturado: 0, cobrado: 0, pendiente: 0 },
+      },
+      porCategoria: [],
+    },
     sponsors: { esperado: 0, cobrado: 0 },
     alquileres: { facturado: 0, cobrado: 0 },
     eventos: { cobrado: 0, ordenes: 0 },
@@ -36,7 +46,25 @@ function normalizeCaja(res) {
     ingresos: {
       ...EMPTY.ingresos,
       ...(res?.ingresos || {}),
-      cuotas: { ...EMPTY.ingresos.cuotas, ...(res?.ingresos?.cuotas || {}) },
+      cuotas: {
+        ...EMPTY.ingresos.cuotas,
+        ...(res?.ingresos?.cuotas || {}),
+        porTipo: {
+          ...EMPTY.ingresos.cuotas.porTipo,
+          ...(res?.ingresos?.cuotas?.porTipo || {}),
+          entrenamiento: {
+            ...EMPTY.ingresos.cuotas.porTipo.entrenamiento,
+            ...(res?.ingresos?.cuotas?.porTipo?.entrenamiento || {}),
+          },
+          social: {
+            ...EMPTY.ingresos.cuotas.porTipo.social,
+            ...(res?.ingresos?.cuotas?.porTipo?.social || {}),
+          },
+        },
+        porCategoria: Array.isArray(res?.ingresos?.cuotas?.porCategoria)
+          ? res.ingresos.cuotas.porCategoria
+          : [],
+      },
       sponsors: { ...EMPTY.ingresos.sponsors, ...(res?.ingresos?.sponsors || {}) },
       alquileres: { ...EMPTY.ingresos.alquileres, ...(res?.ingresos?.alquileres || {}) },
       eventos: { ...EMPTY.ingresos.eventos, ...(res?.ingresos?.eventos || {}) },
@@ -86,6 +114,7 @@ export default function CajaTab({
       : '';
 
   const [data, setData] = useState(() => normalizeCaja(readScreenCache(cacheKey)));
+  const [cuotasView, setCuotasView] = useState('tipo'); // 'tipo' | 'categoria'
 
   const fetchData = useCallback(async () => {
     const h = await getHeaders();
@@ -168,13 +197,73 @@ export default function CajaTab({
       <DesignCard style={{ marginBottom: 16 }} theme={theme} isDarkMode={isDarkMode} accent={cc}>
         <View style={styles.sectionBody}>
           <Row
-            label="Cuotas"
+            label="Cuotas (total)"
             icon="card-outline"
             colorMarca={cc}
             theme={theme}
             primary={fmtMoney(ingresos.cuotas?.cobrado)}
             secondary={`Facturado ${fmtMoney(ingresos.cuotas?.facturado)} · Pend. ${fmtMoney(ingresos.cuotas?.pendiente)}`}
           />
+          <View style={styles.cuotasToggleRow}>
+            <TouchableOpacity
+              onPress={() => setCuotasView('tipo')}
+              style={[
+                styles.cuotasToggle,
+                { borderColor: theme.border },
+                cuotasView === 'tipo' ? { backgroundColor: `${cc}22` } : null,
+              ]}
+            >
+              <Text style={{ color: theme.text, fontSize: 12, fontWeight: '600' }}>Por tipo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setCuotasView('categoria')}
+              style={[
+                styles.cuotasToggle,
+                { borderColor: theme.border },
+                cuotasView === 'categoria' ? { backgroundColor: `${cc}22` } : null,
+              ]}
+            >
+              <Text style={{ color: theme.text, fontSize: 12, fontWeight: '600' }}>Por categoría</Text>
+            </TouchableOpacity>
+          </View>
+          {cuotasView === 'tipo' ? (
+            <>
+              <Row
+                label="Cuota deportiva"
+                icon="fitness-outline"
+                colorMarca={cc}
+                theme={theme}
+                primary={fmtMoney(ingresos.cuotas?.porTipo?.entrenamiento?.cobrado)}
+                secondary={`Fact. ${fmtMoney(ingresos.cuotas?.porTipo?.entrenamiento?.facturado)} · Pend. ${fmtMoney(ingresos.cuotas?.porTipo?.entrenamiento?.pendiente)}`}
+              />
+              <Row
+                label="Cuota social"
+                icon="people-outline"
+                colorMarca={cc}
+                theme={theme}
+                primary={fmtMoney(ingresos.cuotas?.porTipo?.social?.cobrado)}
+                secondary={`Fact. ${fmtMoney(ingresos.cuotas?.porTipo?.social?.facturado)} · Pend. ${fmtMoney(ingresos.cuotas?.porTipo?.social?.pendiente)}`}
+              />
+            </>
+          ) : (
+            (ingresos.cuotas?.porCategoria || []).length === 0 ? (
+              <Text style={{ color: theme.textMuted, paddingVertical: 10, fontSize: 13 }}>
+                Sin desglose por categoría en este período.
+              </Text>
+            ) : (
+              (ingresos.cuotas?.porCategoria || []).map((row) => (
+                <Row
+                  key={row.categoriaId || row.categoriaNombre}
+                  label={row.categoriaNombre || 'Sin categoría'}
+                  icon="pricetag-outline"
+                  colorMarca={cc}
+                  theme={theme}
+                  primary={fmtMoney(row.cobrado)}
+                  secondary={`Fact. ${fmtMoney(row.facturado)} · Pend. ${fmtMoney(row.pendiente)}`}
+                />
+              ))
+            )
+          )}
           <Row
             label="Sponsors"
             icon="ribbon-outline"
@@ -292,4 +381,11 @@ const styles = StyleSheet.create({
   },
   totalLabel: { fontSize: 13, fontWeight: '600' },
   totalValue: { fontSize: 16, fontWeight: '800' },
+  cuotasToggleRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  cuotasToggle: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
 });

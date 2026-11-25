@@ -39,7 +39,7 @@ import { USER_ROL_LABELS } from '../../constants/userRoles';
 import { formatJsDateToDisplay, maskDateDDMMAAAA, displayDateToIsoCalendar } from '../../utils/dateDisplay';
 import { maskTimeHHMM, isValidTimeHHMM } from '../../utils/timeDisplay';
 import { uploadFileToClub } from '../../utils/uploadMedia';
-import { pickAndUploadImage, pickImageAsset } from './finanzas/finanzasUpload';
+import { pickImageAsset } from './finanzas/finanzasUpload';
 import WebImageCropModal from '../../components/WebImageCropModal';
 import { copyText } from '../../utils/copyText';
 
@@ -107,7 +107,16 @@ function formatOrderWhen(iso) {
   });
 }
 
-const emptyTipo = () => ({ nombre: 'General', precio: '0', cupo: '100', activo: true });
+const emptyTipo = () => ({
+  nombre: 'General',
+  precio: '0',
+  cupo: '100',
+  activo: true,
+  accesosPermitidos: [],
+});
+const newAccesoLocalKey = () => `acc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const emptyAcceso = () => ({ nombre: '', activo: true, localKey: newAccesoLocalKey() });
+const accesoKeyOf = (a) => String(a?.localKey || a?._id || '');
 
 function toDisplayDate(iso) {
   if (!iso) return '';
@@ -232,9 +241,11 @@ export default function AdminEventosScreen({ navigation }) {
     fechaInicioDisplay: '',
     horaInicio: '',
     tiposEntrada: [emptyTipo()],
+    accesos: [],
     reglasDescuento: [],
     controlIngreso: [],
   });
+  const [doorAssignAccesoId, setDoorAssignAccesoId] = useState('');
 
   const [pickers, setPickers] = useState({ cuotasSociales: [], planes: [] });
   const [ordersOpen, setOrdersOpen] = useState(false);
@@ -405,9 +416,11 @@ export default function AdminEventosScreen({ navigation }) {
       fechaInicioDisplay: formatJsDateToDisplay(new Date()),
       horaInicio: '18:00',
       tiposEntrada: [emptyTipo()],
+      accesos: [],
       reglasDescuento: [],
       controlIngreso: [],
     });
+    setDoorAssignAccesoId('');
     setDoorQuery('');
     setDoorHits([]);
     setModalOpen(true);
@@ -454,6 +467,13 @@ export default function AdminEventosScreen({ navigation }) {
         cupo: String(t.cupo ?? 0),
         activo: t.activo !== false,
         vendidas: t.vendidas,
+        accesosPermitidos: (t.accesosPermitidos || []).map((id) => String(id)),
+      })),
+      accesos: (ev.accesos || []).map((a) => ({
+        _id: a._id,
+        nombre: a.nombre || '',
+        activo: a.activo !== false,
+        localKey: String(a._id),
       })),
       reglasDescuento: (ev.reglasDescuento || []).map((r) => ({
         _id: r._id,
@@ -470,15 +490,19 @@ export default function AdminEventosScreen({ navigation }) {
         .map((u) =>
           u && typeof u === 'object'
             ? {
-                _id: String(u._id),
+                _id: String(u._id || u.usuario),
                 nombre: u.nombre || '',
                 apellido: u.apellido || '',
                 rol: u.rol || '',
+                acceso: u.acceso ? String(u.acceso) : '',
+                accesoNombre: u.accesoNombre || '',
               }
-            : { _id: String(u), nombre: 'Usuario', apellido: '', rol: '' },
+            : { _id: String(u), nombre: 'Usuario', apellido: '', rol: '', acceso: '', accesoNombre: '' },
         )
         .filter((u) => u._id && u._id !== 'undefined'),
     });
+    const firstAcceso = (ev.accesos || []).find((a) => a.activo !== false);
+    setDoorAssignAccesoId(firstAcceso ? String(firstAcceso._id) : '');
     setDoorQuery('');
     setDoorHits([]);
     setModalOpen(true);
@@ -550,40 +574,41 @@ export default function AdminEventosScreen({ navigation }) {
 
   const uploadEventImage = async (target = 'evento') => {
     imageTarget.current = target;
-    const field = target === 'estadio' ? 'mapaEstadioUrl' : 'imagenUrl';
     try {
-      if (Platform.OS === 'web') {
-        const picked = await pickImageAsset({ quality: 0.9 });
-        if (!picked?.uri) {
-          finishStadiumMap(null);
-          return;
-        }
-        setCropUri(picked.uri);
+      const picked = await pickImageAsset({ quality: 0.9 });
+      if (!picked?.uri) {
+        if (target === 'estadio-lib') finishStadiumMap(null);
         return;
       }
-      setUploadingImage(true);
-      const url = await pickAndUploadImage(clubData, {
-        allowsEditing: true,
-        aspect: [16, 9],
-        quality: 0.85,
-      });
-      if (url) deliverUploadedImage(field, url);
-      else if (imageTarget.current === 'estadio-lib') finishStadiumMap(null);
+      setCropUri(picked.uri);
     } catch (e) {
       showAlert('Imagen', e.message || 'No se pudo subir la imagen.');
+      if (target === 'estadio-lib') finishStadiumMap(null);
     } finally {
       setUploadingImage(false);
     }
   };
 
-  const confirmCroppedImage = async (file) => {
+  const confirmCroppedImage = async (fileOrAsset) => {
     const field = imageTarget.current === 'estadio' ? 'mapaEstadioUrl' : 'imagenUrl';
     setCropUri(null);
     setUploadingImage(true);
     try {
-      const name = file?.name || `evento-${Date.now()}.jpg`;
-      const mime = file?.type || 'image/jpeg';
-      const { url } = await uploadFileToClub(clubData, '', name, mime, { webFile: file });
+      let url;
+      if (fileOrAsset?.uri && !fileOrAsset?.type) {
+        const uploaded = await uploadFileToClub(
+          clubData,
+          fileOrAsset.uri,
+          fileOrAsset.filename || `evento-${Date.now()}.jpg`,
+          fileOrAsset.mime || 'image/jpeg',
+        );
+        url = uploaded?.url;
+      } else {
+        const name = fileOrAsset?.name || `evento-${Date.now()}.jpg`;
+        const mime = fileOrAsset?.type || 'image/jpeg';
+        const uploaded = await uploadFileToClub(clubData, '', name, mime, { webFile: fileOrAsset });
+        url = uploaded?.url;
+      }
       if (url) deliverUploadedImage(field, url);
       else if (imageTarget.current === 'estadio-lib') finishStadiumMap(null);
     } catch (e) {
@@ -627,16 +652,25 @@ export default function AdminEventosScreen({ navigation }) {
         })),
       fechaInicio,
       fechaFin: null,
+      accesos: (form.accesos || [])
+        .map((a) => ({
+          ...(a._id ? { _id: a._id } : {}),
+          nombre: String(a.nombre || '').trim(),
+          activo: a.activo !== false,
+          clientKey: accesoKeyOf(a),
+        }))
+        .filter((a) => a.nombre),
       tiposEntrada: form.tiposEntrada.map((t, index) => {
         const sectionPrices = (form.secciones || [])
           .filter((section) => section.tipoIndex === index)
           .map((section) => Math.max(0, Number(section.precio) || 0));
         return {
-        ...(t._id ? { _id: t._id } : {}),
-        nombre: t.nombre.trim() || 'General',
-        precio: sectionPrices.length ? Math.min(...sectionPrices) : Number(t.precio) || 0,
-        cupo: Math.max(0, parseInt(t.cupo, 10) || 0),
-        activo: t.activo !== false,
+          ...(t._id ? { _id: t._id } : {}),
+          nombre: t.nombre.trim() || 'General',
+          precio: sectionPrices.length ? Math.min(...sectionPrices) : Number(t.precio) || 0,
+          cupo: Math.max(0, parseInt(t.cupo, 10) || 0),
+          activo: t.activo !== false,
+          accesosPermitidos: (t.accesosPermitidos || []).map(String),
         };
       }),
       reglasDescuento: form.reglasDescuento.map((r) => ({
@@ -650,7 +684,12 @@ export default function AdminEventosScreen({ navigation }) {
         maxEntradasConDescuento: Math.max(1, parseInt(r.maxEntradasConDescuento, 10) || 1),
         activo: r.activo !== false,
       })),
-      controlIngreso: (form.controlIngreso || []).map((u) => u._id).filter(Boolean),
+      controlIngreso: (form.controlIngreso || [])
+        .map((u) => ({
+          usuario: u._id,
+          acceso: u.acceso || null,
+        }))
+        .filter((u) => u.usuario),
     };
   };
 
@@ -667,6 +706,14 @@ export default function AdminEventosScreen({ navigation }) {
       if (!isValidTimeHHMM(form.horaInicio)) {
         showAlert('Datos', 'Indicá una hora válida (HH:MM).');
         return false;
+      }
+      const activeAccesos = (form.accesos || []).filter((a) => a.nombre?.trim() && a.activo !== false);
+      if (activeAccesos.length && (form.controlIngreso || []).length) {
+        const missing = (form.controlIngreso || []).some((p) => !p.acceso);
+        if (missing) {
+          showAlert('Accesos', 'Asigná un acceso a cada persona de control de ingreso.');
+          return false;
+        }
       }
     }
     if (step === 1) {
@@ -687,6 +734,9 @@ export default function AdminEventosScreen({ navigation }) {
 
   const save = async () => {
     try {
+      for (let s = 0; s < FORM_STEPS.length; s += 1) {
+        if (!validateStep(s)) return;
+      }
       setSaving(true);
       const payload = buildPayload();
       const h = await getHeaders();
@@ -698,7 +748,11 @@ export default function AdminEventosScreen({ navigation }) {
       closeFormModal();
       await load();
     } catch (e) {
-      showAlert('Error', e.message || e.response?.data?.message || 'No se pudo guardar.');
+      const serverMsg = e.response?.data?.message;
+      showAlert('Error', serverMsg || e.message || 'No se pudo guardar.');
+      if (__DEV__) {
+        console.warn('[eventos] save failed', e.response?.status, e.response?.data || e);
+      }
     } finally {
       setSaving(false);
     }
@@ -1473,35 +1527,164 @@ export default function AdminEventosScreen({ navigation }) {
       </Field>
 
       <Field
+        label="Accesos del evento"
+        theme={theme}
+        hint="Puertas o puntos de control. Si no agregás ninguno, el escáner funciona como hasta ahora (una sola entrada)."
+      >
+        {(form.accesos || []).map((acceso, idx) => {
+          const key = accesoKeyOf(acceso) || `acc-${idx}`;
+          return (
+            <View key={key} style={[styles.row, { alignItems: 'center', marginBottom: 8 }]}>
+              <TextInput
+                style={[...inputStyle, { flex: 1, marginBottom: 0, marginRight: 8 }]}
+                value={acceso.nombre}
+                onChangeText={(nombre) =>
+                  setForm((f) => ({
+                    ...f,
+                    accesos: (f.accesos || []).map((a, i) => (i === idx ? { ...a, nombre } : a)),
+                  }))
+                }
+                placeholder={`Acceso ${idx + 1}`}
+                placeholderTextColor={theme.textMuted}
+              />
+              <TouchableOpacity
+                onPress={() => {
+                  const removedKey = accesoKeyOf(acceso);
+                  setForm((f) => ({
+                    ...f,
+                    accesos: (f.accesos || []).filter((_, i) => i !== idx),
+                    tiposEntrada: (f.tiposEntrada || []).map((t) => ({
+                      ...t,
+                      accesosPermitidos: (t.accesosPermitidos || []).filter((id) => id !== removedKey),
+                    })),
+                    controlIngreso: (f.controlIngreso || []).map((p) =>
+                      p.acceso === removedKey ? { ...p, acceso: '', accesoNombre: '' } : p,
+                    ),
+                  }));
+                  setDoorAssignAccesoId((cur) => (cur === removedKey ? '' : cur));
+                }}
+                hitSlop={8}
+              >
+                <Ionicons name="trash-outline" size={18} color="#ef4444" />
+              </TouchableOpacity>
+            </View>
+          );
+        })}
+        <TouchableOpacity
+          style={[styles.addPill, { borderColor: colorMarca, alignSelf: 'flex-start' }]}
+          onPress={() => {
+            const next = emptyAcceso();
+            setForm((f) => ({ ...f, accesos: [...(f.accesos || []), next] }));
+            if (!doorAssignAccesoId) setDoorAssignAccesoId(accesoKeyOf(next));
+          }}
+        >
+          <Ionicons name="add" size={18} color={colorMarca} />
+          <Text style={{ color: colorMarca, fontWeight: '700', marginLeft: 4 }}>Agregar acceso</Text>
+        </TouchableOpacity>
+      </Field>
+
+      <Field
         label="Control de ingreso del evento"
         theme={theme}
-        hint="Estas personas ven el escáner de este evento en su app. El ingreso de socios sigue aparte."
+        hint={
+          (form.accesos || []).some((a) => a.nombre?.trim())
+            ? 'Asigná cada persona a un acceso. En la puerta usan ese acceso automáticamente.'
+            : 'Estas personas ven el escáner de este evento en su app. El ingreso de socios sigue aparte.'
+        }
       >
+        {(form.accesos || []).some((a) => a.nombre?.trim()) ? (
+          <View style={{ marginBottom: 10 }}>
+            <Text style={[styles.label, { color: theme.textMuted }]}>Acceso al asignar</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {(form.accesos || [])
+                .filter((a) => a.nombre?.trim())
+                .map((a) => {
+                  const key = accesoKeyOf(a);
+                  const on = doorAssignAccesoId === key;
+                  return (
+                    <Chip
+                      key={key}
+                      label={a.nombre.trim()}
+                      on={on}
+                      colorMarca={colorMarca}
+                      theme={theme}
+                      onPress={() => setDoorAssignAccesoId(key)}
+                    />
+                  );
+                })}
+            </View>
+          </View>
+        ) : null}
         {(form.controlIngreso || []).length ? (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
-            {form.controlIngreso.map((person) => (
-              <View
-                key={person._id}
-                style={[styles.chip, { borderColor: theme.border, backgroundColor: theme.surface, flexDirection: 'row', alignItems: 'center' }]}
-              >
-                <Text style={[styles.chipText, { color: theme.text }]}>
-                  {[person.nombre, person.apellido].filter(Boolean).join(' ') || 'Usuario'}
-                  {person.rol ? ` · ${USER_ROL_LABELS[person.rol] || person.rol}` : ''}
-                </Text>
-                <TouchableOpacity
-                  onPress={() =>
-                    setForm((f) => ({
-                      ...f,
-                      controlIngreso: (f.controlIngreso || []).filter((u) => u._id !== person._id),
-                    }))
-                  }
-                  hitSlop={8}
-                  style={{ marginLeft: 6 }}
+            {form.controlIngreso.map((person) => {
+              const accesoNombre =
+                person.accesoNombre
+                || (form.accesos || []).find((a) => accesoKeyOf(a) === person.acceso)?.nombre
+                || '';
+              return (
+                <View
+                  key={person._id}
+                  style={[
+                    styles.chip,
+                    {
+                      borderColor: theme.border,
+                      backgroundColor: theme.surface,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                    },
+                  ]}
                 >
-                  <Ionicons name="close" size={16} color={theme.textMuted} />
-                </TouchableOpacity>
-              </View>
-            ))}
+                  <View style={{ flexShrink: 1 }}>
+                    <Text style={[styles.chipText, { color: theme.text }]}>
+                      {[person.nombre, person.apellido].filter(Boolean).join(' ') || 'Usuario'}
+                      {person.rol ? ` · ${USER_ROL_LABELS[person.rol] || person.rol}` : ''}
+                    </Text>
+                    {(form.accesos || []).some((a) => a.nombre?.trim()) ? (
+                      <TouchableOpacity
+                        onPress={() => {
+                          const named = (form.accesos || []).filter((a) => a.nombre?.trim());
+                          if (!named.length) return;
+                          const idx = Math.max(
+                            0,
+                            named.findIndex((a) => accesoKeyOf(a) === person.acceso),
+                          );
+                          const next = named[(idx + 1) % named.length];
+                          setForm((f) => ({
+                            ...f,
+                            controlIngreso: (f.controlIngreso || []).map((u) =>
+                              u._id === person._id
+                                ? {
+                                    ...u,
+                                    acceso: accesoKeyOf(next),
+                                    accesoNombre: next.nombre.trim(),
+                                  }
+                                : u,
+                            ),
+                          }));
+                        }}
+                      >
+                        <Text style={{ color: colorMarca, fontSize: 12, fontWeight: '700', marginTop: 2 }}>
+                          {accesoNombre || 'Elegir acceso'} · cambiar
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                  <TouchableOpacity
+                    onPress={() =>
+                      setForm((f) => ({
+                        ...f,
+                        controlIngreso: (f.controlIngreso || []).filter((u) => u._id !== person._id),
+                      }))
+                    }
+                    hitSlop={8}
+                    style={{ marginLeft: 6 }}
+                  >
+                    <Ionicons name="close" size={16} color={theme.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
           </View>
         ) : null}
         <TextInput
@@ -1518,6 +1701,12 @@ export default function AdminEventosScreen({ navigation }) {
             <TouchableOpacity
               key={u._id}
               onPress={() => {
+                const named = (form.accesos || []).filter((a) => a.nombre?.trim());
+                if (named.length && !doorAssignAccesoId) {
+                  showAlert('Accesos', 'Elegí el acceso de esta persona antes de agregarla.');
+                  return;
+                }
+                const assigned = named.find((a) => accesoKeyOf(a) === doorAssignAccesoId) || named[0];
                 setForm((f) => ({
                   ...f,
                   controlIngreso: [
@@ -1527,6 +1716,8 @@ export default function AdminEventosScreen({ navigation }) {
                       nombre: u.nombre || '',
                       apellido: u.apellido || '',
                       rol: u.rol || '',
+                      acceso: assigned ? accesoKeyOf(assigned) : '',
+                      accesoNombre: assigned?.nombre?.trim() || '',
                     },
                   ],
                 }));
@@ -1698,6 +1889,38 @@ export default function AdminEventosScreen({ navigation }) {
                   </View>
                 </View>
                 )}
+                {(form.accesos || []).some((a) => a.nombre?.trim()) ? (
+                  <Field
+                    label="Puede entrar por"
+                    theme={theme}
+                    hint="Vacío = todos los accesos activos."
+                  >
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      {(form.accesos || [])
+                        .filter((a) => a.nombre?.trim())
+                        .map((a) => {
+                          const key = accesoKeyOf(a);
+                          const selected = (t.accesosPermitidos || []).includes(key);
+                          return (
+                            <Chip
+                              key={key}
+                              label={a.nombre.trim()}
+                              on={selected}
+                              colorMarca={colorMarca}
+                              theme={theme}
+                              onPress={() =>
+                                updateTipo(idx, {
+                                  accesosPermitidos: selected
+                                    ? (t.accesosPermitidos || []).filter((id) => id !== key)
+                                    : [...(t.accesosPermitidos || []), key],
+                                })
+                              }
+                            />
+                          );
+                        })}
+                    </View>
+                  </Field>
+                ) : null}
                 <TouchableOpacity
                   onPress={() => toggleTipoSeccion(idx)}
                   style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 }}

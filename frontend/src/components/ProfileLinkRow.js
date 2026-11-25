@@ -3,14 +3,24 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 /** Fila navegable dentro de una tarjeta de perfil (estilo staff). */
-export default function ProfileLinkRow({ icon, title, subtitle, onPress, theme, badge, isLast }) {
+export default function ProfileLinkRow({
+  icon,
+  IconComponent = Ionicons,
+  title,
+  subtitle,
+  onPress,
+  theme,
+  badge,
+  isLast,
+}) {
+  const Icon = IconComponent || Ionicons;
   return (
     <TouchableOpacity
       style={[styles.row, { borderBottomColor: theme.border, borderBottomWidth: isLast ? 0 : 1 }]}
       onPress={onPress}
       activeOpacity={0.75}
     >
-      <Ionicons name={icon} size={18} color={theme.icon} />
+      <Icon name={icon} size={18} color={theme.icon} />
       <View style={styles.body}>
         <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
         {subtitle ? (

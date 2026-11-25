@@ -63,7 +63,7 @@ export function getNotificationTarget(item, { rol, cuotasEnApp, isTutor }) {
     if (rol === 'atleta' && !cuotasEnApp) return null;
     if (rol === 'atleta') return { tab: 'AthleteProfile', screen: 'AthletePayments' };
     if (rol === 'tutor') return { tab: 'TutorProfile', screen: 'TutorPayments' };
-    if (rol === 'socio') return { tab: 'SocioCuotas' };
+    if (rol === 'socio') return { tab: 'SocioProfile', screen: 'SocioPayments' };
     if (rol === 'admin_club' || rol === 'dirigente' || rol === 'administrativo') return { tab: 'Finanzas', screen: 'FinanzasHome' };
     return null;
   }

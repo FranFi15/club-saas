@@ -21,7 +21,7 @@ import { clubApi } from '../../utils/api';
 import { isoCalendarDateToDisplay } from '../../utils/dateDisplay';
 import { persistUserTokensFromProfile } from '../../utils/profileTokens';
 import CustomAlert from '../../components/CustomAlert';
-import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScreenHeader';
+import CoachScreenHeader from '../../components/CoachScreenHeader';
 import { useAdminDesktopLayout } from '../../hooks/useAdminDesktopLayout';
 import Foldable, { FoldableChevron } from '../../components/Foldable';
 import ProfileEditDataButton from '../../components/ProfileEditDataButton';
@@ -30,7 +30,10 @@ import ProfileLogoutButton from '../../components/ProfileLogoutButton';
 import ProfileSwitchRoleButton from '../../components/ProfileSwitchRoleButton';
 import ProfileNotificationToggle from '../../components/ProfileNotificationToggle';
 import ProfileHeaderAvatar from '../../components/ProfileHeaderAvatar';
+import ProfileHeaderCredits from '../../components/ProfileHeaderCredits';
 import ProfileInfoRow, { profileCardStyles } from '../../components/ProfileInfoRow';
+import ProfileBenefitsSection from '../../components/ProfileBenefitsSection';
+import ProfileLoyaltySection from '../../components/ProfileLoyaltySection';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { subscribeMercadoPagoDeepLinks } from '../../utils/mpDeepLinks';
 import { formatUserName } from '../../utils/listSort';
@@ -275,16 +278,11 @@ export default function AdminProfileScreen({ navigation }) {
         theme={theme}
         kicker="Perfil"
         title={fullName}
-        subtitle={clubData?.nombre || 'Tu club'}
+        subtitle={roleBadgeLabel}
         heroRight={profile ? <ProfileHeaderAvatar user={profile} /> : null}
         showClubLogo={!isDesktop}
         showNotifications={false}
-        footer={
-          <CoachHeaderBadge>
-            <Ionicons name="shield-checkmark-outline" size={16} color="#fff" />
-            <Text style={styles.heroBadgeTxt}>{roleBadgeLabel}</Text>
-          </CoachHeaderBadge>
-        }
+        footer={<ProfileHeaderCredits clubData={clubData} />}
       />
 
       <ScrollView
@@ -422,6 +420,9 @@ export default function AdminProfileScreen({ navigation }) {
                 )}
               </TouchableOpacity>
             ) : null}
+
+            <ProfileBenefitsSection clubData={clubData} theme={theme} colorMarca={colorMarca} />
+            <ProfileLoyaltySection clubData={clubData} theme={theme} colorMarca={colorMarca} />
 
             <ProfileClubEntryButton
               theme={theme}

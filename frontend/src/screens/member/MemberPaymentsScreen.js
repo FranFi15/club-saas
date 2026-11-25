@@ -347,7 +347,7 @@ export default function MemberPaymentsScreen({ navigation }) {
         <Text style={[styles.sub, { color: theme.textMuted }]}>
           {item.tipo === 'social'
             ? item.cuotaSocial?.nombre || 'Cuota social'
-            : item.plan?.nombre || 'Cuota'}
+            : item.plan?.nombre || 'Cuota deportiva'}
           {item.categoria?.nombre ? ` · ${item.categoria.nombre}` : ''}
         </Text>
         {item.motivoRechazo && ['pendiente', 'vencido'].includes(item.estado) ? (

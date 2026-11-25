@@ -3,16 +3,14 @@ import { useFocusEffect } from '@react-navigation/native';
 import { ClubContext } from '../context/ClubContext';
 import { clubApi } from '../utils/api';
 import { getToken } from '../utils/storage';
-import { useMercadoPagoLinked } from './useMercadoPagoLinked';
 
 /** Eventos publicados cuya puerta puede escanear el usuario logueado. */
 export function useEventDoorEvents() {
   const { clubData } = useContext(ClubContext);
-  const mpLinked = useMercadoPagoLinked();
   const [events, setEvents] = useState([]);
 
   const reload = useCallback(async () => {
-    if (!clubData?.urlIdentifier || !mpLinked) {
+    if (!clubData?.urlIdentifier) {
       setEvents([]);
       return;
     }
@@ -28,7 +26,7 @@ export function useEventDoorEvents() {
     } catch {
       setEvents([]);
     }
-  }, [clubData?.urlIdentifier, mpLinked]);
+  }, [clubData?.urlIdentifier]);
 
   useFocusEffect(
     useCallback(() => {

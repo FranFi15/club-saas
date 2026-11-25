@@ -91,10 +91,28 @@ function pendingPersonDetail(pending) {
   if (pending.gate === 'event') {
     const holder = pending.preview?.ticket?.titular || {};
     const tipo = pending.preview?.ticket?.tipoEntradaNombre;
-    return [`DNI ${holder.dni || 'sin cargar'}`, tipo].filter(Boolean).join(' · ');
+    const acceso = pending.preview?.accesoNombre;
+    const presencia = pending.preview?.ticket?.presencia;
+    const presenceLabel =
+      presencia === 'dentro' ? 'Dentro' : presencia === 'fuera' ? 'Fuera' : '';
+    return [
+      `DNI ${holder.dni || 'sin cargar'}`,
+      tipo,
+      acceso ? `Acceso ${acceso}` : '',
+      presenceLabel,
+    ]
+      .filter(Boolean)
+      .join(' · ');
   }
   const person = pending.preview?.member || {};
   return [entryRoleLabel(person.rol), person.dni ? `DNI ${person.dni}` : ''].filter(Boolean).join(' · ');
+}
+
+function doorDecisionLabel(decision) {
+  if (decision === 'salio') return 'Salió';
+  if (decision === 'no_entro') return 'No entró';
+  if (decision === 'entro') return 'Entró';
+  return '';
 }
 
 function formatTime(iso) {
@@ -174,20 +192,23 @@ function ResultCard({ result, onDismiss, theme, gate = 'club' }) {
     const name = `${holder.apellido || ''} ${holder.nombre || ''}`.trim() || 'Entrada';
     const blocked = !!result.alreadyUsed;
     const declined = result.decision === 'no_entro';
+    const exited = result.decision === 'salio';
     const title = blocked
       ? 'Este ticket ya se usó'
       : declined
         ? 'No entró'
-        : result.decision === 'entro'
-          ? 'Entró'
-          : 'Entrada válida';
+        : exited
+          ? 'Salió'
+          : result.decision === 'entro'
+            ? 'Entró'
+            : 'Entrada válida';
     return (
       <View
         style={[
           styles.resultCard,
           {
-            backgroundColor: blocked || declined ? '#fef3c7' : '#ecfdf5',
-            borderColor: blocked ? '#ef4444' : declined ? '#f59e0b' : '#10b981',
+            backgroundColor: blocked || declined ? '#fef3c7' : exited ? '#eff6ff' : '#ecfdf5',
+            borderColor: blocked ? '#ef4444' : declined ? '#f59e0b' : exited ? '#3b82f6' : '#10b981',
           },
         ]}
       >
@@ -195,7 +216,7 @@ function ResultCard({ result, onDismiss, theme, gate = 'club' }) {
           <Ionicons name="close" size={20} color="#374151" />
         </TouchableOpacity>
         <View style={styles.resultRow}>
-          <Ionicons name="ticket-outline" size={40} color="#15803d" />
+          <Ionicons name="ticket-outline" size={40} color={exited ? '#2563eb' : '#15803d'} />
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={styles.resultTitle}>{title}</Text>
             <Text style={styles.resultName}>{name}</Text>
@@ -206,6 +227,7 @@ function ResultCard({ result, onDismiss, theme, gate = 'club' }) {
               {result.ticket?.tipoEntradaNombre
                 ? ` · ${result.ticket.tipoEntradaNombre}`
                 : ''}
+              {result.accesoNombre ? ` · ${result.accesoNombre}` : ''}
             </Text>
             {result.ticket?.codigo ? (
               <Text style={styles.resultMeta}>Código {result.ticket.codigo}</Text>
@@ -299,7 +321,7 @@ function ResultCard({ result, onDismiss, theme, gate = 'club' }) {
               ) : null}
               {billing.planSummary ? (
                 <Text style={styles.billingLine}>
-                  <Text style={styles.billingKey}>Plan: </Text>
+                  <Text style={styles.billingKey}>Cuota deportiva: </Text>
                   {billing.planSummary}
                 </Text>
               ) : null}
@@ -692,7 +714,12 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
           minute: '2-digit',
         })
       : '';
-    return [selectedEvent.titulo, when, selectedEvent.lugar].filter(Boolean).join(' · ');
+    const gateLabel = selectedEvent.accesoNombre
+      ? `Acceso ${selectedEvent.accesoNombre}`
+      : selectedEvent.hasAccesos
+        ? 'Sin acceso asignado'
+        : '';
+    return [selectedEvent.titulo, when, selectedEvent.lugar, gateLabel].filter(Boolean).join(' · ');
   }, [selectedEvent]);
 
   const eventFilterPills = useMemo(
@@ -840,23 +867,28 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
             {doorLog.map((row) => {
               const holder = row.titular || {};
               const name = `${holder.apellido || ''} ${holder.nombre || ''}`.trim() || 'Entrada';
-              const entered = row.decision !== 'no_entro';
+              const decision = row.decision || 'entro';
+              const icon =
+                decision === 'salio'
+                  ? 'exit-outline'
+                  : decision === 'no_entro'
+                    ? 'close-circle-outline'
+                    : 'checkmark-circle-outline';
+              const color =
+                decision === 'salio' ? '#3b82f6' : decision === 'no_entro' ? '#ef4444' : '#10b981';
               return (
                 <View
                   key={row._id}
                   style={[styles.logRow, { borderColor: theme.border, backgroundColor: theme.surface, marginBottom: 8 }]}
                 >
-                  <Ionicons
-                    name={entered ? 'checkmark-circle-outline' : 'close-circle-outline'}
-                    size={22}
-                    color={entered ? '#10b981' : '#ef4444'}
-                  />
+                  <Ionicons name={icon} size={22} color={color} />
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: theme.text, fontWeight: '700' }} numberOfLines={1}>
                       {name}
                     </Text>
                     <Text style={{ color: theme.textMuted, fontSize: 12 }}>
-                      {entered ? 'Entró' : 'No entró'}
+                      {doorDecisionLabel(decision) || 'Entró'}
+                      {row.accesoNombre ? ` · ${row.accesoNombre}` : ''}
                       {holder.dni ? ` · DNI ${holder.dni}` : ''}
                       {row.tipoEntradaNombre ? ` · ${row.tipoEntradaNombre}` : ''}
                     </Text>
@@ -1096,30 +1128,79 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
             <Text style={[styles.decisionSub, { color: theme.textMuted }]}>
               {pendingPersonDetail(pendingEntry)}
             </Text>
+            {pendingEntry?.preview?.message ? (
+              <Text
+                style={[
+                  styles.decisionWarn,
+                  {
+                    color:
+                      pendingEntry.preview.gateAllowed === false
+                        ? '#b91c1c'
+                        : pendingEntry.preview.allowedAction === 'salio'
+                          ? '#1d4ed8'
+                          : '#b45309',
+                  },
+                ]}
+              >
+                {pendingEntry.preview.message}
+              </Text>
+            ) : null}
             {(pendingEntry?.preview?.warnings || []).map((w) => (
               <Text key={w} style={styles.decisionWarn}>
                 {w}
               </Text>
             ))}
             <View style={styles.decisionActions}>
-              <TouchableOpacity
-                style={[styles.decisionBtn, { borderColor: theme.border, borderWidth: 1 }]}
-                onPress={() => chooseEntry('no_entro')}
-                disabled={savingDecision}
-              >
-                <Text style={{ color: theme.text, fontWeight: '800' }}>No entró</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.decisionBtn, { backgroundColor: colorMarca, opacity: savingDecision ? 0.7 : 1 }]}
-                onPress={() => chooseEntry('entro')}
-                disabled={savingDecision}
-              >
-                {savingDecision ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={{ color: '#fff', fontWeight: '800' }}>Entró</Text>
-                )}
-              </TouchableOpacity>
+              {pendingEntry?.gate === 'event'
+              && pendingEntry?.preview?.allowedAction === 'salio' ? (
+                <TouchableOpacity
+                  style={[styles.decisionBtn, { backgroundColor: '#2563eb', opacity: savingDecision ? 0.7 : 1, flex: 1 }]}
+                  onPress={() => chooseEntry('salio')}
+                  disabled={savingDecision}
+                >
+                  {savingDecision ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={{ color: '#fff', fontWeight: '800' }}>Salió</Text>
+                  )}
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={[styles.decisionBtn, { borderColor: theme.border, borderWidth: 1 }]}
+                    onPress={() => chooseEntry('no_entro')}
+                    disabled={savingDecision}
+                  >
+                    <Text style={{ color: theme.text, fontWeight: '800' }}>No entró</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.decisionBtn,
+                      {
+                        backgroundColor: colorMarca,
+                        opacity:
+                          savingDecision
+                          || (pendingEntry?.gate === 'event'
+                            && pendingEntry?.preview?.gateAllowed === false)
+                            ? 0.45
+                            : 1,
+                      },
+                    ]}
+                    onPress={() => chooseEntry('entro')}
+                    disabled={
+                      savingDecision
+                      || (pendingEntry?.gate === 'event'
+                        && pendingEntry?.preview?.gateAllowed === false)
+                    }
+                  >
+                    {savingDecision ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={{ color: '#fff', fontWeight: '800' }}>Entró</Text>
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
             <TouchableOpacity onPress={dismissPendingEntry} disabled={savingDecision} style={{ marginTop: 14 }}>
               <Text style={{ color: theme.textMuted, textAlign: 'center', fontWeight: '700' }}>Cerrar</Text>

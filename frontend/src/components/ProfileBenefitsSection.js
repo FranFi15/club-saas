@@ -24,24 +24,36 @@ function benefitLines(text) {
     .filter(Boolean);
 }
 
+function aspectRatioFrom(value) {
+  const raw = String(value || '16:9');
+  const [a, b] = raw.split(':').map((n) => Number(n));
+  if (a > 0 && b > 0) return a / b;
+  return 16 / 9;
+}
+
 /**
- * Botón Beneficios en perfil → modal con imagen, nombre y descuentos del sponsor.
- * Solo visible / usable si el miembro no es moroso y hay sponsors aplicables.
+ * Botón Beneficios en perfil → modal con imagen, nombre y descuentos libres del sponsor.
+ * Visible aunque Créditos esté activo (los canjes con créditos van en Créditos).
  */
 export default function ProfileBenefitsSection({ clubData, theme, colorMarca }) {
   const cacheKey = clubData?.urlIdentifier ? `profile-benefits:${clubData.urlIdentifier}` : '';
   const [payload, setPayload] = useState(null);
   const [open, setOpen] = useState(false);
+  const cc = colorMarca || '#3b82f6';
 
   const fetchBenefits = useCallback(async () => {
     if (!clubData?.urlIdentifier) return { eligible: false, sponsors: [], moroso: false };
     const token = await getToken('userToken');
-    const { data } = await clubApi.get('/financial/sponsors/my-benefits', {
-      headers: {
-        'x-club-identifier': clubData.urlIdentifier,
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const headers = {
+      'x-club-identifier': clubData.urlIdentifier,
+      Authorization: `Bearer ${token}`,
+    };
+    // Con créditos activos, beneficios libres van en Canjes y Beneficios.
+    const loyaltyRes = await clubApi.get('/loyalty/me', { headers }).catch(() => ({ data: { enabled: false } }));
+    if (loyaltyRes.data?.enabled) {
+      return { loyaltyEnabled: true, eligible: false, sponsors: [], moroso: false };
+    }
+    const { data } = await clubApi.get('/financial/sponsors/my-benefits', { headers });
     return data;
   }, [clubData?.urlIdentifier]);
 
@@ -61,19 +73,24 @@ export default function ProfileBenefitsSection({ clubData, theme, colorMarca }) 
     );
   }
 
-  if (payload?.error) return null;
+  if (payload?.error || payload?.loyaltyEnabled) return null;
 
   const sponsors = Array.isArray(payload?.sponsors) ? payload.sponsors : [];
   const moroso = !!payload?.moroso;
+  const withContent = sponsors.filter((sp) => {
+    const lines = benefitLines(sp.beneficios);
+    const free = Array.isArray(sp.descuentosLibres) ? sp.descuentosLibres : [];
+    return lines.length > 0 || free.length > 0;
+  });
 
-  // Sin sponsors aplicables y al día → no mostrar el botón.
-  if (!moroso && !sponsors.length) return null;
+  // Sin sponsors con beneficios y al día → no mostrar el botón.
+  if (!moroso && !withContent.length) return null;
 
   const subtitle = moroso
     ? 'Disponibles cuando estás al día con tus cuotas'
-    : sponsors.length === 1
+    : withContent.length === 1
       ? `1 sponsor · tocá para ver`
-      : `${sponsors.length} sponsors · tocá para ver`;
+      : `${withContent.length} sponsors · tocá para ver`;
 
   return (
     <>
@@ -117,8 +134,9 @@ export default function ProfileBenefitsSection({ clubData, theme, colorMarca }) 
                   </Text>
                 </View>
               ) : (
-                sponsors.map((sp) => {
+                withContent.map((sp) => {
                   const lines = benefitLines(sp.beneficios);
+                  const free = Array.isArray(sp.descuentosLibres) ? sp.descuentosLibres : [];
                   return (
                     <View
                       key={String(sp._id)}
@@ -134,7 +152,7 @@ export default function ProfileBenefitsSection({ clubData, theme, colorMarca }) 
                               { backgroundColor: theme.surface, borderColor: theme.border },
                             ]}
                           >
-                            <Ionicons name="ribbon-outline" size={26} color={colorMarca || theme.textMuted} />
+                            <Ionicons name="ribbon-outline" size={26} color={cc} />
                           </View>
                         )}
                         <View style={{ flex: 1, minWidth: 0 }}>
@@ -144,17 +162,57 @@ export default function ProfileBenefitsSection({ clubData, theme, colorMarca }) 
                         </View>
                       </View>
 
-                      <Text style={[styles.discountLabel, { color: theme.textMuted }]}>Descuento / beneficios</Text>
+                      {free.length ? (
+                        <>
+                          <Text style={[styles.discountLabel, { color: theme.textMuted }]}>Descuentos</Text>
+                          {free.map((d) => {
+                            const ratio = aspectRatioFrom(d.fotoAspect);
+                            return (
+                              <View
+                                key={String(d._id)}
+                                style={[styles.freeCard, { borderColor: theme.border, backgroundColor: theme.surface }]}
+                              >
+                                {d.fotoUrl ? (
+                                  <Image
+                                    source={{ uri: d.fotoUrl }}
+                                    style={[styles.freeImage, { aspectRatio: ratio }]}
+                                    resizeMode="cover"
+                                  />
+                                ) : null}
+                                <View style={styles.freeBody}>
+                                  <Text style={[styles.freeTitle, { color: theme.text }]} numberOfLines={2}>
+                                    {d.titulo}
+                                  </Text>
+                                  {d.descripcion ? (
+                                    <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 4 }}>
+                                      {d.descripcion}
+                                    </Text>
+                                  ) : null}
+                                </View>
+                              </View>
+                            );
+                          })}
+                        </>
+                      ) : null}
+
                       {lines.length ? (
-                        lines.map((line) => (
-                          <View key={line} style={styles.benefitRow}>
-                            <Ionicons name="pricetag" size={14} color={colorMarca || '#10b981'} style={{ marginTop: 2 }} />
-                            <Text style={[styles.benefitTxt, { color: theme.text }]}>{line}</Text>
-                          </View>
-                        ))
-                      ) : (
-                        <Text style={{ color: theme.textMuted, fontSize: 13 }}>Sin descuentos detallados.</Text>
-                      )}
+                        <>
+                          <Text
+                            style={[
+                              styles.discountLabel,
+                              { color: theme.textMuted, marginTop: free.length ? 12 : 0 },
+                            ]}
+                          >
+                            {free.length ? 'Otros beneficios' : 'Descuento / beneficios'}
+                          </Text>
+                          {lines.map((line) => (
+                            <View key={line} style={styles.benefitRow}>
+                              <Ionicons name="pricetag" size={14} color={cc} style={{ marginTop: 2 }} />
+                              <Text style={[styles.benefitTxt, { color: theme.text }]}>{line}</Text>
+                            </View>
+                          ))}
+                        </>
+                      ) : null}
                     </View>
                   );
                 })
@@ -233,4 +291,13 @@ const styles = StyleSheet.create({
   },
   benefitRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 6 },
   benefitTxt: { flex: 1, fontSize: 14, lineHeight: 20, fontWeight: '600' },
+  freeCard: {
+    borderWidth: 1,
+    borderRadius: 10,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  freeImage: { width: '100%' },
+  freeBody: { padding: 10 },
+  freeTitle: { fontSize: 15, fontWeight: '800' },
 });

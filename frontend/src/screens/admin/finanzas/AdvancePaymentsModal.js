@@ -184,8 +184,8 @@ export default function AdvancePaymentsModal({
                     </Text>
                     <Text style={{ color: theme.textMuted, fontSize: 12, lineHeight: 17 }}>
                       {grillaBloqueada
-                        ? 'La grilla ya terminó y tiene “terminar cuotas” activo. No hay meses de entrenamiento para adelantar.'
-                        : `Con “terminar cuotas al finalizar” solo se pueden crear cuotas de entrenamiento hasta ${periodLabel(
+                        ? 'La grilla ya terminó y tiene “terminar cuotas” activo. No hay meses de cuota deportiva para adelantar.'
+                        : `Con “terminar cuotas al finalizar” solo se pueden crear cuotas deportivas hasta ${periodLabel(
                             advanceInfo.tope?.mes,
                             advanceInfo.tope?.anio,
                           )}${

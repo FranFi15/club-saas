@@ -10,10 +10,12 @@ import { statusBarStyleForColor } from '../utils/statusBarContrast';
 /** Altura del bloque de marca. Con toolbar (volver) hace falta un poco más. */
 export const COACH_HEADER_HEIGHT = 136;
 export const COACH_HEADER_HEIGHT_WITH_TOOLBAR = 162;
+/** Extra space when footer (e.g. credits + expiry) is present so it isn’t clipped on native. */
+const FOOTER_EXTRA = 28;
 
 const TOOLBAR_HEIGHT = 40;
 const TOOLBAR_TOP_PAD = 6;
-const FOOTER_SLOT_HEIGHT = 28;
+const FOOTER_SLOT_HEIGHT = 44;
 const BACK_BTN_SIZE = 36;
 /** La campana ocupa este ancho desde el borde. Los FABs quedan a su izquierda. */
 const NOTIFICATION_BTN_SIZE = 36;
@@ -65,6 +67,9 @@ export default function CoachScreenHeader({
   const showTopToolbar = onBack || !!rightAccessory;
   const heroRightInset = heroRight ? COACH_HEADER_HERO_RIGHT_SIZE + 12 : 0;
   const displayClubLogo = showClubLogo && !heroRight;
+  const hasFooter = footer != null && footer !== false;
+  const baseHeroH = showTopToolbar ? COACH_HEADER_HEIGHT_WITH_TOOLBAR : COACH_HEADER_HEIGHT;
+  const heroH = hasFooter ? baseHeroH + FOOTER_EXTRA : baseHeroH;
 
   return (
     <View
@@ -86,7 +91,9 @@ export default function CoachScreenHeader({
           styles.hero,
           {
             backgroundColor: colorMarca,
-            height: showTopToolbar ? COACH_HEADER_HEIGHT_WITH_TOOLBAR : COACH_HEADER_HEIGHT,
+            minHeight: heroH,
+            height: heroH,
+            overflow: 'visible',
           },
         ]}
       >
@@ -118,17 +125,19 @@ export default function CoachScreenHeader({
                 {kicker}
               </Text>
             ) : null}
-            <Text style={styles.heroTitle} numberOfLines={1}>
+            <Text style={styles.heroTitle} numberOfLines={2}>
               {title}
             </Text>
             {subtitle ? (
-              <Text style={styles.heroSub} numberOfLines={1}>
-                {subtitle}
-              </Text>
+              typeof subtitle === 'string' || typeof subtitle === 'number' ? (
+                <Text style={styles.heroSub} numberOfLines={1}>
+                  {subtitle}
+                </Text>
+              ) : (
+                <View style={styles.heroSubNode}>{subtitle}</View>
+              )
             ) : null}
-            <View style={[styles.footerSlot, !footer && styles.footerSlotEmpty]}>
-              {footer || null}
-            </View>
+            {hasFooter ? <View style={styles.footerSlot}>{footer}</View> : null}
           </View>
         </View>
 
@@ -295,7 +304,15 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   heroBodyCentered: {
-    paddingVertical: 4,
+    paddingTop: 8,
+    paddingBottom: 14,
+  },
+  footerSlot: {
+    minHeight: FOOTER_SLOT_HEIGHT,
+    marginTop: 6,
+    justifyContent: 'flex-start',
+    alignSelf: 'stretch',
+    width: '100%',
   },
   heroBodyWithBack: {
     paddingRight: BACK_BTN_SIZE + 10,
@@ -316,15 +333,7 @@ const styles = StyleSheet.create({
   },
   heroTitle: { color: '#fff', fontSize: 17, fontWeight: 'bold', lineHeight: 21 },
   heroSub: { color: '#e5e7eb', fontSize: 13, marginTop: 2, lineHeight: 18 },
-  footerSlot: {
-    height: FOOTER_SLOT_HEIGHT,
-    marginTop: 4,
-    justifyContent: 'center',
-  },
-  footerSlotEmpty: {
-    height: 0,
-    marginTop: 0,
-  },
+  heroSubNode: { marginTop: 2, width: '100%' },
   heroBadge: {
     flexDirection: 'row',
     alignItems: 'center',
