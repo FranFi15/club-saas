@@ -4,9 +4,12 @@ import { Ionicons } from '@expo/vector-icons';
 import BadgeDot from './BadgeDot';
 import DesignCard from './DesignCard';
 import { ThemeContext } from '../context/ThemeContext';
+import { ClubContext } from '../context/ClubContext';
+import { clubPrimaryColor, clubIconColor } from '../utils/clubBrandColors';
 
 /**
  * Tarjeta de menú hub con punto/contador opcional (estilo DesignCard).
+ * Accent/borde usa color principal; el ícono usa el secundario del club.
  */
 export default function HubMenuCard({
   title,
@@ -16,10 +19,13 @@ export default function HubMenuCard({
   badge = 0,
   theme,
   colorMarca,
+  colorIconos,
   style,
 }) {
   const { isDarkMode } = useContext(ThemeContext);
-  const accent = colorMarca || '#3b82f6';
+  const { clubData } = useContext(ClubContext);
+  const accent = colorMarca || clubPrimaryColor(clubData);
+  const iconTint = colorIconos || clubIconColor(clubData);
 
   return (
     <DesignCard
@@ -30,8 +36,8 @@ export default function HubMenuCard({
       style={style}
       contentStyle={styles.row}
     >
-      <View style={[styles.iconContainer, { backgroundColor: `${accent}22` }]}>
-        <Ionicons name={icon} size={28} color={accent} />
+      <View style={[styles.iconContainer, { backgroundColor: `${iconTint}22` }]}>
+        <Ionicons name={icon} size={28} color={iconTint} />
       </View>
       <View style={styles.cardText}>
         <Text style={[styles.cardTitle, { color: theme.text }]}>{title}</Text>
