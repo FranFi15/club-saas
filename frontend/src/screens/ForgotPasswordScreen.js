@@ -1,15 +1,7 @@
 import React, { useState, useContext, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  StatusBar,
-  ActivityIndicator,
-  Platform,
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, StatusBar, Platform } from 'react-native';
 import ClubSpinLoader from '../components/ClubSpinLoader';
+import ButtonDotsLoader from '../components/ButtonDotsLoader';
 import { ClubContext } from '../context/ClubContext';
 import { ThemeContext } from '../context/ThemeContext';
 import { clubApi } from '../utils/api';
@@ -137,7 +129,7 @@ export default function ForgotPasswordScreen({ navigation }) {
             activeOpacity={0.85}
           >
             {isLoading ? (
-              <ActivityIndicator color="#fff" />
+              <ButtonDotsLoader color={'#fff'} />
             ) : (
               <Text style={styles.buttonText}>Enviar enlace</Text>
             )}

@@ -1,17 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  TextInput,
-  ScrollView,
-  Pressable,
-  ActivityIndicator,
-  StyleSheet,
-  Alert,
-  Switch,
-} from 'react-native';
+import { View, Text, Modal, TouchableOpacity, TextInput, ScrollView, Pressable, StyleSheet, Alert, Switch } from 'react-native';
+import ButtonDotsLoader from './ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../utils/api';
 
@@ -373,7 +362,7 @@ export default function DiscountLibrary({
             disabled={saving}
             style={[styles.save, { backgroundColor: colorMarca, opacity: saving ? 0.7 : 1 }]}
           >
-            {saving ? <ActivityIndicator color="#fff" /> : (
+            {saving ? <ButtonDotsLoader color={'#fff'} /> : (
               <Text style={styles.saveText}>{draft?._id ? 'Guardar descuento' : saveLabel}</Text>
             )}
           </TouchableOpacity>

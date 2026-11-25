@@ -1,5 +1,12 @@
 import React, { useLayoutEffect, useRef } from 'react';
-import { Animated, Easing, View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
+import Animated, {
+  Easing as ReEasing,
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { useIsFocused } from '@react-navigation/native';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { SCREEN_FADE_MS } from './screenFade';
@@ -45,29 +52,33 @@ function mergeScreenListeners(screenListeners) {
   };
 }
 
-/** Fundido al entrar cuando el cambio vino de un toque en el ícono. */
+/**
+ * Fundido al entrar cuando el cambio vino de un toque en el ícono.
+ * Uses Reanimated (same stack as HubMenuCard entrance) to avoid RN Animated + Reanimated clashes
+ * that can crash when switching main menus quickly.
+ */
 function TabPressFade({ children }) {
   const isFocused = useIsFocused();
   const wasFocused = useRef(false);
-  const opacity = useRef(new Animated.Value(1)).current;
+  const opacity = useSharedValue(1);
 
   useLayoutEffect(() => {
     const becameFocused = isFocused && !wasFocused.current;
     wasFocused.current = isFocused;
     if (!becameFocused || !consumeTabPressFade()) return undefined;
-    opacity.setValue(0);
-    const animation = Animated.timing(opacity, {
-      toValue: 1,
+    cancelAnimation(opacity);
+    opacity.value = 0;
+    opacity.value = withTiming(1, {
       duration: SCREEN_FADE_MS,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      easing: ReEasing.out(ReEasing.cubic),
     });
-    animation.start();
-    return () => animation.stop();
+    return () => cancelAnimation(opacity);
   }, [isFocused, opacity]);
 
+  const fadeStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
   return (
-    <Animated.View style={[styles.fadeHost, { opacity }]} collapsable={false}>
+    <Animated.View style={[styles.fadeHost, fadeStyle]} collapsable={false}>
       {children}
     </Animated.View>
   );

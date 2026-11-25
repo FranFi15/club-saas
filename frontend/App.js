@@ -4,6 +4,7 @@ import { initPushNotifications } from './src/services/pushNotifications';
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
 import React, { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { lockAppPortrait } from './src/hooks/useLandscapeLock';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -14,6 +15,7 @@ import { ThemeProvider } from './src/context/ThemeContext';
 import { AlertHostsProvider } from './src/components/CustomAlert';
 import AppNavigator from './src/navigation/AppNavigator';
 import AndroidSystemChrome from './src/components/AndroidSystemChrome';
+import { markWebEntrancesReady } from './src/hooks/useEntranceEpoch';
 
 // Expo Go shows a blocking error for Android push; ignore so dismiss doesn't leave the UI stuck.
 if (__DEV__) {
@@ -44,6 +46,7 @@ if (sentryDsn) {
 function App() {
   useEffect(() => {
     lockAppPortrait();
+    if (Platform.OS === 'web') markWebEntrancesReady();
   }, []);
 
   return (

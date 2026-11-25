@@ -1,16 +1,7 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  StatusBar,
-  Modal,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, StatusBar, Modal } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -349,7 +340,7 @@ export default function CoachCourtMetricEditScreen({ navigation, route }) {
           colorMarca={cc}
           theme={theme}
         />
-        {uploading ? <ClubSpinLoader size={40} style={{ marginVertical: 8 }} /> : null}
+        {uploading ? <ButtonDotsLoader color="#64748b" style={{ marginVertical: 8 }} /> : null}
 
         <Text style={[styles.label, { color: theme.textMuted, marginTop: 8 }]}>
           Tocá la imagen para colocar un punto ({deporteLabel(deporte)})
@@ -424,7 +415,7 @@ export default function CoachCourtMetricEditScreen({ navigation, route }) {
           onPress={save}
           disabled={saving}
         >
-          {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveTxt}>Guardar</Text>}
+          {saving ? <ButtonDotsLoader color={'#fff'} /> : <Text style={styles.saveTxt}>Guardar</Text>}
         </TouchableOpacity>
       </ScrollView>
 

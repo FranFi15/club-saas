@@ -1,10 +1,8 @@
 // src/components/UserFormModal.js
 import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
-import { 
-  View, Text, StyleSheet, Modal, TouchableOpacity, 
-  TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Switch
-} from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, ScrollView, Switch } from 'react-native';
 import ClubSpinLoader from './ClubSpinLoader';
+import ButtonDotsLoader from './ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../context/ThemeContext';
 import { ClubContext } from '../context/ClubContext';
@@ -712,7 +710,7 @@ export default function UserFormModal({
                           value={tutorSearchQuery}
                           onChangeText={setTutorSearchQuery}
                         />
-                        {isLoadingTutors && <ClubSpinLoader size={26} style={{ marginRight: 15 }} />}
+                        {isLoadingTutors && <ButtonDotsLoader color="#64748b" />}
                       </View>
 
                       {tutors.filter((tutor) => !linkedTutors.some((item) => item._id === String(tutor._id))).length > 0 && (
@@ -890,7 +888,7 @@ export default function UserFormModal({
                       }}
                     >
                       {convertingTrial ? (
-                        <ActivityIndicator color="#fff" />
+                        <ButtonDotsLoader color={'#fff'} />
                       ) : (
                         <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>Convertir</Text>
                       )}
@@ -970,7 +968,7 @@ export default function UserFormModal({
               )}
 
               <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colorMarca }]} onPress={handleSave} disabled={isSaving}>
-                {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>{initialData ? 'Guardar Cambios' : 'Crear Usuario'}</Text>}
+                {isSaving ? <ButtonDotsLoader color={'#fff'} /> : <Text style={styles.saveBtnText}>{initialData ? 'Guardar Cambios' : 'Crear Usuario'}</Text>}
               </TouchableOpacity>
 
     </FormSheet>

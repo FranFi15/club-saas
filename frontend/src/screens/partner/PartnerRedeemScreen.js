@@ -19,6 +19,7 @@ import { clubApi } from '../../utils/api';
 import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import {
   parsePartnerMonto,
   formatPartnerMoney,
@@ -350,7 +351,7 @@ export default function PartnerRedeemScreen() {
               disabled={busy}
             >
               {busy ? (
-                <ClubSpinLoader size={22} />
+                <ButtonDotsLoader color="#fff" />
               ) : (
                 <>
                   <Ionicons name="checkmark-circle" size={20} color="#fff" />
@@ -451,7 +452,7 @@ export default function PartnerRedeemScreen() {
                   disabled={busy}
                 >
                   {busy ? (
-                    <ClubSpinLoader size={22} />
+                    <ButtonDotsLoader color="#fff" />
                   ) : (
                     <Text style={styles.btnTxt}>
                       {wantsSale && preview.preview.usuario?.dni

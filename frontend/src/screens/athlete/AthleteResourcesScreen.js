@@ -11,6 +11,7 @@ import {
   TextInput,
 } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -290,7 +291,7 @@ export default function AthleteResourcesScreen({ navigation }) {
             disabled={busy}
           >
             {busy ? (
-              <ClubSpinLoader size={26} />
+              <ButtonDotsLoader color="#fff" />
             ) : (
               <>
                 <Ionicons name="download-outline" size={18} color={colorMarca} />

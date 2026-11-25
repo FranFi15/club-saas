@@ -8,6 +8,7 @@ import { clubApi } from '../../utils/api';
 import { getToken } from '../../utils/storage';
 import CustomAlert from '../../components/CustomAlert';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { parsePartnerMonto, formatPartnerMoney } from '../../utils/partnerSalePrice';
 
 export default function PartnerSaleScreen() {
@@ -112,7 +113,7 @@ export default function PartnerSaleScreen() {
             disabled={searching}
           >
             {searching ? (
-              <ClubSpinLoader size={20} />
+              <ButtonDotsLoader color="#fff" />
             ) : (
               <Ionicons name="search" size={20} color="#fff" />
             )}
@@ -176,7 +177,7 @@ export default function PartnerSaleScreen() {
           onPress={submit}
           disabled={busy || !member}
         >
-          {busy ? <ClubSpinLoader size={22} /> : <Text style={styles.btnTxt}>Registrar</Text>}
+          {busy ? <ButtonDotsLoader color="#fff" /> : <Text style={styles.btnTxt}>Registrar</Text>}
         </TouchableOpacity>
       </View>
       <CustomAlert visible={!!alert} title={alert?.title} message={alert?.message} onConfirm={() => setAlert(null)} />

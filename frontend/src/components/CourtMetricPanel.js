@@ -1,17 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  ActivityIndicator,
-  ScrollView,
-  Dimensions,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, ScrollView, Dimensions, Platform } from 'react-native';
 import ClubSpinLoader from './ClubSpinLoader';
+import ButtonDotsLoader from './ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../utils/api';
 import CourtImageBoard from './CourtImageBoard';
@@ -799,7 +789,7 @@ export default function CourtMetricPanel({
             disabled={finalizing || busy || pines.length === 0}
           >
             {finalizing ? (
-              <ActivityIndicator color="#fff" />
+              <ButtonDotsLoader color={'#fff'} />
             ) : (
               <>
                 <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />

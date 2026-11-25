@@ -1,6 +1,7 @@
 import React, { useContext } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl, TextInput } from 'react-native';
 import ClubSpinLoader from '../../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../../components/ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { finanzasStyles as s } from './finanzasStyles';
 import { MN, ESTADO_FILTROS, EST_COLOR, fmtMoney, contrastOutlineBtn } from './finanzasConstants';
@@ -174,7 +175,7 @@ export default function CuotasTab({
         <Text style={[s.sectionTitle, { color: theme.text, marginTop: 4 }]}>Acciones</Text>
         <TouchableOpacity style={[s.generateBtn, { backgroundColor: cc }]} onPress={onGenerate} disabled={isGenerating}>
           {isGenerating ? (
-            <ActivityIndicator color="#fff" />
+            <ButtonDotsLoader color={'#fff'} />
           ) : (
             <>
               <Ionicons name="flash" size={18} color="#fff" style={{ marginRight: 8 }} />

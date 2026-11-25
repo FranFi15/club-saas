@@ -13,6 +13,7 @@ import AdminScreenHeader from '../../components/AdminScreenHeader';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { useAdminDesktopLayout } from '../../hooks/useAdminDesktopLayout';
 import { canMutateAsAdmin, isDirigenteRole } from '../../constants/appRoles';
+import { StaggerScope } from '../../hooks/useEntranceEpoch';
 
 export default function EstructuraHubScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
@@ -158,69 +159,71 @@ export default function EstructuraHubScreen({ navigation }) {
           ) : null}
         </View>
 
-        <HubMenuCard
-          title="Estadísticas del club"
-          subtitle="Demografía, plantel, pendientes y finanzas"
-          icon="stats-chart"
-          theme={theme}
-          colorMarca={colorMarca}
-          onPress={() => navigation.navigate('Estadisticas')}
-        />
-        <HubMenuCard
-          title="Usuarios y Staff"
-          subtitle="Jugadores, tutores, socios y staff del club"
-          icon="people"
-          theme={theme}
-          colorMarca={colorMarca}
-          onPress={() => navigation.navigate('Usuarios')}
-        />
-        {canInviteFamily ? (
+        <StaggerScope epoch={`estructura-hub:${clubData?.urlIdentifier || ''}`}>
           <HubMenuCard
-            title="Invitar familia"
-            subtitle="Generá un enlace para que el tutor se registre"
-            icon="link"
+            title="Estadísticas del club"
+            subtitle="Demografía, plantel, pendientes y finanzas"
+            icon="stats-chart"
             theme={theme}
             colorMarca={colorMarca}
-            onPress={() => navigation.navigate('InvitarFamilia')}
+            onPress={() => navigation.navigate('Estadisticas')}
           />
-        ) : null}
-        {canSeeEstructuraDeportiva ? (
           <HubMenuCard
-            title="Estructura deportiva"
-            subtitle="Disciplinas y categorías"
-            icon="trophy"
+            title="Usuarios y Staff"
+            subtitle="Jugadores, tutores, socios y staff del club"
+            icon="people"
             theme={theme}
             colorMarca={colorMarca}
-            onPress={() => navigation.navigate('EstructuraDeportiva')}
+            onPress={() => navigation.navigate('Usuarios')}
           />
-        ) : null}
-        <HubMenuCard
-          title="Espacios físicos"
-          subtitle="Gestión de instalaciones"
-          icon="map"
-          theme={theme}
-          colorMarca={colorMarca}
-          onPress={() => navigation.navigate('Espacios')}
-        />
-        <HubMenuCard
-          title="Grilla de entrenamientos"
-          subtitle="Horarios fijos por categoría"
-          icon="calendar"
-          theme={theme}
-          colorMarca={colorMarca}
-          onPress={() => navigation.navigate('Grilla')}
-        />
-        {canSeeEnrollmentRequests ? (
+          {canInviteFamily ? (
+            <HubMenuCard
+              title="Invitar familia"
+              subtitle="Generá un enlace para que el tutor se registre"
+              icon="link"
+              theme={theme}
+              colorMarca={colorMarca}
+              onPress={() => navigation.navigate('InvitarFamilia')}
+            />
+          ) : null}
+          {canSeeEstructuraDeportiva ? (
+            <HubMenuCard
+              title="Estructura deportiva"
+              subtitle="Disciplinas y categorías"
+              icon="trophy"
+              theme={theme}
+              colorMarca={colorMarca}
+              onPress={() => navigation.navigate('EstructuraDeportiva')}
+            />
+          ) : null}
           <HubMenuCard
-            title="Solicitudes de inscripción"
-            subtitle="Altas de atletas pedidas por el cuerpo técnico"
-            icon="person-add"
-            badge={hub('solicitudesInscripcion')}
+            title="Espacios físicos"
+            subtitle="Gestión de instalaciones"
+            icon="map"
             theme={theme}
             colorMarca={colorMarca}
-            onPress={() => navigation.navigate('SolicitudesInscripcion')}
+            onPress={() => navigation.navigate('Espacios')}
           />
-        ) : null}
+          <HubMenuCard
+            title="Grilla de entrenamientos"
+            subtitle="Horarios fijos por categoría"
+            icon="calendar"
+            theme={theme}
+            colorMarca={colorMarca}
+            onPress={() => navigation.navigate('Grilla')}
+          />
+          {canSeeEnrollmentRequests ? (
+            <HubMenuCard
+              title="Solicitudes de inscripción"
+              subtitle="Altas de atletas pedidas por el cuerpo técnico"
+              icon="person-add"
+              badge={hub('solicitudesInscripcion')}
+              theme={theme}
+              colorMarca={colorMarca}
+              onPress={() => navigation.navigate('SolicitudesInscripcion')}
+            />
+          ) : null}
+        </StaggerScope>
       </ScrollView>
     </SafeAreaView>
   );

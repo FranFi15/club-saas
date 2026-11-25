@@ -1,15 +1,7 @@
 import React, { useEffect, useState, useCallback, useContext } from 'react';
-import {
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  FlatList,
-  ActivityIndicator,
-  StyleSheet,
-  Platform,
-} from 'react-native';
+import { View, Text, Modal, TouchableOpacity, FlatList, StyleSheet, Platform } from 'react-native';
 import ClubSpinLoader from '../../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../../components/ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
 import { downloadPaymentReceipt } from '../../../utils/paymentReceipt';
@@ -302,7 +294,7 @@ export default function PaymentHistoryModal({
                 accessibilityLabel="Eliminar cuota"
               >
                 {busyDelete ? (
-                  <ActivityIndicator color="#fff" size="small" />
+                  <ButtonDotsLoader color={'#fff'} />
                 ) : (
                   <>
                     <Ionicons name="trash-outline" size={16} color="#fff" />

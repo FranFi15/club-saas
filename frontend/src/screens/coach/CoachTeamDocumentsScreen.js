@@ -1,19 +1,7 @@
 import React, { useContext, useCallback, useState, useMemo, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  RefreshControl,
-  StatusBar,
-  ActivityIndicator,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  Modal,
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, StatusBar, TextInput, KeyboardAvoidingView, Platform, Modal } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -771,13 +759,13 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
 
   const exitToEquipoOrBack = () => {
     if (returnToEquipo) {
-      navigation.navigate({
-        name: 'CoachCategories',
-        params: {
+      navigation.navigate(
+        'CoachCategories',
+        {
           selectedCategoria: route?.params?.categoriaId || categoriaFilter || undefined,
         },
-        merge: true,
-      });
+        { merge: true },
+      );
       return;
     }
     navigation.goBack();
@@ -1094,7 +1082,7 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
                 disabled={busy}
               >
                 {busy ? (
-                  <ActivityIndicator color="#fff" size="small" />
+                  <ButtonDotsLoader color={'#fff'} />
                 ) : (
                   <>
                     <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
@@ -1363,7 +1351,7 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
                 disabled={folderSaving}
               >
                 {folderSaving ? (
-                  <ActivityIndicator color="#fff" size="small" />
+                  <ButtonDotsLoader color={'#fff'} />
                 ) : (
                   <Text style={{ color: '#fff', fontWeight: '700' }}>Guardar</Text>
                 )}
@@ -1417,7 +1405,7 @@ export default function CoachTeamDocumentsScreen({ navigation, route }) {
                 disabled={folderSaving}
               >
                 {folderSaving ? (
-                  <ActivityIndicator color="#fff" size="small" />
+                  <ButtonDotsLoader color={'#fff'} />
                 ) : (
                   <Text style={{ color: '#fff', fontWeight: '700' }}>Mover</Text>
                 )}

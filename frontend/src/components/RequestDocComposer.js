@@ -1,18 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  Switch,
-  KeyboardAvoidingView,
-  Platform,
-  Modal,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Switch, KeyboardAvoidingView, Platform, Modal } from 'react-native';
 import ClubSpinLoader from './ClubSpinLoader';
+import ButtonDotsLoader from './ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import * as DocumentPicker from 'expo-document-picker';
@@ -706,7 +695,7 @@ export default function RequestDocComposer({
           disabled={saving || uploadingAdjunto}
         >
           {saving ? (
-            <ActivityIndicator color="#fff" />
+            <ButtonDotsLoader color={'#fff'} />
           ) : (
             <>
               <Ionicons name="send" size={18} color="#fff" style={{ marginRight: 8 }} />
@@ -773,7 +762,7 @@ export default function RequestDocComposer({
                 disabled={folderSaving}
               >
                 {folderSaving ? (
-                  <ActivityIndicator color="#fff" size="small" />
+                  <ButtonDotsLoader color={'#fff'} />
                 ) : (
                   <Text style={{ color: '#fff', fontWeight: '700' }}>Crear</Text>
                 )}

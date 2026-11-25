@@ -1,11 +1,9 @@
 // src/screens/admin/CategoriasScreen.js
 import React, { useState, useContext, useCallback, useEffect, useMemo } from 'react';
-import { 
-  View, Text, StyleSheet, FlatList, TouchableOpacity, 
-  ActivityIndicator, StatusBar, TextInput, Modal,
-  KeyboardAvoidingView, Platform, ScrollView,
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, TextInput, Modal, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
+import StaggerFlatList from '../../components/StaggerFlatList';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import HoverRevealSwipeable from '../../components/HoverRevealSwipeable';
@@ -397,7 +395,8 @@ export default function CategoriasScreen({ navigation, route }) {
         {showInitialLoader ? (
           <ClubSpinLoader size={64} style={{ marginTop: 50 }} />
         ) : (
-          <FlatList
+          <StaggerFlatList
+            staggerEpoch={`categorias:${clubData?.urlIdentifier || ''}`}
             key={catalogColumns > 1 ? 'categorias-catalog' : 'categorias-list'}
             data={catalogCategories}
             keyExtractor={(item) => item._id}
@@ -566,7 +565,7 @@ export default function CategoriasScreen({ navigation, route }) {
                 disabled={isSaving}
               >
                 {isSaving ? (
-                  <ActivityIndicator color="#ffffff" />
+                  <ButtonDotsLoader color={'#ffffff'} />
                 ) : (
                   <Text style={styles.modalButtonText}>
                     {editingCategory ? "Guardar Cambios" : "Crear Categoría"}

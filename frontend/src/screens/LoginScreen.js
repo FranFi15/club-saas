@@ -1,16 +1,7 @@
 import React, { useState, useContext, useCallback, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Image,
-  StatusBar,
-  ActivityIndicator,
-  Platform,
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, StatusBar, Platform } from 'react-native';
 import ClubSpinLoader from '../components/ClubSpinLoader';
+import ButtonDotsLoader from '../components/ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
 import { ThemeContext } from '../context/ThemeContext';
@@ -332,7 +323,7 @@ export default function LoginScreen({ navigation }) {
           activeOpacity={0.85}
         >
           {isLoading ? (
-            <ActivityIndicator color="#ffffff" />
+            <ButtonDotsLoader color={'#ffffff'} />
           ) : (
             <Text style={styles.buttonText}>Iniciar Sesión</Text>
           )}

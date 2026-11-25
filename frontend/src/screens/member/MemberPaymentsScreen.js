@@ -1,19 +1,7 @@
 import React, { useCallback, useContext, useState, useMemo, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  RefreshControl,
-  StatusBar,
-  ActivityIndicator,
-  Linking,
-  SectionList,
-  AppState,
-  ScrollView,
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, StatusBar, Linking, SectionList, AppState, ScrollView } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { runAfterIosModalDismiss } from '../../utils/iosModalChain';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -388,7 +376,7 @@ export default function MemberPaymentsScreen({ navigation }) {
                 disabled={busy || payingSelected}
               >
                 {busy ? (
-                  <ActivityIndicator color="#fff" size="small" />
+                  <ButtonDotsLoader color={'#fff'} />
                 ) : (
                   <>
                     <Ionicons name="wallet-outline" size={16} color="#fff" />
@@ -508,7 +496,7 @@ export default function MemberPaymentsScreen({ navigation }) {
             disabled={payingSelected}
           >
             {payingSelected ? (
-              <ActivityIndicator color="#fff" />
+              <ButtonDotsLoader color={'#fff'} />
             ) : (
               <>
                 <Ionicons name="wallet-outline" size={20} color="#fff" />

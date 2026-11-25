@@ -1,15 +1,7 @@
 import React, { useCallback, useContext, useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  StatusBar,
-  ActivityIndicator,
-  RefreshControl,
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, RefreshControl } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -156,7 +148,7 @@ export default function AdminEnrollmentRequestsScreen({ navigation }) {
               onPress={() => resolve(item._id, 'aprobar')}
             >
               {busy ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <ButtonDotsLoader color={'#fff'} />
               ) : (
                 <Text style={styles.btnTxt}>Aprobar</Text>
               )}

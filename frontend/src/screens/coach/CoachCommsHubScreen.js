@@ -7,6 +7,7 @@ import CoachScreenHeader from '../../components/CoachScreenHeader';
 import HubMenuCard from '../../components/HubMenuCard';
 import EventDoorCard from '../../components/EventDoorCard';
 import { useBadges } from '../../context/BadgeContext';
+import { StaggerScope } from '../../hooks/useEntranceEpoch';
 
 export default function CoachCommsHubScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
@@ -29,40 +30,42 @@ export default function CoachCommsHubScreen({ navigation }) {
         }
       />
       <View style={styles.body}>
-        <EventDoorCard navigation={navigation} />
-        <HubMenuCard
-          theme={theme}
-          colorMarca={colorMarca}
-          icon="chatbubbles-outline"
-          title="Chat"
-          subtitle="Mensajes con admin, tutores y atletas (si está habilitado)"
-          badge={hub('chat')}
-          onPress={() => navigation.navigate('ChatInbox')}
-        />
-        <HubMenuCard
-          theme={theme}
-          colorMarca={colorMarca}
-          icon="newspaper-outline"
-          title="Noticias"
-          subtitle="Publicá comunicados en el muro del club"
-          onPress={() => navigation.navigate('NoticiasStaff')}
-        />
-        <HubMenuCard
-          theme={theme}
-          colorMarca={colorMarca}
-          icon="cloud-upload-outline"
-          title="Material multimedia"
-          subtitle="Crear nuevo o ver lo enviado"
-          onPress={() => navigation.navigate('CoachResourceSend')}
-        />
-        <HubMenuCard
-          theme={theme}
-          colorMarca={colorMarca}
-          icon="document-text-outline"
-          title="Pedir documentación"
-          subtitle="Solicitá un archivo a una categoría o a un atleta (apto, DNI, etc.)"
-          onPress={() => navigation.navigate('CoachRequestDoc')}
-        />
+        <StaggerScope epoch={`coach-comms:${clubData?.urlIdentifier || ''}`}>
+          <EventDoorCard navigation={navigation} />
+          <HubMenuCard
+            theme={theme}
+            colorMarca={colorMarca}
+            icon="chatbubbles-outline"
+            title="Chat"
+            subtitle="Mensajes con admin, tutores y atletas (si está habilitado)"
+            badge={hub('chat')}
+            onPress={() => navigation.navigate('ChatInbox')}
+          />
+          <HubMenuCard
+            theme={theme}
+            colorMarca={colorMarca}
+            icon="newspaper-outline"
+            title="Noticias"
+            subtitle="Publicá comunicados en el muro del club"
+            onPress={() => navigation.navigate('NoticiasStaff')}
+          />
+          <HubMenuCard
+            theme={theme}
+            colorMarca={colorMarca}
+            icon="cloud-upload-outline"
+            title="Material multimedia"
+            subtitle="Crear nuevo o ver lo enviado"
+            onPress={() => navigation.navigate('CoachResourceSend')}
+          />
+          <HubMenuCard
+            theme={theme}
+            colorMarca={colorMarca}
+            icon="document-text-outline"
+            title="Pedir documentación"
+            subtitle="Solicitá un archivo a una categoría o a un atleta (apto, DNI, etc.)"
+            onPress={() => navigation.navigate('CoachRequestDoc')}
+          />
+        </StaggerScope>
       </View>
     </SafeAreaView>
   );

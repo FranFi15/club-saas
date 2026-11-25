@@ -1,20 +1,8 @@
 // src/screens/admin/DetalleCategoriaScreen.js
 import React, { useState, useContext, useCallback, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-  StatusBar,
-  Alert,
-  Modal,
-  TextInput,
-  ScrollView,
-  Switch,
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, Alert, Modal, TextInput, ScrollView, Switch } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import HoverRevealSwipeable from '../../components/HoverRevealSwipeable';
@@ -291,7 +279,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
         accessibilityLabel="Descargar planilla de atletas"
       >
         {exportingSheet ? (
-          <ActivityIndicator size="small" color="#fff" />
+          <ButtonDotsLoader color={'#fff'} />
         ) : (
           <Ionicons name="download-outline" size={20} color="#fff" />
         )}
@@ -1234,7 +1222,7 @@ export default function DetalleCategoriaScreen({ navigation, route }) {
                   onPress={submitSelectedAthletes}
                 >
                   {submittingAthletes ? (
-                    <ActivityIndicator color="#fff" />
+                    <ButtonDotsLoader color={'#fff'} />
                   ) : (
                     <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>
                       Agregar ({selectedAthleteIds.size})

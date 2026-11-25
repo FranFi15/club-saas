@@ -1,24 +1,7 @@
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-  StatusBar,
-  Modal,
-  ScrollView,
-  Linking,
-  RefreshControl,
-  Image,
-  TextInput,
-  Pressable,
-  KeyboardAvoidingView,
-  Platform,
-  useWindowDimensions,
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, Modal, ScrollView, Linking, RefreshControl, Image, TextInput, Pressable, KeyboardAvoidingView, Platform, useWindowDimensions } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -745,7 +728,7 @@ export default function MemberEventsScreen({ navigation }) {
               disabled={buying || quoting || !tipoId || !quote}
             >
               {buying ? (
-                <ActivityIndicator color="#fff" />
+                <ButtonDotsLoader color={'#fff'} />
               ) : (
                 <Text style={styles.buyBtnTxt}>
                   {quote?.montoTotal === 0

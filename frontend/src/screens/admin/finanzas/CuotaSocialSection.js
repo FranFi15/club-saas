@@ -1,19 +1,7 @@
 import React, { useCallback, useContext, useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ActivityIndicator,
-  Modal,
-  TextInput,
-  ScrollView,
-  Switch,
-  KeyboardAvoidingView,
-  Platform,
-  FlatList,
-  StyleSheet,
-} from 'react-native';
+import { View, Text, TouchableOpacity, Modal, TextInput, ScrollView, Switch, KeyboardAvoidingView, Platform, FlatList, StyleSheet } from 'react-native';
 import ClubSpinLoader from '../../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../../components/ButtonDotsLoader';
 import ListTopFade from '../../../components/ListTopFade';
 import { Ionicons } from '@expo/vector-icons';
 import FormSheet from '../../../components/FormSheet';
@@ -677,7 +665,7 @@ export default function CuotaSocialSection({
                 disabled={saving}
               >
                 {saving ? (
-                  <ActivityIndicator color={isDarkMode ? '#111' : '#fff'} />
+                  <ButtonDotsLoader color={isDarkMode ? '#111' : '#fff'} />
                 ) : (
                   <Text style={[styles.saveTxt, { color: isDarkMode ? '#111111' : '#ffffff' }]}>
                     Guardar
@@ -791,7 +779,7 @@ export default function CuotaSocialSection({
               disabled={assignSaving}
             >
               {assignSaving ? (
-                <ActivityIndicator color={isDarkMode ? '#111' : '#fff'} />
+                <ButtonDotsLoader color={isDarkMode ? '#111' : '#fff'} />
               ) : (
                 <Text style={[styles.saveTxt, { color: isDarkMode ? '#111111' : '#ffffff' }]}>
                   Asignar a seleccionados

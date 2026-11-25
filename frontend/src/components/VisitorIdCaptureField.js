@@ -7,6 +7,7 @@ import {
   Image,
 } from 'react-native';
 import ClubSpinLoader from './ClubSpinLoader';
+import ButtonDotsLoader from './ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { uploadFileToClub } from '../utils/uploadMedia';
 import VisitorCameraModal from './VisitorCameraModal';
@@ -112,7 +113,7 @@ export default function VisitorIdCaptureField({
             disabled={disabled || uploading}
           >
             {uploading ? (
-              <ClubSpinLoader size={40} />
+              <ButtonDotsLoader color="#64748b" />
             ) : (
               <>
                 <Ionicons name="camera-outline" size={26} color={colorMarca} />
@@ -127,7 +128,7 @@ export default function VisitorIdCaptureField({
             disabled={disabled || uploading}
           >
             {uploading ? (
-              <ClubSpinLoader size={40} />
+              <ButtonDotsLoader color="#64748b" />
             ) : (
               <>
                 <Ionicons name="id-card-outline" size={26} color={colorMarca} />

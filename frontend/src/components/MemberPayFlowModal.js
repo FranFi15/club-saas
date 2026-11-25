@@ -1,16 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Modal,
-  StyleSheet,
-  ActivityIndicator,
-  Image,
-  ScrollView,
-  Platform,
-} from 'react-native';
+import { View, Text, TouchableOpacity, Modal, StyleSheet, Image, ScrollView, Platform } from 'react-native';
 import ClubSpinLoader from './ClubSpinLoader';
+import ButtonDotsLoader from './ButtonDotsLoader';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../utils/api';
@@ -283,7 +274,7 @@ export default function MemberPayFlowModal({
                     disabled={busy || !bankReady}
                   >
                     {uploading ? (
-                      <ClubSpinLoader size={40} />
+                      <ButtonDotsLoader color="#64748b" />
                     ) : (
                       <>
                         <Ionicons name="camera-outline" size={28} color={primaryColor} />
@@ -307,7 +298,7 @@ export default function MemberPayFlowModal({
                   disabled={busy || !proofUrl || !bankReady}
                 >
                   {submitting ? (
-                    <ActivityIndicator color="#fff" />
+                    <ButtonDotsLoader color={'#fff'} />
                   ) : (
                     <Text style={styles.submitTxt}>Enviar a revisión</Text>
                   )}

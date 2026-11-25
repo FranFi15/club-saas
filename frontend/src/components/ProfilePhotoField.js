@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import ButtonDotsLoader from './ButtonDotsLoader';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import UserAvatar from './UserAvatar';
@@ -114,7 +115,7 @@ export default function ProfilePhotoField({
             disabled={uploading}
           >
             {uploading ? (
-              <ActivityIndicator color="#fff" size="small" />
+              <ButtonDotsLoader color={'#fff'} />
             ) : (
               <>
                 <Ionicons name="camera-outline" size={18} color="#fff" />

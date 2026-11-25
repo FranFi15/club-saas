@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { clubApi } from '../utils/api';
 import ClubSpinLoader from './ClubSpinLoader';
+import ButtonDotsLoader from './ButtonDotsLoader';
 import { formatUserName, sortUsersByName } from '../utils/listSort';
 
 const SECTIONS = [
@@ -50,14 +51,31 @@ export default function LoyaltyAdminPanel({
   const [selectedUser, setSelectedUser] = useState(null);
   const [adjustDelta, setAdjustDelta] = useState('');
 
+  // Parent passes unstable getHeaders/showAlert every render — keep them in refs
+  // so we don't re-fetch Créditos (and flash the spinner) on every Sponsors refresh.
+  const getHeadersRef = useRef(getHeaders);
+  const showAlertRef = useRef(showAlert);
+  const onEnabledChangeRef = useRef(onEnabledChange);
+  const enabledNotifiedRef = useRef(null);
+  getHeadersRef.current = getHeaders;
+  showAlertRef.current = showAlert;
+  onEnabledChangeRef.current = onEnabledChange;
+
+  const notifyEnabled = useCallback((next) => {
+    const enabled = !!next;
+    if (enabledNotifiedRef.current === enabled) return;
+    enabledNotifiedRef.current = enabled;
+    onEnabledChangeRef.current?.(enabled);
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const h = await getHeaders();
+      const h = await getHeadersRef.current();
       const { data } = await clubApi.get('/loyalty/settings', { headers: h });
       const s = data.settings || {};
       setSettings(s);
-      onEnabledChange?.(!!s.enabled);
+      notifyEnabled(!!s.enabled);
       setDraft({
         nombrePuntos: s.nombrePuntos || 'Créditos',
         diasVigenciaPuntos: String(s.diasVigenciaPuntos ?? 90),
@@ -65,11 +83,14 @@ export default function LoyaltyAdminPanel({
         puntosPorPesoVentaPartner: String(s.puntosPorPesoVentaPartner ?? 0),
       });
     } catch (e) {
-      showAlert?.('Créditos', e.response?.data?.message || e.message || 'No se pudo cargar.');
+      showAlertRef.current?.(
+        'Créditos',
+        e.response?.data?.message || e.message || 'No se pudo cargar.',
+      );
     } finally {
       setLoading(false);
     }
-  }, [getHeaders, showAlert, onEnabledChange]);
+  }, [notifyEnabled]);
 
   useEffect(() => {
     load();
@@ -85,7 +106,7 @@ export default function LoyaltyAdminPanel({
     const t = setTimeout(async () => {
       setUserSearching(true);
       try {
-        const h = await getHeaders();
+        const h = await getHeadersRef.current();
         const { data } = await clubApi.get('/users', {
           headers: h,
           params: { search: q, limit: 20 },
@@ -103,19 +124,22 @@ export default function LoyaltyAdminPanel({
       cancelled = true;
       clearTimeout(t);
     };
-  }, [userSearch, section, getHeaders]);
+  }, [userSearch, section]);
 
   const patchSettings = async (partial) => {
     if (!canMutate) return;
     setSaving(true);
     try {
-      const h = await getHeaders();
+      const h = await getHeadersRef.current();
       const { data } = await clubApi.patch('/loyalty/settings', partial, { headers: h });
       setSettings(data.settings);
-      if (partial.enabled !== undefined) onEnabledChange?.(!!data.settings?.enabled);
-      showAlert?.('Créditos', data.message || 'Actualizado.');
+      if (partial.enabled !== undefined) notifyEnabled(!!data.settings?.enabled);
+      showAlertRef.current?.('Créditos', data.message || 'Actualizado.');
     } catch (e) {
-      showAlert?.('Créditos', e.response?.data?.message || e.message || 'Error al guardar.');
+      showAlertRef.current?.(
+        'Créditos',
+        e.response?.data?.message || e.message || 'Error al guardar.',
+      );
     } finally {
       setSaving(false);
     }
@@ -133,11 +157,14 @@ export default function LoyaltyAdminPanel({
     if (!canMutate) return;
     const delta = parseInt(adjustDelta, 10);
     if (!selectedUser?._id || !Number.isFinite(delta) || delta === 0) {
-      return showAlert?.('Créditos', 'Buscá y elegí un usuario, y un delta distinto de 0.');
+      return showAlertRef.current?.(
+        'Créditos',
+        'Buscá y elegí un usuario, y un delta distinto de 0.',
+      );
     }
     setSaving(true);
     try {
-      const h = await getHeaders();
+      const h = await getHeadersRef.current();
       const { data } = await clubApi.post(
         '/loyalty/admin/adjust',
         { userId: selectedUser._id, delta },
@@ -147,14 +174,17 @@ export default function LoyaltyAdminPanel({
       if (selectedUser && nextPts != null) {
         setSelectedUser((u) => (u ? { ...u, puntosLealtad: nextPts } : u));
       }
-      showAlert?.(
+      showAlertRef.current?.(
         'Créditos',
         data.message ||
           `Listo. ${formatUserName(selectedUser)} queda con ${nextPts ?? '—'} créditos.`,
       );
       setAdjustDelta('');
     } catch (e) {
-      showAlert?.('Créditos', e.response?.data?.message || e.message || 'Error.');
+      showAlertRef.current?.(
+        'Créditos',
+        e.response?.data?.message || e.message || 'Error.',
+      );
     } finally {
       setSaving(false);
     }
@@ -255,7 +285,7 @@ export default function LoyaltyAdminPanel({
                 placeholderTextColor={theme.textMuted}
                 style={inputStyle}
               />
-              {userSearching ? <ClubSpinLoader size={28} style={{ marginVertical: 8 }} /> : null}
+              {userSearching ? <ButtonDotsLoader color="#64748b" style={{ marginVertical: 8 }} /> : null}
               {selectedUser ? (
                 <View style={[styles.userCard, { borderColor: cc, backgroundColor: `${cc}14` }]}>
                   <View style={styles.userCardMain}>

@@ -1,21 +1,8 @@
 import React, { useCallback, useContext, useMemo, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-  Modal,
-  TextInput,
-  ScrollView,
-  RefreshControl,
-  KeyboardAvoidingView,
-  Platform,
-  Image,
-  StyleSheet,
-  Pressable,
-} from 'react-native';
+import { View, Text, TouchableOpacity, Modal, TextInput, ScrollView, RefreshControl, KeyboardAvoidingView, Platform, Image, StyleSheet, Pressable } from 'react-native';
 import ClubSpinLoader from '../../../components/ClubSpinLoader';
+import StaggerFlatList from '../../../components/StaggerFlatList';
+import ButtonDotsLoader from '../../../components/ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import FormSheet from '../../../components/FormSheet';
 import { clubApi } from '../../../utils/api';
@@ -879,6 +866,23 @@ export default function SponsorsTab({
     return card;
   };
 
+  // Keep a stable header instance so sponsor list refreshes don't remount Créditos.
+  const loyaltyHeader = useMemo(
+    () => (
+      <LoyaltyAdminPanel
+        theme={theme}
+        colorMarca={cc}
+        getHeaders={getHeaders}
+        showAlert={showAlert}
+        canMutate={canMutate}
+        onEnabledChange={setLoyaltyEnabled}
+      />
+    ),
+    // getHeaders/showAlert are intentionally omitted — the panel keeps them in refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable credits header
+    [theme, cc, canMutate],
+  );
+
   return (
     <View style={{ flex: 1 }}>
       <View style={styles.topBar}>
@@ -892,7 +896,8 @@ export default function SponsorsTab({
       {loading && !sponsors.length ? (
         <ClubSpinLoader size={56} style={{ marginTop: 40 }} />
       ) : (
-        <FlatList
+        <StaggerFlatList
+          staggerEpoch={`sponsors:${clubData?.urlIdentifier || ''}:${periodMes}-${periodAnio}`}
           key={catalogColumns > 1 ? 'sponsors-catalog' : 'sponsors-list'}
           data={catalogSponsors}
           keyExtractor={(item) => String(item._id)}
@@ -902,16 +907,7 @@ export default function SponsorsTab({
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cc} />}
           onEndReached={onEndReached}
           onEndReachedThreshold={onEndReachedThreshold}
-          ListHeaderComponent={
-            <LoyaltyAdminPanel
-              theme={theme}
-              colorMarca={cc}
-              getHeaders={getHeaders}
-              showAlert={showAlert}
-              canMutate={canMutate}
-              onEnabledChange={setLoyaltyEnabled}
-            />
-          }
+          ListHeaderComponent={loyaltyHeader}
           ListFooterComponent={ListFooterComponent}
           ListEmptyComponent={
             <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 40 }}>
@@ -1030,7 +1026,7 @@ export default function SponsorsTab({
                 disabled={saving}
               >
                 {saving ? (
-                  <ActivityIndicator color="#fff" />
+                  <ButtonDotsLoader color={'#fff'} />
                 ) : (
                   <Text style={s.saveBtnTxt}>
                     {payTarget?.pagoMes?.estado === 'pagado' ? 'Guardar cambios' : 'Confirmar pago'}
@@ -1076,7 +1072,7 @@ export default function SponsorsTab({
                 ) : (
                   <View style={[styles.photoPlaceholder, { borderColor: theme.border, backgroundColor: theme.background }]}>
                     {uploading ? (
-                      <ClubSpinLoader size={40} />
+                      <ButtonDotsLoader color="#64748b" />
                     ) : (
                       <>
                         <Ionicons name="camera-outline" size={24} color={theme.textMuted} />
@@ -1232,7 +1228,7 @@ export default function SponsorsTab({
                             ]}
                           >
                             {uploadingDiscountKey === d.key ? (
-                              <ClubSpinLoader size={28} />
+                              <ButtonDotsLoader color="#64748b" />
                             ) : (
                               <>
                                 <Ionicons name="image-outline" size={22} color={theme.textMuted} />
@@ -1410,7 +1406,7 @@ export default function SponsorsTab({
                 onPress={saveForm}
                 disabled={saving}
               >
-                {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.saveBtnTxt}>Guardar</Text>}
+                {saving ? <ButtonDotsLoader color={'#fff'} /> : <Text style={s.saveBtnTxt}>Guardar</Text>}
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1495,7 +1491,7 @@ export default function SponsorsTab({
                   ]}
                 >
                   {uploadingDiscountKey === 'managed' ? (
-                    <ClubSpinLoader size={32} />
+                    <ButtonDotsLoader color="#64748b" />
                   ) : (
                     <>
                       <Ionicons name="camera-outline" size={22} color={theme.textMuted} />
@@ -1607,7 +1603,7 @@ export default function SponsorsTab({
                 disabled={discountSaving}
               >
                 {discountSaving ? (
-                  <ActivityIndicator color="#fff" />
+                  <ButtonDotsLoader color={'#fff'} />
                 ) : (
                   <Text style={s.saveBtnTxt}>Guardar</Text>
                 )}

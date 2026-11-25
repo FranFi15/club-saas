@@ -1,18 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  TextInput,
-  ScrollView,
-  Pressable,
-  ActivityIndicator,
-  StyleSheet,
-  Alert,
-  Platform,
-} from 'react-native';
+import { View, Text, Modal, TouchableOpacity, TextInput, ScrollView, Pressable, StyleSheet, Alert, Platform } from 'react-native';
 import ClubSpinLoader from './ClubSpinLoader';
+import ButtonDotsLoader from './ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../utils/api';
 import StadiumAreaStage from './StadiumAreaStage';
@@ -265,7 +254,7 @@ export default function StadiumLibrary({
                   style={draft.mapaUrl ? { marginBottom: 8 } : [styles.mapPicker, { borderColor: theme.border, backgroundColor: theme.surface }]}
                 >
                   {uploading ? (
-                    <ClubSpinLoader size={40} />
+                    <ButtonDotsLoader color="#64748b" />
                   ) : (
                     <Text style={{ color: draft.mapaUrl ? colorMarca : theme.textMuted, fontWeight: '700' }}>
                       {draft.mapaUrl ? 'Cambiar plano' : 'Subir plano'}
@@ -398,7 +387,7 @@ export default function StadiumLibrary({
                       style={[styles.save, styles.saveHalf, { backgroundColor: colorMarca, opacity: saving ? 0.7 : 1 }]}
                     >
                       {saving ? (
-                        <ActivityIndicator color="#fff" />
+                        <ButtonDotsLoader color={'#fff'} />
                       ) : (
                         <Text style={{ color: '#fff', fontWeight: '800' }}>Guardar y usar</Text>
                       )}
@@ -411,7 +400,7 @@ export default function StadiumLibrary({
                     style={[styles.save, { backgroundColor: colorMarca, opacity: saving ? 0.7 : 1 }]}
                   >
                     {saving ? (
-                      <ActivityIndicator color="#fff" />
+                      <ButtonDotsLoader color={'#fff'} />
                     ) : (
                       <Text style={{ color: '#fff', fontWeight: '800' }}>Guardar estadio</Text>
                     )}

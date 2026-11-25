@@ -1,15 +1,7 @@
 import React, { useState, useContext, useCallback, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  StatusBar,
-  ActivityIndicator,
-  Platform,
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, StatusBar, Platform } from 'react-native';
 import ClubSpinLoader from '../components/ClubSpinLoader';
+import ButtonDotsLoader from '../components/ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
 import { ThemeContext } from '../context/ThemeContext';
@@ -242,7 +234,7 @@ export default function ResetPasswordScreen({ navigation, route }) {
             activeOpacity={0.85}
           >
             {isLoading ? (
-              <ActivityIndicator color="#fff" />
+              <ButtonDotsLoader color={'#fff'} />
             ) : (
               <Text style={styles.buttonText}>Guardar contraseña</Text>
             )}

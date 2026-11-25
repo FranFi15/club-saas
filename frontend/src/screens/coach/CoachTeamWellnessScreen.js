@@ -148,13 +148,13 @@ export default function CoachTeamWellnessScreen({ navigation, route }) {
 
   const handleBack = () => {
     if (returnToEquipo) {
-      navigation.navigate({
-        name: 'CoachCategories',
-        params: {
+      navigation.navigate(
+        'CoachCategories',
+        {
           selectedCategoria: categoriaId || undefined,
         },
-        merge: true,
-      });
+        { merge: true },
+      );
       return;
     }
     navigation.goBack();

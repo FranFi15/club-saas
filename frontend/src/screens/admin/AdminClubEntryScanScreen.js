@@ -1,19 +1,7 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  StatusBar,
-  FlatList,
-  Platform,
-  ScrollView,
-  TextInput,
-  Modal,
-  useWindowDimensions,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, FlatList, Platform, ScrollView, TextInput, Modal, useWindowDimensions } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -824,7 +812,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
           {processing ? (
             <View style={styles.cameraOverlay} pointerEvents="none">
               <View style={styles.processingBadge} pointerEvents="none">
-                <ActivityIndicator color="#fff" />
+                <ButtonDotsLoader color={'#fff'} />
                 <Text style={styles.processingTxt}>Verificando…</Text>
               </View>
             </View>
@@ -847,7 +835,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
             accessibilityLabel="Registrar visitante"
           >
             {savingVisitor ? (
-              <ActivityIndicator color="#fff" />
+              <ButtonDotsLoader color={'#fff'} />
             ) : (
               <>
                 <Ionicons name="person-add-outline" size={18} color="#fff" />
@@ -1159,7 +1147,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
                   disabled={savingDecision}
                 >
                   {savingDecision ? (
-                    <ActivityIndicator color="#fff" />
+                    <ButtonDotsLoader color={'#fff'} />
                   ) : (
                     <Text style={{ color: '#fff', fontWeight: '800' }}>Salió</Text>
                   )}
@@ -1194,7 +1182,7 @@ export default function AdminClubEntryScanScreen({ navigation, route }) {
                     }
                   >
                     {savingDecision ? (
-                      <ActivityIndicator color="#fff" />
+                      <ButtonDotsLoader color={'#fff'} />
                     ) : (
                       <Text style={{ color: '#fff', fontWeight: '800' }}>Entró</Text>
                     )}

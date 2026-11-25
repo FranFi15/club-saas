@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Platform, Image, Animated } from 'react-native';
+import { USE_NATIVE_DRIVER } from '../utils/nativeDriver';
 import { ThemeContext } from '../context/ThemeContext';
 import { ClubContext } from '../context/ClubContext';
 
@@ -238,7 +239,7 @@ export default function CustomAlert({
       const anim = Animated.timing(opacity, {
         toValue: 1,
         duration: FADE_MS,
-        useNativeDriver: true,
+        useNativeDriver: USE_NATIVE_DRIVER,
       });
       anim.start();
       return () => anim.stop();
@@ -246,7 +247,7 @@ export default function CustomAlert({
     const anim = Animated.timing(opacity, {
       toValue: 0,
       duration: FADE_MS,
-      useNativeDriver: true,
+      useNativeDriver: USE_NATIVE_DRIVER,
     });
     anim.start(({ finished }) => {
       if (finished) setMounted(false);

@@ -1,16 +1,7 @@
 import React, { useContext, useState, useCallback, useMemo, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  StatusBar,
-  ActivityIndicator,
-  FlatList,
-  RefreshControl,
-} from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, StatusBar, FlatList, RefreshControl } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -696,7 +687,7 @@ export default function CoachResourceSendScreen({ navigation }) {
             disabled={busy}
           >
             {busy ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ButtonDotsLoader color={'#fff'} />
             ) : (
               <>
                 <Ionicons name="trash-outline" size={16} color="#fff" />
@@ -1021,7 +1012,7 @@ export default function CoachResourceSendScreen({ navigation }) {
               </Text>
               {uploading ? (
                 <View style={styles.uploadingBox}>
-                  <ClubSpinLoader size={40} />
+                  <ButtonDotsLoader color="#64748b" />
                   <Text style={[styles.uploadingText, { color: theme.textMuted }]}>Subiendo archivo…</Text>
                 </View>
               ) : (
@@ -1099,7 +1090,7 @@ export default function CoachResourceSendScreen({ navigation }) {
                 disabled={saving || uploading}
               >
                 {saving ? (
-                  <ActivityIndicator color="#fff" />
+                  <ButtonDotsLoader color={'#fff'} />
                 ) : (
                   <Text style={styles.primaryBtnTxt}>
                     {editingId ? 'Guardar cambios' : 'Enviar recurso'}

@@ -1,16 +1,7 @@
 import React, { useContext, useCallback, useState, useMemo, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-  StatusBar,
-  ActivityIndicator,
-  TouchableOpacity,
-  TextInput,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, StatusBar, TouchableOpacity, TextInput } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -465,7 +456,7 @@ export default function AthleteAgendaScreen({ navigation }) {
                           disabled={busy}
                         >
                           {busy ? (
-                            <ActivityIndicator color="#fff" size="small" />
+                            <ButtonDotsLoader color={'#fff'} />
                           ) : (
                             <Text style={styles.confirmBtnTxt}>Enviar</Text>
                           )}
@@ -490,7 +481,7 @@ export default function AthleteAgendaScreen({ navigation }) {
                         disabled={busy}
                       >
                         {busy ? (
-                          <ActivityIndicator color="#fff" size="small" />
+                          <ButtonDotsLoader color={'#fff'} />
                         ) : (
                           <Text style={styles.confirmBtnTxt}>Confirmar</Text>
                         )}

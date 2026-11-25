@@ -1,16 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  TextInput,
-  Switch,
-  StyleSheet,
-  ActivityIndicator,
-  Platform,
-  ScrollView,
-} from 'react-native';
+import { View, Text, Modal, TouchableOpacity, TextInput, Switch, StyleSheet, Platform, ScrollView } from 'react-native';
+import ButtonDotsLoader from '../../../components/ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { MN } from './finanzasConstants';
 
@@ -168,7 +158,7 @@ export default function PastCuotasModal({
               disabled={saving}
             >
               {saving ? (
-                <ActivityIndicator color="#fff" />
+                <ButtonDotsLoader color={'#fff'} />
               ) : (
                 <Text style={styles.confirmTxt}>Cargar como vencidas</Text>
               )}

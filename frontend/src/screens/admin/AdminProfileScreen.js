@@ -1,17 +1,7 @@
 import React, { useContext, useState, useCallback, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  StatusBar,
-  ScrollView,
-  Linking,
-  ActivityIndicator,
-  RefreshControl,
-  AppState,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, ScrollView, Linking, RefreshControl, AppState } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -404,7 +394,7 @@ export default function AdminProfileScreen({ navigation }) {
                 disabled={mpSaving || loading}
               >
                 {mpSaving || loading ? (
-                  <ActivityIndicator color="#fff" />
+                  <ButtonDotsLoader color={'#fff'} />
                 ) : (
                   <>
                     <Ionicons

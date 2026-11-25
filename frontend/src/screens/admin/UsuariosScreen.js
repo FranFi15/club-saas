@@ -4,13 +4,13 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   TouchableOpacity,
   StatusBar,
   TextInput,
   Alert,
 } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import StaggerFlatList from '../../components/StaggerFlatList';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import HoverRevealSwipeable from '../../components/HoverRevealSwipeable';
@@ -742,7 +742,8 @@ export default function UsuariosScreen({ navigation }) {
         {showInitialLoader ? (
           <ClubSpinLoader size={64} style={{ marginTop: 50 }} />
         ) : (
-          <FlatList
+          <StaggerFlatList
+            staggerEpoch={`usuarios:${clubData?.urlIdentifier || ''}`}
             key={catalogColumns > 1 ? 'usuarios-catalog' : 'usuarios-list'}
             data={catalogUsers}
             keyExtractor={(item) => item._id || Math.random().toString()}

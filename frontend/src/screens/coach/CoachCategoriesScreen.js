@@ -14,6 +14,7 @@ import {
   LayoutAnimation,
   Animated,
 } from 'react-native';
+import { USE_NATIVE_DRIVER } from '../../utils/nativeDriver';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -55,7 +56,7 @@ function AthletePanelReveal({ children, style }) {
     Animated.timing(opacity, {
       toValue: 1,
       duration: 240,
-      useNativeDriver: true,
+      useNativeDriver: USE_NATIVE_DRIVER,
     }).start();
   }, [opacity]);
   return <Animated.View style={[style, { opacity }]}>{children}</Animated.View>;

@@ -1,15 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  StyleSheet,
-  Platform,
-  ActivityIndicator,
-  Switch,
-} from 'react-native';
+import { View, Text, Modal, TouchableOpacity, StyleSheet, Platform, Switch } from 'react-native';
 import ClubSpinLoader from '../../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../../components/ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
 import BusyOverlay from '../../../components/BusyOverlay';
@@ -289,7 +281,7 @@ export default function AdvancePaymentsModal({
                 activeOpacity={0.8}
               >
                 {saving ? (
-                  <ActivityIndicator color="#fff" />
+                  <ButtonDotsLoader color={'#fff'} />
                 ) : (
                   <Text style={styles.confirmTxt}>
                     {grillaBloqueada ? 'Crear cuota social' : 'Crear cuotas'}

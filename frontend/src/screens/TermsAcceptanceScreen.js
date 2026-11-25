@@ -1,15 +1,6 @@
 import React, { useContext, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  StatusBar,
-  Linking,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Linking, Platform } from 'react-native';
+import ButtonDotsLoader from '../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
@@ -178,7 +169,7 @@ export default function TermsAcceptanceScreen({ navigation }) {
           disabled={!accepted || saving}
         >
           {saving ? (
-            <ActivityIndicator color="#fff" />
+            <ButtonDotsLoader color={'#fff'} />
           ) : (
             <Text style={styles.ctaTxt}>Continuar</Text>
           )}

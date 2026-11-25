@@ -1,14 +1,7 @@
 import React, { useState, useCallback, useContext, useMemo } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  RefreshControl,
-} from 'react-native';
+import { View, Text, FlatList, TextInput, TouchableOpacity, RefreshControl } from 'react-native';
 import ClubSpinLoader from '../../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../../components/ButtonDotsLoader';
 import ListTopFade from '../../../components/ListTopFade';
 import { Ionicons } from '@expo/vector-icons';
 import { finanzasStyles as s } from './finanzasStyles';
@@ -454,7 +447,7 @@ export default function FamiliasTab({
           disabled={isSyncingDiscounts || !onSyncAllDiscounts}
         >
           {isSyncingDiscounts ? (
-            <ActivityIndicator color="#fff" size="small" />
+            <ButtonDotsLoader color={'#fff'} />
           ) : (
             <Ionicons name="pricetag-outline" size={18} color="#fff" />
           )}

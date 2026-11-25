@@ -1,15 +1,6 @@
 import React, { useState, useContext, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  StatusBar,
-  Image,
-  Platform,
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, StatusBar, Image, Platform } from 'react-native';
+import ButtonDotsLoader from '../components/ButtonDotsLoader';
 import { superAdminApi } from '../utils/api';
 import { ClubContext } from '../context/ClubContext';
 import { ThemeContext } from '../context/ThemeContext';
@@ -119,7 +110,7 @@ export default function WorkspaceSearchScreen({ navigation }) {
             activeOpacity={0.85}
           >
             {isLoading ? (
-              <ActivityIndicator color="#ffffff" />
+              <ButtonDotsLoader color={'#ffffff'} />
             ) : (
               <Text style={styles.buttonText}>Ingresar</Text>
             )}

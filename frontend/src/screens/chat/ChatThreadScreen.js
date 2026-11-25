@@ -1,17 +1,7 @@
 import React, { useCallback, useContext, useMemo, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  StatusBar,
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, StatusBar } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -445,7 +435,7 @@ export default function ChatThreadScreen({ navigation, route }) {
                 disabled={!text.trim() || sending}
               >
                 {sending ? (
-                  <ActivityIndicator color="#fff" size="small" />
+                  <ButtonDotsLoader color={'#fff'} />
                 ) : (
                   <Ionicons name="send" size={18} color="#fff" />
                 )}

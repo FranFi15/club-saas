@@ -1,18 +1,7 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  StatusBar,
-  ActivityIndicator,
-  Share,
-  Platform,
-  Switch,
-  TextInput,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Share, Platform, Switch, TextInput } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -477,7 +466,7 @@ export default function InvitarFamiliaScreen({ navigation }) {
                 disabled={saving}
               >
                 {saving ? (
-                  <ActivityIndicator color="#fff" />
+                  <ButtonDotsLoader color={'#fff'} />
                 ) : (
                   <Text style={styles.createBtnText}>Generar enlace</Text>
                 )}

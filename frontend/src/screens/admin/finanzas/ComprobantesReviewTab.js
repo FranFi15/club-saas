@@ -1,20 +1,7 @@
 import React, { useCallback, useContext, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-  Modal,
-  Image,
-  TextInput,
-  ScrollView,
-  RefreshControl,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Image, TextInput, ScrollView, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native';
 import ClubSpinLoader from '../../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../../components/ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../../../utils/api';
 import { readScreenCache, useCachedFocusLoad } from '../../../hooks/useCachedFocusLoad';
@@ -186,7 +173,7 @@ export default function ComprobantesReviewTab({ clubData, theme, primaryColor, g
             disabled={busy}
           >
             {busy ? (
-              <ActivityIndicator color="#fff" size="small" />
+              <ButtonDotsLoader color={'#fff'} />
             ) : (
               <Text style={styles.approveTxt}>{cuotaCount > 1 ? 'Aprobar todas' : 'Aprobar'}</Text>
             )}

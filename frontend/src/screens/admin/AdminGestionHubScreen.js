@@ -13,6 +13,7 @@ import { useAdminDesktopLayout } from '../../hooks/useAdminDesktopLayout';
 import { isDirigenteRole, isClubOpsRole } from '../../constants/appRoles';
 import EventDoorCard from '../../components/EventDoorCard';
 import { useMercadoPagoLinked } from '../../hooks/useMercadoPagoLinked';
+import { StaggerScope } from '../../hooks/useEntranceEpoch';
 
 const GESTION_ITEMS = [
   {
@@ -103,22 +104,24 @@ export default function AdminGestionHubScreen({ navigation }) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {items.map(({ title, subtitle, icon, route, badgeKey }) => (
-          <Fragment key={route}>
-            <HubMenuCard
-              title={title}
-              subtitle={subtitle}
-              icon={icon}
-              badge={badgeKey ? hub(badgeKey) : 0}
-              theme={theme}
-              colorMarca={colorMarca}
-              onPress={() => navigation.navigate(route)}
-            />
-            {route === 'EscanearIngreso' ? (
-              <EventDoorCard navigation={navigation} routeName="EscanearEvento" />
-            ) : null}
-          </Fragment>
-        ))}
+        <StaggerScope epoch={`gestion-hub:${clubData?.urlIdentifier || ''}`}>
+          {items.map(({ title, subtitle, icon, route, badgeKey }) => (
+            <Fragment key={route}>
+              <HubMenuCard
+                title={title}
+                subtitle={subtitle}
+                icon={icon}
+                badge={badgeKey ? hub(badgeKey) : 0}
+                theme={theme}
+                colorMarca={colorMarca}
+                onPress={() => navigation.navigate(route)}
+              />
+              {route === 'EscanearIngreso' ? (
+                <EventDoorCard navigation={navigation} routeName="EscanearEvento" />
+              ) : null}
+            </Fragment>
+          ))}
+        </StaggerScope>
       </ScrollView>
     </SafeAreaView>
   );

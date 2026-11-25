@@ -1,18 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  FlatList,
-  ActivityIndicator,
-  StyleSheet,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-} from 'react-native';
+import { View, Text, Modal, TouchableOpacity, FlatList, StyleSheet, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import ClubSpinLoader from './ClubSpinLoader';
+import ButtonDotsLoader from './ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../utils/api';
 import UserAvatar from './UserAvatar';
@@ -468,7 +457,7 @@ export default function CategoryRosterModal({
                   disabled={saving || !selectedCount}
                 >
                   {saving ? (
-                    <ActivityIndicator color="#fff" />
+                    <ButtonDotsLoader color={'#fff'} />
                   ) : (
                     <Text style={styles.primaryTxt}>Guardar plantel</Text>
                   )}

@@ -9,7 +9,7 @@ import {
   RefreshControl,
   Switch,
 } from 'react-native';
-import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -242,7 +242,7 @@ export default function TutorProfileScreen({ navigation }) {
                           </Text>
                         </View>
                         {busy ? (
-                          <ClubSpinLoader size={40} />
+                          <ButtonDotsLoader color={colorMarca} />
                         ) : (
                           <Switch
                             value={enabled}

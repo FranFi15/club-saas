@@ -1,18 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  TouchableOpacity,
-  ScrollView,
-  Pressable,
-  Platform,
-  Image,
-  ActivityIndicator,
-  TextInput,
-} from 'react-native';
-import ClubSpinLoader from './ClubSpinLoader';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Pressable, Platform, Image, TextInput } from 'react-native';
+import ButtonDotsLoader from './ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import QRCode from 'react-native-qrcode-svg';
@@ -167,7 +155,7 @@ export default function ProfileLoyaltySection({ clubData, theme, colorMarca, asS
           styles.loadingCard,
         ]}
       >
-        <ClubSpinLoader size={36} />
+        <ButtonDotsLoader color={cc} />
       </View>
     );
   }
@@ -563,7 +551,7 @@ export default function ProfileLoyaltySection({ clubData, theme, colorMarca, asS
                                     onPress={() => redeem(r)}
                                   >
                                     {busyId === String(r._id) ? (
-                                      <ActivityIndicator color={muted ? grey : cc} size="small" />
+                                      <ButtonDotsLoader color={muted ? grey : cc} />
                                     ) : (
                                       <>
                                         <Text

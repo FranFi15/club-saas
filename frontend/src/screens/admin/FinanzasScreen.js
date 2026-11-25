@@ -1,20 +1,7 @@
 import React, { useState, useEffect, useContext, useCallback, useRef, useMemo } from 'react';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ActivityIndicator,
-  StatusBar,
-  Modal,
-  TextInput,
-  StyleSheet,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  Switch,
-} from 'react-native';
+import { View, Text, TouchableOpacity, StatusBar, Modal, TextInput, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Pressable, Switch } from 'react-native';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PagerView from '../../components/AppPagerView';
 import { Ionicons } from '@expo/vector-icons';
@@ -1395,7 +1382,7 @@ export default function FinanzasScreen({ route }) {
         disabled={isPaying}
       >
         {isPaying ? (
-          <ActivityIndicator color="#fff" />
+          <ButtonDotsLoader color={'#fff'} />
         ) : (
           <>
             <Ionicons name="checkmark-circle" size={20} color="#fff" style={{ marginRight: 8 }} />
@@ -2069,7 +2056,7 @@ export default function FinanzasScreen({ route }) {
                 disabled={isSavingPlan}
               >
                 {isSavingPlan ? (
-                  <ActivityIndicator color="#fff" />
+                  <ButtonDotsLoader color={'#fff'} />
                 ) : (
                   <Text style={s.saveBtnTxt}>{editingPlan ? 'Guardar cambios' : 'Crear cuota deportiva'}</Text>
                 )}

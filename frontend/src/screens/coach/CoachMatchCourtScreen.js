@@ -12,6 +12,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { USE_NATIVE_DRIVER } from '../../utils/nativeDriver';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ClubContext } from '../../context/ClubContext';
@@ -46,7 +47,7 @@ function FadeAlert({ onPress, style, children }) {
       toValue: 1,
       duration: SCREEN_FADE_MS,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: USE_NATIVE_DRIVER,
     });
     anim.start();
     return () => anim.stop();

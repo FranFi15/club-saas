@@ -19,6 +19,7 @@ import CustomAlert from '../../components/CustomAlert';
 import CoachScreenHeader from '../../components/CoachScreenHeader';
 import MemberChildPicker from '../../components/MemberChildPicker';
 import DesignCard from '../../components/DesignCard';
+import StaggerEnter from '../../components/StaggerEnter';
 import { clubHeaders } from './athleteApi';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { formatUserName } from '../../utils/listSort';
@@ -151,35 +152,36 @@ export default function AthleteWellnessHubScreen({ navigation }) {
               </Text>
             </DesignCard>
           ) : (
-            pendingItems.map((item) => {
+            pendingItems.map((item, index) => {
               const isPre = item.kind === 'pre';
               const sesion = item.sesion;
               const visual = isPre ? null : sessionTipoVisual(sesion, { colorMarca });
               const accent = isPre ? colorMarca : visual.accent;
               return (
-                <DesignCard
-                  key={item.key}
-                  theme={theme}
-                  isDarkMode={isDarkMode}
-                  accent={accent}
-                  onPress={() => openWellness(item)}
-                  contentStyle={styles.cardRow}
-                >
-                  <View style={[styles.cardIcon, { backgroundColor: `${accent}22` }]}>
-                    <Ionicons name={isPre ? 'fitness-outline' : visual.icon} size={24} color={accent} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.cardTitle, { color: theme.text }]}>
-                      {isPre ? 'Wellness del día' : rpeSessionTitle(sesion)}
-                    </Text>
-                    <Text style={[styles.cardSub, { color: theme.textMuted }]}>
-                      {isPre
-                        ? 'Contanos cómo te sentís antes de entrenar (1–10).'
-                        : rpeSessionDetail(sesion)}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={22} color={accent} />
-                </DesignCard>
+                <StaggerEnter key={item.key} index={index} token={`wellness-hub:${item.key}`}>
+                  <DesignCard
+                    theme={theme}
+                    isDarkMode={isDarkMode}
+                    accent={accent}
+                    onPress={() => openWellness(item)}
+                    contentStyle={styles.cardRow}
+                  >
+                    <View style={[styles.cardIcon, { backgroundColor: `${accent}22` }]}>
+                      <Ionicons name={isPre ? 'fitness-outline' : visual.icon} size={24} color={accent} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.cardTitle, { color: theme.text }]}>
+                        {isPre ? 'Wellness del día' : rpeSessionTitle(sesion)}
+                      </Text>
+                      <Text style={[styles.cardSub, { color: theme.textMuted }]}>
+                        {isPre
+                          ? 'Contanos cómo te sentís antes de entrenar (1–10).'
+                          : rpeSessionDetail(sesion)}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={22} color={accent} />
+                  </DesignCard>
+                </StaggerEnter>
               );
             })
           )}

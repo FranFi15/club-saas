@@ -1,15 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Modal,
-  View,
-  Text,
-  Image,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  Platform,
-} from 'react-native';
+import { Modal, View, Text, Image, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import ClubSpinLoader from './ClubSpinLoader';
+import ButtonDotsLoader from './ButtonDotsLoader';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -256,7 +248,7 @@ export default function WebImageCropModal({
             disabled={!ready || exporting}
           >
             {exporting ? (
-              <ActivityIndicator color="#fff" />
+              <ButtonDotsLoader color={'#fff'} />
             ) : (
               <Text style={styles.btnPrimaryTxt}>Usar imagen</Text>
             )}

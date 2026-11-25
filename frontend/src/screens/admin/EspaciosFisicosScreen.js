@@ -1,10 +1,8 @@
 import React, { useState, useContext, useCallback, useMemo, useEffect } from 'react';
-import { 
-  View, Text, StyleSheet, FlatList, TouchableOpacity, 
-  ActivityIndicator, StatusBar, Modal, TextInput, ScrollView,
-  KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
+import StaggerFlatList from '../../components/StaggerFlatList';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -602,7 +600,8 @@ export default function EspaciosFisicosScreen({ navigation }) {
         {showInitialLoader ? (
           <ClubSpinLoader size={64} style={{ marginTop: 50 }} />
         ) : (
-          <FlatList
+          <StaggerFlatList
+            staggerEpoch={`espacios:${clubData?.urlIdentifier || ''}`}
             key={catalogColumns > 1 ? 'espacios-catalog' : 'espacios-list'}
             data={catalogSpaces}
             keyExtractor={(item) => item._id}
@@ -829,7 +828,7 @@ export default function EspaciosFisicosScreen({ navigation }) {
               ) : null}
 
               <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colorMarca, marginTop: 20 }]} onPress={handleSaveSpace} disabled={isSaving}>
-                {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Guardar</Text>}
+                {isSaving ? <ButtonDotsLoader color={'#fff'} /> : <Text style={styles.saveBtnText}>Guardar</Text>}
               </TouchableOpacity>
       </FormSheet>
 
@@ -878,7 +877,7 @@ export default function EspaciosFisicosScreen({ navigation }) {
                   disabled={savingStatus || loadingAffected}
                 >
                   {loadingAffected ? (
-                    <ActivityIndicator color="#fff" />
+                    <ButtonDotsLoader color={'#fff'} />
                   ) : (
                     <Text style={styles.statusBtnText} numberOfLines={1}>Mantenimiento</Text>
                   )}
@@ -986,7 +985,7 @@ export default function EspaciosFisicosScreen({ navigation }) {
               disabled={savingStatus}
             >
               {savingStatus ? (
-                <ActivityIndicator color="#fff" />
+                <ButtonDotsLoader color={'#fff'} />
               ) : (
                 <Text style={styles.saveBtnText}>Confirmar cambio de estado</Text>
               )}

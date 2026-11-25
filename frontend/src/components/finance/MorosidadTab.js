@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import ClubSpinLoader from '../ClubSpinLoader';
+import ButtonDotsLoader from '../ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import BusyOverlay from '../BusyOverlay';
 import { formatUserName } from '../../utils/listSort';
@@ -97,7 +98,7 @@ export default function MorosidadTab({ theme, cc, getHeaders, clubApi, showAlert
 
       {/* Send reminders */}
       <TouchableOpacity style={{flexDirection:'row',justifyContent:'center',alignItems:'center',padding:14,borderRadius:12,marginBottom:8,backgroundColor:'#8b5cf6'}} onPress={sendReminders} disabled={sending}>
-        {sending?<ActivityIndicator color="#fff"/>:<>
+        {sending?<ButtonDotsLoader color={'#fff'} />:<>
           <Ionicons name="notifications" size={18} color="#fff" style={{marginRight:8}}/>
           <Text style={{color:'#fff',fontWeight:'bold'}}>Enviar Recordatorios</Text>
         </>}

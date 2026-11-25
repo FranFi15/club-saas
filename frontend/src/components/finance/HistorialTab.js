@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import ClubSpinLoader from '../ClubSpinLoader';
+import ButtonDotsLoader from '../ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { formatJsDateToDisplay } from '../../utils/dateDisplay';
 import { formatUserName } from '../../utils/listSort';
@@ -52,7 +53,7 @@ export default function HistorialTab({ theme, cc, getHeaders, clubApi, showAlert
       <View style={{flexDirection:'row',alignItems:'center',height:48,borderWidth:1,borderRadius:12,borderColor:theme.border,backgroundColor:theme.surface,marginTop:15,overflow:'hidden'}}>
         <Ionicons name="search" size={20} color={theme.icon} style={{marginLeft:15,marginRight:10}}/>
         <TextInput style={{flex:1,fontSize:15,color:theme.text,height:'100%'}} placeholder="Buscar atleta..." placeholderTextColor={theme.textMuted} value={search} onChangeText={setSearch}/>
-        {searching && <ClubSpinLoader size={26} style={{marginRight:15}} />}
+        {searching && <ButtonDotsLoader color="#64748b" />}
       </View>
 
       {/* Results */}

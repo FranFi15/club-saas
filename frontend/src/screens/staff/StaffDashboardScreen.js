@@ -21,6 +21,7 @@ import CoachScreenHeader, { CoachHeaderBadge } from '../../components/CoachScree
 import HubMenuCard from '../../components/HubMenuCard';
 import EventDoorCard from '../../components/EventDoorCard';
 import DesignCard from '../../components/DesignCard';
+import { StaggerScope } from '../../hooks/useEntranceEpoch';
 
 export default function StaffDashboardScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
@@ -65,40 +66,42 @@ export default function StaffDashboardScreen({ navigation }) {
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Accesos rápidos</Text>
-        <EventDoorCard navigation={navigation} />
+        <StaggerScope epoch={`staff-dash:${clubData?.urlIdentifier || ''}:${rol || ''}`}>
+          <EventDoorCard navigation={navigation} />
 
-        <HubMenuCard
-          theme={theme}
-          colorMarca={colorMarca}
-          icon="megaphone-outline"
-          title="Comunicaciones"
-          subtitle={
-            showNewsComposer
-              ? 'Ver avisos y publicar tus noticias cuando corresponda'
-              : 'Novedades y avisos del club'
-          }
-          onPress={() => navigation.navigate('NoticiasStaff')}
-        />
-
-        {showAgenda ? (
           <HubMenuCard
             theme={theme}
             colorMarca={colorMarca}
-            icon="calendar-outline"
-            title="Grilla semanal"
-            subtitle="Horarios fijos por categoría"
-            onPress={() => navigation.navigate('Agenda')}
+            icon="megaphone-outline"
+            title="Comunicaciones"
+            subtitle={
+              showNewsComposer
+                ? 'Ver avisos y publicar tus noticias cuando corresponda'
+                : 'Novedades y avisos del club'
+            }
+            onPress={() => navigation.navigate('NoticiasStaff')}
           />
-        ) : (
-          <DesignCard theme={theme} isDarkMode={isDarkMode} accent={colorMarca} muted contentStyle={styles.mutedInner}>
-            <View style={styles.mutedRow}>
-              <Ionicons name="information-circle-outline" size={20} color={theme.icon} />
-              <Text style={[styles.mutedStripTxt, { color: theme.textMuted }]}>
-                La grilla de horarios aparece aquí solo para profes y preparadores físicos en esta primera versión.
-              </Text>
-            </View>
-          </DesignCard>
-        )}
+
+          {showAgenda ? (
+            <HubMenuCard
+              theme={theme}
+              colorMarca={colorMarca}
+              icon="calendar-outline"
+              title="Grilla semanal"
+              subtitle="Horarios fijos por categoría"
+              onPress={() => navigation.navigate('Agenda')}
+            />
+          ) : (
+            <DesignCard theme={theme} isDarkMode={isDarkMode} accent={colorMarca} muted contentStyle={styles.mutedInner}>
+              <View style={styles.mutedRow}>
+                <Ionicons name="information-circle-outline" size={20} color={theme.icon} />
+                <Text style={[styles.mutedStripTxt, { color: theme.textMuted }]}>
+                  La grilla de horarios aparece aquí solo para profes y preparadores físicos en esta primera versión.
+                </Text>
+              </View>
+            </DesignCard>
+          )}
+        </StaggerScope>
       </ScrollView>
     </SafeAreaView>
   );

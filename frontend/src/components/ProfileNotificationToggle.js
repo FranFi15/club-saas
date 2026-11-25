@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 import { View, Text, Switch, Linking, Platform } from 'react-native';
-import ClubSpinLoader from './ClubSpinLoader';
+import ButtonDotsLoader from './ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
 import { ThemeContext } from '../context/ThemeContext';
@@ -123,7 +123,7 @@ export default function ProfileNotificationToggle() {
           </Text>
         </View>
         {loading || busy ? (
-          <ClubSpinLoader size={40} />
+          <ButtonDotsLoader color="#64748b" />
         ) : (
           <Switch
             value={enabled}

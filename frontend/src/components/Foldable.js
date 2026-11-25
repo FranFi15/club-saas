@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, View } from 'react-native';
+import { USE_NATIVE_DRIVER } from '../utils/nativeDriver';
 import { Ionicons } from '@expo/vector-icons';
 
 const FOLD_MS = 240;
@@ -54,7 +55,7 @@ export function FoldableChevron({ open, color, size = 20 }) {
       toValue: open ? 1 : 0,
       duration: FOLD_MS,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: USE_NATIVE_DRIVER,
     }).start();
   }, [open, progress]);
 

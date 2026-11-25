@@ -1,13 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  Switch,
-} from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Switch } from 'react-native';
+import ButtonDotsLoader from './ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../utils/api';
 import {
@@ -111,7 +104,7 @@ function MetricBatchCard({
         onPress={onSave}
         disabled={saving}
       >
-        {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnTxt}>{saveLabel}</Text>}
+        {saving ? <ButtonDotsLoader color={'#fff'} /> : <Text style={styles.saveBtnTxt}>{saveLabel}</Text>}
       </TouchableOpacity>
     </View>
   );

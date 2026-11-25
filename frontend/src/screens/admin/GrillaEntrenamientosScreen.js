@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
-import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, 
-  ActivityIndicator, StatusBar, Modal, TextInput, ScrollView,
-  KeyboardAvoidingView, Platform, Switch,
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform, Switch } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import ListTopFade from '../../components/ListTopFade';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -806,7 +803,7 @@ export default function GrillaEntrenamientosScreen({ navigation, route }) {
               ) : null}
 
               <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colorMarca, marginTop: 25 }]} onPress={handleSaveSchedule} disabled={isSaving}>
-                {isSaving ? <ActivityIndicator color="#fff" /> : (
+                {isSaving ? <ButtonDotsLoader color={'#fff'} /> : (
                   <Text style={styles.saveBtnText}>{isEditingId ? 'Guardar horario' : 'Guardar en la grilla'}</Text>
                 )}
               </TouchableOpacity>

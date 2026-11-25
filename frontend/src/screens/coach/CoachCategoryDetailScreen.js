@@ -1,23 +1,8 @@
 import React, { useContext, useCallback, useState, useEffect, useRef, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  RefreshControl,
-  StatusBar,
-  ActivityIndicator,
-  Modal,
-  ScrollView,
-  TextInput,
-  Dimensions,
-  KeyboardAvoidingView,
-  Platform,
-  LayoutAnimation,
-  Animated,
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, StatusBar, Modal, ScrollView, TextInput, Dimensions, KeyboardAvoidingView, Platform, LayoutAnimation, Animated } from 'react-native';
+import { USE_NATIVE_DRIVER } from '../../utils/nativeDriver';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import ListTopFade from '../../components/ListTopFade';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -104,7 +89,7 @@ function AthletePanelReveal({ children, style }) {
     Animated.timing(opacity, {
       toValue: 1,
       duration: 240,
-      useNativeDriver: true,
+      useNativeDriver: USE_NATIVE_DRIVER,
     }).start();
   }, [opacity]);
   return <Animated.View style={[style, { opacity }]}>{children}</Animated.View>;
@@ -1023,7 +1008,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
               onPress={submitAddRequest}
             >
               {submittingRequest ? (
-                <ActivityIndicator color="#fff" />
+                <ButtonDotsLoader color={'#fff'} />
               ) : (
                 <Text style={styles.submitReqTxt}>
                   Enviar solicitud ({selectedIds.size})
@@ -1375,7 +1360,7 @@ export default function CoachCategoryDetailScreen({ navigation, route }) {
                                   disabled={busy}
                                 >
                                   {busy ? (
-                                    <ActivityIndicator color="#fff" size="small" />
+                                    <ButtonDotsLoader color={'#fff'} />
                                   ) : (
                                     <>
                                       <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />

@@ -1,24 +1,7 @@
 import React, { useState, useContext, useCallback, useEffect, useMemo, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-  StatusBar,
-  Modal,
-  TextInput,
-  RefreshControl,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Share,
-  Image,
-  Pressable,
-  useWindowDimensions,
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, Modal, TextInput, RefreshControl, ScrollView, KeyboardAvoidingView, Platform, Share, Image, Pressable, useWindowDimensions } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -2539,7 +2522,7 @@ export default function AdminEventosScreen({ navigation }) {
                 disabled={saving}
               >
                 {saving && isLastStep ? (
-                  <ActivityIndicator color="#fff" />
+                  <ButtonDotsLoader color={'#fff'} />
                 ) : (
                   <Text style={styles.footerPrimaryText}>
                     {isLastStep ? 'Guardar' : 'Siguiente'}
@@ -3129,7 +3112,7 @@ export default function AdminEventosScreen({ navigation }) {
                         placeholderTextColor={theme.textMuted}
                         autoCapitalize="none"
                       />
-                      {buyerSearching ? <ClubSpinLoader size={26} /> : null}
+                      {buyerSearching ? <ButtonDotsLoader color="#64748b" /> : null}
                     </View>
                     {pickedUser ? (
                       <View
@@ -3356,7 +3339,7 @@ export default function AdminEventosScreen({ navigation }) {
                   onPress={submitCashSale}
                 >
                   {cashSaving ? (
-                    <ActivityIndicator color="#fff" />
+                    <ButtonDotsLoader color={'#fff'} />
                   ) : (
                     <Text style={styles.footerPrimaryText}>
                       {Number(cashQuote?.montoTotal) > 0 ? 'Cobrar efectivo' : 'Registrar'}

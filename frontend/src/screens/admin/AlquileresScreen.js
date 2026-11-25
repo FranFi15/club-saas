@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, RefreshControl, Platform, Linking, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, Modal, TextInput, ScrollView, RefreshControl, Platform, Linking, KeyboardAvoidingView } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import ListTopFade from '../../components/ListTopFade';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -491,7 +492,7 @@ export default function AlquileresScreen({ navigation }) {
                   activeOpacity={0.75}
                 >
                   {busy ? (
-                    <ActivityIndicator color="#fff" size="small" />
+                    <ButtonDotsLoader color={'#fff'} />
                   ) : (
                     <>
                       <Ionicons name="card-outline" size={16} color="#fff" />
@@ -887,7 +888,7 @@ export default function AlquileresScreen({ navigation }) {
                   </View>
                 </View>
                 <TouchableOpacity style={[styles.saveBtn,{backgroundColor:'#10b981',marginTop:15}]} onPress={handleSaveRental} disabled={isSaving}>
-                  {isSaving ? <ActivityIndicator color="#fff"/> : <Text style={styles.saveBtnText}>Confirmar Reserva</Text>}
+                  {isSaving ? <ButtonDotsLoader color={'#fff'} /> : <Text style={styles.saveBtnText}>Confirmar Reserva</Text>}
                 </TouchableOpacity>
       </FormSheet>
 
@@ -949,7 +950,7 @@ export default function AlquileresScreen({ navigation }) {
                               disabled={mpCreating}
                             >
                               {mpCreating ? (
-                                <ActivityIndicator color="#fff" />
+                                <ButtonDotsLoader color={'#fff'} />
                               ) : (
                                 <Text style={styles.saveBtnText}>
                                   Link de seña ({fmtRentalMoney(mpSenaMonto)})
@@ -970,7 +971,7 @@ export default function AlquileresScreen({ navigation }) {
                           disabled={mpCreating}
                         >
                           {mpCreating ? (
-                            <ActivityIndicator color="#fff" />
+                            <ButtonDotsLoader color={'#fff'} />
                           ) : (
                             <Text style={styles.saveBtnText}>
                               {Number(detailRental.señaPagada) > 0
@@ -1143,7 +1144,7 @@ export default function AlquileresScreen({ navigation }) {
                         activeOpacity={0.75}
                       >
                         {String(payingRentalId) === String(detailRental._id) ? (
-                          <ActivityIndicator color="#fff" />
+                          <ButtonDotsLoader color={'#fff'} />
                         ) : (
                           <>
                             <Ionicons name="cash-outline" size={18} color="#fff" style={{ marginRight: 8 }} />

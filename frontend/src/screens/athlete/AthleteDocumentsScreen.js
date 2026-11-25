@@ -9,6 +9,7 @@ import {
   StatusBar,
 } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -335,7 +336,7 @@ export default function AthleteDocumentsScreen({ navigation }) {
               disabled={busy}
             >
               {busy ? (
-                <ClubSpinLoader size={40} />
+                <ButtonDotsLoader color="#fff" />
               ) : (
                 <>
                   <Ionicons name="document-text-outline" size={18} color={colorMarca} />

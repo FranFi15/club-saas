@@ -9,6 +9,7 @@ import {
   StatusBar,
 } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import ListTopFade from '../../components/ListTopFade';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -142,7 +143,7 @@ export default function ChatNewScreen({ navigation }) {
                   ) : null}
                 </View>
                 {busy ? (
-                  <ClubSpinLoader size={40} />
+                  <ButtonDotsLoader color="#fff" />
                 ) : (
                   <Ionicons name="chatbubble-ellipses-outline" size={20} color={colorMarca} />
                 )}

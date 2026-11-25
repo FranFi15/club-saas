@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import ButtonDotsLoader from './ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import DesignCard from './DesignCard';
 import { clubApi } from '../utils/api';
@@ -69,7 +70,7 @@ export default function TrialDecisionCard({
           onPress={() => run('continuar')}
           disabled={busy}
         >
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Continuar</Text>}
+          {busy ? <ButtonDotsLoader color={'#fff'} /> : <Text style={styles.btnText}>Continuar</Text>}
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.btn, { backgroundColor: '#ef4444', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]}

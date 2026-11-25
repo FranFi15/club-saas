@@ -1,18 +1,7 @@
 import React, { useCallback, useContext, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-  Modal,
-  TextInput,
-  ScrollView,
-  RefreshControl,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, ScrollView, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native';
 import ClubSpinLoader from '../../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../../components/ButtonDotsLoader';
 import ListTopFade from '../../../components/ListTopFade';
 import { Ionicons } from '@expo/vector-icons';
 import FormSheet from '../../../components/FormSheet';
@@ -697,7 +686,7 @@ export default function GastosTab({
                 disabled={saving || uploading}
               >
                 {saving ? (
-                  <ActivityIndicator color="#fff" />
+                  <ButtonDotsLoader color={'#fff'} />
                 ) : (
                   <Text style={s.saveBtnTxt}>{editingId ? 'Guardar cambios' : 'Guardar'}</Text>
                 )}
@@ -812,7 +801,7 @@ export default function GastosTab({
                 onPress={savePay}
                 disabled={saving || uploading}
               >
-                {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.saveBtnTxt}>Confirmar pago</Text>}
+                {saving ? <ButtonDotsLoader color={'#fff'} /> : <Text style={s.saveBtnTxt}>Confirmar pago</Text>}
               </TouchableOpacity>
             </ScrollView>
           </View>

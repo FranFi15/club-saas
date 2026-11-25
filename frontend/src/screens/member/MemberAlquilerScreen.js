@@ -1,17 +1,7 @@
 import React, { useCallback, useContext, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  RefreshControl,
-  StatusBar,
-  ActivityIndicator,
-  Linking,
-  ScrollView,
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, StatusBar, Linking, ScrollView } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -454,7 +444,7 @@ export default function MemberAlquilerScreen() {
                   <Text style={{ color: theme.text, fontWeight: '800' }}>{fmtMoney(item.precio)}</Text>
                   {item.disponible ? (
                     busy ? (
-                      <ClubSpinLoader size={40} style={{ marginTop: 6 }} />
+                      <ButtonDotsLoader color="#fff" style={{ marginTop: 6 }} />
                     ) : (
                       <Text style={{ color: colorMarca, fontWeight: '700', marginTop: 4, fontSize: 12 }}>
                         Reservar
@@ -515,7 +505,7 @@ export default function MemberAlquilerScreen() {
                         style={[styles.miniBtn, { backgroundColor: colorMarca }]}
                       >
                         {busy ? (
-                          <ActivityIndicator color="#fff" />
+                          <ButtonDotsLoader color={'#fff'} />
                         ) : (
                           <Text style={styles.miniBtnText}>Pagar</Text>
                         )}

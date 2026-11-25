@@ -10,6 +10,7 @@ import {
   LayoutAnimation,
   Animated,
 } from 'react-native';
+import { USE_NATIVE_DRIVER } from '../../utils/nativeDriver';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -132,12 +133,12 @@ function AccordionSection({
       Animated.timing(chevron, {
         toValue: open ? 1 : 0,
         duration: 220,
-        useNativeDriver: true,
+        useNativeDriver: USE_NATIVE_DRIVER,
       }),
       Animated.timing(bodyOpacity, {
         toValue: open ? 1 : 0,
         duration: open ? 240 : 160,
-        useNativeDriver: true,
+        useNativeDriver: USE_NATIVE_DRIVER,
       }),
     ]).start();
   }, [open, chevron, bodyOpacity]);

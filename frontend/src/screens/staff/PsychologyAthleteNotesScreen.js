@@ -1,21 +1,7 @@
 import React, { useCallback, useContext, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  RefreshControl,
-  StatusBar,
-  ActivityIndicator,
-  Modal,
-  TextInput,
-  Switch,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, StatusBar, Modal, TextInput, Switch, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -335,7 +321,7 @@ export default function PsychologyAthleteNotesScreen({ navigation, route }) {
                 disabled={saving}
               >
                 {saving ? (
-                  <ActivityIndicator color="#fff" />
+                  <ButtonDotsLoader color={'#fff'} />
                 ) : (
                   <Text style={styles.saveBtnTxt}>Guardar nota</Text>
                 )}

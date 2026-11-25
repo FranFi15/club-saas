@@ -1,18 +1,7 @@
 import React, { useContext, useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  StatusBar,
-  ActivityIndicator,
-  RefreshControl,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, StatusBar, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
@@ -450,7 +439,7 @@ export default function EditProfileScreen({ navigation }) {
             onPress={submit}
             disabled={saving}
           >
-            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnTxt}>Guardar cambios</Text>}
+            {saving ? <ButtonDotsLoader color={'#fff'} /> : <Text style={styles.primaryBtnTxt}>Guardar cambios</Text>}
           </TouchableOpacity>
         </ScrollView>
         </KeyboardAvoidingView>

@@ -1,11 +1,8 @@
 // src/screens/admin/EstructuraScreen.js
 import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
-import { 
-  View, Text, StyleSheet, FlatList, TouchableOpacity, 
-  ActivityIndicator, StatusBar, TextInput, Modal,
-  KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import HoverRevealSwipeable from '../../components/HoverRevealSwipeable';
@@ -447,7 +444,7 @@ export default function EstructuraScreen({ navigation }) {
 
                   <TouchableOpacity style={[styles.modalButton, { backgroundColor: colorMarca }]} onPress={handleSaveDiscipline} disabled={isSaving}>
                     {isSaving ? (
-                      <ActivityIndicator color="#ffffff" />
+                      <ButtonDotsLoader color={'#ffffff'} />
                     ) : (
                       <Text style={styles.modalButtonText}>{editingDiscipline ? "Guardar Cambios" : "Crear Disciplina"}</Text>
                     )}

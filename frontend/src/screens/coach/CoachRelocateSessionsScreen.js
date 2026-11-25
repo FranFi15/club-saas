@@ -1,16 +1,7 @@
 import React, { useCallback, useContext, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
-  StatusBar,
-  RefreshControl,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, StatusBar, RefreshControl } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -472,7 +463,7 @@ export default function CoachRelocateSessionsScreen({ navigation }) {
                 disabled={restoring}
               >
                 {restoring ? (
-                  <ActivityIndicator color="#fff" />
+                  <ButtonDotsLoader color={'#fff'} />
                 ) : (
                   <Text style={styles.saveBtnTxt}>
                     Restaurar{selectedRestore.size ? ` (${selectedRestore.size})` : ''}
@@ -578,7 +569,7 @@ export default function CoachRelocateSessionsScreen({ navigation }) {
                 disabled={saving}
               >
                 {saving ? (
-                  <ActivityIndicator color="#fff" />
+                  <ButtonDotsLoader color={'#fff'} />
                 ) : (
                   <Text style={styles.saveBtnTxt}>Guardar lugares</Text>
                 )}

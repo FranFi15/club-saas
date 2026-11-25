@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, Modal, TextInput, ScrollView, Image, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, Modal, TextInput, ScrollView, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import HoverRevealSwipeable from '../../components/HoverRevealSwipeable';
@@ -630,7 +631,7 @@ export default function NoticiasScreen({ navigation, route }) {
                 </View>
               ) : (
                 <TouchableOpacity style={[styles.uploadBtn,{borderColor:theme.border}]} onPress={pickImage} disabled={isUploading}>
-                  {isUploading ? <ClubSpinLoader size={40} /> : (
+                  {isUploading ? <ButtonDotsLoader color="#64748b" /> : (
                     <>
                       <Ionicons name="image-outline" size={28} color={theme.textMuted} />
                       <Text style={{color:theme.textMuted,marginTop:5,fontSize:13}}>Elegir foto de galería</Text>
@@ -858,7 +859,7 @@ export default function NoticiasScreen({ navigation, route }) {
               )}
 
               <TouchableOpacity style={[styles.saveBtn,{backgroundColor:cc,marginTop:10}]} onPress={handleSave} disabled={isSaving}>
-                {isSaving ? <ActivityIndicator color="#fff" /> : (
+                {isSaving ? <ButtonDotsLoader color={'#fff'} /> : (
                   <><Ionicons name="send" size={18} color="#fff" style={{marginRight:8}} /><Text style={styles.saveBtnText}>Publicar Noticia</Text></>
                 )}
               </TouchableOpacity>

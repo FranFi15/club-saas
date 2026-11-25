@@ -9,7 +9,7 @@ import {
   ScrollView,
   Pressable,
 } from 'react-native';
-import ClubSpinLoader from './ClubSpinLoader';
+import ButtonDotsLoader from './ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { clubApi } from '../utils/api';
 import { getToken } from '../utils/storage';
@@ -68,7 +68,7 @@ export default function ProfileBenefitsSection({ clubData, theme, colorMarca }) 
   if (loading && !payload) {
     return (
       <View style={[profileCardStyles.card, styles.loadingCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <ClubSpinLoader size={40} />
+        <ButtonDotsLoader color={cc} />
       </View>
     );
   }

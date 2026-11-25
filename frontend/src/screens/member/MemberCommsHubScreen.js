@@ -10,6 +10,7 @@ import HubMenuCard from '../../components/HubMenuCard';
 import EventDoorCard from '../../components/EventDoorCard';
 import { useBadges } from '../../context/BadgeContext';
 import { useMercadoPagoLinked } from '../../hooks/useMercadoPagoLinked';
+import { StaggerScope } from '../../hooks/useEntranceEpoch';
 
 export default function MemberCommsHubScreen({ navigation }) {
   const { clubData } = useContext(ClubContext);
@@ -41,57 +42,59 @@ export default function MemberCommsHubScreen({ navigation }) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <EventDoorCard navigation={navigation} />
-        <HubMenuCard
-          theme={theme}
-          colorMarca={colorMarca}
-          icon="chatbubbles-outline"
-          title="Chat"
-          subtitle={
-            isTutor
-              ? 'Mensajes con admin y profesionales de tus atletas'
-              : 'Mensajes con administración y profesionales del club'
-          }
-          badge={hub('chat')}
-          onPress={() => navigation.navigate('ChatInbox')}
-        />
-        <HubMenuCard
-          theme={theme}
-          colorMarca={colorMarca}
-          icon="newspaper-outline"
-          title="Noticias"
-          subtitle="Avisos publicados por el club y tu categoría"
-          badge={hub('novedades')}
-          onPress={() => navigation.navigate('MemberNews')}
-        />
-        <HubMenuCard
-          theme={theme}
-          colorMarca={colorMarca}
-          icon="document-attach-outline"
-          title="Documentación"
-          subtitle="Archivos que te pidieron subir (apto, autorizaciones, etc.)"
-          badge={hub('documentacion')}
-          onPress={() => navigation.navigate('MemberDocuments')}
-        />
-        <HubMenuCard
-          theme={theme}
-          colorMarca={colorMarca}
-          icon="folder-open-outline"
-          title="Recursos"
-          subtitle="Material compartido: PDFs, fotos y enlaces"
-          badge={hub('recursos')}
-          onPress={() => navigation.navigate('MemberResources')}
-        />
-        {mpLinked ? (
+        <StaggerScope epoch={`member-comms:${clubData?.urlIdentifier || ''}`}>
+          <EventDoorCard navigation={navigation} />
           <HubMenuCard
             theme={theme}
             colorMarca={colorMarca}
-            icon="calendar-outline"
-            title="Eventos"
-            subtitle="Comprá entradas y mirá tus QR"
-            onPress={() => navigation.navigate('MemberEvents')}
+            icon="chatbubbles-outline"
+            title="Chat"
+            subtitle={
+              isTutor
+                ? 'Mensajes con admin y profesionales de tus atletas'
+                : 'Mensajes con administración y profesionales del club'
+            }
+            badge={hub('chat')}
+            onPress={() => navigation.navigate('ChatInbox')}
           />
-        ) : null}
+          <HubMenuCard
+            theme={theme}
+            colorMarca={colorMarca}
+            icon="newspaper-outline"
+            title="Noticias"
+            subtitle="Avisos publicados por el club y tu categoría"
+            badge={hub('novedades')}
+            onPress={() => navigation.navigate('MemberNews')}
+          />
+          <HubMenuCard
+            theme={theme}
+            colorMarca={colorMarca}
+            icon="document-attach-outline"
+            title="Documentación"
+            subtitle="Archivos que te pidieron subir (apto, autorizaciones, etc.)"
+            badge={hub('documentacion')}
+            onPress={() => navigation.navigate('MemberDocuments')}
+          />
+          <HubMenuCard
+            theme={theme}
+            colorMarca={colorMarca}
+            icon="folder-open-outline"
+            title="Recursos"
+            subtitle="Material compartido: PDFs, fotos y enlaces"
+            badge={hub('recursos')}
+            onPress={() => navigation.navigate('MemberResources')}
+          />
+          {mpLinked ? (
+            <HubMenuCard
+              theme={theme}
+              colorMarca={colorMarca}
+              icon="calendar-outline"
+              title="Eventos"
+              subtitle="Comprá entradas y mirá tus QR"
+              onPress={() => navigation.navigate('MemberEvents')}
+            />
+          ) : null}
+        </StaggerScope>
       </ScrollView>
     </SafeAreaView>
   );

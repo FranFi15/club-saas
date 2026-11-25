@@ -1,17 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Pressable,
-} from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, ScrollView, Pressable } from 'react-native';
+import ButtonDotsLoader from './ButtonDotsLoader';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
 import VisitorIdCaptureField from './VisitorIdCaptureField';
@@ -178,7 +167,7 @@ export default function VisitorEntryModal({
               accessibilityLabel="Registrar visitante"
             >
               {saving ? (
-                <ActivityIndicator color="#fff" />
+                <ButtonDotsLoader color={'#fff'} />
               ) : (
                 <>
                   <Ionicons name="person-add-outline" size={18} color="#fff" />

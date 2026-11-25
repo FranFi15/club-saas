@@ -1,16 +1,7 @@
 import React, { useContext, useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  StatusBar,
-  ActivityIndicator,
-  RefreshControl,
-  Dimensions,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, RefreshControl, Dimensions } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ClubContext } from '../../context/ClubContext';
 import { ThemeContext } from '../../context/ThemeContext';
@@ -215,13 +206,13 @@ export default function CoachWellnessScreen({ navigation, route }) {
         }
         onBack={() => {
           if (returnToEquipo) {
-            navigation.navigate({
-              name: 'CoachCategories',
-              params: {
+            navigation.navigate(
+              'CoachCategories',
+              {
                 selectedCategoria: categoriaId || undefined,
               },
-              merge: true,
-            });
+              { merge: true },
+            );
             return;
           }
           navigation.goBack();
@@ -326,7 +317,7 @@ export default function CoachWellnessScreen({ navigation, route }) {
           onPress={submit}
           disabled={saving}
         >
-          {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnTxt}>Guardar</Text>}
+          {saving ? <ButtonDotsLoader color={'#fff'} /> : <Text style={styles.primaryBtnTxt}>Guardar</Text>}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

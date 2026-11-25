@@ -181,12 +181,12 @@ export default function AdminTabNavigator() {
     if (!nav || !tabName || !screen) return;
     if (params) {
       // Finanzas reuses FinanzasHome with different initialTab — without merge,
-      // React Navigation keeps the previous params when that screen is already focused.
-      nav.navigate({
-        name: tabName,
-        params: { screen, params, merge: true },
-        merge: true,
-      });
+      // React Navigation ignores new params when that screen is already focused.
+      nav.navigate(
+        tabName,
+        { screen, params, merge: true },
+        { merge: true },
+      );
     } else {
       nav.navigate(tabName, { screen });
     }

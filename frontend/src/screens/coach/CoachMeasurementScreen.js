@@ -1,20 +1,7 @@
 import React, { useContext, useState, useCallback, useMemo, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  StatusBar,
-  ActivityIndicator,
-  RefreshControl,
-  Switch,
-  Modal,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, StatusBar, RefreshControl, Switch, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
+import ButtonDotsLoader from '../../components/ButtonDotsLoader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../../context/ClubContext';
@@ -714,7 +701,7 @@ export default function CoachMeasurementScreen({ navigation, route }) {
                 onPress={submit}
                 disabled={saving || defs.length === 0}
               >
-                {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnTxt}>Guardar medición</Text>}
+                {saving ? <ButtonDotsLoader color={'#fff'} /> : <Text style={styles.primaryBtnTxt}>Guardar medición</Text>}
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -939,7 +926,7 @@ export default function CoachMeasurementScreen({ navigation, route }) {
                   disabled={editSaving}
                 >
                   {editSaving ? (
-                    <ActivityIndicator color="#fff" />
+                    <ButtonDotsLoader color={'#fff'} />
                   ) : (
                     <Text style={styles.primaryBtnTxt}>Guardar cambios</Text>
                   )}
