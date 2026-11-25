@@ -11,6 +11,7 @@ export const useClubs = () => {
         urlIdentifier: '',
         logoUrl: '',
         primaryColor: '#150224',
+        secondaryColor: '#3b82f6',
         timezone: DEFAULT_CLUB_TIMEZONE,
         adminNombre: '',
         adminApellido: '',
@@ -70,6 +71,7 @@ export const useClubs = () => {
             urlIdentifier: club.urlIdentifier,
             logoUrl: club.logoUrl || '',
             primaryColor: club.primaryColor || '#150224',
+            secondaryColor: club.secondaryColor || club.primaryColor || '#3b82f6',
             timezone: club.timezone || DEFAULT_CLUB_TIMEZONE,
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });

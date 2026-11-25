@@ -21,6 +21,7 @@ const registerClub = asyncHandler(async (req, res) => {
         urlIdentifier, 
         logoUrl, 
         primaryColor,
+        secondaryColor,
         timezone,
     } = req.body;
 
@@ -42,6 +43,7 @@ const registerClub = asyncHandler(async (req, res) => {
         urlIdentifier,
         logoUrl,
         primaryColor,
+        secondaryColor: secondaryColor || '',
         timezone: normalizeClubTimezone(timezone || DEFAULT_CLUB_TIMEZONE),
     });
     
@@ -123,6 +125,9 @@ const updateClub = asyncHandler(async (req, res) => {
         club.emailContacto = req.body.emailContacto || club.emailContacto;
         club.logoUrl = req.body.logoUrl !== undefined ? req.body.logoUrl : club.logoUrl;
         club.primaryColor = req.body.primaryColor || club.primaryColor;
+        if (req.body.secondaryColor !== undefined) {
+            club.secondaryColor = String(req.body.secondaryColor || '').trim();
+        }
         if (req.body.timezone !== undefined) {
             club.timezone = normalizeClubTimezone(req.body.timezone);
         }
@@ -310,6 +315,7 @@ const getPublicClubInfo = asyncHandler(async (req, res) => {
         urlIdentifier: club.urlIdentifier,
         logoUrl: club.logoUrl,
         primaryColor: club.primaryColor,
+        secondaryColor: club.secondaryColor || '',
     });
 });
 

@@ -6,6 +6,7 @@ import { fadeStackScreenOptions } from './screenFade';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
+import { clubPrimaryColor, clubIconColor } from '../utils/clubBrandColors';
 import { ThemeContext } from '../context/ThemeContext';
 import StaffProfileScreen from '../screens/staff/StaffProfileScreen';
 import { createProfileStack } from './createProfileStack';
@@ -118,7 +119,8 @@ export default function CoachTabNavigator() {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
   const { tab, refresh } = useBadges();
-  const colorMarca = clubData?.primaryColor || '#3b82f6';
+  const colorMarca = clubPrimaryColor(clubData);
+  const colorIconos = clubIconColor(clubData);
 
   useFocusEffect(
     useCallback(() => {
@@ -131,6 +133,7 @@ export default function CoachTabNavigator() {
 
   const tabOptions = buildSwipeBottomTabOptions({
         colorMarca,
+        colorIconos,
         theme,
         tabBarHeight,
         tabBottomPad,

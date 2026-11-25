@@ -105,6 +105,8 @@ export const TAB_ICON_SLOT = 24;
  */
 export function buildSwipeBottomTabOptions({
   colorMarca,
+  /** Active tab icons; defaults to colorMarca (primary). */
+  colorIconos,
   theme,
   tabBarHeight,
   tabBottomPad,
@@ -117,6 +119,7 @@ export function buildSwipeBottomTabOptions({
   getBadge,
   getLabel,
 }) {
+  const iconColor = colorIconos || colorMarca;
   return ({ route }) => ({
     headerShown: false,
     swipeEnabled: true,
@@ -124,13 +127,13 @@ export function buildSwipeBottomTabOptions({
     // Un toque ya anima el pager, y el cambio de ruta lo anima otra vez.
     // En iOS esa segunda animación cierra la app, sobre todo al volver a la primera pestaña.
     animationEnabled: false,
-    tabBarActiveTintColor: colorMarca,
+    tabBarActiveTintColor: iconColor,
     tabBarInactiveTintColor: theme.icon,
     tabBarShowIcon: true,
     // Label is rendered inside tabBarIcon (column stack).
     tabBarShowLabel: false,
     tabBarIndicatorStyle: {
-      backgroundColor: colorMarca,
+      backgroundColor: iconColor,
       height: 3,
       borderRadius: 0,
     },

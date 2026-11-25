@@ -6,6 +6,7 @@ import { fadeStackScreenOptions } from './screenFade';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
+import { clubPrimaryColor, clubIconColor } from '../utils/clubBrandColors';
 import { ThemeContext } from '../context/ThemeContext';
 import NoticiasScreen from '../screens/admin/NoticiasScreen';
 import StaffProfileScreen from '../screens/staff/StaffProfileScreen';
@@ -52,7 +53,8 @@ export default function ColaboradorTabNavigator() {
   const { theme, isDarkMode } = useContext(ThemeContext);
   const { tab, refresh } = useBadges();
   const doorEvents = useEventDoorEvents();
-  const colorMarca = clubData?.primaryColor || '#3b82f6';
+  const colorMarca = clubPrimaryColor(clubData);
+  const colorIconos = clubIconColor(clubData);
   const insets = useSafeAreaInsets();
   const tabBottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 10);
   const tabBarHeight = 64 + tabBottomPad;
@@ -69,6 +71,7 @@ export default function ColaboradorTabNavigator() {
       tabBarPosition="bottom"
       screenOptions={buildSwipeBottomTabOptions({
         colorMarca,
+        colorIconos,
         theme,
         tabBarHeight,
         tabBottomPad,

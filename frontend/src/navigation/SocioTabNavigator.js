@@ -6,6 +6,7 @@ import { fadeStackScreenOptions } from './screenFade';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
+import { clubPrimaryColor, clubIconColor } from '../utils/clubBrandColors';
 import { ThemeContext } from '../context/ThemeContext';
 import AthleteNewsScreen from '../screens/athlete/AthleteNewsScreen';
 import MemberPaymentsScreen from '../screens/member/MemberPaymentsScreen';
@@ -75,7 +76,8 @@ function SocioTabs() {
   );
 
   const doorEvents = useEventDoorEvents();
-  const colorMarca = clubData?.primaryColor || '#3b82f6';
+  const colorMarca = clubPrimaryColor(clubData);
+  const colorIconos = clubIconColor(clubData);
   const insets = useSafeAreaInsets();
   const tabBottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 10);
   const tabBarHeight = 60 + tabBottomPad;
@@ -86,6 +88,7 @@ function SocioTabs() {
       tabBarPosition="bottom"
       screenOptions={buildSwipeBottomTabOptions({
         colorMarca,
+        colorIconos,
         theme,
         tabBarHeight,
         tabBottomPad,

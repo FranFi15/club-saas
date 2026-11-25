@@ -6,6 +6,7 @@ import { fadeStackScreenOptions } from './screenFade';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
+import { clubPrimaryColor, clubIconColor } from '../utils/clubBrandColors';
 import { ThemeContext } from '../context/ThemeContext';
 
 import EstructuraHubScreen from '../screens/admin/EstructuraHubScreen';
@@ -139,7 +140,8 @@ export default function AdminTabNavigator() {
   const { theme, isDarkMode } = useContext(ThemeContext);
   const { tab, refresh } = useBadges();
   const { isDesktop } = useAdminDesktopLayout();
-  const colorMarca = clubData?.primaryColor || '#3b82f6';
+  const colorMarca = clubPrimaryColor(clubData);
+  const colorIconos = clubIconColor(clubData);
   const tabNavRef = useRef(null);
   const [tabState, setTabState] = useState(null);
 
@@ -183,6 +185,7 @@ export default function AdminTabNavigator() {
 
   const baseOptions = buildSwipeBottomTabOptions({
     colorMarca,
+    colorIconos,
     theme,
     tabBarHeight,
     tabBottomPad,

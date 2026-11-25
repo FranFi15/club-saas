@@ -22,7 +22,7 @@ export default function ClubTable({ clubs, handleStatusChange, handleEditClick, 
         <thead className="text-white bg-gray-800">
           <tr>
             <th className="p-4">Logo</th>
-            <th className="p-4">Color</th>
+            <th className="p-4">Colores</th>
             <th className="p-4">Nombre</th>
             <th className="p-4">Identifier</th>
             <th className="p-4">Zona horaria</th>
@@ -44,11 +44,20 @@ export default function ClubTable({ clubs, handleStatusChange, handleEditClick, 
                 )}
               </td>
               <td className="p-4">
-                <div
-                  className="w-8 h-8 border border-gray-200 rounded-full shadow-sm"
-                  style={{ backgroundColor: club.primaryColor }}
-                  title={club.primaryColor}
-                ></div>
+                <div className="flex items-center gap-1">
+                  <div
+                    className="w-8 h-8 border border-gray-200 rounded-full shadow-sm"
+                    style={{ backgroundColor: club.primaryColor }}
+                    title={`Principal: ${club.primaryColor}`}
+                  />
+                  <div
+                    className="w-8 h-8 border border-gray-200 rounded-full shadow-sm"
+                    style={{
+                      backgroundColor: club.secondaryColor || club.primaryColor || '#3b82f6',
+                    }}
+                    title={`Íconos: ${club.secondaryColor || club.primaryColor || '(igual al principal)'}`}
+                  />
+                </div>
               </td>
               <td className="p-4 font-semibold text-gray-800">{club.nombre}</td>
               <td className="p-4 text-sm text-gray-500">{club.urlIdentifier}</td>

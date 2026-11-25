@@ -53,12 +53,24 @@ export default function ClubForm({ formData, setFormData, editingId, handleSubmi
         />
 
         <div className="flex items-center gap-2 p-1 border rounded bg-gray-50">
-          <label className="pl-2 text-sm text-gray-600 whitespace-nowrap">Color Marca:</label>
+          <label className="pl-2 text-sm text-gray-600 whitespace-nowrap">Color principal:</label>
           <input
             type="color"
             className="w-full h-8 p-0 bg-transparent border-0 rounded cursor-pointer"
-            value={formData.primaryColor}
+            value={formData.primaryColor || '#150224'}
             onChange={(e) => setFormData({ ...formData, primaryColor: e.target.value })}
+          />
+        </div>
+
+        <div className="flex items-center gap-2 p-1 border rounded bg-gray-50">
+          <label className="pl-2 text-sm text-gray-600 whitespace-nowrap" title="Íconos de la app (tabs)">
+            Color íconos:
+          </label>
+          <input
+            type="color"
+            className="w-full h-8 p-0 bg-transparent border-0 rounded cursor-pointer"
+            value={formData.secondaryColor || formData.primaryColor || '#3b82f6'}
+            onChange={(e) => setFormData({ ...formData, secondaryColor: e.target.value })}
           />
         </div>
 

@@ -19,6 +19,8 @@ const ClubSchema = new mongoose.Schema({
     estadoSuscripcion: { type: String, enum: ['activo', 'inactivo', 'periodo_prueba', 'vencido', 'cancelado'], default: 'periodo_prueba' },
     logoUrl: { type: String, default: '' },
     primaryColor: { type: String, default: '#150224' },
+    /** Accent for app icons (tab bar, etc.). Falls back to primaryColor in the client. */
+    secondaryColor: { type: String, default: '' },
     /** IANA timezone for civil calendar (crons, cuotas, agendas). */
     timezone: {
         type: String,
