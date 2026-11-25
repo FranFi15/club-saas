@@ -116,7 +116,6 @@ function DniPhotoField({ label, value, club, onChange, cropTitle }) {
               Quitar
             </button>
           ) : null}
-          <p className="fs-hint">Después vas a poder encuadrar y acercar el documento.</p>
         </div>
       </div>
       {localError ? <p className="fs-error fs-error--inline">{localError}</p> : null}
@@ -412,8 +411,7 @@ export default function SocioSignup() {
           <div className="fs-section">
             <h2 className="fs-section-title">Tu DNI</h2>
             <p className="fs-lead" style={{ marginBottom: '0.75rem' }}>
-              Necesitamos el frente y el dorso. Encuadrá el documento completo (podés hacer zoom)
-              para que coincida con el número que cargaste arriba.
+              Necesitamos el frente y el dorso. Encuadrá el documento completo para que coincida con el número que cargaste arriba.
             </p>
             <div className="fs-grid">
               <DniPhotoField
@@ -455,7 +453,7 @@ export default function SocioSignup() {
           <button className="fs-btn" type="submit" disabled={submitting}>
             {submitting
               ? 'Validando tu DNI y preparando el pago…'
-              : `Pagar $${formatMoney(fee?.monto)} y asociarme`}
+              : `Asociarme`}
           </button>
         </form>
       </div>
