@@ -179,7 +179,17 @@ export default function AdminTabNavigator() {
   const navigateScreen = useCallback((tabName, screen, params) => {
     const nav = tabNavRef.current;
     if (!nav || !tabName || !screen) return;
-    nav.navigate(tabName, params ? { screen, params } : { screen });
+    if (params) {
+      // Finanzas reuses FinanzasHome with different initialTab — without merge,
+      // React Navigation keeps the previous params when that screen is already focused.
+      nav.navigate({
+        name: tabName,
+        params: { screen, params, merge: true },
+        merge: true,
+      });
+    } else {
+      nav.navigate(tabName, { screen });
+    }
     requestAnimationFrame(() => syncTabNav(nav));
   }, [syncTabNav]);
 

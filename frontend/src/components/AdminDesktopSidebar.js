@@ -13,6 +13,7 @@ import {
 import { useMercadoPagoLinked } from '../hooks/useMercadoPagoLinked';
 import { tabBadgeText } from '../utils/tabBadgeLabel';
 import { useBadges } from '../context/BadgeContext';
+import ProfileLogoutButton from './ProfileLogoutButton';
 
 const SIDEBAR_WIDTH = 252;
 
@@ -260,11 +261,12 @@ function SidebarItem({
 }
 
 export default function AdminDesktopSidebar({ tabState, onNavigateTab, onNavigateScreen }) {
-  const { clubData } = useContext(ClubContext);
+  const { clubData, setClubData, clearSession } = useContext(ClubContext);
   const { theme } = useContext(ThemeContext);
   const { tab, hub } = useBadges();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
   const [viewerRol, setViewerRol] = useState('');
+  const [leaving, setLeaving] = useState(false);
   const mpLinked = useMercadoPagoLinked();
   const active = activeRouteNames(tabState);
 
@@ -284,6 +286,17 @@ export default function AdminDesktopSidebar({ tabState, onNavigateTab, onNavigat
     if (!item?.badgeKey) return undefined;
     const count = item.badgeSource === 'hub' ? hub(item.badgeKey) : tab(item.badgeKey);
     return tabBadgeText(count);
+  };
+
+  const handleLeaveClub = async () => {
+    if (leaving) return;
+    setLeaving(true);
+    try {
+      await clearSession();
+      await setClubData(null);
+    } finally {
+      setLeaving(false);
+    }
   };
 
   return (
@@ -372,6 +385,13 @@ export default function AdminDesktopSidebar({ tabState, onNavigateTab, onNavigat
           );
         })}
       </ScrollView>
+
+      <View style={[styles.footer, { borderTopColor: theme.border }]}>
+        <ProfileLogoutButton
+          onPress={handleLeaveClub}
+          style={[styles.logoutBtn, leaving && styles.logoutBtnDisabled]}
+        />
+      </View>
     </View>
   );
 }
@@ -413,7 +433,15 @@ const styles = StyleSheet.create({
   },
   brandTitle: { fontSize: 15, fontWeight: '700', lineHeight: 19 },
   scroll: { flex: 1 },
-  scrollContent: { paddingVertical: 12, paddingHorizontal: 10, paddingBottom: 28 },
+  scrollContent: { paddingVertical: 12, paddingHorizontal: 10, paddingBottom: 16 },
+  footer: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 10,
+    paddingTop: 12,
+    paddingBottom: 14,
+  },
+  logoutBtn: { height: 44, borderRadius: 8 },
+  logoutBtnDisabled: { opacity: 0.7 },
   section: { marginBottom: 14 },
   item: {
     flexDirection: 'row',
