@@ -1208,10 +1208,13 @@ const getMe = asyncHandler(async (req, res) => {
     const roles = normalizeUserRoles(user);
     const activeRol = req.user.rol;
     const cuotasHabilitadas = atletaCuotasEnApp(user);
+    const atletaPuedePagar =
+        roles.includes('atleta') && cuotasHabilitadas && puedePagarComoAtleta(user.fechaNacimiento);
     const puedePagarEnApp =
-        activeRol === 'tutor' ||
-        activeRol === 'socio' ||
-        (activeRol === 'atleta' && cuotasHabilitadas && puedePagarComoAtleta(user.fechaNacimiento));
+        roles.includes('tutor') || roles.includes('socio') || atletaPuedePagar;
+    const puedePagarComoTutor = roles.includes('tutor');
+    const puedePagarComoSocio = roles.includes('socio');
+    const puedePagarComoAtletaFlag = atletaPuedePagar;
 
     let pruebaPendiente = [];
     if (roles.includes('tutor') && activeRol === 'tutor') {
@@ -1248,6 +1251,9 @@ const getMe = asyncHandler(async (req, res) => {
         emailGenerado: isAthleteInternalEmail(user.email, req.clubIdentifier),
         cuotasEnApp: roles.includes('atleta') ? cuotasHabilitadas : undefined,
         puedePagarEnApp,
+        puedePagarComoTutor,
+        puedePagarComoSocio,
+        puedePagarComoAtleta: puedePagarComoAtletaFlag,
         dniSolicitado: user.dniSolicitado === true,
         dniSolicitudMotivo: user.dniSolicitudMotivo || '',
         tieneDniFrente: !!user.dniFotoFrente,
@@ -1371,7 +1377,7 @@ const solicitarDniPhotos = asyncHandler(async (req, res) => {
 // @route   GET /api/users/mis-hijos
 const getMisHijos = asyncHandler(async (req, res) => {
     const { User } = req.models;
-    if (req.user.rol !== 'tutor') {
+    if (!userHasRole(req.user, 'tutor')) {
         res.status(403);
         throw new Error('Solo tutores pueden consultar familiares a cargo.');
     }
@@ -1404,7 +1410,7 @@ const getMisHijos = asyncHandler(async (req, res) => {
 const setTutorAthleteCuotasEnApp = asyncHandler(async (req, res) => {
     const { User } = req.models;
 
-    if (req.user.rol !== 'tutor') {
+    if (!userHasRole(req.user, 'tutor')) {
         res.status(403);
         throw new Error('Solo tutores pueden cambiar este ajuste.');
     }

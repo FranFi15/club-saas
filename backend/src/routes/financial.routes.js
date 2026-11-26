@@ -68,7 +68,7 @@ import {
     getMySponsorBenefits,
 } from '../controllers/sponsor.controller.js';
 import { getCaja } from '../controllers/caja.controller.js';
-import { protect, authorize } from '../middlewares/auth.middleware.js';
+import { protect, authorize, authorizeAnyRole } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
 
@@ -103,15 +103,25 @@ router.post('/payments/check-overdue', protect, authorize('admin_club', 'adminis
 router.get('/payments/pending-review', protect, authorize('admin_club', 'dirigente', 'administrativo'), getPendingTransferReviews);
 router.patch('/payments/transfer-review/approve', protect, authorize('admin_club', 'administrativo'), approveTransferReviewBatch);
 router.patch('/payments/transfer-review/reject', protect, authorize('admin_club', 'administrativo'), rejectTransferReviewBatch);
-router.post('/payments/submit-transfer-bulk', protect, authorize('atleta', 'tutor', 'socio'), submitBulkTransferProof);
+router.post(
+    '/payments/submit-transfer-bulk',
+    protect,
+    authorizeAnyRole('atleta', 'tutor', 'socio'),
+    submitBulkTransferProof,
+);
 router.patch('/payments/pay-bulk', protect, authorize('admin_club', 'administrativo'), registerBulkManualPayment);
-router.post('/payments/:id/submit-transfer', protect, authorize('atleta', 'tutor', 'socio'), submitTransferProof);
+router.post(
+    '/payments/:id/submit-transfer',
+    protect,
+    authorizeAnyRole('atleta', 'tutor', 'socio'),
+    submitTransferProof,
+);
 router.patch('/payments/:id/approve-transfer', protect, authorize('admin_club', 'administrativo'), approveTransferPayment);
 router.patch('/payments/:id/reject-transfer', protect, authorize('admin_club', 'administrativo'), rejectTransferPayment);
 router.patch('/payments/:id/pay', protect, authorize('admin_club', 'administrativo'), registerManualPayment);
 router.patch('/payments/:id/adjust', protect, authorize('admin_club', 'administrativo'), adjustPayment);
 router.delete('/payments/:id', protect, authorize('admin_club', 'administrativo'), deletePayment);
-router.get('/payments/tutor-family', protect, authorize('tutor'), getTutorFamilyPayments);
+router.get('/payments/tutor-family', protect, authorizeAnyRole('tutor'), getTutorFamilyPayments);
 router.get('/payments/atleta/:atletaId', protect, getAtletaPayments);
 router.get('/payments/:id/recibo', protect, getPaymentReceipt);
 
@@ -160,7 +170,12 @@ router.patch('/bills/:id', protect, authorize('admin_club'), updateBill);
 router.delete('/bills/:id', protect, authorize('admin_club'), deleteBill);
 
 // Sponsors
-router.get('/sponsors/my-benefits', protect, authorize('atleta', 'tutor', 'socio'), getMySponsorBenefits);
+router.get(
+    '/sponsors/my-benefits',
+    protect,
+    authorizeAnyRole('atleta', 'tutor', 'socio'),
+    getMySponsorBenefits,
+);
 router.get('/sponsors', protect, authorize('admin_club', 'dirigente', 'administrativo'), listSponsors);
 router.post('/sponsors', protect, authorize('admin_club'), createSponsor);
 router.patch('/sponsors/:id/pay-month', protect, authorize('admin_club', 'administrativo'), paySponsorMonth);

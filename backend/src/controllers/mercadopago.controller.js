@@ -218,45 +218,39 @@ async function fetchMpPaymentById(accessToken, paymentId) {
 
 async function assertMemberOwnsCuotas(req, paymentDocs) {
     const { User } = req.models;
-    if (req.user.rol === 'atleta') {
-        for (const p of paymentDocs) {
-            const aid = String(p.atleta?._id || p.atleta);
-            if (aid !== String(req.user._id)) {
-                const err = new Error('No podés sincronizar cuotas de otro atleta.');
-                err.statusCode = 403;
-                throw err;
-            }
-        }
-        return;
+    const canTutor = userHasRole(req.user, 'tutor');
+    const canSocio = userHasRole(req.user, 'socio');
+    const canAtleta = userHasRole(req.user, 'atleta');
+    if (!canTutor && !canSocio && !canAtleta) {
+        const err = new Error('No autorizado.');
+        err.statusCode = 403;
+        throw err;
     }
-    if (req.user.rol === 'socio') {
-        for (const p of paymentDocs) {
-            const aid = String(p.atleta?._id || p.atleta);
-            if (aid !== String(req.user._id)) {
-                const err = new Error('No podés sincronizar cuotas de otro socio.');
-                err.statusCode = 403;
-                throw err;
-            }
+    for (const p of paymentDocs) {
+        const aid = String(p.atleta?._id || p.atleta);
+        const isSelf = aid === String(req.user._id);
+        if (isSelf) {
+            if (canTutor || canSocio || canAtleta) continue;
+            const err = new Error('No autorizado.');
+            err.statusCode = 403;
+            throw err;
         }
-        return;
-    }
-    if (req.user.rol === 'tutor') {
-        for (const p of paymentDocs) {
-            const atletaId = p.atleta?._id || p.atleta;
-            // El tutor también es titular de su propia cuota social.
-            if (String(atletaId) === String(req.user._id)) continue;
-            const hijo = await User.findById(atletaId).select('tutorPrincipal tutores rol').lean();
-            if (!hijo || hijo.rol !== 'atleta' || !isTutorOf(hijo, req.user._id)) {
-                const err = new Error('No podés sincronizar cuotas de un atleta que no está a tu cargo.');
-                err.statusCode = 403;
-                throw err;
-            }
+        if (!canTutor) {
+            const err = new Error(
+                canSocio
+                    ? 'No podés sincronizar cuotas de otro socio.'
+                    : 'No podés sincronizar cuotas de otro atleta.',
+            );
+            err.statusCode = 403;
+            throw err;
         }
-        return;
+        const hijo = await User.findById(aid).select('tutorPrincipal tutores rol roles').lean();
+        if (!hijo || !userHasRole(hijo, 'atleta') || !isTutorOf(hijo, req.user._id)) {
+            const err = new Error('No podés sincronizar cuotas de un atleta que no está a tu cargo.');
+            err.statusCode = 403;
+            throw err;
+        }
     }
-    const err = new Error('No autorizado.');
-    err.statusCode = 403;
-    throw err;
 }
 
 function webhookNotificationUrl(clubIdentifier) {
@@ -611,38 +605,40 @@ const createMemberPreference = asyncHandler(async (req, res) => {
 
     const atletaId = payment.atleta?.toString?.() || String(payment.atleta);
 
-    if (req.user.rol === 'atleta') {
-        if (atletaId !== req.user._id.toString()) {
-            res.status(403);
-            throw new Error('No podés pagar cuotas de otro atleta.');
-        }
-        if (!atletaCuotasEnApp(req.user)) {
-            res.status(403);
-            throw new Error('Las cuotas en la app no están habilitadas para tu cuenta. Consultá en administración.');
-        }
-        if (!puedePagarComoAtleta(req.user.fechaNacimiento)) {
-            res.status(403);
-            throw new Error(
-                'Los menores de 15 años no pueden pagar en la app. Pedile a tu tutor o responsable que abone la cuota.',
-            );
-        }
-    } else if (req.user.rol === 'socio') {
-        if (atletaId !== req.user._id.toString()) {
-            res.status(403);
-            throw new Error('No podés pagar cuotas de otro socio.');
-        }
-    } else if (req.user.rol === 'tutor') {
-        // El tutor también es titular de su propia cuota social (rol socio / cuota asignada).
-        if (atletaId !== req.user._id.toString()) {
-            const hijo = await User.findById(atletaId).select('tutorPrincipal tutores rol roles').lean();
-            if (!hijo || !userHasRole(hijo, 'atleta')) {
-                res.status(400);
-                throw new Error('Atleta no válido.');
-            }
-            if (!isTutorOf(hijo, req.user._id)) {
+    const canTutor = userHasRole(req.user, 'tutor');
+    const canSocio = userHasRole(req.user, 'socio');
+    const canAtleta = userHasRole(req.user, 'atleta');
+    const isSelf = atletaId === req.user._id.toString();
+
+    if (isSelf) {
+        if (canTutor || canSocio) {
+            // ok
+        } else if (canAtleta) {
+            if (!atletaCuotasEnApp(req.user)) {
                 res.status(403);
-                throw new Error('No podés pagar cuotas de un atleta que no está a tu cargo.');
+                throw new Error(
+                    'Las cuotas en la app no están habilitadas para tu cuenta. Consultá en administración.',
+                );
             }
+            if (!puedePagarComoAtleta(req.user.fechaNacimiento)) {
+                res.status(403);
+                throw new Error(
+                    'Los menores de 15 años no pueden pagar en la app. Pedile a tu tutor o responsable que abone la cuota.',
+                );
+            }
+        } else {
+            res.status(403);
+            throw new Error('No autorizado.');
+        }
+    } else if (canTutor) {
+        const hijo = await User.findById(atletaId).select('tutorPrincipal tutores rol roles').lean();
+        if (!hijo || !userHasRole(hijo, 'atleta')) {
+            res.status(400);
+            throw new Error('Atleta no válido.');
+        }
+        if (!isTutorOf(hijo, req.user._id)) {
+            res.status(403);
+            throw new Error('No podés pagar cuotas de un atleta que no está a tu cargo.');
         }
     } else {
         res.status(403);
@@ -685,7 +681,7 @@ const createMemberFamilyPreference = asyncHandler(async (req, res) => {
         throw new Error('Mercado Pago no está habilitado en este club. Pagá por transferencia.');
     }
 
-    if (req.user.rol !== 'tutor') {
+    if (!userHasRole(req.user, 'tutor')) {
         res.status(403);
         throw new Error('Solo tutores pueden usar el pago familiar.');
     }

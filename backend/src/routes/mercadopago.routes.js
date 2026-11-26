@@ -16,7 +16,7 @@ import {
     startMercadoPagoOAuth,
     mercadoPagoOAuthCallback,
 } from '../controllers/mercadopago.controller.js';
-import { protect, authorize } from '../middlewares/auth.middleware.js';
+import { protect, authorize, authorizeAnyRole } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
 
@@ -30,8 +30,18 @@ router.put('/integration', protect, authorize('admin_club'), updateMpIntegration
 router.delete('/integration', protect, authorize('admin_club'), clearMpIntegration);
 
 router.post('/create-preference', protect, authorize('admin_club', 'administrativo'), createPreference);
-router.post('/create-preference-member', protect, authorize('atleta', 'tutor', 'socio'), createMemberPreference);
-router.post('/create-preference-family', protect, authorize('tutor'), createMemberFamilyPreference);
+router.post(
+    '/create-preference-member',
+    protect,
+    authorizeAnyRole('atleta', 'tutor', 'socio'),
+    createMemberPreference,
+);
+router.post(
+    '/create-preference-family',
+    protect,
+    authorizeAnyRole('tutor'),
+    createMemberFamilyPreference,
+);
 router.post(
     '/create-preference-rental',
     protect,
@@ -41,10 +51,15 @@ router.post(
 router.post(
     '/create-preference-rental-member',
     protect,
-    authorize('atleta', 'tutor', 'socio'),
+    authorizeAnyRole('atleta', 'tutor', 'socio'),
     createMemberRentalPreference,
 );
-router.post('/sync-member-payments', protect, authorize('atleta', 'tutor', 'socio'), syncMemberPayments);
+router.post(
+    '/sync-member-payments',
+    protect,
+    authorizeAnyRole('atleta', 'tutor', 'socio'),
+    syncMemberPayments,
+);
 router.post(
     '/reconcile-payments',
     protect,

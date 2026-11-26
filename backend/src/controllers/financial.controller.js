@@ -34,6 +34,7 @@ import { sendCuotaReminders } from '../services/cuotaReminders.service.js';
 import { ensurePaymentReceipt, queuePaymentReceipt, buildPaymentReceiptPdf } from '../services/paymentReceipt.service.js';
 import {
     CLIENT_USER_ROLES,
+    normalizeUserRoles,
     roleQuery,
     userHasRole,
 } from '../constants/userRoles.js';
@@ -1195,41 +1196,37 @@ function paymentEstadoTrasRechazo(payment) {
 async function assertMemberCanPayPayments(req, payments) {
     const { User } = req.models;
     const list = Array.isArray(payments) ? payments : [payments];
+    const roles = normalizeUserRoles(req.user);
+    const canTutor = roles.includes('tutor');
+    const canSocio = roles.includes('socio');
+    const canAtleta = roles.includes('atleta');
 
     for (const payment of list) {
         const atletaId = String(payment.atleta?._id || payment.atleta);
+        const isSelf = atletaId === String(req.user._id);
 
-        if (req.user.rol === 'tutor') {
-            // El tutor también es titular de su propia cuota social.
-            if (atletaId !== String(req.user._id)) {
-                const hijo = await User.findById(atletaId).select('tutorPrincipal tutores rol roles').lean();
-                if (
-                    !hijo ||
-                    !userHasRole(hijo, 'atleta') ||
-                    !isTutorOf(hijo, req.user._id)
-                ) {
+        if (isSelf) {
+            if (canTutor || canSocio) {
+                // ok — cuota social propia / titular
+            } else if (canAtleta) {
+                const me = await User.findById(req.user._id).select('cuotasEnApp').lean();
+                if (me?.cuotasEnApp === false) {
                     res.status(403);
-                    throw new Error('No podés pagar cuotas de este atleta.');
+                    throw new Error('Las cuotas en la app no están habilitadas para tu cuenta.');
                 }
-            }
-        } else if (req.user.rol === 'socio') {
-            if (atletaId !== String(req.user._id)) {
+            } else {
                 res.status(403);
-                throw new Error('Solo podés pagar tus cuotas.');
+                throw new Error('No autorizado.');
             }
-        } else if (req.user.rol === 'atleta') {
-            if (atletaId !== String(req.user._id)) {
+        } else if (canTutor) {
+            const hijo = await User.findById(atletaId).select('tutorPrincipal tutores rol roles').lean();
+            if (!hijo || !userHasRole(hijo, 'atleta') || !isTutorOf(hijo, req.user._id)) {
                 res.status(403);
-                throw new Error('Solo podés pagar tus cuotas.');
-            }
-            const me = await User.findById(req.user._id).select('cuotasEnApp').lean();
-            if (me?.cuotasEnApp === false) {
-                res.status(403);
-                throw new Error('Las cuotas en la app no están habilitadas para tu cuenta.');
+                throw new Error('No podés pagar cuotas de este atleta.');
             }
         } else {
             res.status(403);
-            throw new Error('No autorizado.');
+            throw new Error('Solo podés pagar tus cuotas.');
         }
 
         if (!['pendiente', 'vencido'].includes(payment.estado)) {
@@ -1672,7 +1669,7 @@ const registerBulkManualPayment = asyncHandler(async (req, res) => {
 const getTutorFamilyPayments = asyncHandler(async (req, res) => {
     const { User, Payment } = req.models;
 
-    if (req.user.rol !== 'tutor') {
+    if (!userHasRole(req.user, 'tutor')) {
         res.status(403);
         throw new Error('Solo disponible para tutores.');
     }
@@ -1740,6 +1737,7 @@ const getTutorFamilyPayments = asyncHandler(async (req, res) => {
 async function assertMemberCanViewAtletaPayments(req, atletaId) {
     const { User } = req.models;
     const target = String(atletaId);
+    const roles = normalizeUserRoles(req.user);
     const rol = req.user.rol;
     const deny = (code, msg) => {
         const err = new Error(msg);
@@ -1747,25 +1745,20 @@ async function assertMemberCanViewAtletaPayments(req, atletaId) {
         throw err;
     };
 
-    if (rol === 'atleta') {
-        if (target !== String(req.user._id)) {
-            deny(403, 'Solo podés ver tus propios pagos.');
-        }
+    const isSelf = target === String(req.user._id);
+
+    // Multirrol: pagar/ver propia cuota desde cualquier shell (dirigente+socio, etc.).
+    if (isSelf && (roles.includes('socio') || roles.includes('tutor'))) {
+        return;
+    }
+    if (isSelf && roles.includes('atleta')) {
         const me = await User.findById(req.user._id).select('cuotasEnApp rol').lean();
         if (me && me.cuotasEnApp === false) {
             deny(403, 'Las cuotas en la app no están habilitadas para tu cuenta. Consultá en administración.');
         }
         return;
     }
-    if (rol === 'socio') {
-        if (target !== String(req.user._id)) {
-            deny(403, 'Solo podés ver tus propios pagos.');
-        }
-        return;
-    }
-    if (rol === 'tutor') {
-        // El tutor también es titular de su propia cuota social.
-        if (target === String(req.user._id)) return;
+    if (roles.includes('tutor')) {
         const hijo = await User.findById(target).select('tutorPrincipal tutores rol roles').lean();
         if (!hijo || !userHasRole(hijo, 'atleta')) {
             deny(400, 'Atleta no válido.');

@@ -19,7 +19,7 @@ import {
     registerPushToken,
     removePushToken,
 } from '../controllers/user.controller.js';
-import { protect, authorize } from '../middlewares/auth.middleware.js';
+import { protect, authorize, authorizeAnyRole } from '../middlewares/auth.middleware.js';
 
 
 const router = express.Router();
@@ -32,14 +32,14 @@ router.post('/', protect, authorize('admin_club', 'administrativo'), registerUse
 
 router.get('/me', protect, getMe);
 router.put('/me/dni', protect, uploadMyDniPhotos);
-router.get('/mis-hijos', protect, authorize('tutor'), getMisHijos);
+router.get('/mis-hijos', protect, authorizeAnyRole('tutor'), getMisHijos);
 router.patch(
     '/mis-hijos/:atletaId/cuotas-en-app',
     protect,
-    authorize('tutor'),
+    authorizeAnyRole('tutor'),
     setTutorAthleteCuotasEnApp,
 );
-router.get('/tutor-dashboard', protect, authorize('tutor'), getTutorDashboard);
+router.get('/tutor-dashboard', protect, authorizeAnyRole('tutor'), getTutorDashboard);
 
 router.post('/push-token', protect, registerPushToken);
 router.delete('/push-token', protect, removePushToken);

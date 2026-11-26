@@ -72,4 +72,20 @@ const authorize = (...roles) => {
     };
 };
 
-export { protect, authorize };
+/** Permite la acción si el usuario tiene alguno de los roles en `roles[]` (multirrol), no solo el rol de sesión activo. */
+const authorizeAnyRole = (...roles) => {
+    return (req, res, next) => {
+        const userRoles = Array.isArray(req.user?.roles)
+            ? req.user.roles
+            : normalizeUserRoles(req.user || {});
+        if (!req.user || !roles.some((r) => userRoles.includes(r))) {
+            res.status(403);
+            throw new Error(
+                `El rol ${req.user?.rol || 'desconocido'} no tiene permiso para esta acción`,
+            );
+        }
+        next();
+    };
+};
+
+export { protect, authorize, authorizeAnyRole };
