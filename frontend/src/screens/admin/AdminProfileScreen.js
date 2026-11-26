@@ -24,6 +24,7 @@ import ProfileHeaderCredits from '../../components/ProfileHeaderCredits';
 import ProfileInfoRow, { profileCardStyles } from '../../components/ProfileInfoRow';
 import ProfileBenefitsSection from '../../components/ProfileBenefitsSection';
 import ProfileLoyaltySection from '../../components/ProfileLoyaltySection';
+import ProfileCuotasLink from '../../components/ProfileCuotasLink';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
 import { subscribeMercadoPagoDeepLinks } from '../../utils/mpDeepLinks';
 import { formatUserName } from '../../utils/listSort';
@@ -413,6 +414,7 @@ export default function AdminProfileScreen({ navigation }) {
 
             <ProfileBenefitsSection clubData={clubData} theme={theme} colorMarca={colorMarca} />
             <ProfileLoyaltySection clubData={clubData} theme={theme} colorMarca={colorMarca} />
+            <ProfileCuotasLink navigation={navigation} theme={theme} />
 
             <ProfileClubEntryButton
               theme={theme}

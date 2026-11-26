@@ -28,6 +28,8 @@ export default function FormSheet({
   children,
   footer = null,
   scroll = true,
+  /** Absolute overlay inside this Modal (e.g. embedded crop UI). */
+  overlay = null,
 }) {
   const { height: windowHeight } = useWindowDimensions();
   const bodyMax = Math.max(240, Math.round(windowHeight * 0.94 - (footer ? 160 : 80)));
@@ -80,6 +82,7 @@ export default function FormSheet({
           {footer}
         </SafeAreaView>
       </KeyboardAvoidingView>
+      {overlay}
       <AlertHost active={visible} />
       </View>
     </Modal>

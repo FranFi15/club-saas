@@ -36,6 +36,7 @@ import ChatNewScreen from '../screens/chat/ChatNewScreen';
 import FinanzasScreen from '../screens/admin/FinanzasScreen';
 import AdminProfileScreen from '../screens/admin/AdminProfileScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
+import MemberPaymentsScreen from '../screens/member/MemberPaymentsScreen';
 import MemberClubEntryScreen from '../screens/member/MemberClubEntryScreen';
 import { tabPressResetToRoot } from './tabPressResetToRoot';
 import { useBadges } from '../context/BadgeContext';
@@ -133,6 +134,7 @@ function PerfilStackNavigator() {
       <PerfilStack.Screen name="PerfilMain" component={AdminProfileScreen} />
       <PerfilStack.Screen name="EditProfile" component={EditProfileScreen} />
       <PerfilStack.Screen name="ClubEntryQr" component={MemberClubEntryScreen} />
+      <PerfilStack.Screen name="MemberPayments" component={MemberPaymentsScreen} />
     </PerfilStack.Navigator>
   );
 }

@@ -77,29 +77,16 @@ function formatRolesCanjeLabel(roles) {
   );
 }
 
-const FOTO_ASPECT_OPTIONS = [
-  { value: '16:9', label: '16:9', ratio: 16 / 9 },
-  { value: '4:3', label: '4:3', ratio: 4 / 3 },
-  { value: '1:1', label: '1:1', ratio: 1 },
-  { value: '3:4', label: '3:4', ratio: 3 / 4 },
-];
-
-function aspectRatioOf(value) {
-  const found = FOTO_ASPECT_OPTIONS.find((o) => o.value === value);
-  return found?.ratio || 16 / 9;
-}
-
-function aspectTupleOf(value) {
-  const [a, b] = String(value || '16:9').split(':').map(Number);
-  if (a > 0 && b > 0) return [a, b];
-  return [16, 9];
-}
+/** Fixed aspect for canje / discount photos (matches member catalog cards). */
+const CANJE_FOTO_ASPECT = '16:9';
+const CANJE_FOTO_RATIO = 16 / 9;
+const CANJE_FOTO_TUPLE = [16, 9];
 
 const emptyDiscount = (withCredits = false) => ({
   key: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
   titulo: '',
   fotoUrl: '',
-  fotoAspect: '16:9',
+  fotoAspect: CANJE_FOTO_ASPECT,
   costoPuntos: withCredits ? '100' : '0',
   rolesCanje: ['atleta', 'tutor', 'socio'],
   vigenciaHastaDisplay: '',
@@ -292,14 +279,13 @@ export default function SponsorsTab({
   };
 
   const uploadDiscountPhoto = async (key) => {
-    const discount = (form.discounts || []).find((d) => d.key === key);
     setUploadingDiscountKey(key);
     try {
       const picked = await pickImageAsset({ quality: 0.9 });
       if (!picked?.uri) return;
       setCropJob({
         uri: picked.uri,
-        aspect: aspectTupleOf(discount?.fotoAspect),
+        aspect: CANJE_FOTO_TUPLE,
         target: 'discount',
         key,
       });
@@ -348,7 +334,7 @@ export default function SponsorsTab({
       _id: null,
       titulo: '',
       fotoUrl: '',
-      fotoAspect: '16:9',
+      fotoAspect: CANJE_FOTO_ASPECT,
       costoPuntos: loyaltyEnabled ? '100' : '0',
       rolesCanje: ['atleta', 'tutor', 'socio'],
       vigenciaHastaDisplay: '',
@@ -363,7 +349,7 @@ export default function SponsorsTab({
       _id: reward._id,
       titulo: reward.titulo || '',
       fotoUrl: reward.fotoUrl || '',
-      fotoAspect: reward.fotoAspect || '16:9',
+      fotoAspect: CANJE_FOTO_ASPECT,
       costoPuntos: String(reward.costoPuntos ?? 0),
       rolesCanje: Array.isArray(reward.rolesCanje) && reward.rolesCanje.length
         ? [...reward.rolesCanje]
@@ -386,7 +372,7 @@ export default function SponsorsTab({
       if (!picked?.uri) return;
       setCropJob({
         uri: picked.uri,
-        aspect: aspectTupleOf(discountDraft.fotoAspect),
+        aspect: CANJE_FOTO_TUPLE,
         target: 'managed',
       });
     } catch (e) {
@@ -463,7 +449,7 @@ export default function SponsorsTab({
       const body = {
         titulo,
         fotoUrl: String(discountDraft.fotoUrl || '').trim(),
-        fotoAspect: discountDraft.fotoAspect || '16:9',
+        fotoAspect: CANJE_FOTO_ASPECT,
         costoPuntos,
         rolesCanje,
         tipo: 'texto',
@@ -620,7 +606,7 @@ export default function SponsorsTab({
         rewards.push({
           titulo,
           fotoUrl: String(d.fotoUrl || '').trim(),
-          fotoAspect: d.fotoAspect || '16:9',
+          fotoAspect: CANJE_FOTO_ASPECT,
           costoPuntos: Math.max(0, parseInt(d.costoPuntos, 10) || 0),
           rolesCanje: Array.isArray(d.rolesCanje) ? d.rolesCanje : [],
           tipo: 'texto',
@@ -1130,6 +1116,18 @@ export default function SponsorsTab({
         title={editingId ? 'Editar sponsor' : 'Nuevo sponsor'}
         theme={theme}
         isDarkMode={isDarkMode}
+        overlay={
+          <WebImageCropModal
+            embedded
+            visible={Boolean(cropJob?.uri) && formOpen}
+            imageUri={cropJob?.uri}
+            aspect={cropJob?.aspect || [1, 1]}
+            colorMarca={cc}
+            title={cropJob?.target === 'logo' ? 'Ajustar logo' : 'Ajustar foto del descuento'}
+            onCancel={() => setCropJob(null)}
+            onConfirm={confirmCroppedSponsorImage}
+          />
+        }
       >
               <TouchableOpacity style={styles.photoBtn} onPress={uploadPhoto} disabled={uploading}>
                 {form.fotoUrl ? (
@@ -1247,29 +1245,10 @@ export default function SponsorsTab({
                         ) : null}
                       </View>
 
-                      <Text style={[s.label, { color: theme.textMuted }]}>Aspecto de la imagen</Text>
-                      <View style={styles.chipRow}>
-                        {FOTO_ASPECT_OPTIONS.map((opt) => {
-                          const on = (d.fotoAspect || '16:9') === opt.value;
-                          return (
-                            <TouchableOpacity
-                              key={opt.value}
-                              style={[
-                                styles.chip,
-                                {
-                                  borderColor: on ? cc : theme.border,
-                                  backgroundColor: on ? cc + '22' : theme.surface,
-                                },
-                              ]}
-                              onPress={() => updateDiscount(d.key, { fotoAspect: opt.value })}
-                            >
-                              <Text style={{ color: on ? cc : theme.text, fontWeight: '600', fontSize: 13 }}>
-                                {opt.label}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
+                      <Text style={[s.label, { color: theme.textMuted }]}>Foto</Text>
+                      <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8 }}>
+                        Encuadre 16:9 · al elegirla podés hacer zoom y ajustar.
+                      </Text>
 
                       <TouchableOpacity
                         style={styles.discountPhotoBtn}
@@ -1279,7 +1258,7 @@ export default function SponsorsTab({
                         {d.fotoUrl ? (
                           <Image
                             source={{ uri: d.fotoUrl }}
-                            style={[styles.discountPhotoWide, { aspectRatio: aspectRatioOf(d.fotoAspect) }]}
+                            style={[styles.discountPhotoWide, { aspectRatio: CANJE_FOTO_RATIO }]}
                             resizeMode="cover"
                           />
                         ) : (
@@ -1288,7 +1267,7 @@ export default function SponsorsTab({
                               styles.discountPhotoPlaceholderWide,
                               {
                                 borderColor: theme.border,
-                                aspectRatio: aspectRatioOf(d.fotoAspect),
+                                aspectRatio: CANJE_FOTO_RATIO,
                               },
                             ]}
                           >
@@ -1530,37 +1509,25 @@ export default function SponsorsTab({
         }
         theme={theme}
         isDarkMode={isDarkMode}
+        overlay={
+          <WebImageCropModal
+            embedded
+            visible={Boolean(cropJob?.uri) && !!discountsSponsor}
+            imageUri={cropJob?.uri}
+            aspect={cropJob?.aspect || [16, 9]}
+            colorMarca={cc}
+            title="Ajustar foto del descuento"
+            onCancel={() => setCropJob(null)}
+            onConfirm={confirmCroppedSponsorImage}
+          />
+        }
       >
         {discountDraft ? (
           <>
-            <Text style={[s.label, { color: theme.textMuted }]}>Aspecto de la imagen</Text>
-            <View style={styles.chipRow}>
-              {FOTO_ASPECT_OPTIONS.map((opt) => {
-                const on = (discountDraft.fotoAspect || '16:9') === opt.value;
-                return (
-                  <TouchableOpacity
-                    key={opt.value}
-                    style={[
-                      styles.chip,
-                      {
-                        borderColor: on ? cc : theme.border,
-                        backgroundColor: on ? cc + '22' : theme.background,
-                        opacity: canMutate ? 1 : 0.7,
-                      },
-                    ]}
-                    onPress={() =>
-                      canMutate &&
-                      setDiscountDraft((p) => (p ? { ...p, fotoAspect: opt.value } : p))
-                    }
-                    disabled={!canMutate}
-                  >
-                    <Text style={{ color: on ? cc : theme.text, fontWeight: '600', fontSize: 13 }}>
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <Text style={[s.label, { color: theme.textMuted }]}>Foto</Text>
+            <Text style={{ color: theme.textMuted, fontSize: 12, marginBottom: 8 }}>
+              Encuadre 16:9 · al elegirla podés hacer zoom y ajustar.
+            </Text>
 
             <TouchableOpacity
               style={styles.discountPhotoBtn}
@@ -1572,7 +1539,7 @@ export default function SponsorsTab({
                   source={{ uri: discountDraft.fotoUrl }}
                   style={[
                     styles.discountPhotoWide,
-                    { aspectRatio: aspectRatioOf(discountDraft.fotoAspect) },
+                    { aspectRatio: CANJE_FOTO_RATIO },
                   ]}
                   resizeMode="cover"
                 />
@@ -1583,7 +1550,7 @@ export default function SponsorsTab({
                     {
                       borderColor: theme.border,
                       backgroundColor: theme.background,
-                      aspectRatio: aspectRatioOf(discountDraft.fotoAspect),
+                      aspectRatio: CANJE_FOTO_RATIO,
                     },
                   ]}
                 >
@@ -1893,16 +1860,6 @@ export default function SponsorsTab({
         )}
       </FormSheet>
 
-      <WebImageCropModal
-        visible={Boolean(cropJob?.uri)}
-        imageUri={cropJob?.uri}
-        aspect={cropJob?.aspect || [1, 1]}
-        colorMarca={cc}
-        title={cropJob?.target === 'logo' ? 'Ajustar logo' : 'Ajustar foto del descuento'}
-        onCancel={() => setCropJob(null)}
-        onConfirm={confirmCroppedSponsorImage}
-      />
-
       <CustomAlert
         visible={confirmCfg.visible}
         title={confirmCfg.title}
@@ -1939,9 +1896,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 8,
   },
-  discountPhotoBtn: { alignSelf: 'stretch', marginBottom: 8 },
+  discountPhotoBtn: {
+    alignSelf: Platform.OS === 'web' ? 'flex-start' : 'stretch',
+    marginBottom: 8,
+    maxWidth: Platform.OS === 'web' ? 180 : undefined,
+    width: Platform.OS === 'web' ? 180 : '100%',
+  },
   discountPhoto: { width: 72, height: 72, borderRadius: 8 },
-  discountPhotoWide: { width: '100%', borderRadius: 10 },
+  discountPhotoWide: {
+    width: '100%',
+    borderRadius: 10,
+  },
   discountPhotoPlaceholder: {
     width: 72,
     height: 72,
@@ -1953,11 +1918,13 @@ const styles = StyleSheet.create({
   },
   discountPhotoPlaceholderWide: {
     width: '100%',
+    minHeight: Platform.OS === 'web' ? 72 : 110,
     borderRadius: 10,
     borderWidth: 1,
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: Platform.OS === 'web' ? 8 : 12,
   },
   addDiscountBtn: {
     flexDirection: 'row',

@@ -30,6 +30,7 @@ import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusL
 import ProfileInfoRow, { profileCardStyles } from '../../components/ProfileInfoRow';
 import ProfileBenefitsSection from '../../components/ProfileBenefitsSection';
 import ProfileLoyaltySection from '../../components/ProfileLoyaltySection';
+import ProfileCuotasLink from '../../components/ProfileCuotasLink';
 import { formatUserName } from '../../utils/listSort';
 
 export default function StaffProfileScreen({ navigation }) {
@@ -128,6 +129,7 @@ export default function StaffProfileScreen({ navigation }) {
 
         <ProfileBenefitsSection clubData={clubData} theme={theme} colorMarca={colorMarca} />
         <ProfileLoyaltySection clubData={clubData} theme={theme} colorMarca={colorMarca} />
+        <ProfileCuotasLink navigation={navigation} theme={theme} />
 
         <ProfileClubEntryButton
           theme={theme}

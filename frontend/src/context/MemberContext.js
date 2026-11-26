@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { ClubContext } from './ClubContext';
 import { clubHeaders } from '../screens/athlete/athleteApi';
 import { clubApi } from '../utils/api';
@@ -9,16 +9,22 @@ import { readScreenCache, writeScreenCache } from '../hooks/useCachedFocusLoad';
 
 function memberCacheKey(urlIdentifier, mode) {
   if (!urlIdentifier) return '';
-  return `member-profile:${urlIdentifier}:${mode || 'athlete'}`;
+  return `member-profile:${urlIdentifier}:${mode || 'shell'}`;
+}
+
+function roleList(profile) {
+  if (Array.isArray(profile?.roles) && profile.roles.length) return profile.roles;
+  if (profile?.rol) return [profile.rol];
+  return [];
 }
 
 export const MemberContext = createContext(null);
 
 export function MemberProvider({ mode, children: childNodes }) {
   const { clubData, clearSession } = useContext(ClubContext);
-  const active = mode === 'atleta' || mode === 'tutor' || mode === 'socio';
-  const isTutor = mode === 'tutor';
-  const isSocio = mode === 'socio';
+  const shellTutor = mode === 'tutor';
+  const shellSocio = mode === 'socio';
+  const shellAtleta = mode === 'atleta';
 
   const [profile, setProfile] = useState(() => {
     const key = memberCacheKey(clubData?.urlIdentifier, mode);
@@ -50,32 +56,36 @@ export function MemberProvider({ mode, children: childNodes }) {
       setProfile(meRes.data);
       await persistUserTokensFromProfile(meRes.data);
 
+      const roles = roleList(meRes.data);
+      const tutorCapable = roles.includes('tutor');
+
       let nextHijos = [];
       let nextActiveId = meRes.data._id;
 
-      if (isTutor) {
-        if (meRes.data?.rol && meRes.data.rol !== 'tutor') {
-          setLoadError('Tu cuenta no tiene rol de tutor en este club.');
+      if (tutorCapable) {
+        try {
+          const hijosRes = await clubApi.get('/users/mis-hijos', { headers: h });
+          const list = Array.isArray(hijosRes.data) ? hijosRes.data : [];
+          nextHijos = list;
+          setHijos(list);
+          let resolvedActiveId = null;
+          setActiveAtletaId((prev) => {
+            resolvedActiveId =
+              prev && list.some((x) => String(x._id) === String(prev)) ? prev : list[0]?._id || null;
+            return resolvedActiveId;
+          });
+          nextActiveId = resolvedActiveId;
+          if (shellTutor && !list.length) {
+            setLoadError(
+              'No hay atletas vinculados. En administración, editá cada atleta y asigná este usuario como tutor principal.',
+            );
+          }
+        } catch (e) {
+          if (shellTutor) throw e;
           setHijos([]);
-          setActiveAtletaId(null);
-          writeScreenCache(cacheKey, { profile: meRes.data, hijos: [], activeAtletaId: null });
-          return;
-        }
-        const hijosRes = await clubApi.get('/users/mis-hijos', { headers: h });
-        const list = hijosRes.data || [];
-        nextHijos = list;
-        setHijos(list);
-        let resolvedActiveId = null;
-        setActiveAtletaId((prev) => {
-          resolvedActiveId =
-            prev && list.some((x) => String(x._id) === String(prev)) ? prev : list[0]?._id || null;
-          return resolvedActiveId;
-        });
-        nextActiveId = resolvedActiveId;
-        if (!list.length) {
-          setLoadError(
-            'No hay atletas vinculados. En administración, editá cada atleta y asigná este usuario como tutor principal.',
-          );
+          setActiveAtletaId(meRes.data._id);
+          nextHijos = [];
+          nextActiveId = meRes.data._id;
         }
       } else {
         setActiveAtletaId(meRes.data._id);
@@ -84,14 +94,11 @@ export function MemberProvider({ mode, children: childNodes }) {
 
       writeScreenCache(cacheKey, {
         profile: meRes.data,
-        hijos: isTutor ? nextHijos : [],
-        activeAtletaId: isTutor ? nextActiveId : meRes.data._id,
+        hijos: tutorCapable ? nextHijos : [],
+        activeAtletaId: tutorCapable ? nextActiveId : meRes.data._id,
       });
     } catch (e) {
-      if (
-        isAuthError(e) &&
-        shouldClearSessionOnAuthError(requestGeneration)
-      ) {
+      if (isAuthError(e) && shouldClearSessionOnAuthError(requestGeneration)) {
         const refreshToken = await getToken('userRefreshToken');
         if (!refreshToken) {
           await clearSession();
@@ -108,7 +115,7 @@ export function MemberProvider({ mode, children: childNodes }) {
     } finally {
       setLoading(false);
     }
-  }, [clubData?.urlIdentifier, mode, isTutor, clearSession]);
+  }, [clubData?.urlIdentifier, mode, shellTutor, clearSession]);
 
   const selectAtleta = useCallback(
     (id) => {
@@ -122,29 +129,49 @@ export function MemberProvider({ mode, children: childNodes }) {
   );
 
   useEffect(() => {
-    if (!active) return;
-    const key = memberCacheKey(clubData?.urlIdentifier, mode);
+    if (!clubData?.urlIdentifier) return;
+    const key = memberCacheKey(clubData.urlIdentifier, mode);
     if (key && readScreenCache(key)) {
       refresh({ background: true });
       return;
     }
     refresh();
-  }, [active, refresh, clubData?.urlIdentifier, mode]);
+  }, [refresh, clubData?.urlIdentifier, mode]);
 
-  const memberId = isTutor ? activeAtletaId : profile?._id;
-  const cuotasEnApp = isTutor || (profile != null && profile.cuotasEnApp !== false);
-  const puedePagar = isTutor || profile?.puedePagarEnApp === true;
+  const roles = useMemo(() => roleList(profile), [profile]);
+  const isTutor = shellTutor || roles.includes('tutor');
+  const isSocio = shellSocio || roles.includes('socio');
+  const hasAtletaRole = shellAtleta || roles.includes('atleta');
+
+  const memberId = isTutor && shellTutor ? activeAtletaId : profile?._id;
+  const cuotasEnApp =
+    isTutor ||
+    isSocio ||
+    (hasAtletaRole && profile != null && profile.cuotasEnApp !== false);
+  const puedePagar =
+    isTutor ||
+    isSocio ||
+    profile?.puedePagarEnApp === true ||
+    profile?.puedePagarComoAtleta === true;
+  const showCuotasEntry =
+    isTutor ||
+    isSocio ||
+    (hasAtletaRole && profile != null && profile.cuotasEnApp !== false);
   const activeHijo = isTutor ? hijos.find((x) => String(x._id) === String(activeAtletaId)) : null;
 
   const value = {
+    mode,
     isTutor,
     isSocio,
+    hasAtletaRole,
+    roles,
+    showCuotasEntry,
     profile,
     hijos,
     activeAtletaId,
     setActiveAtletaId: selectAtleta,
     activeHijo,
-    memberId,
+    memberId: memberId || profile?._id,
     cuotasEnApp,
     puedePagar,
     loading,

@@ -44,14 +44,16 @@ export default function MemberPaymentsScreen({ navigation }) {
     memberId,
     puedePagar,
     cuotasEnApp,
+    showCuotasEntry,
     loading: memberLoading,
     profile,
   } = useMember();
   const badges = useBadgesOptional();
   const colorMarca = clubData?.primaryColor || '#3b82f6';
+  const paymentsOwnerId = profile?._id || memberId;
   const paymentsCacheKey =
-    clubData?.urlIdentifier && (isTutor || memberId)
-      ? `member-payments:${clubData.urlIdentifier}:${isTutor ? 'tutor' : memberId}`
+    clubData?.urlIdentifier && (isTutor || paymentsOwnerId)
+      ? `member-payments:${clubData.urlIdentifier}:${isTutor ? `tutor:${paymentsOwnerId || 'self'}` : paymentsOwnerId}`
       : '';
 
   const [list, setList] = useState(() => readScreenCache(paymentsCacheKey)?.list ?? []);
@@ -87,7 +89,8 @@ export default function MemberPaymentsScreen({ navigation }) {
     });
   };
 
-  const showCuotas = isTutor || cuotasEnApp;
+  const showCuotas = showCuotasEntry || isTutor || cuotasEnApp;
+  const selfPaymentId = profile?._id || memberId;
 
   const applyPayments = useCallback((data) => {
     setList(data.list);
@@ -98,7 +101,7 @@ export default function MemberPaymentsScreen({ navigation }) {
   }, []);
 
   const fetchPayments = useCallback(async () => {
-    if (!isTutor && !cuotasEnApp) {
+    if (!showCuotas) {
       return { list: [], familyData: null, stats: {}, mercadoPagoReady: false, datosTransferencia: null };
     }
     if (!clubData?.urlIdentifier) {
@@ -115,8 +118,8 @@ export default function MemberPaymentsScreen({ navigation }) {
         datosTransferencia: res.data.datosTransferencia ?? null,
       };
     }
-    if (memberId) {
-      const res = await clubApi.get(`/financial/payments/atleta/${memberId}`, {
+    if (selfPaymentId) {
+      const res = await clubApi.get(`/financial/payments/atleta/${selfPaymentId}`, {
         headers: h,
         params: { page: 1, limit: 100 },
       });
@@ -129,7 +132,7 @@ export default function MemberPaymentsScreen({ navigation }) {
       };
     }
     return { list: [], familyData: null, stats: {}, mercadoPagoReady: false, datosTransferencia: null };
-  }, [clubData?.urlIdentifier, memberId, isTutor, cuotasEnApp]);
+  }, [clubData?.urlIdentifier, selfPaymentId, isTutor, showCuotas]);
 
   const onPaymentsFocus = useCallback(() => {
     badges?.refresh?.();
@@ -392,28 +395,59 @@ export default function MemberPaymentsScreen({ navigation }) {
   };
 
   const tutorHijos = familyData?.hijos || [];
+  const tutorSelf = useMemo(() => {
+    if (!isTutor) return null;
+    if (familyData?.titular?._id) {
+      return { ...familyData.titular, isSelf: true };
+    }
+    if (profile?._id) {
+      return {
+        _id: profile._id,
+        nombre: profile.nombre || 'Vos',
+        apellido: profile.apellido || '',
+        isSelf: true,
+      };
+    }
+    return null;
+  }, [isTutor, familyData?.titular, profile]);
+
+  /** Tutor + atletas vinculados: incluye la cuota social propia del tutor/socio. */
+  const tutorPayees = useMemo(() => {
+    if (!isTutor) return [];
+    const list = [];
+    if (tutorSelf?._id) list.push(tutorSelf);
+    for (const h of tutorHijos) {
+      if (tutorSelf && String(h._id) === String(tutorSelf._id)) continue;
+      list.push(h);
+    }
+    return list;
+  }, [isTutor, tutorSelf, tutorHijos]);
+
   const filterIsAll = !isTutor || cuotasFilterId === 'all';
-  const filteredHijo = useMemo(() => {
+  const filteredPayee = useMemo(() => {
     if (filterIsAll) return null;
-    return tutorHijos.find((h) => String(h._id) === String(cuotasFilterId)) || null;
-  }, [filterIsAll, tutorHijos, cuotasFilterId]);
+    return tutorPayees.find((h) => String(h._id) === String(cuotasFilterId)) || null;
+  }, [filterIsAll, tutorPayees, cuotasFilterId]);
 
   const tutorSections = useMemo(() => {
-    if (!isTutor || !tutorHijos.length) return [];
+    if (!isTutor || !tutorPayees.length) return [];
     const byAtleta = {};
-    for (const p of familyData.payments || []) {
+    for (const p of familyData?.payments || []) {
       const aid = String(p.atleta?._id || p.atleta);
       if (!byAtleta[aid]) byAtleta[aid] = [];
       byAtleta[aid].push(p);
     }
-    const hijos = filterIsAll
-      ? tutorHijos
-      : tutorHijos.filter((h) => String(h._id) === String(cuotasFilterId));
-    return hijos.map((h) => ({
-      title: formatUserName(h),
-      data: byAtleta[String(h._id)] || [],
-    }));
-  }, [isTutor, familyData, tutorHijos, filterIsAll, cuotasFilterId]);
+    const payees = filterIsAll
+      ? tutorPayees
+      : tutorPayees.filter((h) => String(h._id) === String(cuotasFilterId));
+    return payees
+      .map((h) => ({
+        title: h.isSelf ? 'Vos · cuota social' : formatUserName(h),
+        data: byAtleta[String(h._id)] || [],
+        isSelf: !!h.isSelf,
+      }))
+      .filter((section) => !filterIsAll || section.data.length > 0 || tutorPayees.length === 1);
+  }, [isTutor, familyData?.payments, tutorPayees, filterIsAll, cuotasFilterId]);
 
   const scopedImpagas = useMemo(() => {
     const all = familyData?.impagas || [];
@@ -450,14 +484,19 @@ export default function MemberPaymentsScreen({ navigation }) {
     return `Pagar pendientes · ${n} · ${fmt(total)}`;
   }, [scopedImpagas, filterIsAll]);
 
+  const filteredPayeeLabel = filteredPayee?.isSelf
+    ? 'tu cuota social'
+    : filteredPayee
+      ? formatUserName(filteredPayee)
+      : 'atleta';
   const subtitle = isTutor
     ? filterIsAll
       ? mercadoPagoReady
-        ? 'Todas las cuotas · Mercado Pago o transferencia'
-        : 'Todas las cuotas · transferencia'
+        ? 'Familia y tu cuota · Mercado Pago o transferencia'
+        : 'Familia y tu cuota · transferencia'
       : mercadoPagoReady
-        ? `Cuotas de ${filteredHijo?.nombre || 'atleta'} · Mercado Pago o transferencia`
-        : `Cuotas de ${filteredHijo?.nombre || 'atleta'} · transferencia`
+        ? `Cuotas de ${filteredPayeeLabel} · Mercado Pago o transferencia`
+        : `Cuotas de ${filteredPayeeLabel} · transferencia`
     : mercadoPagoReady
       ? puedePagar
         ? 'Mercado Pago o transferencia'
@@ -557,7 +596,7 @@ export default function MemberPaymentsScreen({ navigation }) {
         }}
       />
 
-      {isTutor && tutorHijos.length > 0 ? (
+      {isTutor && tutorPayees.length > 0 ? (
         <View style={[styles.filterWrap, { borderBottomColor: theme.border }]}>
           <ScrollView
             horizontal
@@ -580,11 +619,12 @@ export default function MemberPaymentsScreen({ navigation }) {
                 Todas
               </Text>
             </TouchableOpacity>
-            {tutorHijos.map((h) => {
+            {tutorPayees.map((h) => {
               const on = String(cuotasFilterId) === String(h._id);
+              const label = h.isSelf ? 'Vos' : h.nombre;
               return (
                 <TouchableOpacity
-                  key={h._id}
+                  key={String(h._id)}
                   style={[
                     styles.filterPill,
                     {
@@ -597,7 +637,7 @@ export default function MemberPaymentsScreen({ navigation }) {
                   accessibilityState={{ selected: on }}
                 >
                   <Text style={[styles.filterPillTxt, { color: on ? colorMarca : theme.text }]} numberOfLines={1}>
-                    {h.nombre}
+                    {label}
                   </Text>
                 </TouchableOpacity>
               );
@@ -620,7 +660,7 @@ export default function MemberPaymentsScreen({ navigation }) {
         <View style={styles.centered}>
           <ClubSpinLoader size={64} />
         </View>
-      ) : isTutor && !familyData?.hijos?.length ? (
+      ) : isTutor && !tutorPayees.length ? (
         <Text style={[styles.empty, { color: theme.textMuted }]}>No hay atletas vinculados a tu cuenta.</Text>
       ) : !isTutor && !memberId ? (
         <Text style={[styles.empty, { color: theme.textMuted }]}>No se pudo cargar tu perfil.</Text>
@@ -631,7 +671,7 @@ export default function MemberPaymentsScreen({ navigation }) {
               sections={tutorSections}
               keyExtractor={(item) => String(item._id)}
               renderSectionHeader={({ section: { title } }) =>
-                filterIsAll && tutorHijos.length > 1 ? (
+                filterIsAll && tutorPayees.length > 1 ? (
                   <Text style={[styles.sectionHdr, { color: theme.text }]}>{title}</Text>
                 ) : null
               }

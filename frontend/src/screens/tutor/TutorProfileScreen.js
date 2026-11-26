@@ -172,7 +172,7 @@ export default function TutorProfileScreen({ navigation }) {
             <ProfileLinkRow
               icon="wallet-outline"
               title="Cuotas"
-              subtitle="Pagá las cuotas de tus atletas"
+              subtitle="Tu cuota social y las de tus atletas"
               onPress={() => navigation.navigate('TutorPayments')}
               theme={theme}
               badge={tabBadgeText(tab('cuotas'))}
