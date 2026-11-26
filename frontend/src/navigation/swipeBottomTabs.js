@@ -8,26 +8,24 @@ import { createMaterialTopTabNavigator } from '@react-navigation/material-top-ta
  */
 const BaseSwipeBottomTab = createMaterialTopTabNavigator;
 
-/** Settle window after swipe/tab — overlapping setPage calls crash iOS PagerView. */
-const SETTLE_MS = 380;
+/** After a tab tap, block swipe briefly so the same finger can't start a drag mid-jump. */
+const AFTER_TAP_SWIPE_LOCK_MS = 450;
 
 export function createSwipeBottomTabNavigator(config) {
   const Tabs = BaseSwipeBottomTab(config);
 
   function Navigator({ screenListeners, screenOptions, ...rest }) {
-    const settlingRef = useRef(false);
+    const draggingRef = useRef(false);
     const settleTimerRef = useRef(null);
     const [swipeGate, setSwipeGate] = useState(true);
 
-    const beginSettle = useCallback((disableSwipeTemporarily) => {
-      settlingRef.current = true;
-      if (disableSwipeTemporarily) setSwipeGate(false);
+    const lockSwipeAfterTap = useCallback(() => {
+      setSwipeGate(false);
       if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
       settleTimerRef.current = setTimeout(() => {
-        settlingRef.current = false;
         setSwipeGate(true);
         settleTimerRef.current = null;
-      }, SETTLE_MS);
+      }, AFTER_TAP_SWIPE_LOCK_MS);
     }, []);
 
     const mergedListeners = useCallback(
@@ -37,27 +35,28 @@ export function createSwipeBottomTabNavigator(config) {
         return {
           ...parent,
           tabPress: (event) => {
-            // Ignore presses while a swipe/prior jump is still settling.
-            if (settlingRef.current) {
-              event.preventDefault();
+            // Mid-swipe tap: let the SafePagerViewAdapter defer setPage; still
+            // block a second press from stacking jumps.
+            if (draggingRef.current) {
+              lockSwipeAfterTap();
+              parent.tabPress?.(event);
               return;
             }
-            // Tab press already drives the pager; lock swipe briefly so a finger
-            // drag can't race the same transition (known iOS abort).
-            beginSettle(true);
+            // Tab press then swipe is the common abort: disable scroll ASAP.
+            lockSwipeAfterTap();
             parent.tabPress?.(event);
           },
           swipeStart: (event) => {
-            beginSettle(false);
+            draggingRef.current = true;
             parent.swipeStart?.(event);
           },
           swipeEnd: (event) => {
-            beginSettle(false);
+            draggingRef.current = false;
             parent.swipeEnd?.(event);
           },
         };
       },
-      [screenListeners, beginSettle],
+      [screenListeners, lockSwipeAfterTap],
     );
 
     const mergedOptions = useCallback(

@@ -3,14 +3,14 @@
     "name": "Hermes Club App",
     "slug": "hermes-club-app",
     "scheme": "clubapp",
-    "version": "1.0.26",
+    "version": "1.0.27",
     "orientation": "default",
     "icon": "./assets/icono-app.png",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.hermesclubapp.app",
-      "buildNumber": "29"
+      "buildNumber": "30"
     },
     "androidStatusBar": {
       "translucent": true,
@@ -19,7 +19,7 @@
     },
     "android": {
       "package": "com.hermesclubapp.app",
-      "versionCode": 34,
+      "versionCode": 35,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/androidicon.png",
