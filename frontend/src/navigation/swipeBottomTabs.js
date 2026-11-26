@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 
@@ -8,13 +8,78 @@ import { createMaterialTopTabNavigator } from '@react-navigation/material-top-ta
  */
 const BaseSwipeBottomTab = createMaterialTopTabNavigator;
 
+/** Settle window after swipe/tab — overlapping setPage calls crash iOS PagerView. */
+const SETTLE_MS = 380;
+
 export function createSwipeBottomTabNavigator(config) {
   const Tabs = BaseSwipeBottomTab(config);
 
-  // No Reanimated screenLayout wrappers: iOS release/TestFlight has crashed on
-  // tab mount/switch with shared-value fades (see animationEnabled: false below).
-  function Navigator(props) {
-    return <Tabs.Navigator {...props} />;
+  function Navigator({ screenListeners, screenOptions, ...rest }) {
+    const settlingRef = useRef(false);
+    const settleTimerRef = useRef(null);
+    const [swipeGate, setSwipeGate] = useState(true);
+
+    const beginSettle = useCallback((disableSwipeTemporarily) => {
+      settlingRef.current = true;
+      if (disableSwipeTemporarily) setSwipeGate(false);
+      if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+      settleTimerRef.current = setTimeout(() => {
+        settlingRef.current = false;
+        setSwipeGate(true);
+        settleTimerRef.current = null;
+      }, SETTLE_MS);
+    }, []);
+
+    const mergedListeners = useCallback(
+      (props) => {
+        const parent =
+          typeof screenListeners === 'function' ? screenListeners(props) : screenListeners || {};
+        return {
+          ...parent,
+          tabPress: (event) => {
+            // Ignore presses while a swipe/prior jump is still settling.
+            if (settlingRef.current) {
+              event.preventDefault();
+              return;
+            }
+            // Tab press already drives the pager; lock swipe briefly so a finger
+            // drag can't race the same transition (known iOS abort).
+            beginSettle(true);
+            parent.tabPress?.(event);
+          },
+          swipeStart: (event) => {
+            beginSettle(false);
+            parent.swipeStart?.(event);
+          },
+          swipeEnd: (event) => {
+            beginSettle(false);
+            parent.swipeEnd?.(event);
+          },
+        };
+      },
+      [screenListeners, beginSettle],
+    );
+
+    const mergedOptions = useCallback(
+      (opts) => {
+        const base =
+          typeof screenOptions === 'function' ? screenOptions(opts) || {} : screenOptions || {};
+        return {
+          ...base,
+          // Keep explicit false (desktop / hide-tab screens).
+          swipeEnabled: base.swipeEnabled === false ? false : swipeGate,
+          // Double animation (pager + scene) closes the app on iOS.
+          animationEnabled: false,
+          lazy: base.lazy !== false,
+          lazyPreloadDistance: base.lazyPreloadDistance ?? 0,
+        };
+      },
+      [screenOptions, swipeGate],
+    );
+
+    return (
+      <Tabs.Navigator {...rest} screenListeners={mergedListeners} screenOptions={mergedOptions} />
+    );
   }
 
   return { ...Tabs, Navigator };
@@ -51,6 +116,7 @@ export function buildSwipeBottomTabOptions({
     headerShown: false,
     swipeEnabled: true,
     lazy: true,
+    lazyPreloadDistance: 0,
     // Un toque ya anima el pager, y el cambio de ruta lo anima otra vez.
     // En iOS esa segunda animación cierra la app, sobre todo al volver a la primera pestaña.
     animationEnabled: false,
