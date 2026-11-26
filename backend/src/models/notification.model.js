@@ -27,6 +27,8 @@ const notificationSchema = new mongoose.Schema({
             'creditos_cuota',
             'creditos_expiracion',
             'socio_alta',
+            'dni_solicitado',
+            'dni_cargado',
         ],
         default: 'general',
     },
@@ -52,6 +54,8 @@ export const getNotificationModel = (tenantDB) => {
             && enums.includes('creditos_cuota')
             && enums.includes('creditos_expiracion')
             && enums.includes('socio_alta')
+            && enums.includes('dni_solicitado')
+            && enums.includes('dni_cargado')
         ) {
             return existing;
         }

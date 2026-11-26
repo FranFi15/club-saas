@@ -101,6 +101,27 @@ export function getNotificationTarget(item, { rol, cuotasEnApp, isTutor }) {
     return null;
   }
 
+  if (tipo === 'dni_solicitado') {
+    if (rol === 'socio') {
+      return { tab: 'SocioProfile', screen: 'ProfileMain' };
+    }
+    return null;
+  }
+
+  if (tipo === 'dni_cargado') {
+    if (rol === 'admin_club' || rol === 'administrativo') {
+      return {
+        tab: 'Estructura',
+        screen: 'SociosAlta',
+        params: {
+          initialSegment: 'socios',
+          highlightSocioId: item?.referencia || undefined,
+        },
+      };
+    }
+    return null;
+  }
+
   if (tipo === 'documentacion_entregada') {
     const equipo = staffEquipoTab(rol);
     if (equipo) {

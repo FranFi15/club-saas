@@ -47,6 +47,9 @@ const TIPO_ICON = {
   consulta_pendiente: 'calendar',
   consulta_confirmada: 'checkmark-circle',
   consulta_rechazada: 'close-circle',
+  socio_alta: 'person-add',
+  dni_solicitado: 'id-card',
+  dni_cargado: 'id-card',
   general: 'notifications',
 };
 

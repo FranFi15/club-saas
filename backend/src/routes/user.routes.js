@@ -11,6 +11,8 @@ import {
     leaveTrialAthleteHandler,
     getUsers,
     getMe,
+    uploadMyDniPhotos,
+    solicitarDniPhotos,
     getMisHijos,
     setTutorAthleteCuotasEnApp,
     getTutorDashboard,
@@ -29,6 +31,7 @@ router.get('/', protect, authorize('admin_club', 'dirigente', 'administrativo'),
 router.post('/', protect, authorize('admin_club', 'administrativo'), registerUser);
 
 router.get('/me', protect, getMe);
+router.put('/me/dni', protect, uploadMyDniPhotos);
 router.get('/mis-hijos', protect, authorize('tutor'), getMisHijos);
 router.patch(
     '/mis-hijos/:atletaId/cuotas-en-app',
@@ -50,6 +53,12 @@ router.get(
     protect,
     authorize('admin_club', 'dirigente', 'administrativo'),
     getUserUnpaidPaymentsSummary,
+);
+router.post(
+    '/:id/solicitar-dni',
+    protect,
+    authorize('admin_club', 'administrativo'),
+    solicitarDniPhotos,
 );
 router.patch(
     '/:id/reactivate',

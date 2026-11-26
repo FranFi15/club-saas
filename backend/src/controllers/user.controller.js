@@ -17,6 +17,7 @@ import {
     resolveRolesWrite,
     normalizeUserRoles,
     roleQuery,
+    roleQueryMany,
     userHasRole,
 } from '../constants/userRoles.js';
 import { ensureCurrentMonthSocialFeeForUser, resolveUserSocialFeeAssignment } from '../services/generateSocialFees.service.js';
@@ -36,8 +37,14 @@ import {
     trialNeedsMemberDecision,
 } from '../services/trialAthlete.service.js';
 import { resolveAthleteEmail, isAthleteInternalEmail } from '../utils/athleteLoginEmail.js';
-import { getOpenPaymentsSummary, forgiveOpenPayments } from '../services/userPaymentsStatus.service.js';
+import {
+    getOpenPaymentsSummary,
+    forgiveOpenPayments,
+    getUsersFinanceSummaries,
+} from '../services/userPaymentsStatus.service.js';
 import { syncAthleteBecaFlag } from '../services/becaPlan.service.js';
+import { createAppNotification, createAppNotificationsMany } from '../services/appNotification.service.js';
+import { calendarMonthYearInTz, DEFAULT_CLUB_TIMEZONE } from '../utils/timeHelper.js';
 import { ensureCurrentMonthPaymentForEnrollment } from '../services/generateMonthlyPayments.service.js';
 
 const MAX_ATHLETE_TUTORS = 2;
@@ -1128,6 +1135,22 @@ const getUsers = asyncHandler(async (req, res) => {
     }
 
     const allowDni = canAccessDniPhotos(req.user);
+    const wantFinance =
+        String(req.query.includeFinance || '') === '1' ||
+        String(req.query.rol || '') === 'socio';
+    let financeByUser = {};
+    if (wantFinance && users.length) {
+        const { mes, anio } = calendarMonthYearInTz(
+            new Date(),
+            req.clubTimezone || DEFAULT_CLUB_TIMEZONE,
+        );
+        financeByUser = await getUsersFinanceSummaries(
+            req.models,
+            users.map((u) => u._id),
+            { mes, anio },
+        );
+    }
+
     const usersWithFamily = users.map((u) => {
         const rs = normalizeUserRoles(u);
         const esTutorDe =
@@ -1135,12 +1158,33 @@ const getUsers = asyncHandler(async (req, res) => {
                 ? familiaresByTutor[String(u._id)] || []
                 : [];
         const plain = allowDni ? u.toObject() : stripDniPhotos(u.toObject());
+        const uid = String(u._id);
         return {
             ...plain,
             roles: rs,
             familiaresACargo: esTutorDe,
+            tieneDniFrente: !!plain.dniFotoFrente,
+            tieneDniDorso: !!plain.dniFotoDorso,
+            dniSolicitado: plain.dniSolicitado === true,
+            ...(wantFinance
+                ? {
+                      finance: financeByUser[uid] || {
+                          mesActual: { estado: u.exentoCuotaSocial ? 'exento' : 'sin_cuota', monto: 0 },
+                          vencidas: { cantidad: 0, montoTotal: 0 },
+                      },
+                  }
+                : {}),
         };
     });
+
+    // Exento overrides current-month label when no payment row exists.
+    if (wantFinance) {
+        for (const row of usersWithFamily) {
+            if (row.exentoCuotaSocial && row.finance?.mesActual?.estado === 'sin_cuota') {
+                row.finance.mesActual.estado = 'exento';
+            }
+        }
+    }
 
     res.json({
         users: usersWithFamily,
@@ -1204,10 +1248,122 @@ const getMe = asyncHandler(async (req, res) => {
         emailGenerado: isAthleteInternalEmail(user.email, req.clubIdentifier),
         cuotasEnApp: roles.includes('atleta') ? cuotasHabilitadas : undefined,
         puedePagarEnApp,
+        dniSolicitado: user.dniSolicitado === true,
+        dniSolicitudMotivo: user.dniSolicitudMotivo || '',
+        tieneDniFrente: !!user.dniFotoFrente,
+        tieneDniDorso: !!user.dniFotoDorso,
         pruebaPendiente: pruebaPendiente.map((a) => {
             const plain = a.toObject ? a.toObject() : a;
             return canAccessDniPhotos(req.user) ? plain : stripDniPhotos(plain);
         }),
+    });
+});
+
+// @desc    Socio (u otro miembro) sube frente + dorso de DNI tras solicitud
+// @route   PUT /api/users/me/dni
+const uploadMyDniPhotos = asyncHandler(async (req, res) => {
+    const { User } = req.models;
+    const frente = String(req.body?.dniFotoFrente || '').trim();
+    const dorso = String(req.body?.dniFotoDorso || '').trim();
+    if (!frente || !dorso) {
+        res.status(400);
+        throw new Error('Subí el frente y el dorso del DNI.');
+    }
+    if (!/^https?:\/\//i.test(frente) || !/^https?:\/\//i.test(dorso)) {
+        res.status(400);
+        throw new Error('Las fotos de DNI deben ser URLs válidas.');
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+        res.status(404);
+        throw new Error('Usuario no encontrado');
+    }
+
+    user.dniFotoFrente = frente;
+    user.dniFotoDorso = dorso;
+    user.dniSolicitado = false;
+    user.dniSolicitadoAt = null;
+    user.dniSolicitadoPor = null;
+    user.dniSolicitudMotivo = '';
+    await user.save();
+
+    try {
+        const admins = await User.find({
+            ...roleQueryMany(['admin_club', 'administrativo']),
+            estado: { $ne: 'inactivo' },
+        })
+            .select('_id')
+            .lean();
+        const nombre = `${user.nombre || ''} ${user.apellido || ''}`.trim() || user.email;
+        await createAppNotificationsMany(
+            req.models,
+            admins.map((a) => a._id),
+            {
+                tipo: 'dni_cargado',
+                titulo: 'DNI cargado',
+                mensaje: `${nombre} subió las fotos de su DNI.`,
+                referencia: user._id,
+            },
+        );
+    } catch (e) {
+        console.warn('[dni] notify admins:', e.message);
+    }
+
+    res.json({
+        ok: true,
+        dniSolicitado: false,
+        tieneDniFrente: true,
+        tieneDniDorso: true,
+        message: 'DNI actualizado.',
+    });
+});
+
+// @desc    Admin solicita carga o recarga de DNI (no borra fotos actuales)
+// @route   POST /api/users/:id/solicitar-dni
+const solicitarDniPhotos = asyncHandler(async (req, res) => {
+    const { User } = req.models;
+    const user = await User.findById(req.params.id);
+    if (!user) {
+        res.status(404);
+        throw new Error('Usuario no encontrado');
+    }
+
+    const motivo = String(req.body?.motivo || '').trim().slice(0, 280);
+    const hasPhotos = !!(user.dniFotoFrente && user.dniFotoDorso);
+    const isReupload = req.body?.reupload === true || hasPhotos;
+
+    user.dniSolicitado = true;
+    user.dniSolicitadoAt = new Date();
+    user.dniSolicitadoPor = req.user?._id || null;
+    user.dniSolicitudMotivo =
+        motivo ||
+        (isReupload
+            ? 'El club necesita que vuelvas a cargar el frente y el dorso de tu DNI.'
+            : 'El club necesita que cargues el frente y el dorso de tu DNI.');
+    await user.save();
+
+    try {
+        await createAppNotification(req.models, {
+            usuario: user._id,
+            tipo: 'dni_solicitado',
+            titulo: isReupload ? 'Volvé a cargar tu DNI' : 'Subí las fotos de tu DNI',
+            mensaje: user.dniSolicitudMotivo,
+            referencia: user._id,
+        });
+    } catch (e) {
+        console.warn('[dni] notify socio:', e.message);
+    }
+
+    res.json({
+        ok: true,
+        dniSolicitado: true,
+        dniSolicitudMotivo: user.dniSolicitudMotivo,
+        tieneDniFrente: !!user.dniFotoFrente,
+        tieneDniDorso: !!user.dniFotoDorso,
+        message: isReupload
+            ? 'Se pidió volver a cargar el DNI. Las fotos actuales se mantienen hasta que suba las nuevas.'
+            : 'Se solicitó la carga del DNI al socio.',
     });
 });
 
@@ -1362,6 +1518,8 @@ export {
     leaveTrialAthleteHandler,
     getUsers,
     getMe,
+    uploadMyDniPhotos,
+    solicitarDniPhotos,
     getMisHijos,
     setTutorAthleteCuotasEnApp,
     getTutorDashboard,

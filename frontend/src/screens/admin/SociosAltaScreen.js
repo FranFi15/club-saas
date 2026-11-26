@@ -26,7 +26,6 @@ import CustomAlert from '../../components/CustomAlert';
 import AdminScreenHeader from '../../components/AdminScreenHeader';
 import DesignCard from '../../components/DesignCard';
 import UserAvatar from '../../components/UserAvatar';
-import UserDetailsModal from '../../components/UserDetailsModal';
 import { canMutateAsAdmin, isClubOwnerRole } from '../../constants/appRoles';
 import { formatUserName, sortUsersByName } from '../../utils/listSort';
 import { readScreenCache, useCachedFocusLoad } from '../../hooks/useCachedFocusLoad';
@@ -45,6 +44,44 @@ function personName(row) {
     return formatUserName(row.userId);
   }
   return formatUserName({ nombre: row?.nombre, apellido: row?.apellido }) || row?.email || 'Socio';
+}
+
+function mesEstadoLabel(estado) {
+  switch (estado) {
+    case 'pagado':
+      return { text: 'Al día', color: '#16a34a' };
+    case 'pendiente':
+      return { text: 'Pendiente', color: '#d97706' };
+    case 'en_revision':
+      return { text: 'En revisión', color: '#2563eb' };
+    case 'vencido':
+      return { text: 'Vencida', color: '#dc2626' };
+    case 'exento':
+      return { text: 'Exento', color: '#6b7280' };
+    default:
+      return { text: 'Sin cuota', color: '#6b7280' };
+  }
+}
+
+function FinanceLines({ finance, theme }) {
+  if (!finance) return null;
+  const mes = mesEstadoLabel(finance.mesActual?.estado);
+  const vencidas = finance.vencidas || { cantidad: 0, montoTotal: 0 };
+  return (
+    <View style={{ marginTop: 4, gap: 2 }}>
+      <Text style={{ color: mes.color, fontSize: 12, fontWeight: '700' }}>
+        Mes: {mes.text}
+        {finance.mesActual?.monto ? ` · ${fmtMoney(finance.mesActual.monto)}` : ''}
+      </Text>
+      {vencidas.cantidad > 0 ? (
+        <Text style={{ color: '#dc2626', fontSize: 12, fontWeight: '700' }}>
+          {vencidas.cantidad} vencida{vencidas.cantidad === 1 ? '' : 's'} · {fmtMoney(vencidas.montoTotal)}
+        </Text>
+      ) : (
+        <Text style={{ color: theme.textMuted, fontSize: 12 }}>Sin vencidas</Text>
+      )}
+    </View>
+  );
 }
 
 export default function SociosAltaScreen({ navigation, route }) {
@@ -100,7 +137,6 @@ export default function SociosAltaScreen({ navigation, route }) {
     };
   }, [clubData?.urlIdentifier]);
 
-  // —— Alta pública settings (owner only) ——
   const [altaEnabled, setAltaEnabled] = useState(false);
   const [altaPublicUrl, setAltaPublicUrl] = useState('');
   const [altaFeeHint, setAltaFeeHint] = useState(null);
@@ -157,7 +193,6 @@ export default function SociosAltaScreen({ navigation, route }) {
     }
   };
 
-  // —— Nuevos (pending review) ——
   const nuevosCacheKey = clubData?.urlIdentifier
     ? `socio-alta-nuevos:${clubData.urlIdentifier}`
     : '';
@@ -165,6 +200,7 @@ export default function SociosAltaScreen({ navigation, route }) {
   const [reviewingId, setReviewingId] = useState(null);
   const [detailAlta, setDetailAlta] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [dniActionId, setDniActionId] = useState(null);
 
   const fetchNuevos = useCallback(async () => {
     const headers = await getHeaders();
@@ -205,9 +241,8 @@ export default function SociosAltaScreen({ navigation, route }) {
     }
   };
 
-  // —— Socios list ——
   const sociosCacheKey = clubData?.urlIdentifier
-    ? `socio-alta-socios:${clubData.urlIdentifier}`
+    ? `socio-alta-socios-v2:${clubData.urlIdentifier}`
     : '';
   const [socios, setSocios] = useState(() => readScreenCache(sociosCacheKey)?.users ?? []);
   const [searchQuery, setSearchQuery] = useState('');
@@ -246,8 +281,9 @@ export default function SociosAltaScreen({ navigation, route }) {
     });
   }, [socios, searchQuery]);
 
-  const highlightId = route?.params?.highlightId
-    ? String(route.params.highlightId)
+  const highlightId = route?.params?.highlightId ? String(route.params.highlightId) : '';
+  const highlightSocioId = route?.params?.highlightSocioId
+    ? String(route.params.highlightSocioId)
     : '';
 
   useEffect(() => {
@@ -255,6 +291,58 @@ export default function SociosAltaScreen({ navigation, route }) {
     const match = nuevos.find((r) => String(r._id) === highlightId);
     if (match) setDetailAlta(match);
   }, [highlightId, nuevos]);
+
+  useEffect(() => {
+    if (!highlightSocioId || !socios.length) return;
+    const match = socios.find((u) => String(u._id) === highlightSocioId);
+    if (match) {
+      setSegment('socios');
+      setSelectedUser(match);
+    }
+  }, [highlightSocioId, socios]);
+
+  const solicitarDni = async (user, { reupload = false } = {}) => {
+    if (!canReview || !user?._id) return;
+    setDniActionId(user._id);
+    try {
+      const headers = await getHeaders();
+      const { data } = await clubApi.post(
+        `/users/${user._id}/solicitar-dni`,
+        {
+          reupload,
+          motivo: reupload
+            ? 'El club necesita que vuelvas a cargar el frente y el dorso de tu DNI.'
+            : 'El club necesita que cargues el frente y el dorso de tu DNI.',
+        },
+        { headers },
+      );
+      setSocios((prev) =>
+        prev.map((u) =>
+          String(u._id) === String(user._id)
+            ? {
+                ...u,
+                dniSolicitado: true,
+                dniSolicitudMotivo: data?.dniSolicitudMotivo || '',
+              }
+            : u,
+        ),
+      );
+      setSelectedUser((prev) =>
+        prev && String(prev._id) === String(user._id)
+          ? {
+              ...prev,
+              dniSolicitado: true,
+              dniSolicitudMotivo: data?.dniSolicitudMotivo || '',
+            }
+          : prev,
+      );
+      showAlert('Listo', data?.message || 'Solicitud enviada al socio.');
+    } catch (e) {
+      showAlert('Error', e.response?.data?.message || 'No se pudo solicitar el DNI.');
+    } finally {
+      setDniActionId(null);
+    }
+  };
 
   const listData = segment === 'nuevos' ? nuevos : filteredSocios;
   const refreshing = segment === 'nuevos' ? refreshingNuevos : refreshingSocios;
@@ -299,27 +387,41 @@ export default function SociosAltaScreen({ navigation, route }) {
     );
   };
 
-  const renderSocio = ({ item }) => (
-    <DesignCard
-      theme={theme}
-      isDarkMode={isDarkMode}
-      accent={colorMarca}
-      style={styles.card}
-      contentStyle={styles.cardRow}
-      onPress={() => setSelectedUser(item)}
-    >
-      <UserAvatar user={item} size={44} colorMarca={colorMarca} style={styles.avatar} />
-      <View style={styles.cardText}>
-        <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
-          {formatUserName(item)}
-        </Text>
-        <Text style={{ color: theme.textMuted, fontSize: 13 }} numberOfLines={1}>
-          {item.email}
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color={theme.icon} />
-    </DesignCard>
-  );
+  const renderSocio = ({ item }) => {
+    const hasDni = !!(item.tieneDniFrente && item.tieneDniDorso) || !!(item.dniFotoFrente && item.dniFotoDorso);
+    const highlighted = highlightSocioId && String(item._id) === highlightSocioId;
+    return (
+      <DesignCard
+        theme={theme}
+        isDarkMode={isDarkMode}
+        accent={colorMarca}
+        style={[styles.card, highlighted ? { borderColor: colorMarca, borderWidth: 1.5 } : null]}
+        contentStyle={styles.cardRow}
+        onPress={() => setSelectedUser(item)}
+      >
+        <UserAvatar user={item} size={44} colorMarca={colorMarca} style={styles.avatar} />
+        <View style={styles.cardText}>
+          <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
+            {formatUserName(item)}
+          </Text>
+          <Text style={{ color: theme.textMuted, fontSize: 13 }} numberOfLines={1}>
+            {item.email}
+          </Text>
+          <FinanceLines finance={item.finance} theme={theme} />
+          {!hasDni ? (
+            <Text style={{ color: '#b45309', fontSize: 12, fontWeight: '700', marginTop: 4 }}>
+              Sin fotos de DNI
+            </Text>
+          ) : item.dniSolicitado ? (
+            <Text style={{ color: '#d97706', fontSize: 12, fontWeight: '700', marginTop: 4 }}>
+              Recarga de DNI pedida
+            </Text>
+          ) : null}
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={theme.icon} />
+      </DesignCard>
+    );
+  };
 
   const listHeader = (
     <View>
@@ -384,19 +486,10 @@ export default function SociosAltaScreen({ navigation, route }) {
           return (
             <TouchableOpacity
               key={s.key}
-              style={[
-                styles.segmentBtn,
-                active ? { backgroundColor: colorMarca } : null,
-              ]}
+              style={[styles.segmentBtn, active ? { backgroundColor: colorMarca } : null]}
               onPress={() => setSegment(s.key)}
             >
-              <Text
-                style={{
-                  color: active ? '#fff' : theme.text,
-                  fontWeight: '700',
-                  fontSize: 13,
-                }}
-              >
+              <Text style={{ color: active ? '#fff' : theme.text, fontWeight: '700', fontSize: 13 }}>
                 {s.label}
                 {s.key === 'nuevos' && nuevos.length ? ` (${nuevos.length})` : ''}
               </Text>
@@ -446,11 +539,38 @@ export default function SociosAltaScreen({ navigation, route }) {
     </View>
   );
 
-  const detailUser = detailAlta?.userId && typeof detailAlta.userId === 'object'
-    ? detailAlta.userId
-    : null;
+  const detailUser =
+    detailAlta?.userId && typeof detailAlta.userId === 'object' ? detailAlta.userId : null;
   const frente = detailUser?.dniFotoFrente || detailAlta?.dniFotoFrente || '';
   const dorso = detailUser?.dniFotoDorso || detailAlta?.dniFotoDorso || '';
+
+  const selectedFrente = selectedUser?.dniFotoFrente || '';
+  const selectedDorso = selectedUser?.dniFotoDorso || '';
+  const selectedHasDni = !!(selectedFrente && selectedDorso);
+  const selectedUserIdForDni =
+    selectedUser?._id ||
+    (detailUser?._id ? detailUser._id : null) ||
+    (detailAlta?.userId && typeof detailAlta.userId !== 'object' ? detailAlta.userId : null);
+
+  const renderDniThumbs = (frenteUri, dorsoUri) => (
+    <View style={styles.dniRow}>
+      {frenteUri ? (
+        <Pressable onPress={() => setPhotoPreview(frenteUri)} style={styles.dniThumbWrap}>
+          <Image source={{ uri: frenteUri }} style={styles.dniThumb} />
+          <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 4 }}>Frente</Text>
+        </Pressable>
+      ) : null}
+      {dorsoUri ? (
+        <Pressable onPress={() => setPhotoPreview(dorsoUri)} style={styles.dniThumbWrap}>
+          <Image source={{ uri: dorsoUri }} style={styles.dniThumb} />
+          <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 4 }}>Dorso</Text>
+        </Pressable>
+      ) : null}
+      {!frenteUri && !dorsoUri ? (
+        <Text style={{ color: theme.textMuted }}>Sin fotos de DNI.</Text>
+      ) : null}
+    </View>
+  );
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
@@ -482,6 +602,7 @@ export default function SociosAltaScreen({ navigation, route }) {
         />
       )}
 
+      {/* Detalle alta nueva */}
       <Modal
         visible={!!detailAlta}
         animationType="slide"
@@ -505,11 +626,6 @@ export default function SociosAltaScreen({ navigation, route }) {
                 {detailAlta.dni ? (
                   <Text style={{ color: theme.textMuted, marginBottom: 4 }}>DNI {detailAlta.dni}</Text>
                 ) : null}
-                {detailAlta.telefono ? (
-                  <Text style={{ color: theme.textMuted, marginBottom: 4 }}>
-                    Tel. {detailAlta.telefono}
-                  </Text>
-                ) : null}
                 {detailAlta.monto != null ? (
                   <Text style={{ color: theme.textMuted, marginBottom: 12 }}>
                     Primera cuota: {fmtMoney(detailAlta.monto)}
@@ -517,27 +633,32 @@ export default function SociosAltaScreen({ navigation, route }) {
                 ) : null}
 
                 <Text style={[styles.sectionLabel, { color: theme.text }]}>Documento</Text>
-                <View style={styles.dniRow}>
-                  {frente ? (
-                    <Pressable onPress={() => setPhotoPreview(frente)} style={styles.dniThumbWrap}>
-                      <Image source={{ uri: frente }} style={styles.dniThumb} />
-                      <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 4 }}>Frente</Text>
-                    </Pressable>
-                  ) : null}
-                  {dorso ? (
-                    <Pressable onPress={() => setPhotoPreview(dorso)} style={styles.dniThumbWrap}>
-                      <Image source={{ uri: dorso }} style={styles.dniThumb} />
-                      <Text style={{ color: theme.textMuted, fontSize: 11, marginTop: 4 }}>Dorso</Text>
-                    </Pressable>
-                  ) : null}
-                  {!frente && !dorso ? (
-                    <Text style={{ color: theme.textMuted }}>Sin fotos de DNI.</Text>
-                  ) : null}
-                </View>
+                {renderDniThumbs(frente, dorso)}
+
+                {canReview && selectedUserIdForDni && (frente || dorso) ? (
+                  <TouchableOpacity
+                    style={[styles.secondaryBtn, { borderColor: colorMarca }]}
+                    onPress={() =>
+                      solicitarDni(
+                        { _id: selectedUserIdForDni },
+                        { reupload: true },
+                      )
+                    }
+                    disabled={dniActionId === selectedUserIdForDni}
+                  >
+                    {dniActionId === selectedUserIdForDni ? (
+                      <ButtonDotsLoader color={colorMarca} />
+                    ) : (
+                      <Text style={[styles.secondaryBtnText, { color: colorMarca }]}>
+                        Pedir volver a cargar DNI
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ) : null}
 
                 {canReview ? (
                   <TouchableOpacity
-                    style={[styles.primaryBtn, { backgroundColor: colorMarca }]}
+                    style={[styles.primaryBtn, { backgroundColor: colorMarca, marginTop: 10 }]}
                     onPress={() => markRevisada(detailAlta)}
                     disabled={reviewingId === detailAlta._id}
                   >
@@ -547,6 +668,83 @@ export default function SociosAltaScreen({ navigation, route }) {
                       <Text style={styles.primaryBtnText}>Marcar como revisado</Text>
                     )}
                   </TouchableOpacity>
+                ) : null}
+              </>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Detalle socio */}
+      <Modal
+        visible={!!selectedUser}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setSelectedUser(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalSheet, { backgroundColor: theme.surface }]}>
+            <View style={styles.modalHead}>
+              <Text style={[styles.modalTitle, { color: theme.text }]} numberOfLines={1}>
+                {selectedUser ? formatUserName(selectedUser) : ''}
+              </Text>
+              <TouchableOpacity onPress={() => setSelectedUser(null)} hitSlop={12}>
+                <Ionicons name="close" size={24} color={theme.icon} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedUser ? (
+              <>
+                <Text style={{ color: theme.textMuted, marginBottom: 4 }}>{selectedUser.email}</Text>
+                {selectedUser.dni ? (
+                  <Text style={{ color: theme.textMuted, marginBottom: 4 }}>
+                    DNI {selectedUser.dni}
+                  </Text>
+                ) : null}
+                {selectedUser.telefono ? (
+                  <Text style={{ color: theme.textMuted, marginBottom: 8 }}>
+                    Tel. {selectedUser.telefono}
+                  </Text>
+                ) : null}
+
+                <Text style={[styles.sectionLabel, { color: theme.text }]}>Finanzas</Text>
+                <FinanceLines finance={selectedUser.finance} theme={theme} />
+
+                <Text style={[styles.sectionLabel, { color: theme.text, marginTop: 14 }]}>
+                  Documento
+                </Text>
+                {renderDniThumbs(selectedFrente, selectedDorso)}
+
+                {canReview ? (
+                  !selectedHasDni ? (
+                    <TouchableOpacity
+                      style={[styles.primaryBtn, { backgroundColor: colorMarca }]}
+                      onPress={() => solicitarDni(selectedUser, { reupload: false })}
+                      disabled={dniActionId === selectedUser._id}
+                    >
+                      {dniActionId === selectedUser._id ? (
+                        <ButtonDotsLoader color="#fff" />
+                      ) : (
+                        <Text style={styles.primaryBtnText}>Solicitar DNI</Text>
+                      )}
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.secondaryBtn, { borderColor: colorMarca }]}
+                      onPress={() => solicitarDni(selectedUser, { reupload: true })}
+                      disabled={dniActionId === selectedUser._id || selectedUser.dniSolicitado}
+                    >
+                      {dniActionId === selectedUser._id ? (
+                        <ButtonDotsLoader color={colorMarca} />
+                      ) : (
+                        <Text style={[styles.secondaryBtnText, { color: colorMarca }]}>
+                          {selectedUser.dniSolicitado
+                            ? 'Ya se pidió volver a cargar'
+                            : 'Volver a cargar DNI'}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  )
                 ) : null}
               </>
             ) : null}
@@ -566,12 +764,6 @@ export default function SociosAltaScreen({ navigation, route }) {
           ) : null}
         </Pressable>
       </Modal>
-
-      <UserDetailsModal
-        visible={!!selectedUser}
-        user={selectedUser}
-        onClose={() => setSelectedUser(null)}
-      />
 
       <CustomAlert
         visible={alertConfig.visible}
@@ -650,7 +842,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: { flex: 1, fontSize: 18, fontWeight: '800' },
   sectionLabel: { fontWeight: '700', fontSize: 14, marginTop: 8, marginBottom: 8 },
-  dniRow: { flexDirection: 'row', gap: 12, marginBottom: 18 },
+  dniRow: { flexDirection: 'row', gap: 12, marginBottom: 18, flexWrap: 'wrap' },
   dniThumbWrap: { alignItems: 'center' },
   dniThumb: { width: 120, height: 80, borderRadius: 8, backgroundColor: '#00000022' },
   primaryBtn: {
@@ -660,6 +852,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  secondaryBtn: {
+    height: 48,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryBtnText: { fontWeight: '800', fontSize: 15 },
   photoBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.92)',

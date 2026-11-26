@@ -1,6 +1,6 @@
 import React, { useContext, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { fadeStackScreenOptions } from './screenFade';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ClubContext } from '../context/ClubContext';
 import { clubPrimaryColor, clubIconColor } from '../utils/clubBrandColors';
 import { ThemeContext } from '../context/ThemeContext';
+import { MemberContext } from '../context/MemberContext';
 import AthleteNewsScreen from '../screens/athlete/AthleteNewsScreen';
 import MemberPaymentsScreen from '../screens/member/MemberPaymentsScreen';
 import MemberClubEntryScreen from '../screens/member/MemberClubEntryScreen';
@@ -27,6 +28,7 @@ import { tabBadgeText } from '../utils/tabBadgeLabel';
 import { createSwipeBottomTabNavigator, buildSwipeBottomTabOptions } from './swipeBottomTabs';
 import AdminClubEntryScanScreen from '../screens/admin/AdminClubEntryScanScreen';
 import { useEventDoorEvents } from '../hooks/useEventDoorEvents';
+import SocioDniUploadModal from '../components/SocioDniUploadModal';
 
 const Tab = createSwipeBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -67,6 +69,7 @@ function SocioProfileStack() {
 function SocioTabs() {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
+  const member = useContext(MemberContext);
   const { tab, refresh } = useBadges();
 
   useFocusEffect(
@@ -81,70 +84,79 @@ function SocioTabs() {
   const insets = useSafeAreaInsets();
   const tabBottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 10);
   const tabBarHeight = 60 + tabBottomPad;
+  const needsDni = member?.profile?.dniSolicitado === true;
 
   return (
-    <Tab.Navigator
-      key={isDarkMode ? 'dark' : 'light'}
-      tabBarPosition="bottom"
-      screenOptions={buildSwipeBottomTabOptions({
-        colorMarca,
-        colorIconos,
-        theme,
-        tabBarHeight,
-        tabBottomPad,
-        paddingTop: 6,
-        getIcon: (name, focused, color) => {
-          const map = {
-            SocioCanjes: focused ? 'gift' : 'gift-outline',
-            SocioNoticias: focused ? 'newspaper' : 'newspaper-outline',
-            SocioQr: focused ? 'qr-code' : 'qr-code-outline',
-            SocioEventos: focused ? 'scan' : 'scan-outline',
-            SocioEntradas: focused ? 'ticket' : 'ticket-outline',
-            SocioProfile: focused ? 'person' : 'person-outline',
-          };
-          return <Ionicons name={map[name] || 'ellipse-outline'} size={22} color={color} />;
-        },
-        getBadge: (name) =>
-          ({
-            SocioNoticias: tabBadgeText(tab('noticias')),
-            SocioProfile: tabBadgeText(tab('chat')) || tabBadgeText(tab('cuotas')),
-          })[name],
-        getLabel: (name) =>
-          ({
-            SocioCanjes: 'Beneficios',
-            SocioNoticias: 'Noticias',
-            SocioQr: 'Mi QR',
-            SocioEventos: 'Puerta',
-            SocioEntradas: 'Eventos',
-            SocioProfile: 'Perfil',
-          })[name],
-      })}
-    >
-      <Tab.Screen name="SocioCanjes" component={SocioCanjesBeneficiosScreen} options={{ title: 'Beneficios' }} />
-      <Tab.Screen
-        name="SocioNoticias"
-        component={SocioNewsStack}
-        listeners={tabPressResetToRoot('SocioNoticias', 'SocioNewsMain')}
-      />
-      <Tab.Screen name="SocioQr" component={MemberClubEntryScreen} />
-      {doorEvents.length ? (
+    <View style={{ flex: 1 }}>
+      <Tab.Navigator
+        key={isDarkMode ? 'dark' : 'light'}
+        tabBarPosition="bottom"
+        screenOptions={buildSwipeBottomTabOptions({
+          colorMarca,
+          colorIconos,
+          theme,
+          tabBarHeight,
+          tabBottomPad,
+          paddingTop: 6,
+          getIcon: (name, focused, color) => {
+            const map = {
+              SocioCanjes: focused ? 'gift' : 'gift-outline',
+              SocioNoticias: focused ? 'newspaper' : 'newspaper-outline',
+              SocioQr: focused ? 'qr-code' : 'qr-code-outline',
+              SocioEventos: focused ? 'scan' : 'scan-outline',
+              SocioEntradas: focused ? 'ticket' : 'ticket-outline',
+              SocioProfile: focused ? 'person' : 'person-outline',
+            };
+            return <Ionicons name={map[name] || 'ellipse-outline'} size={22} color={color} />;
+          },
+          getBadge: (name) =>
+            ({
+              SocioNoticias: tabBadgeText(tab('noticias')),
+              SocioProfile: tabBadgeText(tab('chat')) || tabBadgeText(tab('cuotas')),
+            })[name],
+          getLabel: (name) =>
+            ({
+              SocioCanjes: 'Beneficios',
+              SocioNoticias: 'Noticias',
+              SocioQr: 'Mi QR',
+              SocioEventos: 'Puerta',
+              SocioEntradas: 'Eventos',
+              SocioProfile: 'Perfil',
+            })[name],
+        })}
+      >
+        <Tab.Screen name="SocioCanjes" component={SocioCanjesBeneficiosScreen} options={{ title: 'Beneficios' }} />
         <Tab.Screen
-          name="SocioEventos"
-          component={AdminClubEntryScanScreen}
-          initialParams={{ gate: 'event', tabRoot: true }}
+          name="SocioNoticias"
+          component={SocioNewsStack}
+          listeners={tabPressResetToRoot('SocioNoticias', 'SocioNewsMain')}
         />
-      ) : null}
-      <Tab.Screen
-        name="SocioEntradas"
-        component={SocioEventsStack}
-        listeners={tabPressResetToRoot('SocioEntradas', 'MemberEvents')}
+        <Tab.Screen name="SocioQr" component={MemberClubEntryScreen} />
+        {doorEvents.length ? (
+          <Tab.Screen
+            name="SocioEventos"
+            component={AdminClubEntryScanScreen}
+            initialParams={{ gate: 'event', tabRoot: true }}
+          />
+        ) : null}
+        <Tab.Screen
+          name="SocioEntradas"
+          component={SocioEventsStack}
+          listeners={tabPressResetToRoot('SocioEntradas', 'MemberEvents')}
+        />
+        <Tab.Screen
+          name="SocioProfile"
+          component={SocioProfileStack}
+          listeners={tabPressResetToRoot('SocioProfile', 'ProfileMain')}
+        />
+      </Tab.Navigator>
+
+      <SocioDniUploadModal
+        visible={needsDni}
+        motivo={member?.profile?.dniSolicitudMotivo || ''}
+        onUploaded={() => member?.refresh?.({ background: true })}
       />
-      <Tab.Screen
-        name="SocioProfile"
-        component={SocioProfileStack}
-        listeners={tabPressResetToRoot('SocioProfile', 'ProfileMain')}
-      />
-    </Tab.Navigator>
+    </View>
   );
 }
 

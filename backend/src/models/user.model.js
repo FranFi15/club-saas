@@ -125,6 +125,15 @@ const userSchema = new mongoose.Schema({
     /** Tipo de cuota social asignado (uno solo). Null si exento o sin asignar. */
     cuotaSocialAsignada: { type: mongoose.Schema.Types.ObjectId, ref: 'SocialFee', default: null },
 
+    /**
+     * Solicitud de carga/recarga de DNI (frente + dorso).
+     * No borra fotos existentes hasta que el socio sube las nuevas.
+     */
+    dniSolicitado: { type: Boolean, default: false },
+    dniSolicitadoAt: { type: Date, default: null },
+    dniSolicitadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    dniSolicitudMotivo: { type: String, default: '', trim: true },
+
     /** Atletas: si es true, aparece en nómina como jugador pago. */
     enNomina: { type: Boolean, default: false },
     /** Sueldo de referencia mensual para nómina (jugadores pagos / personal). */
