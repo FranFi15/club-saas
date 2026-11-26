@@ -66,6 +66,36 @@ export function calendarMonthYearInTz(now = new Date(), tz = DEFAULT_CLUB_TIMEZO
     return { mes: month, anio: year };
 }
 
+/**
+ * Primera cuota del alta pública según día de corte (1–28).
+ * day <= corte → mes actual; day > corte → mes siguiente.
+ */
+export function resolveSocioAltaBillingPeriod(
+    now = new Date(),
+    tz = DEFAULT_CLUB_TIMEZONE,
+    cutoffDay = 28,
+) {
+    const parts = calendarPartsInTz(now, tz);
+    const cut = Math.min(28, Math.max(1, Number(cutoffDay) || 28));
+    if (parts.day <= cut) {
+        return {
+            mes: parts.month,
+            anio: parts.year,
+            cutoffDay: cut,
+            appliedNext: false,
+        };
+    }
+    if (parts.month === 12) {
+        return { mes: 1, anio: parts.year + 1, cutoffDay: cut, appliedNext: true };
+    }
+    return {
+        mes: parts.month + 1,
+        anio: parts.year,
+        cutoffDay: cut,
+        appliedNext: true,
+    };
+}
+
 /** YYYY-MM-DD de un Date/ISO de sesión (día calendario guardado en UTC). */
 export function sessionCalendarYmd(fecha) {
     if (!fecha) return null;

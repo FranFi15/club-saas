@@ -243,7 +243,9 @@ export async function ensureSocialFeeForUser(
     let usuario = user;
     if (usuario.cuotaSocialAsignada === undefined || !usuario.rol) {
         usuario = await User.findById(user._id || user)
-            .select('rol roles estado exentoCuotaSocial cuotaSocialAsignada esPrueba')
+            .select(
+                'rol roles estado exentoCuotaSocial cuotaSocialAsignada esPrueba cuotaSocialDesdeMes cuotaSocialDesdeAnio',
+            )
             .lean();
     }
     if (!usuario) return { created: false, omitted: true, reason: 'sin_usuario' };
@@ -254,6 +256,22 @@ export async function ensureSocialFeeForUser(
     if (usuario.exentoCuotaSocial) return { created: false, omitted: true, reason: 'exento' };
     if (!usuario.cuotaSocialAsignada) {
         return { created: false, omitted: true, reason: 'sin_asignacion' };
+    }
+
+    const desdeMes = Number(usuario.cuotaSocialDesdeMes);
+    const desdeAnio = Number(usuario.cuotaSocialDesdeAnio);
+    if (
+        Number.isFinite(desdeMes) &&
+        Number.isFinite(desdeAnio) &&
+        desdeMes >= 1 &&
+        desdeMes <= 12 &&
+        desdeAnio >= 2000
+    ) {
+        const targetKey = Number(anio) * 100 + Number(mes);
+        const fromKey = desdeAnio * 100 + desdeMes;
+        if (targetKey < fromKey) {
+            return { created: false, omitted: true, reason: 'antes_primera_cuota' };
+        }
     }
 
     const cuotaSocial = await SocialFee.findById(usuario.cuotaSocialAsignada).lean();
@@ -327,7 +345,9 @@ export async function generateSocialFeesForTenant(
         cuotaSocialAsignada: { $ne: null },
         esPrueba: { $ne: true },
     })
-        .select('rol roles estado exentoCuotaSocial cuotaSocialAsignada esPrueba')
+        .select(
+            'rol roles estado exentoCuotaSocial cuotaSocialAsignada esPrueba cuotaSocialDesdeMes cuotaSocialDesdeAnio',
+        )
         .lean();
 
     if (!clientes.length) {

@@ -126,6 +126,13 @@ const userSchema = new mongoose.Schema({
     cuotaSocialAsignada: { type: mongoose.Schema.Types.ObjectId, ref: 'SocialFee', default: null },
 
     /**
+     * Primera cuota social a generar (mes/año). Meses anteriores se omiten
+     * (p. ej. alta pública después del día de corte → empieza el mes siguiente).
+     */
+    cuotaSocialDesdeMes: { type: Number, default: null, min: 1, max: 12 },
+    cuotaSocialDesdeAnio: { type: Number, default: null, min: 2000, max: 2100 },
+
+    /**
      * Solicitud de carga/recarga de DNI (frente + dorso).
      * No borra fotos existentes hasta que el socio sube las nuevas.
      */

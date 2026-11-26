@@ -1,5 +1,9 @@
 import crypto from 'crypto';
-import { calendarMonthYearInTz, DEFAULT_CLUB_TIMEZONE, zonedWallTimeToDate } from '../utils/timeHelper.js';
+import {
+    DEFAULT_CLUB_TIMEZONE,
+    resolveSocioAltaBillingPeriod,
+    zonedWallTimeToDate,
+} from '../utils/timeHelper.js';
 import { sendEmail, isEmailConfigured } from './email.service.js';
 import { syncAthleteCountToSuper } from './athleteQuota.service.js';
 import { createAppNotificationsMany } from './appNotification.service.js';
@@ -80,7 +84,7 @@ export async function fulfillSocioAltaPending(
         clubTimezone = DEFAULT_CLUB_TIMEZONE,
     } = {},
 ) {
-    const { User, Payment, SocialFee, SocioAltaPending } = models;
+    const { User, Payment, SocialFee, SocioAltaPending, ClubSettings } = models;
     if (!pending) {
         return { applied: false, reason: 'pending_missing' };
     }
@@ -111,6 +115,18 @@ export async function fulfillSocioAltaPending(
         return { applied: false, reason: 'fee_missing' };
     }
 
+    let corteDia = 28;
+    try {
+        const settings = await ClubSettings.findOne().select('altaSocioCorteDia').lean();
+        if (settings?.altaSocioCorteDia != null) {
+            corteDia = Number(settings.altaSocioCorteDia) || 28;
+        }
+    } catch {
+        /* keep default */
+    }
+    const billing = resolveSocioAltaBillingPeriod(new Date(), clubTimezone, corteDia);
+    const { mes, anio } = billing;
+
     const tempPassword = generateTempPassword(10);
     const user = await User.create({
         nombre: pending.nombre,
@@ -129,9 +145,10 @@ export async function fulfillSocioAltaPending(
         dniFotoDorso: pending.dniFotoDorso || '',
         exentoCuotaSocial: false,
         cuotaSocialAsignada: fee._id,
+        cuotaSocialDesdeMes: mes,
+        cuotaSocialDesdeAnio: anio,
     });
 
-    const { mes, anio } = calendarMonthYearInTz(new Date(), clubTimezone);
     const diaVenc = fee.diaVencimiento || 10;
     const ymd = `${anio}-${String(mes).padStart(2, '0')}-${String(diaVenc).padStart(2, '0')}`;
     const monto = Number(pending.monto) || Number(fee.monto) || 0;
@@ -209,6 +226,7 @@ export async function fulfillSocioAltaPending(
         userId: String(user._id),
         paymentId: String(payment._id),
         email: emailResult,
+        billingPeriod: { mes, anio, cutoffDay: billing.cutoffDay, appliedNext: billing.appliedNext },
     };
 }
 

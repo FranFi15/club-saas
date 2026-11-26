@@ -168,8 +168,16 @@ export default function SociosAltaScreen({ navigation, route }) {
   const [altaEnabled, setAltaEnabled] = useState(false);
   const [altaPublicUrl, setAltaPublicUrl] = useState('');
   const [altaFeeHint, setAltaFeeHint] = useState(null);
+  const [altaCorteDia, setAltaCorteDia] = useState('28');
   const [altaLoading, setAltaLoading] = useState(false);
   const [altaSaving, setAltaSaving] = useState(false);
+
+  const applyAltaSettings = (data) => {
+    setAltaEnabled(data?.altaSocioPublicaEnabled === true);
+    setAltaPublicUrl(data?.publicUrl || '');
+    setAltaFeeHint(data?.fee || null);
+    setAltaCorteDia(String(data?.altaSocioCorteDia || 28));
+  };
 
   const loadAltaSettings = useCallback(async () => {
     if (!isOwner || !clubData?.urlIdentifier) return;
@@ -177,13 +185,12 @@ export default function SociosAltaScreen({ navigation, route }) {
     try {
       const headers = await getHeaders();
       const { data } = await clubApi.get('/socio-alta/settings', { headers });
-      setAltaEnabled(data?.altaSocioPublicaEnabled === true);
-      setAltaPublicUrl(data?.publicUrl || '');
-      setAltaFeeHint(data?.fee || null);
+      applyAltaSettings(data);
     } catch {
       setAltaEnabled(false);
       setAltaPublicUrl('');
       setAltaFeeHint(null);
+      setAltaCorteDia('28');
     } finally {
       setAltaLoading(false);
     }
@@ -205,9 +212,7 @@ export default function SociosAltaScreen({ navigation, route }) {
         { altaSocioPublicaEnabled: next },
         { headers },
       );
-      setAltaEnabled(data?.altaSocioPublicaEnabled === true);
-      setAltaPublicUrl(data?.publicUrl || '');
-      setAltaFeeHint(data?.fee || null);
+      applyAltaSettings(data);
       showAlert(
         'Listo',
         data?.message ||
@@ -216,6 +221,30 @@ export default function SociosAltaScreen({ navigation, route }) {
     } catch (e) {
       setAltaEnabled(prev);
       showAlert('Error', e.response?.data?.message || 'No se pudo actualizar.');
+    } finally {
+      setAltaSaving(false);
+    }
+  };
+
+  const saveCorteDia = async () => {
+    if (!isOwner || altaSaving) return;
+    const n = parseInt(String(altaCorteDia).trim(), 10);
+    if (!Number.isFinite(n) || n < 1 || n > 28) {
+      showAlert('Atención', 'El día de corte debe ser un número entre 1 y 28.');
+      return;
+    }
+    setAltaSaving(true);
+    try {
+      const headers = await getHeaders();
+      const { data } = await clubApi.patch(
+        '/socio-alta/settings',
+        { altaSocioCorteDia: n },
+        { headers },
+      );
+      applyAltaSettings(data);
+      showAlert('Listo', data?.message || `Día de corte guardado: ${n}.`);
+    } catch (e) {
+      showAlert('Error', e.response?.data?.message || 'No se pudo guardar el día de corte.');
     } finally {
       setAltaSaving(false);
     }
@@ -549,6 +578,44 @@ export default function SociosAltaScreen({ navigation, route }) {
               </Text>
             </TouchableOpacity>
           ) : null}
+
+          <View style={[styles.corteBox, { borderTopColor: theme.border }]}>
+            <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>
+              Día de corte de la primera cuota
+            </Text>
+            <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 4, lineHeight: 17 }}>
+              Hasta ese día inclusive, el alta paga la cuota del mes en curso. Después de ese día,
+              paga la del mes siguiente y no debe la del mes actual.
+            </Text>
+            <View style={styles.corteRow}>
+              <TextInput
+                style={[
+                  styles.corteInput,
+                  {
+                    color: theme.text,
+                    borderColor: theme.border,
+                    backgroundColor: theme.background,
+                  },
+                ]}
+                value={altaCorteDia}
+                onChangeText={setAltaCorteDia}
+                keyboardType="number-pad"
+                maxLength={2}
+                editable={!altaLoading && !altaSaving}
+              />
+              <TouchableOpacity
+                style={[styles.corteSave, { backgroundColor: colorMarca }]}
+                onPress={saveCorteDia}
+                disabled={altaLoading || altaSaving}
+              >
+                {altaSaving ? (
+                  <ButtonDotsLoader color="#fff" />
+                ) : (
+                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>Guardar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
         </DesignCard>
       ) : null}
 
@@ -1020,6 +1087,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
+  },
+  corteBox: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  corteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 10,
+  },
+  corteInput: {
+    width: 64,
+    height: 42,
+    borderWidth: 1,
+    borderRadius: 8,
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  corteSave: {
+    height: 42,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 96,
   },
   segmentRow: {
     flexDirection: 'row',

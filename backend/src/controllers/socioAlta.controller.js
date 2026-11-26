@@ -219,50 +219,75 @@ export const submitPublicSocioAlta = asyncHandler(async (req, res) => {
     });
 });
 
+function clampCorteDia(raw) {
+    const n = parseInt(raw, 10);
+    if (!Number.isFinite(n)) return null;
+    return Math.min(28, Math.max(1, n));
+}
+
+function serializeSocioAltaSettings(settings, fee, club) {
+    const marketing = String(process.env.MARKETING_SITE_URL || 'https://hermesclubapp.com')
+        .trim()
+        .replace(/\/$/, '');
+    const corte = clampCorteDia(settings?.altaSocioCorteDia) || 28;
+    return {
+        altaSocioPublicaEnabled: settings?.altaSocioPublicaEnabled === true,
+        altaSocioCorteDia: corte,
+        publicUrl: club ? `${marketing}/alta-socio?club=${encodeURIComponent(club)}` : '',
+        fee: fee
+            ? { _id: fee._id, nombre: fee.nombre, monto: Number(fee.monto) || 0 }
+            : null,
+    };
+}
+
 // @route GET /api/socio-alta/settings (admin)
 export const getSocioAltaSettings = asyncHandler(async (req, res) => {
     const settings = await getOrCreateSettings(req.models);
     const fee = await findDefaultSocialFeeForRole(req.models, 'socio');
-    const marketing = String(process.env.MARKETING_SITE_URL || 'https://hermesclubapp.com')
-        .trim()
-        .replace(/\/$/, '');
-    const club = req.clubIdentifier || '';
-    res.json({
-        altaSocioPublicaEnabled: settings.altaSocioPublicaEnabled === true,
-        publicUrl: club ? `${marketing}/alta-socio?club=${encodeURIComponent(club)}` : '',
-        fee: fee
-            ? { _id: fee._id, nombre: fee.nombre, monto: Number(fee.monto) || 0 }
-            : null,
-    });
+    res.json(serializeSocioAltaSettings(settings, fee, req.clubIdentifier || ''));
 });
 
 // @route PATCH /api/socio-alta/settings (admin_club only)
 export const patchSocioAltaSettings = asyncHandler(async (req, res) => {
-    const raw = req.body?.altaSocioPublicaEnabled;
-    if (raw === undefined) {
+    const hasEnabled = req.body?.altaSocioPublicaEnabled !== undefined;
+    const hasCorte = req.body?.altaSocioCorteDia !== undefined;
+    if (!hasEnabled && !hasCorte) {
         res.status(400);
-        throw new Error('Indicá altaSocioPublicaEnabled (true/false).');
+        throw new Error('Indicá altaSocioPublicaEnabled y/o altaSocioCorteDia.');
     }
-    const value = raw === true || raw === 'true';
+
     const { ClubSettings } = req.models;
-    await ClubSettings.findOneAndUpdate(
-        {},
-        { altaSocioPublicaEnabled: value },
-        { upsert: true, new: true },
-    );
-    const fee = await findDefaultSocialFeeForRole(req.models, 'socio');
-    const marketing = String(process.env.MARKETING_SITE_URL || 'https://hermesclubapp.com')
-        .trim()
-        .replace(/\/$/, '');
-    const club = req.clubIdentifier || '';
-    res.json({
-        altaSocioPublicaEnabled: value,
-        publicUrl: club ? `${marketing}/alta-socio?club=${encodeURIComponent(club)}` : '',
-        fee: fee
-            ? { _id: fee._id, nombre: fee.nombre, monto: Number(fee.monto) || 0 }
-            : null,
-        message: value ? 'Alta pública de socios activada.' : 'Alta pública de socios desactivada.',
+    const update = {};
+    if (hasEnabled) {
+        update.altaSocioPublicaEnabled =
+            req.body.altaSocioPublicaEnabled === true || req.body.altaSocioPublicaEnabled === 'true';
+    }
+    if (hasCorte) {
+        const corte = clampCorteDia(req.body.altaSocioCorteDia);
+        if (corte == null) {
+            res.status(400);
+            throw new Error('El día de corte debe ser un número entre 1 y 28.');
+        }
+        update.altaSocioCorteDia = corte;
+    }
+
+    const settings = await ClubSettings.findOneAndUpdate({}, update, {
+        upsert: true,
+        new: true,
     });
+    const fee = await findDefaultSocialFeeForRole(req.models, 'socio');
+    const payload = serializeSocioAltaSettings(settings, fee, req.clubIdentifier || '');
+
+    let message = 'Configuración de alta pública actualizada.';
+    if (hasEnabled && !hasCorte) {
+        message = payload.altaSocioPublicaEnabled
+            ? 'Alta pública de socios activada.'
+            : 'Alta pública de socios desactivada.';
+    } else if (hasCorte && !hasEnabled) {
+        message = `Día de corte de primera cuota: ${payload.altaSocioCorteDia}.`;
+    }
+
+    res.json({ ...payload, message });
 });
 
 function serializeAltaRow(doc) {

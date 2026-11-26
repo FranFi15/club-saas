@@ -49,6 +49,13 @@ const clubSettingsSchema = new mongoose.Schema(
          * Requiere cuota social activa con auto-asignación a rol socio + Mercado Pago.
          */
         altaSocioPublicaEnabled: { type: Boolean, default: false },
+
+        /**
+         * Día de corte (1–28) para la primera cuota del alta pública.
+         * Si el pago cae en un día <= corte → cuota del mes actual.
+         * Si cae después → cuota del mes siguiente (no debe el mes en curso).
+         */
+        altaSocioCorteDia: { type: Number, default: 28, min: 1, max: 28 },
     },
     { timestamps: true }
 );
