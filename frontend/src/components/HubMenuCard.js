@@ -1,6 +1,5 @@
 import React, { useContext } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import BadgeDot from './BadgeDot';
@@ -14,6 +13,11 @@ import {
   useEntranceAllowed,
   useStaggerSlot,
 } from '../hooks/useEntranceEpoch';
+
+const EntranceHost = Platform.OS === 'web'
+  ? // Lazy require keeps native launch path free of Reanimated views.
+    require('react-native-reanimated').default.View
+  : View;
 
 /**
  * Tarjeta de menú hub con punto/contador opcional (estilo DesignCard).
@@ -45,8 +49,10 @@ export default function HubMenuCard({
   const entering =
     animateEntrance && shouldPlayEntrance(token, allowed) ? staggerEntering(index) : undefined;
 
+  const hostProps = entering ? { entering, style } : { style };
+
   return (
-    <Animated.View entering={entering} style={style}>
+    <EntranceHost {...hostProps}>
       <DesignCard
         theme={theme}
         isDarkMode={isDarkMode}
@@ -64,7 +70,7 @@ export default function HubMenuCard({
         <BadgeDot count={badge} />
         <Ionicons name="chevron-forward" size={24} color={theme.icon} />
       </DesignCard>
-    </Animated.View>
+    </EntranceHost>
   );
 }
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import Animated from 'react-native-reanimated';
+import { Platform, View } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import {
   shouldPlayEntrance,
@@ -8,9 +8,14 @@ import {
   useStaggerSlot,
 } from '../hooks/useEntranceEpoch';
 
+const EntranceHost = Platform.OS === 'web'
+  ? require('react-native-reanimated').default.View
+  : View;
+
 /**
  * Fade + rise entrance (Gain style). Pass index, or nest under StaggerScope for auto index.
  * Only starts when the screen is focused so tab switches don't animate off-screen (crash-prone).
+ * Native uses a plain View — Reanimated layout/entering has crashed TestFlight builds.
  */
 export default function StaggerEnter({
   index: explicitIndex,
@@ -26,9 +31,7 @@ export default function StaggerEnter({
   const entering =
     enabled && shouldPlayEntrance(playToken, allowed) ? staggerEntering(index) : undefined;
 
-  return (
-    <Animated.View entering={entering} style={style}>
-      {children}
-    </Animated.View>
-  );
+  const hostProps = entering ? { entering, style } : { style };
+
+  return <EntranceHost {...hostProps}>{children}</EntranceHost>;
 }

@@ -1,15 +1,6 @@
-import React, { useLayoutEffect, useRef } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
-import Animated, {
-  Easing as ReEasing,
-  cancelAnimation,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
-import { useIsFocused } from '@react-navigation/native';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
-import { SCREEN_FADE_MS } from './screenFade';
 
 /**
  * Bottom-looking tabs with horizontal swipe (PagerView).
@@ -17,88 +8,13 @@ import { SCREEN_FADE_MS } from './screenFade';
  */
 const BaseSwipeBottomTab = createMaterialTopTabNavigator;
 
-/** Un toque deja esta marca. Un swipe la borra, para no fundir al deslizar. */
-let pendingTabPressFade = false;
-
-function markTabPressFade() {
-  pendingTabPressFade = true;
-}
-
-function clearTabPressFade() {
-  pendingTabPressFade = false;
-}
-
-function consumeTabPressFade() {
-  if (!pendingTabPressFade) return false;
-  pendingTabPressFade = false;
-  return true;
-}
-
-function mergeScreenListeners(screenListeners) {
-  return (props) => {
-    const parent =
-      typeof screenListeners === 'function' ? screenListeners(props) : screenListeners || {};
-    return {
-      ...parent,
-      tabPress: (event) => {
-        markTabPressFade();
-        parent.tabPress?.(event);
-      },
-      swipeStart: (event) => {
-        clearTabPressFade();
-        parent.swipeStart?.(event);
-      },
-    };
-  };
-}
-
-/**
- * Fundido al entrar cuando el cambio vino de un toque en el ícono.
- * Uses Reanimated (same stack as HubMenuCard entrance) to avoid RN Animated + Reanimated clashes
- * that can crash when switching main menus quickly.
- */
-function TabPressFade({ children }) {
-  const isFocused = useIsFocused();
-  const wasFocused = useRef(false);
-  const opacity = useSharedValue(1);
-
-  useLayoutEffect(() => {
-    const becameFocused = isFocused && !wasFocused.current;
-    wasFocused.current = isFocused;
-    if (!becameFocused || !consumeTabPressFade()) return undefined;
-    cancelAnimation(opacity);
-    opacity.value = 0;
-    opacity.value = withTiming(1, {
-      duration: SCREEN_FADE_MS,
-      easing: ReEasing.out(ReEasing.cubic),
-    });
-    return () => cancelAnimation(opacity);
-  }, [isFocused, opacity]);
-
-  const fadeStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
-
-  return (
-    <Animated.View style={[styles.fadeHost, fadeStyle]} collapsable={false}>
-      {children}
-    </Animated.View>
-  );
-}
-
 export function createSwipeBottomTabNavigator(config) {
   const Tabs = BaseSwipeBottomTab(config);
 
-  function Navigator({ screenLayout, screenListeners, ...rest }) {
-    return (
-      <Tabs.Navigator
-        {...rest}
-        screenListeners={mergeScreenListeners(screenListeners)}
-        screenLayout={(layoutProps) => (
-          <TabPressFade>
-            {typeof screenLayout === 'function' ? screenLayout(layoutProps) : layoutProps.children}
-          </TabPressFade>
-        )}
-      />
-    );
+  // No Reanimated screenLayout wrappers: iOS release/TestFlight has crashed on
+  // tab mount/switch with shared-value fades (see animationEnabled: false below).
+  function Navigator(props) {
+    return <Tabs.Navigator {...props} />;
   }
 
   return { ...Tabs, Navigator };
@@ -230,9 +146,6 @@ export function buildSwipeBottomTabOptions({
 }
 
 const styles = StyleSheet.create({
-  fadeHost: {
-    flex: 1,
-  },
   tabCol: {
     width: '100%',
     alignItems: 'center',
