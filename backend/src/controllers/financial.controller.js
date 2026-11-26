@@ -1686,18 +1686,26 @@ const getTutorFamilyPayments = asyncHandler(async (req, res) => {
     const mpReady = await mercadoPagoReady(req.models);
     const datosTransferencia = await getTransferBankData(req.models);
 
-    // El tutor es titular de su propia cuota social además de las cuotas de sus hijos.
+    // El tutor es titular de su propia cuota social (socio / asignada) además de las de sus hijos.
     const ids = [req.user._id, ...hijos.map((h) => h._id)];
+    const titular = {
+        _id: req.user._id,
+        nombre: req.user.nombre,
+        apellido: req.user.apellido || '',
+        isSelf: true,
+    };
 
     const payments = await Payment.find({ atleta: { $in: ids } })
         .sort({ anio: -1, mes: -1 })
         .populate('plan', 'nombre monto')
         .populate('cuotaSocial', 'nombre monto')
         .populate('categoria', 'nombre')
+        .populate('atleta', 'nombre apellido rol roles')
         .lean();
 
     if (!payments.length) {
         return res.json({
+            titular,
             hijos,
             payments: [],
             impagas: [],
@@ -1714,6 +1722,7 @@ const getTutorFamilyPayments = asyncHandler(async (req, res) => {
         .reduce((s, p) => s + p.montoFinal, 0);
 
     res.json({
+        titular,
         hijos,
         payments,
         impagas,

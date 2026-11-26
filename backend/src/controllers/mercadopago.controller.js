@@ -1,5 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import { isTutorOf } from '../utils/userQuery.js';
+import { userHasRole } from '../constants/userRoles.js';
 import axios from 'axios';
 import crypto from 'crypto';
 import { MercadoPagoConfig, Preference, Payment as MPPayment } from 'mercadopago';
@@ -631,10 +632,10 @@ const createMemberPreference = asyncHandler(async (req, res) => {
             throw new Error('No podés pagar cuotas de otro socio.');
         }
     } else if (req.user.rol === 'tutor') {
-        // El tutor también es titular de su propia cuota social.
+        // El tutor también es titular de su propia cuota social (rol socio / cuota asignada).
         if (atletaId !== req.user._id.toString()) {
-            const hijo = await User.findById(atletaId).select('tutorPrincipal tutores rol').lean();
-            if (!hijo || hijo.rol !== 'atleta') {
+            const hijo = await User.findById(atletaId).select('tutorPrincipal tutores rol roles').lean();
+            if (!hijo || !userHasRole(hijo, 'atleta')) {
                 res.status(400);
                 throw new Error('Atleta no válido.');
             }
@@ -697,7 +698,8 @@ const createMemberFamilyPreference = asyncHandler(async (req, res) => {
     const ids = [...new Set(paymentIds.map((id) => String(id)))];
     const payments = await Payment.find({ _id: { $in: ids } })
         .populate('plan', 'nombre')
-        .populate('atleta', 'nombre apellido tutorPrincipal tutores rol');
+        .populate('cuotaSocial', 'nombre')
+        .populate('atleta', 'nombre apellido tutorPrincipal tutores rol roles');
 
     if (payments.length !== ids.length) {
         res.status(400);
@@ -710,22 +712,31 @@ const createMemberFamilyPreference = asyncHandler(async (req, res) => {
     ];
 
     const items = [];
+    const tutorId = String(req.user._id);
     for (const payment of payments) {
         if (!['pendiente', 'vencido'].includes(payment.estado)) {
             res.status(400);
             throw new Error('Hay cuotas que ya no están pendientes de pago.');
         }
-        const atletaId = payment.atleta?._id?.toString?.() || String(payment.atleta);
-        const hijo = payment.atleta;
-        if (!hijo || hijo.rol !== 'atleta') {
-            res.status(400);
-            throw new Error('Atleta no válido.');
+        const ownerId = payment.atleta?._id?.toString?.() || String(payment.atleta);
+        const titular = payment.atleta;
+        const isOwn = ownerId === tutorId;
+        if (!isOwn) {
+            if (!titular || !userHasRole(titular, 'atleta')) {
+                res.status(400);
+                throw new Error('Atleta no válido.');
+            }
+            if (!isTutorOf(titular, req.user._id)) {
+                res.status(403);
+                throw new Error('No podés pagar cuotas de un atleta que no está a tu cargo.');
+            }
         }
-        if (!isTutorOf(hijo, req.user._id)) {
-            res.status(403);
-            throw new Error('No podés pagar cuotas de un atleta que no está a tu cargo.');
-        }
-        const titulo = `${hijo.nombre} · ${payment.plan?.nombre || 'Cuota'} ${meses[payment.mes - 1] || payment.mes} ${payment.anio}`;
+        const feeName =
+            payment.plan?.nombre || payment.cuotaSocial?.nombre || (isOwn ? 'Cuota social' : 'Cuota');
+        const who = isOwn
+            ? 'Vos'
+            : `${titular?.nombre || ''} ${titular?.apellido || ''}`.trim() || 'Atleta';
+        const titulo = `${who} · ${feeName} ${meses[payment.mes - 1] || payment.mes} ${payment.anio}`;
         items.push({
             id: payment._id.toString(),
             title: titulo.slice(0, 256),
