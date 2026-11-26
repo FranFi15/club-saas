@@ -175,6 +175,7 @@ export default function CoachTabNavigator() {
         if (!GAME_SCREENS.has(focused)) return options;
         return {
           ...options,
+          swipeEnabled: false,
           tabBarStyle: { display: 'none', height: 0, overflow: 'hidden' },
         };
       }}

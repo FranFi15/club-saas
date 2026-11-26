@@ -237,6 +237,7 @@ export default function AdminTabNavigator() {
         if (!isDesktop) return options;
         return {
           ...options,
+          swipeEnabled: false,
           tabBarStyle: {
             ...options.tabBarStyle,
             display: 'none',

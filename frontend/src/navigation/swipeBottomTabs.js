@@ -1,17 +1,19 @@
 import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 
 /**
- * Bottom tabs for role main menus.
- * Previously used material-top-tabs + PagerView for swipe; that stack intermittently
- * crashes iOS (and can Android) on swipe/tap. Bottom tabs keep the same UI without PagerView.
+ * Bottom-looking tabs with horizontal swipe (PagerView).
+ * Use `tabBarPosition="bottom"` on the Navigator.
  */
-export function createSwipeBottomTabNavigator(config) {
-  const Tabs = createBottomTabNavigator(config);
+const BaseSwipeBottomTab = createMaterialTopTabNavigator;
 
-  // Drop material-top-tabs-only props still passed by call sites (tabBarPosition, etc.).
-  function Navigator({ tabBarPosition: _tabBarPosition, ...props }) {
+export function createSwipeBottomTabNavigator(config) {
+  const Tabs = BaseSwipeBottomTab(config);
+
+  // No Reanimated screenLayout wrappers: iOS release/TestFlight has crashed on
+  // tab mount/switch with shared-value fades (see animationEnabled: false below).
+  function Navigator(props) {
     return <Tabs.Navigator {...props} />;
   }
 
@@ -23,9 +25,10 @@ export const TAB_ICON_SIZE = 22;
 export const TAB_ICON_SLOT = 24;
 
 /**
- * Shared look & feel for role main tabs (icons + labels at the bottom).
+ * Shared look & feel for role main tabs (icons + labels at the bottom, swipe enabled).
  * Badges: pass `getBadge(routeName)` → string/number; rendered on the icon (not the tab edge).
- * Labels: pass `getLabel(routeName)` → string; drawn under the icon in one centered column.
+ * Labels: pass `getLabel(routeName)` → string; drawn under the icon in one centered column
+ * so icon + text stay aligned (material-top-tabs defaults to a horizontal row).
  */
 export function buildSwipeBottomTabOptions({
   colorMarca,
@@ -35,7 +38,7 @@ export function buildSwipeBottomTabOptions({
   tabBarHeight,
   tabBottomPad,
   // Kept for call-site compat; not applied to tabBarStyle — horizontal padding
-  // misaligns icons vs labels when mixed with flex items.
+  // misaligns the top indicator vs icons (indicator ignores bar padding).
   paddingHorizontal: _paddingHorizontal = 0,
   labelFontSize = 10,
   paddingTop = 6,
@@ -46,12 +49,34 @@ export function buildSwipeBottomTabOptions({
   const iconColor = colorIconos || colorMarca;
   return ({ route }) => ({
     headerShown: false,
+    swipeEnabled: true,
+    lazy: true,
+    // Un toque ya anima el pager, y el cambio de ruta lo anima otra vez.
+    // En iOS esa segunda animación cierra la app, sobre todo al volver a la primera pestaña.
+    animationEnabled: false,
     tabBarActiveTintColor: iconColor,
     tabBarInactiveTintColor: theme.icon,
+    tabBarShowIcon: true,
     // Label is rendered inside tabBarIcon (column stack).
     tabBarShowLabel: false,
-    tabBarHideOnKeyboard: true,
+    tabBarIndicatorStyle: {
+      backgroundColor: iconColor,
+      height: 3,
+      borderRadius: 0,
+    },
+    tabBarIndicatorContainerStyle: {
+      top: 0,
+      bottom: 'auto',
+      height: 3,
+      left: 0,
+      right: 0,
+    },
+    tabBarPressColor: 'transparent',
+    tabBarPressOpacity: 0.85,
     tabBarAllowFontScaling: false,
+    tabBarScrollEnabled: false,
+    tabBarBounces: false,
+    tabBarGap: 0,
     tabBarStyle: {
       backgroundColor: theme.surface,
       borderTopColor: theme.border,
@@ -63,6 +88,11 @@ export function buildSwipeBottomTabOptions({
       paddingTop: Math.max(paddingTop, 8),
       paddingBottom: tabBottomPad,
       shadowOpacity: 0,
+    },
+    tabBarContentContainerStyle: {
+      alignItems: 'stretch',
+      paddingHorizontal: 0,
+      width: '100%',
     },
     tabBarItemStyle: {
       flex: 1,
@@ -92,12 +122,6 @@ export function buildSwipeBottomTabOptions({
       const labelText = getLabel?.(route.name);
       return (
         <View style={styles.tabCol} pointerEvents="none">
-          <View
-            style={[
-              styles.topIndicator,
-              { backgroundColor: focused ? iconColor : 'transparent' },
-            ]}
-          />
           <View style={styles.iconWrap}>
             <View style={styles.iconSlot}>{getIcon(route.name, focused, color)}</View>
             {badgeLabel ? (
@@ -126,14 +150,6 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  topIndicator: {
-    position: 'absolute',
-    top: -10,
-    left: 8,
-    right: 8,
-    height: 3,
-    borderRadius: 0,
   },
   iconWrap: {
     width: TAB_ICON_SLOT,
