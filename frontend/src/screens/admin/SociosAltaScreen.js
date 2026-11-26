@@ -12,6 +12,8 @@ import {
   Modal,
   Pressable,
   TextInput,
+  ScrollView,
+  Linking,
 } from 'react-native';
 import ClubSpinLoader from '../../components/ClubSpinLoader';
 import ButtonDotsLoader from '../../components/ButtonDotsLoader';
@@ -84,6 +86,28 @@ function FinanceLines({ finance, theme }) {
   );
 }
 
+function formatDate(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('es-AR');
+}
+
+function InfoRow({ icon, label, value, theme, last = false }) {
+  return (
+    <>
+      <View style={styles.infoRow}>
+        <Ionicons name={icon} size={20} color={theme.icon} />
+        <View style={styles.infoTextContainer}>
+          <Text style={[styles.infoLabel, { color: theme.textMuted }]}>{label}</Text>
+          <Text style={[styles.infoValue, { color: theme.text }]}>{value || 'No registrado'}</Text>
+        </View>
+      </View>
+      {!last ? <View style={[styles.divider, { backgroundColor: theme.border }]} /> : null}
+    </>
+  );
+}
+
 export default function SociosAltaScreen({ navigation, route }) {
   const { clubData } = useContext(ClubContext);
   const { theme, isDarkMode } = useContext(ThemeContext);
@@ -112,9 +136,12 @@ export default function SociosAltaScreen({ navigation, route }) {
     title: '',
     message: '',
     showCancel: false,
+    isDanger: false,
     onConfirm: () => {},
     onCancel: () => {},
   });
+
+  const closeAlert = () => setAlertConfig((p) => ({ ...p, visible: false }));
 
   const showAlert = (title, message, options = {}) => {
     setAlertConfig({
@@ -122,10 +149,11 @@ export default function SociosAltaScreen({ navigation, route }) {
       title,
       message,
       showCancel: !!options.showCancel,
+      isDanger: !!options.isDanger,
       confirmText: options.confirmText || 'OK',
       cancelText: options.cancelText || 'Cancelar',
-      onConfirm: options.onConfirm || (() => setAlertConfig((p) => ({ ...p, visible: false }))),
-      onCancel: options.onCancel || (() => setAlertConfig((p) => ({ ...p, visible: false }))),
+      onConfirm: options.onConfirm || closeAlert,
+      onCancel: options.onCancel || closeAlert,
     });
   };
 
@@ -342,6 +370,50 @@ export default function SociosAltaScreen({ navigation, route }) {
     } finally {
       setDniActionId(null);
     }
+  };
+
+  const darDeBajaSocio = async (user) => {
+    if (!canReview || !user?._id) return;
+
+    let unpaid = { cantidad: 0, montoTotal: 0 };
+    try {
+      const headers = await getHeaders();
+      const res = await clubApi.get(`/users/${user._id}/cuotas-impagas`, { headers });
+      unpaid = {
+        cantidad: res.data?.cantidad || 0,
+        montoTotal: res.data?.montoTotal || 0,
+      };
+    } catch {
+      // continue with defaults
+    }
+
+    const unpaidLine =
+      unpaid.cantidad > 0
+        ? `\n\nTiene ${unpaid.cantidad} cuota(s) impagas por ${fmtMoney(unpaid.montoTotal)}. Al desactivar no se generan cuotas nuevas; las impagas quedan hasta que lo reactive.`
+        : '\n\nNo tiene cuotas impagas.';
+
+    showAlert(
+      `Dar de baja a ${user.nombre}`,
+      `¿Querés desactivar a ${formatUserName(user)}? Podés volver a activarlo después desde Usuarios.${unpaidLine}`,
+      {
+        showCancel: true,
+        isDanger: true,
+        confirmText: 'Desactivar',
+        onConfirm: async () => {
+          closeAlert();
+          try {
+            const headers = await getHeaders();
+            await clubApi.patch(`/users/${user._id}`, { estado: 'inactivo' }, { headers });
+            setSelectedUser(null);
+            setSocios((prev) => prev.filter((u) => String(u._id) !== String(user._id)));
+            showAlert('Éxito', 'Socio dado de baja correctamente.');
+            refreshSocios();
+          } catch (e) {
+            showAlert('Error', e.response?.data?.message || 'No se pudo dar de baja al socio.');
+          }
+        },
+      },
+    );
   };
 
   const listData = segment === 'nuevos' ? nuevos : filteredSocios;
@@ -694,25 +766,175 @@ export default function SociosAltaScreen({ navigation, route }) {
             </View>
 
             {selectedUser ? (
-              <>
-                <Text style={{ color: theme.textMuted, marginBottom: 4 }}>{selectedUser.email}</Text>
-                {selectedUser.dni ? (
-                  <Text style={{ color: theme.textMuted, marginBottom: 4 }}>
-                    DNI {selectedUser.dni}
-                  </Text>
-                ) : null}
-                {selectedUser.telefono ? (
-                  <Text style={{ color: theme.textMuted, marginBottom: 8 }}>
-                    Tel. {selectedUser.telefono}
-                  </Text>
-                ) : null}
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 12 }}
+              >
+                <View style={styles.profileHeader}>
+                  <UserAvatar user={selectedUser} size={72} colorMarca={colorMarca} />
+                  <View style={styles.badgeRow}>
+                    <View
+                      style={[
+                        styles.roleBadge,
+                        { backgroundColor: theme.background, borderColor: theme.border },
+                      ]}
+                    >
+                      <Text style={[styles.roleBadgeText, { color: theme.textMuted }]}>Socio</Text>
+                    </View>
+                    {selectedUser.estado === 'moroso' ? (
+                      <View
+                        style={[
+                          styles.roleBadge,
+                          {
+                            backgroundColor: 'rgba(239,68,68,0.12)',
+                            borderColor: 'rgba(239,68,68,0.35)',
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.roleBadgeText, { color: '#ef4444' }]}>Moroso</Text>
+                      </View>
+                    ) : null}
+                    {selectedUser.dniSolicitado ? (
+                      <View
+                        style={[
+                          styles.roleBadge,
+                          {
+                            backgroundColor: 'rgba(217,119,6,0.12)',
+                            borderColor: 'rgba(217,119,6,0.35)',
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.roleBadgeText, { color: '#d97706' }]}>DNI pedido</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
 
-                <Text style={[styles.sectionLabel, { color: theme.text }]}>Finanzas</Text>
-                <FinanceLines finance={selectedUser.finance} theme={theme} />
+                <View style={styles.quickActions}>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: theme.background }]}
+                    onPress={() =>
+                      selectedUser.telefono && Linking.openURL(`tel:${selectedUser.telefono}`)
+                    }
+                    disabled={!selectedUser.telefono}
+                  >
+                    <Ionicons
+                      name="call"
+                      size={18}
+                      color={selectedUser.telefono ? '#10b981' : theme.textMuted}
+                    />
+                    <Text
+                      style={{
+                        color: selectedUser.telefono ? theme.text : theme.textMuted,
+                        fontWeight: '600',
+                      }}
+                    >
+                      Llamar
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: theme.background }]}
+                    onPress={() =>
+                      selectedUser.email && Linking.openURL(`mailto:${selectedUser.email}`)
+                    }
+                  >
+                    <Ionicons name="mail" size={18} color="#3b82f6" />
+                    <Text style={{ color: theme.text, fontWeight: '600' }}>Email</Text>
+                  </TouchableOpacity>
+                </View>
 
-                <Text style={[styles.sectionLabel, { color: theme.text, marginTop: 14 }]}>
-                  Documento
-                </Text>
+                <View
+                  style={[
+                    styles.infoCard,
+                    { backgroundColor: theme.background, borderColor: theme.border },
+                  ]}
+                >
+                  <InfoRow icon="mail-outline" label="Email" value={selectedUser.email} theme={theme} />
+                  <InfoRow icon="card-outline" label="DNI" value={selectedUser.dni} theme={theme} />
+                  <InfoRow
+                    icon="call-outline"
+                    label="Teléfono"
+                    value={selectedUser.telefono}
+                    theme={theme}
+                  />
+                  <InfoRow
+                    icon="home-outline"
+                    label="Dirección"
+                    value={selectedUser.direccion}
+                    theme={theme}
+                  />
+                  <InfoRow
+                    icon="calendar-outline"
+                    label="Fecha de nacimiento"
+                    value={formatDate(selectedUser.fechaNacimiento)}
+                    theme={theme}
+                  />
+                  <InfoRow
+                    icon="male-female-outline"
+                    label="Sexo"
+                    value={
+                      selectedUser.sexo === 'M'
+                        ? 'Hombre'
+                        : selectedUser.sexo === 'F'
+                          ? 'Mujer'
+                          : ''
+                    }
+                    theme={theme}
+                  />
+                  <InfoRow
+                    icon="medkit-outline"
+                    label="Obra social"
+                    value={selectedUser.obraSocial}
+                    theme={theme}
+                  />
+                  <InfoRow
+                    icon="alert-circle-outline"
+                    label="Contacto de emergencia"
+                    value={selectedUser.contactoEmergencia}
+                    theme={theme}
+                    last
+                  />
+                </View>
+
+                <View
+                  style={[
+                    styles.infoCard,
+                    { backgroundColor: theme.background, borderColor: theme.border },
+                  ]}
+                >
+                  <Text style={[styles.sectionLabel, { color: theme.text, marginTop: 0 }]}>
+                    Finanzas
+                  </Text>
+                  <InfoRow
+                    icon="shield-checkmark-outline"
+                    label="Cuota social"
+                    value={
+                      selectedUser.exentoCuotaSocial
+                        ? 'Exento'
+                        : selectedUser.cuotaSocialAsignada
+                          ? 'Asignada'
+                          : 'Sin asignar'
+                    }
+                    theme={theme}
+                  />
+                  <View style={{ paddingLeft: 35, paddingBottom: 4 }}>
+                    <FinanceLines finance={selectedUser.finance} theme={theme} />
+                  </View>
+                  {selectedUser.puntosLealtad != null ? (
+                    <>
+                      <View style={[styles.divider, { backgroundColor: theme.border }]} />
+                      <InfoRow
+                        icon="star-outline"
+                        label="Puntos de lealtad"
+                        value={String(selectedUser.puntosLealtad || 0)}
+                        theme={theme}
+                        last
+                      />
+                    </>
+                  ) : null}
+                </View>
+
+                <Text style={[styles.sectionLabel, { color: theme.text }]}>Documento</Text>
                 {renderDniThumbs(selectedFrente, selectedDorso)}
 
                 {canReview ? (
@@ -746,7 +968,17 @@ export default function SociosAltaScreen({ navigation, route }) {
                     </TouchableOpacity>
                   )
                 ) : null}
-              </>
+
+                {canReview ? (
+                  <TouchableOpacity
+                    style={[styles.dangerBtn, { marginTop: 12 }]}
+                    onPress={() => darDeBajaSocio(selectedUser)}
+                  >
+                    <Ionicons name="ban" size={18} color="#fff" />
+                    <Text style={styles.primaryBtnText}> Dar de baja</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </ScrollView>
             ) : null}
           </View>
         </View>
@@ -770,6 +1002,7 @@ export default function SociosAltaScreen({ navigation, route }) {
         title={alertConfig.title}
         message={alertConfig.message}
         showCancel={alertConfig.showCancel}
+        isDanger={alertConfig.isDanger}
         confirmText={alertConfig.confirmText}
         cancelText={alertConfig.cancelText}
         onConfirm={alertConfig.onConfirm}
@@ -841,6 +1074,25 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   modalTitle: { flex: 1, fontSize: 18, fontWeight: '800' },
+  profileHeader: { alignItems: 'center', marginBottom: 14, gap: 10 },
+  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  roleBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, borderWidth: 1 },
+  roleBadgeText: { fontSize: 12, fontWeight: '700', textTransform: 'capitalize' },
+  quickActions: { flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 14 },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  infoCard: { padding: 14, borderRadius: 12, borderWidth: 1, marginBottom: 12 },
+  infoRow: { flexDirection: 'row', alignItems: 'center' },
+  infoTextContainer: { marginLeft: 14, flex: 1 },
+  infoLabel: { fontSize: 12 },
+  infoValue: { fontSize: 15, fontWeight: '600', marginTop: 2 },
+  divider: { height: 1, marginVertical: 10 },
   sectionLabel: { fontWeight: '700', fontSize: 14, marginTop: 8, marginBottom: 8 },
   dniRow: { flexDirection: 'row', gap: 12, marginBottom: 18, flexWrap: 'wrap' },
   dniThumbWrap: { alignItems: 'center' },
@@ -850,6 +1102,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
   },
   primaryBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
   secondaryBtn: {
@@ -860,6 +1113,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   secondaryBtnText: { fontWeight: '800', fontSize: 15 },
+  dangerBtn: {
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: '#ef4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
   photoBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.92)',
