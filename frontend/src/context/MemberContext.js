@@ -46,6 +46,13 @@ export function MemberProvider({ mode, children: childNodes }) {
 
   const refresh = useCallback(async ({ background = false } = {}) => {
     if (!clubData?.urlIdentifier) return;
+    const accessToken = await getToken('userToken');
+    const refreshTokenProbe = await getToken('userRefreshToken');
+    if (!accessToken && !refreshTokenProbe) {
+      setLoading(false);
+      setLoadError(null);
+      return;
+    }
     if (!background) setLoading(true);
     setLoadError(null);
     const requestGeneration = getAuthGeneration();

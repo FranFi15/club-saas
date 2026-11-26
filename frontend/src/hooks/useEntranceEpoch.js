@@ -30,6 +30,9 @@ export function useEntranceAllowed() {
 }
 
 export function staggerEntering(index = 0, stepMs = ENTRANCE_STEP_MS, duration = ENTRANCE_DURATION_MS) {
+  // Reanimated layout `entering` has caused iOS release/TestFlight crashes around
+  // mount (LA manager / RCTMountingManager). Keep entrances on web only until stable.
+  if (Platform.OS !== 'web') return undefined;
   return FadeInUp.delay(Math.min(Number(index) || 0, ENTRANCE_MAX_STAGGER) * stepMs).duration(
     duration,
   );
@@ -45,7 +48,8 @@ const seenEntrances = new Set();
 
 /** Play once per token so recycled FlatList rows don't re-fire. */
 export function shouldPlayEntrance(token, allowed = true) {
-  if (Platform.OS === 'web' && !webEntrancesReady) return false;
+  if (Platform.OS !== 'web') return false;
+  if (!webEntrancesReady) return false;
   if (!allowed || !token || seenEntrances.has(token)) return false;
   seenEntrances.add(token);
   if (seenEntrances.size > 800) {

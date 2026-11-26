@@ -4,7 +4,6 @@ import ClubSpinLoader from './ClubSpinLoader';
 import ButtonDotsLoader from './ButtonDotsLoader';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImageManipulator from 'expo-image-manipulator';
 
 const FRAME_W = 320;
 
@@ -154,6 +153,7 @@ export default function WebImageCropModal({
         return;
       }
 
+      const ImageManipulator = await import('expo-image-manipulator');
       const result = await ImageManipulator.manipulateAsync(
         imageUri,
         [
