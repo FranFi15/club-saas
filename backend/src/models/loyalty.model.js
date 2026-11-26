@@ -70,8 +70,12 @@ const loyaltyRewardSchema = new mongoose.Schema(
         },
         valor: { type: Number, default: 0, min: 0 },
         activo: { type: Boolean, default: true },
+        /** Cupo global restante (null = sin límite). Baja 1 al confirmar canje. */
         stock: { type: Number, default: null, min: 0 },
+        /** Fecha de vigencia inclusive (null = sin vencimiento). */
         vigenciaHasta: { type: Date, default: null },
+        /** Máximo de canjes por usuario (null = sin límite). */
+        maxUsosPorUsuario: { type: Number, default: null, min: 1 },
     },
     { timestamps: true },
 );

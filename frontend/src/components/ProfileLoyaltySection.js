@@ -42,6 +42,41 @@ function aspectRatioFrom(value) {
   return 16 / 9;
 }
 
+function rewardLimitMeta(r) {
+  const parts = [];
+  if (r?.vigenciaHasta) {
+    const until = fmtExpiry(r.vigenciaHasta);
+    if (until) parts.push(`Válido hasta ${until}`);
+  }
+  if (r?.maxUsosPorUsuario != null) {
+    const max = Number(r.maxUsosPorUsuario) || 0;
+    const rest =
+      r.usosRestantesUsuario != null
+        ? Number(r.usosRestantesUsuario)
+        : null;
+    if (rest != null) {
+      parts.push(
+        rest <= 0
+          ? 'Ya usaste el máximo de veces'
+          : `${rest} de ${max} uso${max === 1 ? '' : 's'} restante${rest === 1 ? '' : 's'}`,
+      );
+    } else {
+      parts.push(`Máx. ${max} uso${max === 1 ? '' : 's'} por persona`);
+    }
+  }
+  if (r?.stock != null && Number(r.stock) >= 0) {
+    parts.push(`Quedan ${Number(r.stock)}`);
+  }
+  return parts.join(' · ');
+}
+
+function rewardExhausted(r) {
+  if (r?.usosRestantesUsuario != null && Number(r.usosRestantesUsuario) <= 0) return true;
+  if (r?.stock != null && Number(r.stock) <= 0) return true;
+  if (r?.vigenciaHasta && new Date(r.vigenciaHasta) < new Date()) return true;
+  return false;
+}
+
 /**
  * Member loyalty: balance, soon-to-expire, reward catalog, redeem → code.
  * Hidden when club points are disabled (unless asScreen — then shows free benefits).
@@ -178,6 +213,13 @@ export default function ProfileLoyaltySection({ clubData, theme, colorMarca, asS
     if (!loyaltyOn) return;
     const cost = Number(reward?.costoPuntos) || 0;
     if (cost < 1) return;
+    if (rewardExhausted(reward)) {
+      setAlert({
+        title: 'Canje',
+        message: 'Este canje ya no está disponible para vos (vencido o sin usos).',
+      });
+      return;
+    }
     if (!canRedeem) {
       setAlert({ title: nombre, message: 'Tu cuenta aún no está habilitada para canjear.' });
       return;
@@ -456,6 +498,11 @@ export default function ProfileLoyaltySection({ clubData, theme, colorMarca, asS
                                     </Text>
                                   </View>
                                 ) : null}
+                                {rewardLimitMeta(r) ? (
+                                  <Text style={{ color: grey, fontSize: 12, marginTop: 6 }} numberOfLines={2}>
+                                    {rewardLimitMeta(r)}
+                                  </Text>
+                                ) : null}
                                 <Text style={{ color: cc, fontWeight: '800', marginTop: 8 }}>Sin créditos</Text>
                               </View>
                             </View>
@@ -487,9 +534,14 @@ export default function ProfileLoyaltySection({ clubData, theme, colorMarca, asS
                         {creditRewards.map((r) => {
                           const cost = Number(r.costoPuntos) || 0;
                           const unaffordable = cost > disponible;
-                          const muted = !canRedeem || unaffordable;
+                          const exhausted = rewardExhausted(r);
+                          const muted = !canRedeem || unaffordable || exhausted;
                           const grey = theme.textMuted || '#9ca3af';
                           const ratio = aspectRatioFrom(r.fotoAspect);
+                          const limitLine = rewardLimitMeta(r);
+                          let statusHint = '';
+                          if (exhausted) statusHint = 'No disponible';
+                          else if (unaffordable) statusHint = 'Saldo insuficiente';
                           return (
                             <View
                               key={String(r._id)}
@@ -534,10 +586,15 @@ export default function ProfileLoyaltySection({ clubData, theme, colorMarca, asS
                                     </Text>
                                   </View>
                                 ) : null}
+                                {limitLine ? (
+                                  <Text style={{ color: grey, fontSize: 12, marginTop: 6 }} numberOfLines={2}>
+                                    {limitLine}
+                                  </Text>
+                                ) : null}
                                 <View style={styles.eventCardFooter}>
                                   <Text style={{ color: muted ? grey : theme.text, fontWeight: '800' }}>
                                     {cost} {nombre.toLowerCase()}
-                                    {unaffordable ? '\nSaldo insuficiente' : ''}
+                                    {statusHint ? `\n${statusHint}` : ''}
                                   </Text>
                                   <TouchableOpacity
                                     style={[

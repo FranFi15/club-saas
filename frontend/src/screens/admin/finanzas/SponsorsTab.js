@@ -23,6 +23,11 @@ import {
   isCatalogSpacer,
 } from './finanzasCatalog';
 import LoyaltyAdminPanel from '../../../components/LoyaltyAdminPanel';
+import {
+  maskDateDDMMAAAA,
+  displayDateToIsoCalendar,
+  isoCalendarDateToDisplay,
+} from '../../../utils/dateDisplay';
 
 const ROLE_OPTIONS = [
   { value: 'todos', label: 'Todos' },
@@ -97,6 +102,9 @@ const emptyDiscount = (withCredits = false) => ({
   fotoAspect: '16:9',
   costoPuntos: withCredits ? '100' : '0',
   rolesCanje: ['atleta', 'tutor', 'socio'],
+  vigenciaHastaDisplay: '',
+  stock: '',
+  maxUsosPorUsuario: '',
 });
 
 const APORTE_FREQ_OPTIONS = [
@@ -343,6 +351,9 @@ export default function SponsorsTab({
       fotoAspect: '16:9',
       costoPuntos: loyaltyEnabled ? '100' : '0',
       rolesCanje: ['atleta', 'tutor', 'socio'],
+      vigenciaHastaDisplay: '',
+      stock: '',
+      maxUsosPorUsuario: '',
       activo: true,
     });
   };
@@ -357,6 +368,12 @@ export default function SponsorsTab({
       rolesCanje: Array.isArray(reward.rolesCanje) && reward.rolesCanje.length
         ? [...reward.rolesCanje]
         : ['atleta', 'tutor', 'socio'],
+      vigenciaHastaDisplay: reward.vigenciaHasta
+        ? isoCalendarDateToDisplay(reward.vigenciaHasta)
+        : '',
+      stock: reward.stock == null ? '' : String(reward.stock),
+      maxUsosPorUsuario:
+        reward.maxUsosPorUsuario == null ? '' : String(reward.maxUsosPorUsuario),
       activo: reward.activo !== false,
     });
   };
@@ -386,6 +403,36 @@ export default function SponsorsTab({
     });
   };
 
+  const parseLimitFields = (draft) => {
+    const vigenciaRaw = String(draft.vigenciaHastaDisplay || '').trim();
+    let vigenciaHasta = null;
+    if (vigenciaRaw) {
+      vigenciaHasta = displayDateToIsoCalendar(vigenciaRaw);
+      if (!vigenciaHasta) {
+        return { error: 'Válido hasta: usá fecha DD-MM-AAAA completa, o dejalo vacío.' };
+      }
+    }
+    const stockRaw = String(draft.stock ?? '').trim();
+    let stock = null;
+    if (stockRaw !== '') {
+      const n = parseInt(stockRaw, 10);
+      if (!Number.isFinite(n) || n < 0) {
+        return { error: 'Stock total inválido (número ≥ 0, o vacío = sin límite).' };
+      }
+      stock = n;
+    }
+    const maxRaw = String(draft.maxUsosPorUsuario ?? '').trim();
+    let maxUsosPorUsuario = null;
+    if (maxRaw !== '') {
+      const n = parseInt(maxRaw, 10);
+      if (!Number.isFinite(n) || n < 1) {
+        return { error: 'Usos por usuario: mínimo 1, o vacío = sin límite.' };
+      }
+      maxUsosPorUsuario = n;
+    }
+    return { vigenciaHasta, stock, maxUsosPorUsuario };
+  };
+
   const saveManagedDiscount = async () => {
     if (!discountsSponsor?._id || !discountDraft) return;
     const titulo = String(discountDraft.titulo || '').trim();
@@ -405,6 +452,11 @@ export default function SponsorsTab({
       showAlert('Atención', 'Elegí al menos un tipo de usuario.');
       return;
     }
+    const limits = parseLimitFields(discountDraft);
+    if (limits.error) {
+      showAlert('Atención', limits.error);
+      return;
+    }
     setDiscountSaving(true);
     try {
       const h = await getHeaders();
@@ -417,6 +469,9 @@ export default function SponsorsTab({
         tipo: 'texto',
         valor: 0,
         activo: discountDraft.activo !== false,
+        vigenciaHasta: limits.vigenciaHasta,
+        stock: limits.stock,
+        maxUsosPorUsuario: limits.maxUsosPorUsuario,
       };
       if (discountDraft._id) {
         await clubApi.patch(`/loyalty/admin/rewards/${discountDraft._id}`, body, { headers: h });
@@ -552,20 +607,30 @@ export default function SponsorsTab({
 
     const isCreate = !editingId;
     // Con créditos off: creación clásica (sin descuentos estructurados ni partner account).
-    const rewards =
-      isCreate && loyaltyEnabled
-        ? (form.discounts || [])
-            .map((d) => ({
-              titulo: String(d.titulo || '').trim(),
-              fotoUrl: String(d.fotoUrl || '').trim(),
-              fotoAspect: d.fotoAspect || '16:9',
-              costoPuntos: Math.max(0, parseInt(d.costoPuntos, 10) || 0),
-              rolesCanje: Array.isArray(d.rolesCanje) ? d.rolesCanje : [],
-              tipo: 'texto',
-              valor: 0,
-            }))
-            .filter((d) => d.titulo)
-        : [];
+    let rewards = [];
+    if (isCreate && loyaltyEnabled) {
+      for (const d of form.discounts || []) {
+        const titulo = String(d.titulo || '').trim();
+        if (!titulo) continue;
+        const limits = parseLimitFields(d);
+        if (limits.error) {
+          showAlert('Atención', `${titulo}: ${limits.error}`);
+          return;
+        }
+        rewards.push({
+          titulo,
+          fotoUrl: String(d.fotoUrl || '').trim(),
+          fotoAspect: d.fotoAspect || '16:9',
+          costoPuntos: Math.max(0, parseInt(d.costoPuntos, 10) || 0),
+          rolesCanje: Array.isArray(d.rolesCanje) ? d.rolesCanje : [],
+          tipo: 'texto',
+          valor: 0,
+          vigenciaHasta: limits.vigenciaHasta,
+          stock: limits.stock,
+          maxUsosPorUsuario: limits.maxUsosPorUsuario,
+        });
+      }
+    }
     const creditRewards = rewards.filter((r) => r.costoPuntos > 0);
     const wantsPartner =
       loyaltyEnabled &&
@@ -1263,6 +1328,38 @@ export default function SponsorsTab({
                         placeholder="0"
                         placeholderTextColor={theme.textMuted}
                       />
+                      <Text style={[s.label, { color: theme.textMuted }]}>Válido hasta (opcional)</Text>
+                      <TextInput
+                        style={[s.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
+                        value={d.vigenciaHastaDisplay || ''}
+                        onChangeText={(t) =>
+                          updateDiscount(d.key, { vigenciaHastaDisplay: maskDateDDMMAAAA(t) })
+                        }
+                        keyboardType="number-pad"
+                        placeholder="DD-MM-AAAA"
+                        placeholderTextColor={theme.textMuted}
+                        maxLength={10}
+                      />
+                      <Text style={[s.label, { color: theme.textMuted }]}>Stock total (opcional)</Text>
+                      <TextInput
+                        style={[s.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
+                        value={d.stock ?? ''}
+                        onChangeText={(t) => updateDiscount(d.key, { stock: t.replace(/[^0-9]/g, '') })}
+                        keyboardType="number-pad"
+                        placeholder="Sin límite"
+                        placeholderTextColor={theme.textMuted}
+                      />
+                      <Text style={[s.label, { color: theme.textMuted }]}>Usos por usuario (opcional)</Text>
+                      <TextInput
+                        style={[s.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
+                        value={d.maxUsosPorUsuario ?? ''}
+                        onChangeText={(t) =>
+                          updateDiscount(d.key, { maxUsosPorUsuario: t.replace(/[^0-9]/g, '') })
+                        }
+                        keyboardType="number-pad"
+                        placeholder="Sin límite"
+                        placeholderTextColor={theme.textMuted}
+                      />
                       <Text style={[s.label, { color: theme.textMuted }]}>Quién lo ve / puede usarlo</Text>
                       <View style={styles.chipRow}>
                         {ROLE_OPTIONS.map((opt) => {
@@ -1543,6 +1640,48 @@ export default function SponsorsTab({
               </Text>
             )}
 
+            <Text style={[s.label, { color: theme.textMuted }]}>Válido hasta (opcional)</Text>
+            <TextInput
+              style={[s.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
+              value={discountDraft.vigenciaHastaDisplay || ''}
+              onChangeText={(t) =>
+                setDiscountDraft((p) =>
+                  p ? { ...p, vigenciaHastaDisplay: maskDateDDMMAAAA(t) } : p,
+                )
+              }
+              keyboardType="number-pad"
+              placeholder="DD-MM-AAAA · vacío = sin vencimiento"
+              placeholderTextColor={theme.textMuted}
+              maxLength={10}
+              editable={canMutate}
+            />
+            <Text style={[s.label, { color: theme.textMuted }]}>Stock total (opcional)</Text>
+            <TextInput
+              style={[s.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
+              value={discountDraft.stock ?? ''}
+              onChangeText={(t) =>
+                setDiscountDraft((p) => (p ? { ...p, stock: t.replace(/[^0-9]/g, '') } : p))
+              }
+              keyboardType="number-pad"
+              placeholder="Sin límite"
+              placeholderTextColor={theme.textMuted}
+              editable={canMutate}
+            />
+            <Text style={[s.label, { color: theme.textMuted }]}>Usos por usuario (opcional)</Text>
+            <TextInput
+              style={[s.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
+              value={discountDraft.maxUsosPorUsuario ?? ''}
+              onChangeText={(t) =>
+                setDiscountDraft((p) =>
+                  p ? { ...p, maxUsosPorUsuario: t.replace(/[^0-9]/g, '') } : p,
+                )
+              }
+              keyboardType="number-pad"
+              placeholder="Sin límite · ej. 1 = un solo canje"
+              placeholderTextColor={theme.textMuted}
+              editable={canMutate}
+            />
+
             <Text style={[s.label, { color: theme.textMuted }]}>Quién lo ve / puede usarlo</Text>
             <View style={styles.chipRow}>
               {ROLE_OPTIONS.map((opt) => {
@@ -1673,8 +1812,17 @@ export default function SponsorsTab({
                             ? `${reward.costoPuntos} créditos`
                             : 'Sin créditos'}
                         </Text>
-                        <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }} numberOfLines={1}>
+                        <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }} numberOfLines={2}>
                           {formatRolesCanjeLabel(reward.rolesCanje)}
+                          {reward.vigenciaHasta
+                            ? ` · Hasta ${isoCalendarDateToDisplay(reward.vigenciaHasta)}`
+                            : ''}
+                          {reward.stock != null ? ` · Stock ${reward.stock}` : ''}
+                          {reward.maxUsosPorUsuario != null
+                            ? ` · ${reward.maxUsosPorUsuario} uso${
+                                Number(reward.maxUsosPorUsuario) === 1 ? '' : 's'
+                              }/usuario`
+                            : ''}
                           {inactive ? ' · Inactivo' : ''}
                         </Text>
                       </View>

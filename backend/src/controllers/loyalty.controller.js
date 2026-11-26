@@ -127,8 +127,12 @@ function normalizeFotoAspect(value) {
     return FOTO_ASPECTS.includes(v) ? v : '16:9';
 }
 
-function serializeReward(r) {
+function serializeReward(r, extras = {}) {
     const costo = Number(r.costoPuntos) || 0;
+    const maxUsos =
+        r.maxUsosPorUsuario == null || r.maxUsosPorUsuario === ''
+            ? null
+            : Math.max(1, Math.floor(Number(r.maxUsosPorUsuario) || 0)) || null;
     return {
         _id: r._id,
         sponsor: r.sponsor,
@@ -141,9 +145,37 @@ function serializeReward(r) {
         tipo: r.tipo,
         valor: r.valor,
         activo: r.activo,
-        stock: r.stock,
-        vigenciaHasta: r.vigenciaHasta,
+        stock: r.stock == null ? null : Number(r.stock),
+        vigenciaHasta: r.vigenciaHasta || null,
+        maxUsosPorUsuario: maxUsos,
+        ...extras,
     };
+}
+
+function parseOptionalLimit(raw) {
+    if (raw == null || raw === '') return null;
+    const n = Math.floor(Number(raw));
+    if (!Number.isFinite(n) || n < 1) return null;
+    return n;
+}
+
+function parseOptionalStock(raw) {
+    if (raw == null || raw === '') return null;
+    const n = Math.floor(Number(raw));
+    if (!Number.isFinite(n) || n < 0) return null;
+    return n;
+}
+
+function parseVigenciaHasta(raw) {
+    if (raw == null || raw === '') return null;
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return null;
+    // Inclusive end-of-day in UTC calendar date if YYYY-MM-DD
+    const s = String(raw).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+        return new Date(`${s}T23:59:59.999Z`);
+    }
+    return d;
 }
 
 const getSettings = asyncHandler(async (req, res) => {
@@ -257,8 +289,11 @@ const listRewards = asyncHandler(async (req, res) => {
 
     const userRoles = normalizeUserRoles(req.user);
 
+    const now = new Date();
     const visible = rewards.filter((r) => {
         if (!r.sponsor || r.sponsor.activo === false) return false;
+        if (r.vigenciaHasta && new Date(r.vigenciaHasta) < now) return false;
+        if (r.stock != null && Number(r.stock) <= 0) return false;
         const allowed = resolveCanjeRoles(r, r.sponsor);
         if (allowed.length) return userRoles.some((role) => allowed.includes(role));
         // Beneficio libre sin roles de canje: visible si matchea rolesAplicables del sponsor (o todos).
@@ -269,10 +304,40 @@ const listRewards = asyncHandler(async (req, res) => {
         return userRoles.some((role) => audience.includes(role));
     });
 
+    const rewardIds = visible.map((r) => r._id);
+    const usageByReward = {};
+    if (rewardIds.length && req.user?._id) {
+        const rows = await req.models.LoyaltyRedemption.aggregate([
+            {
+                $match: {
+                    user: req.user._id,
+                    reward: { $in: rewardIds },
+                    $or: [
+                        { estado: 'usado' },
+                        { estado: 'pendiente', expiresAt: { $gte: now } },
+                    ],
+                },
+            },
+            { $group: { _id: '$reward', n: { $sum: 1 } } },
+        ]);
+        for (const row of rows) {
+            usageByReward[String(row._id)] = row.n;
+        }
+    }
+
     res.json({
         enabled: true,
         settings: serializeSettings(settings),
-        rewards: visible.map((r) => serializeReward(r)),
+        rewards: visible.map((r) => {
+            const usosUsuario = usageByReward[String(r._id)] || 0;
+            const maxUsos =
+                r.maxUsosPorUsuario == null ? null : Math.max(1, Math.floor(Number(r.maxUsosPorUsuario) || 0));
+            return serializeReward(r, {
+                usosUsuario,
+                usosRestantesUsuario:
+                    maxUsos == null ? null : Math.max(0, maxUsos - usosUsuario),
+            });
+        }),
     });
 });
 
@@ -292,7 +357,8 @@ const adminListRewards = asyncHandler(async (req, res) => {
 });
 
 const createReward = asyncHandler(async (req, res) => {
-    const { sponsor, titulo, descripcion, costoPuntos, tipo, valor, stock, vigenciaHasta } = req.body || {};
+    const { sponsor, titulo, descripcion, costoPuntos, tipo, valor, stock, vigenciaHasta, maxUsosPorUsuario } =
+        req.body || {};
     const cost = Math.max(0, Math.floor(Number(costoPuntos) || 0));
     if (!sponsor || !titulo) {
         res.status(400);
@@ -321,8 +387,9 @@ const createReward = asyncHandler(async (req, res) => {
         costoPuntos: cost,
         tipo: tipo || 'porcentaje',
         valor: Number(valor) || 0,
-        stock: stock == null || stock === '' ? null : Math.max(0, Math.floor(Number(stock))),
-        vigenciaHasta: vigenciaHasta ? new Date(vigenciaHasta) : null,
+        stock: parseOptionalStock(stock),
+        vigenciaHasta: parseVigenciaHasta(vigenciaHasta),
+        maxUsosPorUsuario: parseOptionalLimit(maxUsosPorUsuario),
         activo: true,
     });
     res.status(201).json({ reward: serializeReward(doc), message: 'Beneficio creado.' });
@@ -352,10 +419,13 @@ const updateReward = asyncHandler(async (req, res) => {
     if (b.valor != null) doc.valor = Number(b.valor) || 0;
     if (b.activo != null) doc.activo = Boolean(b.activo);
     if (b.stock !== undefined) {
-        doc.stock = b.stock == null || b.stock === '' ? null : Math.max(0, Math.floor(Number(b.stock)));
+        doc.stock = parseOptionalStock(b.stock);
     }
     if (b.vigenciaHasta !== undefined) {
-        doc.vigenciaHasta = b.vigenciaHasta ? new Date(b.vigenciaHasta) : null;
+        doc.vigenciaHasta = parseVigenciaHasta(b.vigenciaHasta);
+    }
+    if (b.maxUsosPorUsuario !== undefined) {
+        doc.maxUsosPorUsuario = parseOptionalLimit(b.maxUsosPorUsuario);
     }
     await doc.save();
     res.json({ reward: serializeReward(doc), message: 'Beneficio actualizado.' });

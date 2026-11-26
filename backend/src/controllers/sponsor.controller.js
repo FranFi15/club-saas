@@ -330,6 +330,28 @@ const listSponsors = asyncHandler(async (req, res) => {
 
 const REWARD_FOTO_ASPECTS = ['16:9', '4:3', '1:1', '3:4'];
 
+function parseOptionalRewardLimit(raw) {
+    if (raw == null || raw === '') return null;
+    const n = Math.floor(Number(raw));
+    if (!Number.isFinite(n) || n < 1) return null;
+    return n;
+}
+
+function parseOptionalRewardStock(raw) {
+    if (raw == null || raw === '') return null;
+    const n = Math.floor(Number(raw));
+    if (!Number.isFinite(n) || n < 0) return null;
+    return n;
+}
+
+function parseRewardVigenciaHasta(raw) {
+    if (raw == null || raw === '') return null;
+    const s = String(raw).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(`${s}T23:59:59.999Z`);
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? null : d;
+}
+
 function parseRewardsPayload(raw) {
     if (!Array.isArray(raw)) return [];
     return raw
@@ -348,6 +370,9 @@ function parseRewardsPayload(raw) {
                 rolesCanje,
                 tipo: ['porcentaje', 'monto_fijo', 'texto'].includes(r?.tipo) ? r.tipo : 'texto',
                 valor: Number(r?.valor) || 0,
+                stock: parseOptionalRewardStock(r?.stock),
+                vigenciaHasta: parseRewardVigenciaHasta(r?.vigenciaHasta),
+                maxUsosPorUsuario: parseOptionalRewardLimit(r?.maxUsosPorUsuario),
             };
         })
         .filter(Boolean);
@@ -492,6 +517,9 @@ const createSponsor = asyncHandler(async (req, res) => {
                     rolesCanje: r.rolesCanje,
                     tipo: r.tipo,
                     valor: r.valor,
+                    stock: r.stock,
+                    vigenciaHasta: r.vigenciaHasta,
+                    maxUsosPorUsuario: r.maxUsosPorUsuario,
                     activo: true,
                 });
                 createdRewards.push(reward);
@@ -743,17 +771,22 @@ const getMySponsorBenefits = asyncHandler(async (req, res) => {
 
     let freeBySponsor = new Map();
     if (matchedIds.length && LoyaltyReward) {
+        const now = new Date();
         const freeRewards = await LoyaltyReward.find({
             sponsor: { $in: matchedIds },
             activo: true,
             costoPuntos: 0,
         })
-            .select('sponsor titulo descripcion fotoUrl fotoAspect rolesCanje tipo valor')
+            .select(
+                'sponsor titulo descripcion fotoUrl fotoAspect rolesCanje tipo valor vigenciaHasta stock maxUsosPorUsuario',
+            )
             .sort({ createdAt: -1 })
             .lean();
         const userRoles = normalizeUserRoles(user);
         const sponsorById = new Map(matched.map((s) => [String(s._id), s]));
         for (const r of freeRewards) {
+            if (r.vigenciaHasta && new Date(r.vigenciaHasta) < now) continue;
+            if (r.stock != null && Number(r.stock) <= 0) continue;
             const sid = String(r.sponsor);
             const sponsor = sponsorById.get(sid);
             const allowed = resolveCanjeRoles(r, sponsor);
@@ -768,6 +801,10 @@ const getMySponsorBenefits = asyncHandler(async (req, res) => {
                 fotoAspect: r.fotoAspect || '16:9',
                 tipo: r.tipo,
                 valor: r.valor,
+                vigenciaHasta: r.vigenciaHasta || null,
+                stock: r.stock == null ? null : Number(r.stock),
+                maxUsosPorUsuario:
+                    r.maxUsosPorUsuario == null ? null : Number(r.maxUsosPorUsuario),
             });
         }
     }

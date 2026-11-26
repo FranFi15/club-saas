@@ -305,7 +305,8 @@ export async function redeemReward(models, { userId, rewardId }) {
         err.statusCode = 403;
         throw err;
     }
-    if (reward.vigenciaHasta && reward.vigenciaHasta < new Date()) {
+    const now = new Date();
+    if (reward.vigenciaHasta && reward.vigenciaHasta < now) {
         const err = new Error('Este beneficio ya no está vigente.');
         err.statusCode = 400;
         throw err;
@@ -314,6 +315,29 @@ export async function redeemReward(models, { userId, rewardId }) {
         const err = new Error('Sin stock de este beneficio.');
         err.statusCode = 400;
         throw err;
+    }
+    const maxUsos =
+        reward.maxUsosPorUsuario == null
+            ? null
+            : Math.max(1, Math.floor(Number(reward.maxUsosPorUsuario) || 0));
+    if (maxUsos != null) {
+        const usosUsuario = await LoyaltyRedemption.countDocuments({
+            user: userId,
+            reward: reward._id,
+            $or: [
+                { estado: 'usado' },
+                { estado: 'pendiente', expiresAt: { $gte: now } },
+            ],
+        });
+        if (usosUsuario >= maxUsos) {
+            const err = new Error(
+                maxUsos === 1
+                    ? 'Ya usaste este canje el máximo de veces permitido (1).'
+                    : `Ya usaste este canje el máximo de veces permitido (${maxUsos}).`,
+            );
+            err.statusCode = 400;
+            throw err;
+        }
     }
 
     const cost = roundPts(reward.costoPuntos);
