@@ -65,8 +65,9 @@ export function createSwipeBottomTabNavigator(config) {
           typeof screenOptions === 'function' ? screenOptions(opts) || {} : screenOptions || {};
         return {
           ...base,
-          // Keep explicit false (desktop / hide-tab screens).
-          swipeEnabled: base.swipeEnabled === false ? false : swipeGate,
+          // Keep explicit false (desktop / hide-tab / iOS tap-only).
+          swipeEnabled:
+            base.swipeEnabled === false || Platform.OS === 'ios' ? false : swipeGate,
           // Double animation (pager + scene) closes the app on iOS.
           animationEnabled: false,
           lazy: base.lazy !== false,
@@ -113,7 +114,9 @@ export function buildSwipeBottomTabOptions({
   const iconColor = colorIconos || colorMarca;
   return ({ route }) => ({
     headerShown: false,
-    swipeEnabled: true,
+    // iOS: tap-only. Swipe + tap races in PagerView still abort release builds
+    // even with deferred setPage. Android keeps swipe.
+    swipeEnabled: Platform.OS !== 'ios',
     lazy: true,
     lazyPreloadDistance: 0,
     // Un toque ya anima el pager, y el cambio de ruta lo anima otra vez.
